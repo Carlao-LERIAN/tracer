@@ -1,0 +1,21 @@
+# Default owners for the entire repository
+*                       @LerianStudio/g_github_dev
+
+# CI/CD and DevOps configurations
+.github/*               @LerianStudio/g_github_devops
+.githooks/*             @LerianStudio/g_github_devops
+Dockerfile              @LerianStudio/g_github_devops @LerianStudio/g_github_dev
+docker-compose*.yml     @LerianStudio/g_github_devops @LerianStudio/g_github_dev
+
+# Source code
+cmd/*                   @LerianStudio/g_github_dev
+internal/*              @LerianStudio/g_github_dev
+api/*                   @LerianStudio/g_github_dev
+configs/*               @LerianStudio/g_github_dev @LerianStudio/g_github_devops
+
+# Proto and generated code
+proto/*                 @LerianStudio/g_github_dev
+gen/*                   @LerianStudio/g_github_dev
+
+# Database
+migrations/*            @LerianStudio/g_github_dev @LerianStudio/g_github_devops

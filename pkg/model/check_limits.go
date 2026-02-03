@@ -1,0 +1,225 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package model
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+
+	"tracer/pkg"
+	"tracer/pkg/constant"
+)
+
+// CheckLimitsInput represents the input for limit checking operations.
+// Amount is expressed in the smallest currency unit (e.g., cents for USD/BRL).
+// AccountID is required; SegmentID, PortfolioID, TransactionType and SubType are optional for scope matching.
+type CheckLimitsInput struct {
+	Amount               int64            `json:"amount"`
+	Currency             string           `json:"currency"`
+	AccountID            uuid.UUID        `json:"accountId"`
+	SegmentID            *uuid.UUID       `json:"segmentId,omitempty"`
+	PortfolioID          *uuid.UUID       `json:"portfolioId,omitempty"`
+	TransactionType      *TransactionType `json:"transactionType,omitempty"`
+	SubType              *string          `json:"subType,omitempty"`
+	TransactionTimestamp time.Time        `json:"transactionTimestamp"`
+}
+
+// NewCheckLimitsInput creates a new CheckLimitsInput with validation.
+// Currency is normalized to uppercase.
+// Amount must be positive.
+// AccountID is required.
+func NewCheckLimitsInput(amount int64, currency string, accountID uuid.UUID, segmentID, portfolioID *uuid.UUID, transactionType *TransactionType, subType *string, timestamp time.Time) (*CheckLimitsInput, error) {
+	normalizedCurrency := strings.ToUpper(strings.TrimSpace(currency))
+
+	input := &CheckLimitsInput{
+		Amount:               amount,
+		Currency:             normalizedCurrency,
+		AccountID:            accountID,
+		SegmentID:            segmentID,
+		PortfolioID:          portfolioID,
+		TransactionType:      transactionType,
+		SubType:              subType,
+		TransactionTimestamp: timestamp,
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+
+	return input, nil
+}
+
+// Validate ensures CheckLimitsInput has valid values.
+// Returns ErrCheckLimitsNilInput if called on a nil receiver.
+func (i *CheckLimitsInput) Validate() error {
+	if i == nil {
+		return constant.ErrCheckLimitsNilInput
+	}
+
+	if i.Amount <= 0 {
+		return constant.ErrCheckLimitsInvalidAmount
+	}
+
+	if !pkg.IsValidCurrency(i.Currency) {
+		return constant.ErrCheckLimitsInvalidCurrency
+	}
+
+	if i.AccountID == uuid.Nil {
+		return constant.ErrCheckLimitsInvalidAccountID
+	}
+
+	if i.TransactionTimestamp.IsZero() {
+		return constant.ErrCheckLimitsInvalidTimestamp
+	}
+
+	if i.TransactionType != nil && !i.TransactionType.IsValid() {
+		return constant.ErrCheckLimitsInvalidTransactionType
+	}
+
+	if i.SubType != nil && len(*i.SubType) > MaxSubTypeLength {
+		return constant.ErrCheckLimitsInvalidSubType
+	}
+
+	return nil
+}
+
+// CheckLimitsOutput represents the result of limit checking operations.
+// Allowed indicates if the transaction can proceed (no limits exceeded).
+// ExceededLimitIDs contains IDs of limits that would be exceeded.
+// LimitUsageDetails contains usage information for all checked limits.
+type CheckLimitsOutput struct {
+	Allowed           bool               `json:"allowed"`
+	ExceededLimitIDs  []uuid.UUID        `json:"exceededLimitIds"`
+	LimitUsageDetails []LimitUsageDetail `json:"limitUsageDetails"`
+}
+
+// NewCheckLimitsOutput creates a new CheckLimitsOutput with initialized slices.
+// Ensures JSON serialization produces [] instead of null for empty arrays.
+func NewCheckLimitsOutput(allowed bool) *CheckLimitsOutput {
+	return &CheckLimitsOutput{
+		Allowed:           allowed,
+		ExceededLimitIDs:  []uuid.UUID{},
+		LimitUsageDetails: []LimitUsageDetail{},
+	}
+}
+
+// WithExceededLimits adds exceeded limit IDs to the output.
+// Defensively handles nil receiver and nil input to ensure JSON serializes as [] instead of null.
+// Returns self for method chaining; allocates new CheckLimitsOutput if receiver is nil.
+func (o *CheckLimitsOutput) WithExceededLimits(ids []uuid.UUID) *CheckLimitsOutput {
+	if o == nil {
+		o = &CheckLimitsOutput{}
+	}
+
+	if ids == nil {
+		o.ExceededLimitIDs = []uuid.UUID{}
+	} else {
+		o.ExceededLimitIDs = append([]uuid.UUID(nil), ids...)
+	}
+
+	return o
+}
+
+// WithLimitUsageDetails adds limit usage details to the output.
+// Defensively handles nil receiver and nil input to ensure JSON serializes as [] instead of null.
+// Returns self for method chaining; allocates new CheckLimitsOutput if receiver is nil.
+func (o *CheckLimitsOutput) WithLimitUsageDetails(details []LimitUsageDetail) *CheckLimitsOutput {
+	if o == nil {
+		o = &CheckLimitsOutput{}
+	}
+
+	if details == nil {
+		o.LimitUsageDetails = []LimitUsageDetail{}
+	} else {
+		o.LimitUsageDetails = append([]LimitUsageDetail(nil), details...)
+	}
+
+	return o
+}
+
+// RemainingAmount calculates remaining amount before limit is reached.
+// Returns a value clamped between 0 and LimitAmount:
+//   - If receiver is nil, returns 0
+//   - If limit is exceeded (CurrentUsage > LimitAmount), returns 0
+//   - If no usage yet (CurrentUsage <= 0), returns LimitAmount
+//   - Otherwise, returns LimitAmount - CurrentUsage
+func (d *LimitUsageDetail) RemainingAmount() int64 {
+	// Nil receiver protection
+	if d == nil {
+		return 0
+	}
+
+	// If CurrentUsage is zero or negative, remaining is the full limit
+	if d.CurrentUsage <= 0 {
+		return d.LimitAmount
+	}
+
+	// If limit is exceeded, remaining is 0
+	if d.CurrentUsage >= d.LimitAmount {
+		return 0
+	}
+
+	return d.LimitAmount - d.CurrentUsage
+}
+
+// CalculatePeriodKey computes the period key for a given limit type and timestamp.
+// Format:
+//   - DAILY: "2025-12-28"
+//   - MONTHLY: "2025-12"
+//   - PER_TRANSACTION: "" (empty, no period tracking)
+//
+// Returns ErrCheckLimitsUnknownLimitType for unknown limit types to prevent
+// silent bugs where new limit types would be treated as PER_TRANSACTION.
+func CalculatePeriodKey(limitType LimitType, timestamp time.Time) (string, error) {
+	utc := timestamp.UTC()
+
+	switch limitType {
+	case LimitTypeDaily:
+		return utc.Format("2006-01-02"), nil
+	case LimitTypeMonthly:
+		return utc.Format("2006-01"), nil
+	case LimitTypePerTransaction:
+		return "", nil
+	default:
+		return "", fmt.Errorf("%w: %s", constant.ErrCheckLimitsUnknownLimitType, limitType)
+	}
+}
+
+// CalculateScopeKey computes a deterministic scope key for usage tracking.
+// Format: "prefix:uuid|prefix:uuid|..." ordered alphabetically by prefix.
+// Prefixes: acct (account), merch (merchant), port (portfolio), seg (segment).
+// Returns "global" for empty scopes.
+func CalculateScopeKey(scope *Scope) string {
+	if scope == nil || scope.IsEmpty() {
+		return "global"
+	}
+
+	var parts []string
+
+	if scope.AccountID != nil {
+		parts = append(parts, "acct:"+scope.AccountID.String())
+	}
+
+	if scope.PortfolioID != nil {
+		parts = append(parts, "port:"+scope.PortfolioID.String())
+	}
+
+	if scope.SegmentID != nil {
+		parts = append(parts, "seg:"+scope.SegmentID.String())
+	}
+
+	if scope.MerchantID != nil {
+		parts = append(parts, "merch:"+scope.MerchantID.String())
+	}
+
+	// Sort for deterministic key generation
+	sort.Strings(parts)
+
+	return strings.Join(parts, "|")
+}

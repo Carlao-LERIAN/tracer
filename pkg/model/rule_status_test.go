@@ -1,0 +1,97 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package model
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestRuleStatus_CanTransitionTo_Activate(t *testing.T) {
+	// DRAFT → ACTIVE (allowed)
+	assert.True(t, RuleStatusDraft.CanTransitionTo(RuleStatusActive))
+}
+
+func TestRuleStatus_CanTransitionTo_Deactivate(t *testing.T) {
+	// ACTIVE → INACTIVE (allowed)
+	assert.True(t, RuleStatusActive.CanTransitionTo(RuleStatusInactive))
+}
+
+func TestRuleStatus_CanTransitionTo_DeleteFromDraft(t *testing.T) {
+	// DRAFT → DELETED (allowed - skip activation for unwanted drafts)
+	assert.True(t, RuleStatusDraft.CanTransitionTo(RuleStatusDeleted))
+}
+
+func TestRuleStatus_CanTransitionTo_DraftToInactive_NotAllowed(t *testing.T) {
+	// DRAFT → INACTIVE is NOT allowed (must go through ACTIVE first)
+	assert.False(t, RuleStatusDraft.CanTransitionTo(RuleStatusInactive))
+}
+
+func TestRuleStatus_CanTransitionTo_Recovery(t *testing.T) {
+	// INACTIVE → DRAFT (allowed)
+	assert.True(t, RuleStatusInactive.CanTransitionTo(RuleStatusDraft))
+}
+
+func TestRuleStatus_CanTransitionTo_Reactivate(t *testing.T) {
+	// INACTIVE → ACTIVE (allowed)
+	assert.True(t, RuleStatusInactive.CanTransitionTo(RuleStatusActive))
+}
+
+func TestRuleStatus_CanTransitionTo_Delete(t *testing.T) {
+	// INACTIVE → DELETED (allowed)
+	assert.True(t, RuleStatusInactive.CanTransitionTo(RuleStatusDeleted))
+}
+
+func TestRuleStatus_CanTransitionTo_InvalidTransitions(t *testing.T) {
+	tests := []struct {
+		name string
+		from RuleStatus
+		to   RuleStatus
+	}{
+		{"ACTIVE → DRAFT", RuleStatusActive, RuleStatusDraft},
+		{"ACTIVE → DELETED", RuleStatusActive, RuleStatusDeleted},
+		{"DRAFT → INACTIVE", RuleStatusDraft, RuleStatusInactive},
+		{"DELETED → DRAFT", RuleStatusDeleted, RuleStatusDraft},
+		{"DELETED → ACTIVE", RuleStatusDeleted, RuleStatusActive},
+		{"DELETED → INACTIVE", RuleStatusDeleted, RuleStatusInactive},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.False(t, tt.from.CanTransitionTo(tt.to))
+		})
+	}
+}
+
+func TestInvalidTransitionError(t *testing.T) {
+	from := RuleStatusActive
+	to := RuleStatusDraft
+
+	err := NewInvalidTransitionError(from, to)
+
+	require.Error(t, err)
+	assert.Equal(t, "invalid status transition from ACTIVE to DRAFT", err.Error())
+}
+
+func TestRuleStatus_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   RuleStatus
+		expected string
+	}{
+		{"DRAFT returns DRAFT string", RuleStatusDraft, "DRAFT"},
+		{"ACTIVE returns ACTIVE string", RuleStatusActive, "ACTIVE"},
+		{"INACTIVE returns INACTIVE string", RuleStatusInactive, "INACTIVE"},
+		{"DELETED returns DELETED string", RuleStatusDeleted, "DELETED"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.status.String())
+		})
+	}
+}

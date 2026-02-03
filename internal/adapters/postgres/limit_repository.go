@@ -1,0 +1,767 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	sq "github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
+
+	pgdb "tracer/internal/adapters/postgres/db"
+	"tracer/pkg/constant"
+	"tracer/pkg/logging"
+	"tracer/pkg/model"
+	pkgHTTP "tracer/pkg/net/http"
+)
+
+// LimitRepository implements limitsvc.LimitRepository using PostgreSQL with Squirrel query builder.
+// It provides CRUD operations for limits with cursor-based pagination, soft delete support,
+// and OpenTelemetry distributed tracing integration.
+type LimitRepository struct {
+	conn      pgdb.Connection
+	tableName string
+}
+
+// NewLimitRepository creates a new PostgreSQL limit repository.
+func NewLimitRepository(conn *libPostgres.PostgresConnection) *LimitRepository {
+	return &LimitRepository{
+		conn:      pgdb.NewPostgresConnectionAdapter(conn),
+		tableName: "limits",
+	}
+}
+
+// NewLimitRepositoryWithConnection creates a new PostgreSQL limit repository with a custom pgdb.Connection.
+// This is primarily used for testing with mock connections.
+func NewLimitRepositoryWithConnection(conn pgdb.Connection) *LimitRepository {
+	return &LimitRepository{
+		conn:      conn,
+		tableName: "limits",
+	}
+}
+
+// limitSortFieldToColumn maps API camelCase sort fields to database snake_case column names.
+var limitSortFieldToColumn = map[string]string{
+	"createdAt": "created_at",
+	"updatedAt": "updated_at",
+	"maxAmount": "max_amount",
+	"name":      "name",
+}
+
+// mapSortFieldToColumn converts a camelCase sort field to its snake_case database column name.
+// Returns the column name if valid, otherwise returns empty string.
+func mapLimitSortFieldToColumn(sortField string) string {
+	if col, ok := limitSortFieldToColumn[sortField]; ok {
+		return col
+	}
+
+	return ""
+}
+
+// Create inserts a new limit into the database.
+func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.limit.create")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	db, err := r.conn.GetDB()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		return fmt.Errorf("failed to get database connection: %w", err)
+	}
+
+	scopesJSON, err := json.Marshal(lmt.Scopes)
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to marshal scopes", err)
+		return fmt.Errorf("failed to marshal scopes: %w", err)
+	}
+
+	query := sq.Insert(r.tableName).
+		Columns("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "created_at", "updated_at").
+		Values(lmt.ID, lmt.Name, lmt.Description, lmt.LimitType, lmt.MaxAmount, lmt.Currency, scopesJSON, lmt.Status, lmt.ResetAt, lmt.CreatedAt, lmt.UpdatedAt).
+		PlaceholderFormat(sq.Dollar)
+
+	sqlStr, args, err := query.ToSql()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		return fmt.Errorf("failed to build query: %w", err)
+	}
+
+	logger.WithFields(
+		"operation", "repository.limit.create",
+		"limit.id", lmt.ID.String(),
+		"limit.name", lmt.Name,
+	).Info("Creating limit")
+
+	_, err = db.ExecContext(ctx, sqlStr, args...)
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to insert limit", err)
+		return fmt.Errorf("failed to insert limit: %w", err)
+	}
+
+	return nil
+}
+
+// GetByID retrieves a limit by its ID.
+func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*model.Limit, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.limit.get_by_id")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	db, err := r.conn.GetDB()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
+	}
+
+	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "created_at", "updated_at", "deleted_at").
+		From(r.tableName).
+		Where(sq.Eq{"id": limitID}).
+		Where(sq.Eq{"deleted_at": nil}).
+		PlaceholderFormat(sq.Dollar)
+
+	sqlStr, args, err := query.ToSql()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	logger.WithFields(
+		"operation", "repository.limit.get_by_id",
+		"limit.id", limitID.String(),
+	).Info("Getting limit by ID")
+
+	lmt, err := r.scanLimit(db.QueryRowContext(ctx, sqlStr, args...))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			libOtel.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
+			return nil, constant.ErrLimitNotFound
+		}
+
+		libOtel.HandleSpanError(&span, "Failed to get limit", err)
+
+		return nil, fmt.Errorf("failed to get limit: %w", err)
+	}
+
+	return lmt, nil
+}
+
+// List retrieves limits with optional filters and cursor-based pagination.
+func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFilter) (*model.ListLimitsResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.limit.list")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	filters = r.normalizeListFilters(filters)
+
+	sortColumn, sortOrder, err := r.validateAndNormalizeSort(filters)
+	if err != nil {
+		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid sort column", err)
+		return nil, err
+	}
+
+	// Keep original camelCase sortBy for cursor encoding
+	sortBy := filters.SortBy
+	if sortBy == "" {
+		sortBy = model.DefaultLimitSortField
+	}
+
+	db, err := r.conn.GetDB()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
+	}
+
+	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "created_at", "updated_at", "deleted_at").
+		From(r.tableName).
+		Where(sq.Eq{"deleted_at": nil}).
+		PlaceholderFormat(sq.Dollar)
+
+	query = r.applyListFilters(query, filters)
+
+	// Apply cursor filter for keyset pagination (uses snake_case sortColumn for queries)
+	query, sortColumn, sortOrder, err = r.applyCursorFilter(query, filters.Cursor, sortColumn, sortOrder, &span)
+	if err != nil {
+		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid cursor", err)
+		return nil, err
+	}
+
+	// Apply ordering (uses snake_case sortColumn)
+	query = r.applyOrderBy(query, sortColumn, sortOrder)
+
+	// Fetch Limit+1 to determine if more pages exist
+	fetchLimit := filters.Limit + 1
+	// Defense-in-depth: ensure fetchLimit is positive before uint64 conversion
+	// to prevent integer overflow (gosec G115). Validation at upstream layers
+	// already ensures Limit >= 0, but we add local protection.
+	if fetchLimit <= 0 {
+		// This should never happen due to upstream validation, but protect against
+		// potential bypass or refactoring. Use default limit + 1 as safe fallback.
+		fetchLimit = constant.DefaultPaginationLimit + 1
+	}
+	query = query.Limit(uint64(fetchLimit)) // #nosec G115 - fetchLimit validated positive above
+
+	sqlStr, args, err := query.ToSql()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	logger.WithFields(
+		"operation", "repository.limit.list",
+		"filter.limit", filters.Limit,
+		"filter.has_cursor", filters.Cursor != "",
+	).Info("Listing limits")
+
+	rows, err := db.QueryContext(ctx, sqlStr, args...)
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to list limits", err)
+		return nil, fmt.Errorf("failed to list limits: %w", err)
+	}
+	defer rows.Close()
+
+	var limits []model.Limit
+
+	for rows.Next() {
+		lmt, err := r.scanLimitFromRows(rows)
+		if err != nil {
+			libOtel.HandleSpanError(&span, "Failed to scan limit", err)
+			return nil, fmt.Errorf("failed to scan limit: %w", err)
+		}
+
+		limits = append(limits, *lmt)
+	}
+
+	if err := rows.Err(); err != nil {
+		libOtel.HandleSpanError(&span, "Error iterating limits", err)
+		return nil, fmt.Errorf("error iterating limits: %w", err)
+	}
+
+	// Determine if there are more results
+	hasMore := len(limits) > filters.Limit
+
+	if hasMore {
+		limits = limits[:filters.Limit]
+	}
+
+	// Generate next cursor from the last item
+	var nextCursor string
+
+	if hasMore && len(limits) > 0 {
+		lastLimit := limits[len(limits)-1]
+
+		// Use camelCase sortBy in cursor (not snake_case sortColumn)
+		nextCursor, err = r.buildNextCursor(&lastLimit, sortBy, sortOrder)
+		if err != nil {
+			libOtel.HandleSpanError(&span, "Failed to encode cursor", err)
+			return nil, fmt.Errorf("failed to encode cursor: %w", err)
+		}
+	}
+
+	result := &model.ListLimitsResult{
+		Limits:     limits,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	}
+
+	logger.WithFields(
+		"operation", "repository.limit.list",
+		"result.count", len(limits),
+		"result.has_more", hasMore,
+	).Info("Listed limits")
+
+	return result, nil
+}
+
+// Update modifies an existing limit.
+func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.limit.update")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	db, err := r.conn.GetDB()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		return fmt.Errorf("failed to get database connection: %w", err)
+	}
+
+	scopesJSON, err := json.Marshal(lmt.Scopes)
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to marshal scopes", err)
+		return fmt.Errorf("failed to marshal scopes: %w", err)
+	}
+
+	query := sq.Update(r.tableName).
+		Set("name", lmt.Name).
+		Set("description", lmt.Description).
+		Set("max_amount", lmt.MaxAmount).
+		Set("scopes", scopesJSON).
+		Set("status", lmt.Status).
+		Set("updated_at", lmt.UpdatedAt).
+		Where(sq.Eq{"id": lmt.ID}).
+		Where(sq.Eq{"deleted_at": nil}).
+		PlaceholderFormat(sq.Dollar)
+
+	sqlStr, args, err := query.ToSql()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		return fmt.Errorf("failed to build query: %w", err)
+	}
+
+	logger.WithFields(
+		"operation", "repository.limit.update",
+		"limit.id", lmt.ID.String(),
+	).Info("Updating limit")
+
+	result, err := db.ExecContext(ctx, sqlStr, args...)
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to update limit", err)
+		return fmt.Errorf("failed to update limit: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		libOtel.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
+		return constant.ErrLimitNotFound
+	}
+
+	return nil
+}
+
+// UpdateStatus updates only the status of a limit.
+// If transitioning to DELETED status, also sets deleted_at for soft-delete consistency.
+func (r *LimitRepository) UpdateStatus(ctx context.Context, limitID uuid.UUID, status model.LimitStatus, updatedAt time.Time) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.limit.update_status")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	db, err := r.conn.GetDB()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		return fmt.Errorf("failed to get database connection: %w", err)
+	}
+
+	query := sq.Update(r.tableName).
+		Set("status", status).
+		Set("updated_at", updatedAt)
+
+	// Handle deleted_at for DELETED status transitions
+	if status == model.LimitStatusDeleted {
+		query = query.Set("deleted_at", updatedAt)
+	}
+
+	query = query.
+		Where(sq.Eq{"id": limitID}).
+		Where(sq.Eq{"deleted_at": nil}).
+		PlaceholderFormat(sq.Dollar)
+
+	sqlStr, args, err := query.ToSql()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		return fmt.Errorf("failed to build query: %w", err)
+	}
+
+	logger.WithFields(
+		"operation", "repository.limit.update_status",
+		"limit.id", limitID.String(),
+		"status", string(status),
+	).Info("Updating limit status")
+
+	result, err := db.ExecContext(ctx, sqlStr, args...)
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to update limit status", err)
+		return fmt.Errorf("failed to update limit status: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		libOtel.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
+		return constant.ErrLimitNotFound
+	}
+
+	return nil
+}
+
+// applyCursorFilter adds keyset pagination WHERE clause to the query.
+// Supports custom sort columns with id as tiebreaker.
+// Returns the updated query, sort column, and sort order from the cursor (for consistency).
+func (r *LimitRepository) applyCursorFilter(query sq.SelectBuilder, cursorStr string, requestedSortBy string, requestedOrderDir string, span *trace.Span) (sq.SelectBuilder, string, string, error) {
+	if cursorStr == "" {
+		return query, requestedSortBy, requestedOrderDir, nil
+	}
+
+	cursor, err := pkgHTTP.DecodeCursor(cursorStr)
+	if err != nil {
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
+		return query, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %v", constant.ErrInvalidCursor, err)
+	}
+
+	// Use sort field from cursor (in camelCase) and validate
+	sortField := cursor.SortBy
+	if sortField == "" {
+		sortField = model.DefaultLimitSortField
+	} else if !model.IsValidLimitSortField(sortField) {
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid sort column in cursor", constant.ErrInvalidSortColumn)
+		return query, requestedSortBy, requestedOrderDir, constant.ErrInvalidSortColumn
+	}
+
+	// Convert camelCase API field to snake_case database column
+	sortColumn := mapLimitSortFieldToColumn(sortField)
+	if sortColumn == "" {
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid sort column in cursor", constant.ErrInvalidSortColumn)
+		return query, requestedSortBy, requestedOrderDir, constant.ErrInvalidSortColumn
+	}
+
+	orderDir := cursor.SortOrder
+	if orderDir != "ASC" && orderDir != "DESC" {
+		orderDir = "DESC"
+	}
+
+	// Validate cursor sort parameters match request parameters
+	// This prevents clients from changing sort mid-pagination which could cause inconsistent results
+	if sortColumn != requestedSortBy {
+		libOtel.HandleSpanBusinessErrorEvent(span, "Cursor sort mismatch", constant.ErrInvalidCursor)
+		return query, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: cursor sortBy does not match request", constant.ErrInvalidCursor)
+	}
+
+	if orderDir != strings.ToUpper(requestedOrderDir) {
+		libOtel.HandleSpanBusinessErrorEvent(span, "Cursor sort order mismatch", constant.ErrInvalidCursor)
+		return query, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: cursor sortOrder does not match request", constant.ErrInvalidCursor)
+	}
+
+	// Validate cursor sort value type matches expected column type
+	// Use sortField (camelCase) as validateCursorSortValue expects API field names
+	if err := validateCursorSortValue(sortField, cursor.SortValue); err != nil {
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor sort value type", constant.ErrInvalidCursor)
+		return query, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %v", constant.ErrInvalidCursor, err)
+	}
+
+	// Build WHERE clause based on sort column
+	query = r.buildCursorCondition(query, &cursor, sortColumn, orderDir)
+
+	return query, sortColumn, orderDir, nil
+}
+
+// buildCursorCondition builds WHERE clause for keyset pagination.
+// Uses sort value + ID as tiebreaker for consistent pagination.
+func (r *LimitRepository) buildCursorCondition(query sq.SelectBuilder, cursor *pkgHTTP.Cursor, sortBy, sortOrder string) sq.SelectBuilder {
+	lt := sq.Lt{}
+	gt := sq.Gt{}
+	eq := sq.Eq{}
+
+	lt[sortBy] = cursor.SortValue
+	gt[sortBy] = cursor.SortValue
+	eq[sortBy] = cursor.SortValue
+
+	if sortOrder == "DESC" {
+		return query.Where(
+			sq.Or{
+				lt, // sort_value < cursor
+				sq.And{
+					eq,                     // sort_value = cursor
+					sq.Lt{"id": cursor.ID}, // AND id < cursor
+				},
+			},
+		)
+	}
+
+	return query.Where(
+		sq.Or{
+			gt, // sort_value > cursor
+			sq.And{
+				eq,                     // sort_value = cursor
+				sq.Gt{"id": cursor.ID}, // AND id > cursor
+			},
+		},
+	)
+}
+
+// applyOrderBy applies ORDER BY clause for keyset pagination.
+// Always adds id as secondary sort for stable pagination.
+// sortBy is validated against validSortColumns whitelist before calling this method.
+// sortOrder is constrained to "ASC" or "DESC" before calling this method.
+func (r *LimitRepository) applyOrderBy(query sq.SelectBuilder, sortBy, sortOrder string) sq.SelectBuilder {
+	// Use string concatenation instead of fmt.Sprintf
+	// sortBy and sortOrder are pre-validated by whitelist and constraint checks
+	return query.OrderBy(sortBy + " " + sortOrder + ", id " + sortOrder)
+}
+
+// buildNextCursor creates a base64-encoded cursor from the last limit in the result set.
+// Validates sortBy against allowed fields and normalizes sortOrder to uppercase.
+func (r *LimitRepository) buildNextCursor(lmt *model.Limit, sortBy, sortOrder string) (string, error) {
+	// Validate sortBy against whitelist
+	if !model.IsValidLimitSortField(sortBy) {
+		return "", constant.ErrInvalidSortColumn
+	}
+
+	// Normalize sortOrder to uppercase
+	normalizedSortOrder := strings.ToUpper(sortOrder)
+	if normalizedSortOrder != "ASC" && normalizedSortOrder != "DESC" {
+		normalizedSortOrder = "DESC"
+	}
+
+	sortValue := getSortValueFromLimit(lmt, sortBy)
+
+	cursor := pkgHTTP.Cursor{
+		ID:         lmt.ID.String(),
+		SortValue:  sortValue,
+		SortBy:     sortBy,
+		SortOrder:  normalizedSortOrder,
+		PointsNext: true,
+	}
+
+	return pkgHTTP.EncodeCursor(cursor)
+}
+
+// normalizeListFilters applies default values to the filter.
+// Handles nil filter, zero/negative limit, and limit bounds.
+func (r *LimitRepository) normalizeListFilters(filters *model.ListLimitsFilter) *model.ListLimitsFilter {
+	if filters == nil {
+		return &model.ListLimitsFilter{Limit: constant.DefaultPaginationLimit}
+	}
+
+	if filters.Limit <= 0 {
+		filters.Limit = constant.DefaultPaginationLimit
+	} else if filters.Limit > constant.MaxPaginationLimit {
+		filters.Limit = constant.MaxPaginationLimit
+	}
+
+	return filters
+}
+
+// applyListFilters adds status and limit_type WHERE clauses to the query.
+func (r *LimitRepository) applyListFilters(query sq.SelectBuilder, filters *model.ListLimitsFilter) sq.SelectBuilder {
+	if filters.Status != nil {
+		query = query.Where(sq.Eq{"status": string(*filters.Status)})
+	}
+
+	if filters.LimitType != nil {
+		query = query.Where(sq.Eq{"limit_type": string(*filters.LimitType)})
+	}
+
+	if filters.Currency != nil {
+		normalizedCurrency := strings.ToUpper(*filters.Currency)
+		query = query.Where(sq.Eq{"currency": normalizedCurrency})
+	}
+
+	return query
+}
+
+// validateAndNormalizeSort validates and normalizes sort parameters.
+// Returns the validated sortBy (as snake_case column name), sortOrder values, and any validation error.
+func (r *LimitRepository) validateAndNormalizeSort(filters *model.ListLimitsFilter) (string, string, error) {
+	sortBy := filters.SortBy
+	if sortBy == "" {
+		sortBy = model.DefaultLimitSortField
+	}
+
+	if !model.IsValidLimitSortField(sortBy) {
+		return "", "", constant.ErrInvalidSortColumn
+	}
+
+	// Convert camelCase API field to snake_case database column
+	sortColumn := mapLimitSortFieldToColumn(sortBy)
+	if sortColumn == "" {
+		return "", "", constant.ErrInvalidSortColumn
+	}
+
+	sortOrder := strings.ToUpper(filters.SortOrder)
+	if sortOrder == "" {
+		sortOrder = "DESC"
+	}
+
+	// Defense-in-depth: default invalid sortOrder to "DESC" rather than returning an error,
+	// since sortOrder is already validated at the API layer and this provides safe fallback.
+	if sortOrder != "ASC" && sortOrder != "DESC" {
+		sortOrder = "DESC"
+	}
+
+	return sortColumn, sortOrder, nil
+}
+
+// validateCursorSortValue validates that the cursor sort value has the correct type
+// for the given sort field. This prevents database type coercion errors and
+// unexpected query results. sortBy is expected in camelCase (API format).
+func validateCursorSortValue(sortBy, sortValue string) error {
+	switch sortBy {
+	case "createdAt", "updatedAt":
+		// Timestamp columns expect RFC3339Nano format
+		if _, err := time.Parse(time.RFC3339Nano, sortValue); err != nil {
+			return fmt.Errorf("invalid timestamp format for %s", sortBy)
+		}
+	case "maxAmount":
+		// Integer column expects numeric string
+		if _, err := strconv.ParseInt(sortValue, 10, 64); err != nil {
+			return fmt.Errorf("invalid numeric format for %s", sortBy)
+		}
+	case "name":
+		// String values are acceptable as-is
+	default:
+		return fmt.Errorf("unsupported sort column: %s", sortBy)
+	}
+
+	return nil
+}
+
+// getSortValueFromLimit extracts the value of the sort field from a limit.
+// sortBy is expected in camelCase (API format).
+func getSortValueFromLimit(lmt *model.Limit, sortBy string) string {
+	switch sortBy {
+	case "name":
+		return lmt.Name
+	case "maxAmount":
+		return fmt.Sprintf("%d", lmt.MaxAmount)
+	case "updatedAt":
+		return lmt.UpdatedAt.Format(time.RFC3339Nano)
+	case "createdAt":
+		return lmt.CreatedAt.Format(time.RFC3339Nano)
+	default:
+		return lmt.CreatedAt.Format(time.RFC3339Nano)
+	}
+}
+
+// scanLimit scans a single row into a Limit model.
+func (r *LimitRepository) scanLimit(row *sql.Row) (*model.Limit, error) {
+	var (
+		lmt         model.Limit
+		limitType   string
+		status      string
+		description sql.NullString
+		resetAt     sql.NullTime
+		deletedAt   sql.NullTime
+		scopesJSON  []byte
+	)
+
+	err := row.Scan(
+		&lmt.ID,
+		&lmt.Name,
+		&description,
+		&limitType,
+		&lmt.MaxAmount,
+		&lmt.Currency,
+		&scopesJSON,
+		&status,
+		&resetAt,
+		&lmt.CreatedAt,
+		&lmt.UpdatedAt,
+		&deletedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.rowToLimit(&lmt, limitType, status, description, resetAt, deletedAt, scopesJSON)
+}
+
+// scanLimitFromRows scans a row from Rows into a Limit model.
+func (r *LimitRepository) scanLimitFromRows(rows *sql.Rows) (*model.Limit, error) {
+	var (
+		lmt         model.Limit
+		limitType   string
+		status      string
+		description sql.NullString
+		resetAt     sql.NullTime
+		deletedAt   sql.NullTime
+		scopesJSON  []byte
+	)
+
+	err := rows.Scan(
+		&lmt.ID,
+		&lmt.Name,
+		&description,
+		&limitType,
+		&lmt.MaxAmount,
+		&lmt.Currency,
+		&scopesJSON,
+		&status,
+		&resetAt,
+		&lmt.CreatedAt,
+		&lmt.UpdatedAt,
+		&deletedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.rowToLimit(&lmt, limitType, status, description, resetAt, deletedAt, scopesJSON)
+}
+
+// rowToLimit converts scanned row values to a Limit model.
+func (r *LimitRepository) rowToLimit(
+	lmt *model.Limit,
+	limitType string,
+	status string,
+	description sql.NullString,
+	resetAt sql.NullTime,
+	deletedAt sql.NullTime,
+	scopesJSON []byte,
+) (*model.Limit, error) {
+	lmt.LimitType = model.LimitType(limitType)
+	lmt.Status = model.LimitStatus(status)
+
+	if description.Valid {
+		lmt.Description = &description.String
+	}
+
+	if resetAt.Valid {
+		lmt.ResetAt = &resetAt.Time
+	}
+
+	if deletedAt.Valid {
+		lmt.DeletedAt = &deletedAt.Time
+	}
+
+	if len(scopesJSON) > 0 {
+		if err := json.Unmarshal(scopesJSON, &lmt.Scopes); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal scopes: %w", err)
+		}
+
+		// Validate scopes after deserialization
+		// This ensures data integrity even if database contains invalid data
+		for i, scope := range lmt.Scopes {
+			if scope.TransactionType != nil && !scope.TransactionType.IsValid() {
+				return nil, fmt.Errorf("scope at index %d: invalid transactionType", i)
+			}
+		}
+	}
+
+	return lmt, nil
+}

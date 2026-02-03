@@ -1,0 +1,603 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package in
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"tracer/internal/testutil"
+	"tracer/pkg/model"
+)
+
+// Valid UUIDs for limit validation testing
+var (
+	limitValidUUID1 = uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
+	limitValidUUID2 = uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c9")
+	limitValidUUID3 = uuid.MustParse("f47ac10b-58cc-4372-a567-0e02b2c3d480")
+	limitValidUUID4 = uuid.MustParse("7c9e6679-7425-40de-944b-e07fc1f90ae8")
+)
+
+func TestLimitValidator_UsesSharedSingleton(t *testing.T) {
+	// Verify that limit validation uses the same validator singleton
+	v1, err1 := getValidator()
+	require.NoError(t, err1, "getValidator should not return error")
+
+	v2, err2 := getValidator()
+	require.NoError(t, err2, "getValidator should not return error")
+
+	assert.Same(t, v1, v2, "getValidator should return the same instance")
+}
+
+func TestLimitScopeInput_IsEmpty(t *testing.T) {
+	tests := []struct {
+		name    string
+		scope   model.Scope
+		isEmpty bool
+	}{
+		{
+			name:    "empty scope - all fields nil",
+			scope:   model.Scope{},
+			isEmpty: true,
+		},
+		{
+			name: "has segmentId",
+			scope: model.Scope{
+				SegmentID: testutil.UUIDPtr(limitValidUUID1),
+			},
+			isEmpty: false,
+		},
+		{
+			name: "has portfolioId",
+			scope: model.Scope{
+				PortfolioID: testutil.UUIDPtr(limitValidUUID2),
+			},
+			isEmpty: false,
+		},
+		{
+			name: "has accountId",
+			scope: model.Scope{
+				AccountID: testutil.UUIDPtr(limitValidUUID3),
+			},
+			isEmpty: false,
+		},
+		{
+			name: "has merchantId",
+			scope: model.Scope{
+				MerchantID: testutil.UUIDPtr(limitValidUUID4),
+			},
+			isEmpty: false,
+		},
+		{
+			name: "has transactionType",
+			scope: model.Scope{
+				TransactionType: testutil.Ptr(model.TransactionTypeCard),
+			},
+			isEmpty: false,
+		},
+		{
+			name: "has subType only",
+			scope: model.Scope{
+				SubType: testutil.StringPtr("Credit"),
+			},
+			isEmpty: false,
+		},
+		{
+			name: "has multiple fields",
+			scope: model.Scope{
+				TransactionType: testutil.Ptr(model.TransactionTypeWire),
+				SubType:         testutil.StringPtr("International"),
+			},
+			isEmpty: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.isEmpty, tt.scope.IsEmpty())
+		})
+	}
+}
+
+func TestCreateLimitInput_ValidLimitTypeValues(t *testing.T) {
+	validTypes := []model.LimitType{
+		model.LimitTypeDaily,
+		model.LimitTypeMonthly,
+		model.LimitTypePerTransaction,
+	}
+
+	for _, limitType := range validTypes {
+		t.Run("valid limitType: "+string(limitType), func(t *testing.T) {
+			input := CreateLimitInput{
+				Name:      "Test Limit",
+				LimitType: limitType,
+				MaxAmount: 100000,
+				Currency:  "BRL",
+				Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
+			}
+			err := input.Validate()
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestCreateLimitInput_CurrencyValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		currency string
+		wantErr  bool
+		errMsg   string
+	}{
+		{
+			name:     "valid - BRL",
+			currency: "BRL",
+			wantErr:  false,
+		},
+		{
+			name:     "valid - USD",
+			currency: "USD",
+			wantErr:  false,
+		},
+		{
+			name:     "valid - EUR",
+			currency: "EUR",
+			wantErr:  false,
+		},
+		{
+			name:     "invalid - lowercase",
+			currency: "brl",
+			wantErr:  true,
+			errMsg:   "currency must be uppercase",
+		},
+		{
+			name:     "invalid - too short",
+			currency: "BR",
+			wantErr:  true,
+			errMsg:   "currency must be exactly 3 characters",
+		},
+		{
+			name:     "invalid - too long",
+			currency: "BRLL",
+			wantErr:  true,
+			errMsg:   "currency must be exactly 3 characters",
+		},
+		{
+			name:     "invalid - empty",
+			currency: "",
+			wantErr:  true,
+			errMsg:   "currency is a required field",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := CreateLimitInput{
+				Name:      "Test Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: 100000,
+				Currency:  tt.currency,
+				Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
+			}
+			err := input.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCreateLimitInput_MaxAmountValidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		maxAmount int64
+		wantErr   bool
+		errMsg    string
+	}{
+		{
+			name:      "valid - positive amount",
+			maxAmount: 100000,
+			wantErr:   false,
+		},
+		{
+			name:      "valid - minimum positive (1)",
+			maxAmount: 1,
+			wantErr:   false,
+		},
+		{
+			name:      "valid - large amount",
+			maxAmount: 999999999999,
+			wantErr:   false,
+		},
+		{
+			name:      "invalid - zero",
+			maxAmount: 0,
+			wantErr:   true,
+			errMsg:    "maxAmount", // Required validation triggers first for zero value
+		},
+		{
+			name:      "invalid - negative",
+			maxAmount: -100,
+			wantErr:   true,
+			errMsg:    "maxAmount must be greater than 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := CreateLimitInput{
+				Name:      "Test Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: tt.maxAmount,
+				Currency:  "BRL",
+				Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
+			}
+			err := input.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCreateLimitInput_ScopesMaxCount(t *testing.T) {
+	t.Run("scopes at max count", func(t *testing.T) {
+		scopes := make([]model.Scope, MaxLimitScopesCount)
+		for i := range scopes {
+			scopes[i] = model.Scope{TransactionType: testutil.Ptr(model.TransactionTypeCard)}
+		}
+
+		input := CreateLimitInput{
+			Name:      "Test Limit",
+			LimitType: model.LimitTypeDaily,
+			MaxAmount: 100000,
+			Currency:  "BRL",
+			Scopes:    scopes,
+		}
+		err := input.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("scopes exceed max count", func(t *testing.T) {
+		scopes := make([]model.Scope, MaxLimitScopesCount+1)
+		for i := range scopes {
+			scopes[i] = model.Scope{TransactionType: testutil.Ptr(model.TransactionTypeCard)}
+		}
+
+		input := CreateLimitInput{
+			Name:      "Test Limit",
+			LimitType: model.LimitTypeDaily,
+			MaxAmount: 100000,
+			Currency:  "BRL",
+			Scopes:    scopes,
+		}
+		err := input.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "scopes must have a maximum of 100 items")
+	})
+}
+
+func TestLimitScopeInput_TransactionTypeValidation(t *testing.T) {
+	validTypes := []model.TransactionType{
+		model.TransactionTypeCard,
+		model.TransactionTypeWire,
+		model.TransactionTypePix,
+		model.TransactionTypeCrypto,
+	}
+
+	for _, txType := range validTypes {
+		t.Run("valid transactionType: "+string(txType), func(t *testing.T) {
+			input := CreateLimitInput{
+				Name:      "Test Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: 100000,
+				Currency:  "BRL",
+				Scopes: []model.Scope{
+					{TransactionType: testutil.Ptr(txType)},
+				},
+			}
+			err := input.Validate()
+			assert.NoError(t, err)
+		})
+	}
+
+	t.Run("invalid transactionType", func(t *testing.T) {
+		invalidType := model.TransactionType("INVALID")
+		input := CreateLimitInput{
+			Name:      "Test Limit",
+			LimitType: model.LimitTypeDaily,
+			MaxAmount: 100000,
+			Currency:  "BRL",
+			Scopes: []model.Scope{
+				{TransactionType: &invalidType},
+			},
+		}
+		err := input.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transactionType must be one of")
+	})
+}
+
+func TestLimitScopeInput_SubTypeValidation(t *testing.T) {
+	t.Run("valid subType within limit", func(t *testing.T) {
+		input := CreateLimitInput{
+			Name:      "Test Limit",
+			LimitType: model.LimitTypeDaily,
+			MaxAmount: 100000,
+			Currency:  "BRL",
+			Scopes: []model.Scope{
+				{SubType: testutil.StringPtr("Credit")},
+			},
+		}
+		err := input.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("subType at max length", func(t *testing.T) {
+		input := CreateLimitInput{
+			Name:      "Test Limit",
+			LimitType: model.LimitTypeDaily,
+			MaxAmount: 100000,
+			Currency:  "BRL",
+			Scopes: []model.Scope{
+				{SubType: testutil.StringPtr(strings.Repeat("x", MaxLimitSubTypeLength))},
+			},
+		}
+		err := input.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("subType too long", func(t *testing.T) {
+		input := CreateLimitInput{
+			Name:      "Test Limit",
+			LimitType: model.LimitTypeDaily,
+			MaxAmount: 100000,
+			Currency:  "BRL",
+			Scopes: []model.Scope{
+				{SubType: testutil.StringPtr(strings.Repeat("x", MaxLimitSubTypeLength+1))},
+			},
+		}
+		err := input.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "subType must be a maximum of 50 characters")
+	})
+}
+
+func TestCreateLimitInput_DescriptionValidation(t *testing.T) {
+	t.Run("valid - nil description", func(t *testing.T) {
+		input := CreateLimitInput{
+			Name:        "Test Limit",
+			Description: nil,
+			LimitType:   model.LimitTypeDaily,
+			MaxAmount:   100000,
+			Currency:    "BRL",
+			Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
+		}
+		err := input.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("valid - description at max length", func(t *testing.T) {
+		input := CreateLimitInput{
+			Name:        "Test Limit",
+			Description: testutil.StringPtr(strings.Repeat("d", MaxLimitDescriptionLength)),
+			LimitType:   model.LimitTypeDaily,
+			MaxAmount:   100000,
+			Currency:    "BRL",
+			Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
+		}
+		err := input.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid - description too long", func(t *testing.T) {
+		input := CreateLimitInput{
+			Name:        "Test Limit",
+			Description: testutil.StringPtr(strings.Repeat("d", MaxLimitDescriptionLength+1)),
+			LimitType:   model.LimitTypeDaily,
+			MaxAmount:   100000,
+			Currency:    "BRL",
+			Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
+		}
+		err := input.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "description must be a maximum of 1000 characters")
+	})
+}
+
+func TestCreateLimitInput_NameValidation(t *testing.T) {
+	t.Run("valid - name at max length", func(t *testing.T) {
+		input := CreateLimitInput{
+			Name:      strings.Repeat("n", MaxLimitNameLength),
+			LimitType: model.LimitTypeDaily,
+			MaxAmount: 100000,
+			Currency:  "BRL",
+			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
+		}
+		err := input.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid - name too long", func(t *testing.T) {
+		input := CreateLimitInput{
+			Name:      strings.Repeat("n", MaxLimitNameLength+1),
+			LimitType: model.LimitTypeDaily,
+			MaxAmount: 100000,
+			Currency:  "BRL",
+			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
+		}
+		err := input.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "name must be a maximum of 255 characters")
+	})
+
+	t.Run("invalid - empty name", func(t *testing.T) {
+		input := CreateLimitInput{
+			Name:      "",
+			LimitType: model.LimitTypeDaily,
+			MaxAmount: 100000,
+			Currency:  "BRL",
+			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
+		}
+		err := input.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "name is a required field")
+	})
+}
+
+func TestUpdateLimitInput_ScopesMaxCount(t *testing.T) {
+	t.Run("scopes at max count", func(t *testing.T) {
+		scopes := make([]model.Scope, MaxLimitScopesCount)
+		for i := range scopes {
+			scopes[i] = model.Scope{TransactionType: testutil.Ptr(model.TransactionTypeCard)}
+		}
+
+		input := UpdateLimitInput{Scopes: &scopes}
+		err := input.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("scopes exceed max count", func(t *testing.T) {
+		scopes := make([]model.Scope, MaxLimitScopesCount+1)
+		for i := range scopes {
+			scopes[i] = model.Scope{TransactionType: testutil.Ptr(model.TransactionTypeCard)}
+		}
+
+		input := UpdateLimitInput{Scopes: &scopes}
+		err := input.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "scopes must have a maximum of 100 items")
+	})
+}
+
+func TestFormatLimitValidationError_ScopeIndexExtraction(t *testing.T) {
+	// Test that scope index is correctly extracted for error messages
+	tests := []struct {
+		name        string
+		scopes      []model.Scope
+		errContains string
+	}{
+		{
+			name: "error at index 0",
+			scopes: []model.Scope{
+				{}, // Empty scope at index 0
+				{AccountID: testutil.UUIDPtr(limitValidUUID1)},
+			},
+			errContains: "scope at index 0 must have at least one field set",
+		},
+		{
+			name: "error at index 1",
+			scopes: []model.Scope{
+				{AccountID: testutil.UUIDPtr(limitValidUUID1)},
+				{}, // Empty scope at index 1
+			},
+			errContains: "scope at index 1 must have at least one field set",
+		},
+		{
+			name: "error at index 5",
+			scopes: []model.Scope{
+				{AccountID: testutil.UUIDPtr(limitValidUUID1)},
+				{AccountID: testutil.UUIDPtr(limitValidUUID2)},
+				{AccountID: testutil.UUIDPtr(limitValidUUID3)},
+				{AccountID: testutil.UUIDPtr(limitValidUUID4)},
+				{TransactionType: testutil.Ptr(model.TransactionTypeCard)},
+				{}, // Empty scope at index 5
+			},
+			errContains: "scope at index 5 must have at least one field set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := CreateLimitInput{
+				Name:      "Test Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: 100000,
+				Currency:  "BRL",
+				Scopes:    tt.scopes,
+			}
+			err := input.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errContains)
+		})
+	}
+}
+
+func TestValidateLimitType_PointerHandling(t *testing.T) {
+	// Test validateLimitType handles pointer types correctly
+	t.Run("nil pointer returns true (omitempty)", func(t *testing.T) {
+		// This is tested indirectly via ListLimitsInput which uses string type
+		limit := 10
+		input := ListLimitsInput{
+			Limit:     &limit,
+			LimitType: "", // Empty means not set
+		}
+		err := input.Validate()
+		assert.NoError(t, err)
+	})
+}
+
+func TestValidateLimitStatus_PointerHandling(t *testing.T) {
+	// Test validateLimitStatus handles pointer types correctly
+	t.Run("nil pointer returns true (omitempty)", func(t *testing.T) {
+		limit := 10
+		input := ListLimitsInput{
+			Limit:  &limit,
+			Status: "", // Empty means not set
+		}
+		err := input.Validate()
+		assert.NoError(t, err)
+	})
+}
+
+func TestToListLimitsFilter_SortOrderUppercase(t *testing.T) {
+	tests := []struct {
+		name          string
+		inputOrder    string
+		expectedOrder string
+	}{
+		{
+			name:          "lowercase asc becomes ASC",
+			inputOrder:    "asc",
+			expectedOrder: "ASC",
+		},
+		{
+			name:          "lowercase desc becomes DESC",
+			inputOrder:    "desc",
+			expectedOrder: "DESC",
+		},
+		{
+			name:          "uppercase ASC stays ASC",
+			inputOrder:    "ASC",
+			expectedOrder: "ASC",
+		},
+		{
+			name:          "uppercase DESC stays DESC",
+			inputOrder:    "DESC",
+			expectedOrder: "DESC",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			limit := 10
+			input := &ListLimitsInput{
+				Limit:     &limit,
+				SortOrder: tt.inputOrder,
+			}
+			result := ToListLimitsFilter(input)
+			assert.Equal(t, tt.expectedOrder, result.SortOrder)
+		})
+	}
+}

@@ -1,0 +1,301 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package model
+
+import (
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
+	"tracer/internal/testutil"
+)
+
+func Test_ptrMatches(t *testing.T) {
+	tests := []struct {
+		name     string
+		pattern  *string
+		value    *string
+		expected bool
+	}{
+		{
+			name:     "nil pattern matches any value",
+			pattern:  nil,
+			value:    testutil.StringPtr("any"),
+			expected: true,
+		},
+		{
+			name:     "nil pattern matches nil value",
+			pattern:  nil,
+			value:    nil,
+			expected: true,
+		},
+		{
+			name:     "non-nil pattern with nil value does not match",
+			pattern:  testutil.StringPtr("pattern"),
+			value:    nil,
+			expected: false,
+		},
+		{
+			name:     "same values match",
+			pattern:  testutil.StringPtr("same"),
+			value:    testutil.StringPtr("same"),
+			expected: true,
+		},
+		{
+			name:     "different values do not match",
+			pattern:  testutil.StringPtr("pattern"),
+			value:    testutil.StringPtr("different"),
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := ptrMatches(tc.pattern, tc.value)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func Test_ptrMatches_WithUUID(t *testing.T) {
+	uuid1 := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
+	uuid2 := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
+
+	tests := []struct {
+		name     string
+		pattern  *uuid.UUID
+		value    *uuid.UUID
+		expected bool
+	}{
+		{
+			name:     "nil pattern matches any UUID",
+			pattern:  nil,
+			value:    &uuid1,
+			expected: true,
+		},
+		{
+			name:     "same UUIDs match",
+			pattern:  &uuid1,
+			value:    &uuid1,
+			expected: true,
+		},
+		{
+			name:     "different UUIDs do not match",
+			pattern:  &uuid1,
+			value:    &uuid2,
+			expected: false,
+		},
+		{
+			name:     "non-nil pattern with nil value does not match",
+			pattern:  &uuid1,
+			value:    nil,
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := ptrMatches(tc.pattern, tc.value)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func Test_ptrMatches_WithInt(t *testing.T) {
+	tests := []struct {
+		name     string
+		pattern  *int
+		value    *int
+		expected bool
+	}{
+		{
+			name:     "nil pattern matches any int",
+			pattern:  nil,
+			value:    testutil.Ptr(42),
+			expected: true,
+		},
+		{
+			name:     "same ints match",
+			pattern:  testutil.Ptr(100),
+			value:    testutil.Ptr(100),
+			expected: true,
+		},
+		{
+			name:     "different ints do not match",
+			pattern:  testutil.Ptr(100),
+			value:    testutil.Ptr(200),
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := ptrMatches(tc.pattern, tc.value)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestScope_IsEmpty(t *testing.T) {
+	tests := []struct {
+		name     string
+		scope    Scope
+		expected bool
+	}{
+		{
+			name:     "Success - empty scope returns true",
+			scope:    Scope{},
+			expected: true,
+		},
+		{
+			name: "Success - scope with SegmentID is not empty",
+			scope: Scope{
+				SegmentID: testutil.UUIDPtr(uuid.New()),
+			},
+			expected: false,
+		},
+		{
+			name: "Success - scope with PortfolioID is not empty",
+			scope: Scope{
+				PortfolioID: testutil.UUIDPtr(uuid.New()),
+			},
+			expected: false,
+		},
+		{
+			name: "Success - scope with AccountID is not empty",
+			scope: Scope{
+				AccountID: testutil.UUIDPtr(uuid.New()),
+			},
+			expected: false,
+		},
+		{
+			name: "Success - scope with MerchantID is not empty",
+			scope: Scope{
+				MerchantID: testutil.UUIDPtr(uuid.New()),
+			},
+			expected: false,
+		},
+		{
+			name: "Success - scope with TransactionType is not empty",
+			scope: Scope{
+				TransactionType: testutil.Ptr(TransactionTypeCard),
+			},
+			expected: false,
+		},
+		{
+			name: "Success - scope with SubType is not empty",
+			scope: Scope{
+				SubType: testutil.StringPtr("CREDIT"),
+			},
+			expected: false,
+		},
+		{
+			name: "Success - scope with multiple fields is not empty",
+			scope: Scope{
+				AccountID:       testutil.UUIDPtr(uuid.New()),
+				TransactionType: testutil.Ptr(TransactionTypePix),
+				SubType:         testutil.StringPtr("INSTANT"),
+			},
+			expected: false,
+		},
+		{
+			name: "Success - scope with all fields is not empty",
+			scope: Scope{
+				SegmentID:       testutil.UUIDPtr(uuid.New()),
+				PortfolioID:     testutil.UUIDPtr(uuid.New()),
+				AccountID:       testutil.UUIDPtr(uuid.New()),
+				MerchantID:      testutil.UUIDPtr(uuid.New()),
+				TransactionType: testutil.Ptr(TransactionTypeWire),
+				SubType:         testutil.StringPtr("INTERNATIONAL"),
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.scope.IsEmpty()
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestScope_Matches(t *testing.T) {
+	accountID1 := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
+	accountID2 := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
+	segmentID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
+	txTypeCard := TransactionTypeCard
+	txTypePix := TransactionTypePix
+
+	tests := []struct {
+		name     string
+		scope    Scope
+		other    Scope
+		expected bool
+	}{
+		{
+			name:     "empty scope matches any",
+			scope:    Scope{},
+			other:    Scope{AccountID: &accountID1},
+			expected: true,
+		},
+		{
+			name:     "same accountID matches",
+			scope:    Scope{AccountID: &accountID1},
+			other:    Scope{AccountID: &accountID1},
+			expected: true,
+		},
+		{
+			name:     "different accountID does not match",
+			scope:    Scope{AccountID: &accountID1},
+			other:    Scope{AccountID: &accountID2},
+			expected: false,
+		},
+		{
+			name:     "scope field nil in other does not match",
+			scope:    Scope{AccountID: &accountID1},
+			other:    Scope{},
+			expected: false,
+		},
+		{
+			name:     "other has more fields - matches",
+			scope:    Scope{AccountID: &accountID1},
+			other:    Scope{AccountID: &accountID1, SegmentID: &segmentID},
+			expected: true,
+		},
+		{
+			name:     "multiple fields must all match",
+			scope:    Scope{AccountID: &accountID1, SegmentID: &segmentID},
+			other:    Scope{AccountID: &accountID1, SegmentID: &segmentID},
+			expected: true,
+		},
+		{
+			name:     "multiple fields - one missing in other",
+			scope:    Scope{AccountID: &accountID1, SegmentID: &segmentID},
+			other:    Scope{AccountID: &accountID1},
+			expected: false,
+		},
+		{
+			name:     "transaction type matches",
+			scope:    Scope{TransactionType: &txTypeCard},
+			other:    Scope{TransactionType: &txTypeCard},
+			expected: true,
+		},
+		{
+			name:     "transaction type differs",
+			scope:    Scope{TransactionType: &txTypeCard},
+			other:    Scope{TransactionType: &txTypePix},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.scope.Matches(&tc.other)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}

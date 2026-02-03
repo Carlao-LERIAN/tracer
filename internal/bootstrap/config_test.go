@@ -1,0 +1,885 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package bootstrap
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"tracer/internal/adapters/cel"
+	"tracer/internal/testutil"
+	"tracer/pkg/model"
+)
+
+func TestValidateAuthConfig_Success_AuthDisabled_LogsWarning(t *testing.T) {
+	// Arrange
+	logger := testutil.NewMockLogger()
+	cfg := &Config{
+		APIKeyEnabled: false,
+		APIKey:        "",
+	}
+
+	// Act
+	err := ValidateAuthConfig(cfg, logger)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, logger.Calls, 1, "expected exactly one warning when auth is disabled")
+	assert.Contains(t, logger.Calls[0].Message, "API Key authentication is DISABLED")
+}
+
+func TestValidateAuthConfig_Error_AuthEnabledNoKey_ReturnsError(t *testing.T) {
+	// Arrange
+	logger := testutil.NewMockLogger()
+	cfg := &Config{
+		APIKeyEnabled: true,
+		APIKey:        "", // Empty key when enabled
+	}
+
+	// Act
+	err := ValidateAuthConfig(cfg, logger)
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "API_KEY must be set when API_KEY_ENABLED=true")
+}
+
+func TestValidateAuthConfig_Success_AuthEnabledShortKey_LogsWarning(t *testing.T) {
+	// Arrange
+	logger := testutil.NewMockLogger()
+	cfg := &Config{
+		APIKeyEnabled: true,
+		APIKey:        "short_key", // Less than 32 characters
+	}
+
+	// Act
+	err := ValidateAuthConfig(cfg, logger)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, logger.Calls, 1, "expected exactly one warning for short API key")
+	assert.Contains(t, logger.Calls[0].Message, "API_KEY should be at least 32 characters")
+}
+
+func TestValidateAuthConfig_Success_AuthEnabledValidKey_NoError(t *testing.T) {
+	// Arrange
+	logger := testutil.NewMockLogger()
+	// Generate a key that is exactly 32 characters
+	validKey := "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6" // 32 chars
+	cfg := &Config{
+		APIKeyEnabled: true,
+		APIKey:        validKey,
+	}
+
+	// Act
+	err := ValidateAuthConfig(cfg, logger)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, logger.Calls, 0, "expected no warnings for valid configuration")
+}
+
+func TestParseCELCostLimit(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    uint64
+		expectError bool
+	}{
+		{
+			name:        "empty string returns default",
+			input:       "",
+			expected:    10000,
+			expectError: false,
+		},
+		{
+			name:        "valid number",
+			input:       "5000",
+			expected:    5000,
+			expectError: false,
+		},
+		{
+			name:        "invalid string returns error",
+			input:       "invalid",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "negative number returns error",
+			input:       "-100",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "zero returns error",
+			input:       "0",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "large number",
+			input:       "1000000",
+			expected:    1000000,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseCELCostLimit(tc.input)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestParseCELCacheMaxSize(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    int64
+		expectError bool
+	}{
+		{
+			name:        "empty string returns default",
+			input:       "",
+			expected:    1000,
+			expectError: false,
+		},
+		{
+			name:        "valid number",
+			input:       "500",
+			expected:    500,
+			expectError: false,
+		},
+		{
+			name:        "invalid string returns error",
+			input:       "invalid",
+			expectError: true,
+		},
+		{
+			name:        "negative number returns error",
+			input:       "-100",
+			expectError: true,
+		},
+		{
+			name:        "zero returns error",
+			input:       "0",
+			expectError: true,
+		},
+		{
+			name:        "large number",
+			input:       "100000",
+			expected:    100000,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseCELCacheMaxSize(tc.input)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestValidateAuthConfig_TableDriven(t *testing.T) {
+	tests := []struct {
+		name              string
+		apiKeyEnabled     bool
+		apiKey            string
+		expectError       bool
+		expectedErrMsg    string
+		expectedWarnCount int
+	}{
+		{
+			name:              "Success - auth disabled logs warning",
+			apiKeyEnabled:     false,
+			apiKey:            "",
+			expectError:       false,
+			expectedWarnCount: 1,
+		},
+		{
+			name:              "Error - auth enabled without key returns error",
+			apiKeyEnabled:     true,
+			apiKey:            "",
+			expectError:       true,
+			expectedErrMsg:    "API_KEY must be set when API_KEY_ENABLED=true",
+			expectedWarnCount: 0,
+		},
+		{
+			name:              "Success - auth enabled with short key logs warning",
+			apiKeyEnabled:     true,
+			apiKey:            "short_key_under_32_chars",
+			expectError:       false,
+			expectedWarnCount: 1,
+		},
+		{
+			name:              "Success - auth enabled with valid 32 char key no warning",
+			apiKeyEnabled:     true,
+			apiKey:            "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+			expectError:       false,
+			expectedWarnCount: 0,
+		},
+		{
+			name:              "Success - auth enabled with long key no warning",
+			apiKeyEnabled:     true,
+			apiKey:            "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
+			expectError:       false,
+			expectedWarnCount: 0,
+		},
+		{
+			name:              "Success - auth enabled with 31 char key logs warning",
+			apiKeyEnabled:     true,
+			apiKey:            "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p",
+			expectError:       false,
+			expectedWarnCount: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			logger := testutil.NewMockLogger()
+			cfg := &Config{
+				APIKeyEnabled: tc.apiKeyEnabled,
+				APIKey:        tc.apiKey,
+			}
+
+			// Act
+			err := ValidateAuthConfig(cfg, logger)
+
+			// Assert
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Len(t, logger.Calls, tc.expectedWarnCount,
+				"expected %d warnings, got %d", tc.expectedWarnCount, len(logger.Calls))
+		})
+	}
+}
+
+func TestCelCompilerAdapter_Compile(t *testing.T) {
+	tests := []struct {
+		name        string
+		expression  string
+		expectError bool
+	}{
+		{
+			name:        "Success - compiles valid expression",
+			expression:  "amount > 1000",
+			expectError: false,
+		},
+		{
+			name:        "Success - compiles boolean expression",
+			expression:  "amount > 500 && amount < 10000",
+			expectError: false,
+		},
+		{
+			name:        "Error - invalid expression syntax",
+			expression:  "invalid syntax !!@#",
+			expectError: true,
+		},
+		{
+			name:        "Error - undeclared variable",
+			expression:  "unknown_var == true",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			logger := testutil.NewMockLogger()
+			adapter, err := cel.NewAdapter(cel.AdapterConfig{
+				CostLimit:    10000,
+				CacheMaxSize: 100,
+			}, logger)
+			require.NoError(t, err)
+
+			compiler := &celCompilerAdapter{adapter: adapter}
+
+			// Act
+			result, err := compiler.Compile(context.Background(), tc.expression)
+
+			// Assert
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
+	}
+}
+
+func TestParseDefaultDecision(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    model.Decision
+		expectError bool
+	}{
+		{
+			name:        "empty string returns ALLOW",
+			input:       "",
+			expected:    model.DecisionAllow,
+			expectError: false,
+		},
+		{
+			name:        "ALLOW returns ALLOW",
+			input:       "ALLOW",
+			expected:    model.DecisionAllow,
+			expectError: false,
+		},
+		{
+			name:        "DENY returns DENY",
+			input:       "DENY",
+			expected:    model.DecisionDeny,
+			expectError: false,
+		},
+		{
+			name:        "invalid value returns error",
+			input:       "INVALID",
+			expectError: true,
+		},
+		{
+			name:        "lowercase allow returns error",
+			input:       "allow",
+			expectError: true,
+		},
+		{
+			name:        "REVIEW returns error",
+			input:       "REVIEW",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseDefaultDecision(tc.input)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestParseMaxRulesPerRequest(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    int
+		expectError bool
+	}{
+		{
+			name:        "empty string returns default 1000",
+			input:       "",
+			expected:    1000,
+			expectError: false,
+		},
+		{
+			name:        "valid number",
+			input:       "500",
+			expected:    500,
+			expectError: false,
+		},
+		{
+			name:        "invalid string returns error",
+			input:       "invalid",
+			expectError: true,
+		},
+		{
+			name:        "negative number returns error",
+			input:       "-100",
+			expectError: true,
+		},
+		{
+			name:        "zero returns error",
+			input:       "0",
+			expectError: true,
+		},
+		{
+			name:        "large number",
+			input:       "10000",
+			expected:    10000,
+			expectError: false,
+		},
+		{
+			name:        "maximum allowed value",
+			input:       "100000",
+			expected:    100000,
+			expectError: false,
+		},
+		{
+			name:        "exceeds maximum returns error",
+			input:       "100001",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseMaxRulesPerRequest(tc.input)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestLoadEvaluationConfig(t *testing.T) {
+	tests := []struct {
+		name                string
+		defaultDecision     string
+		maxRules            string
+		expectedDecision    model.Decision
+		expectedMaxRules    int
+		expectError         bool
+		expectedErrContains string
+	}{
+		{
+			name:             "default values when empty",
+			defaultDecision:  "",
+			maxRules:         "",
+			expectedDecision: model.DecisionAllow,
+			expectedMaxRules: 1000,
+			expectError:      false,
+		},
+		{
+			name:             "custom DENY default",
+			defaultDecision:  "DENY",
+			maxRules:         "",
+			expectedDecision: model.DecisionDeny,
+			expectedMaxRules: 1000,
+			expectError:      false,
+		},
+		{
+			name:             "custom max rules",
+			defaultDecision:  "",
+			maxRules:         "500",
+			expectedDecision: model.DecisionAllow,
+			expectedMaxRules: 500,
+			expectError:      false,
+		},
+		{
+			name:             "both custom values",
+			defaultDecision:  "DENY",
+			maxRules:         "2000",
+			expectedDecision: model.DecisionDeny,
+			expectedMaxRules: 2000,
+			expectError:      false,
+		},
+		{
+			name:                "invalid decision returns error",
+			defaultDecision:     "INVALID",
+			maxRules:            "",
+			expectError:         true,
+			expectedErrContains: "invalid DEFAULT_DECISION_WHEN_NO_MATCH",
+		},
+		{
+			name:                "invalid max rules returns error",
+			defaultDecision:     "",
+			maxRules:            "invalid",
+			expectError:         true,
+			expectedErrContains: "invalid MAX_RULES_PER_REQUEST",
+		},
+		{
+			name:                "both invalid returns first error (decision)",
+			defaultDecision:     "INVALID",
+			maxRules:            "invalid",
+			expectError:         true,
+			expectedErrContains: "invalid DEFAULT_DECISION_WHEN_NO_MATCH",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{
+				DefaultDecisionWhenNoMatch: tc.defaultDecision,
+				MaxRulesPerRequest:         tc.maxRules,
+			}
+
+			logger := testutil.NewMockLogger()
+			result, err := LoadEvaluationConfig(cfg, logger)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.expectedErrContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrContains)
+				}
+
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tc.expectedDecision, result.DefaultDecisionWhenNoMatch)
+				assert.Equal(t, tc.expectedMaxRules, result.MaxRulesPerRequest)
+			}
+		})
+	}
+}
+
+func TestLoadEvaluationConfig_NilConfig(t *testing.T) {
+	logger := testutil.NewMockLogger()
+	result, err := LoadEvaluationConfig(nil, logger)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "config cannot be nil")
+	assert.Nil(t, result)
+}
+
+func TestLoadEvaluationConfig_NilLogger(t *testing.T) {
+	cfg := &Config{
+		DefaultDecisionWhenNoMatch: "",
+		MaxRulesPerRequest:         "",
+	}
+	result, err := LoadEvaluationConfig(cfg, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "logger cannot be nil")
+	assert.Nil(t, result)
+}
+
+func TestLoadEvaluationConfig_DefaultALLOW_LogsWarning(t *testing.T) {
+	logger := testutil.NewMockLogger()
+	cfg := &Config{
+		DefaultDecisionWhenNoMatch: "", // Empty = default ALLOW
+		MaxRulesPerRequest:         "",
+	}
+
+	result, err := LoadEvaluationConfig(cfg, logger)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, model.DecisionAllow, result.DefaultDecisionWhenNoMatch)
+
+	// Verify warning was logged
+	require.Len(t, logger.Calls, 1, "expected warning for default ALLOW")
+	assert.Contains(t, logger.Calls[0].Message, "fail-open")
+}
+
+func TestParseCleanupIntervalHours(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    time.Duration
+		expectError bool
+	}{
+		{
+			name:        "empty string returns default 24 hours",
+			input:       "",
+			expected:    24 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "valid number",
+			input:       "12",
+			expected:    12 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "1 hour",
+			input:       "1",
+			expected:    1 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "invalid string returns error",
+			input:       "invalid",
+			expectError: true,
+		},
+		{
+			name:        "negative number returns error",
+			input:       "-1",
+			expectError: true,
+		},
+		{
+			name:        "zero returns error",
+			input:       "0",
+			expectError: true,
+		},
+		{
+			name:        "large number",
+			input:       "168", // 1 week
+			expected:    168 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "maximum allowed value - 1 year",
+			input:       "8760",
+			expected:    8760 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "exceeds maximum returns error",
+			input:       "8761",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseCleanupIntervalHours(tc.input)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestParseCleanupRetentionDays(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    time.Duration
+		expectError bool
+	}{
+		{
+			name:        "empty string returns default 90 days",
+			input:       "",
+			expected:    90 * 24 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "valid number",
+			input:       "30",
+			expected:    30 * 24 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "1 day",
+			input:       "1",
+			expected:    24 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "invalid string returns error",
+			input:       "invalid",
+			expectError: true,
+		},
+		{
+			name:        "negative number returns error",
+			input:       "-7",
+			expectError: true,
+		},
+		{
+			name:        "zero returns error",
+			input:       "0",
+			expectError: true,
+		},
+		{
+			name:        "large number - 365 days",
+			input:       "365",
+			expected:    365 * 24 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "maximum allowed value - 10 years",
+			input:       "3650",
+			expected:    3650 * 24 * time.Hour,
+			expectError: false,
+		},
+		{
+			name:        "exceeds maximum returns error",
+			input:       "3651",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseCleanupRetentionDays(tc.input)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestLoadCleanupWorkerConfig(t *testing.T) {
+	tests := []struct {
+		name                    string
+		cleanupWorkerEnabled    bool
+		cleanupIntervalHours    string
+		cleanupRetentionDays    string
+		expectedInterval        time.Duration
+		expectedRetention       time.Duration
+		expectNilConfig         bool
+		expectError             bool
+		expectedErrContains     string
+		expectedInfoLogContains string
+	}{
+		{
+			name:                    "disabled worker returns nil config",
+			cleanupWorkerEnabled:    false,
+			cleanupIntervalHours:    "",
+			cleanupRetentionDays:    "",
+			expectNilConfig:         true,
+			expectError:             false,
+			expectedInfoLogContains: "DISABLED",
+		},
+		{
+			name:                 "enabled with defaults",
+			cleanupWorkerEnabled: true,
+			cleanupIntervalHours: "",
+			cleanupRetentionDays: "",
+			expectedInterval:     24 * time.Hour,
+			expectedRetention:    90 * 24 * time.Hour,
+			expectNilConfig:      false,
+			expectError:          false,
+		},
+		{
+			name:                 "enabled with custom interval",
+			cleanupWorkerEnabled: true,
+			cleanupIntervalHours: "12",
+			cleanupRetentionDays: "",
+			expectedInterval:     12 * time.Hour,
+			expectedRetention:    90 * 24 * time.Hour,
+			expectNilConfig:      false,
+			expectError:          false,
+		},
+		{
+			name:                 "enabled with custom retention",
+			cleanupWorkerEnabled: true,
+			cleanupIntervalHours: "",
+			cleanupRetentionDays: "30",
+			expectedInterval:     24 * time.Hour,
+			expectedRetention:    30 * 24 * time.Hour,
+			expectNilConfig:      false,
+			expectError:          false,
+		},
+		{
+			name:                 "enabled with both custom values",
+			cleanupWorkerEnabled: true,
+			cleanupIntervalHours: "6",
+			cleanupRetentionDays: "7",
+			expectedInterval:     6 * time.Hour,
+			expectedRetention:    7 * 24 * time.Hour,
+			expectNilConfig:      false,
+			expectError:          false,
+		},
+		{
+			name:                 "invalid interval returns error",
+			cleanupWorkerEnabled: true,
+			cleanupIntervalHours: "invalid",
+			cleanupRetentionDays: "",
+			expectError:          true,
+			expectedErrContains:  "invalid CLEANUP_INTERVAL_HOURS",
+		},
+		{
+			name:                 "invalid retention returns error",
+			cleanupWorkerEnabled: true,
+			cleanupIntervalHours: "",
+			cleanupRetentionDays: "invalid",
+			expectError:          true,
+			expectedErrContains:  "invalid CLEANUP_RETENTION_DAYS",
+		},
+		{
+			name:                 "zero interval returns error",
+			cleanupWorkerEnabled: true,
+			cleanupIntervalHours: "0",
+			cleanupRetentionDays: "",
+			expectError:          true,
+			expectedErrContains:  "invalid CLEANUP_INTERVAL_HOURS",
+		},
+		{
+			name:                 "negative retention returns error",
+			cleanupWorkerEnabled: true,
+			cleanupIntervalHours: "",
+			cleanupRetentionDays: "-1",
+			expectError:          true,
+			expectedErrContains:  "invalid CLEANUP_RETENTION_DAYS",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{
+				CleanupWorkerEnabled: tc.cleanupWorkerEnabled,
+				CleanupIntervalHours: tc.cleanupIntervalHours,
+				CleanupRetentionDays: tc.cleanupRetentionDays,
+			}
+
+			logger := testutil.NewMockLogger()
+			result, err := LoadCleanupWorkerConfig(cfg, logger)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.expectedErrContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrContains)
+				}
+
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+
+				if tc.expectNilConfig {
+					assert.Nil(t, result)
+					// Verify info log was generated
+					if tc.expectedInfoLogContains != "" {
+						require.GreaterOrEqual(t, len(logger.Calls), 1)
+						assert.Contains(t, logger.Calls[0].Message, tc.expectedInfoLogContains)
+					}
+				} else {
+					require.NotNil(t, result)
+					assert.Equal(t, tc.expectedInterval, result.CleanupInterval)
+					assert.Equal(t, tc.expectedRetention, result.RetentionPeriod)
+				}
+			}
+		})
+	}
+}
+
+func TestLoadCleanupWorkerConfig_NilConfig(t *testing.T) {
+	logger := testutil.NewMockLogger()
+	result, err := LoadCleanupWorkerConfig(nil, logger)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "config cannot be nil")
+	assert.Nil(t, result)
+}
+
+func TestLoadCleanupWorkerConfig_NilLogger(t *testing.T) {
+	cfg := &Config{CleanupWorkerEnabled: true}
+	result, err := LoadCleanupWorkerConfig(cfg, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "logger cannot be nil")
+	assert.Nil(t, result)
+}
