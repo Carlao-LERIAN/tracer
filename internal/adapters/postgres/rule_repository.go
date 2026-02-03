@@ -484,6 +484,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 		// potential bypass or refactoring. Use default limit + 1 as safe fallback.
 		fetchLimit = constant.DefaultPaginationLimit + 1
 	}
+
 	query = query.Limit(uint64(fetchLimit)) // #nosec G115 - fetchLimit validated positive above
 
 	sqlStr, args, err := query.ToSql()

@@ -216,6 +216,7 @@ func DeleteRuleViaAPI(t *testing.T, ruleID string) {
 	require.NoError(t, err)
 	getBody, err := io.ReadAll(getResp.Body)
 	_ = getResp.Body.Close() // Intentionally ignored in test helper
+
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, getResp.StatusCode, "Failed to get rule status")
 
@@ -368,6 +369,7 @@ func doRequest(t *testing.T, method, url string, body io.Reader, headers map[str
 
 	respBody, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close() // Intentionally ignored in test helper
+
 	require.NoError(t, err)
 
 	return resp, respBody
@@ -541,6 +543,7 @@ func DeactivateRule(t *testing.T, ruleID string) {
 	require.NoError(t, err)
 	getBody, err := io.ReadAll(getResp.Body)
 	_ = getResp.Body.Close() // Intentionally ignored in test helper
+
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, getResp.StatusCode, "Failed to get rule status")
 
@@ -613,6 +616,7 @@ func GetValidation(t *testing.T, validationID string) (*http.Response, []byte) {
 
 	respBody, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close() // Intentionally ignored in test helper
+
 	require.NoError(t, err)
 
 	return resp, respBody
@@ -632,6 +636,7 @@ func GetValidationWithoutAuth(t *testing.T, validationID string) (*http.Response
 
 	respBody, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close() // Intentionally ignored in test helper
+
 	require.NoError(t, err)
 
 	return resp, respBody
@@ -682,6 +687,7 @@ func ListValidations(t *testing.T, queryParams string) (*http.Response, []byte) 
 
 	respBody, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close() // Intentionally ignored in test helper
+
 	require.NoError(t, err)
 
 	return resp, respBody
@@ -706,6 +712,7 @@ func ListValidationsWithoutAuth(t *testing.T, queryParams string) (*http.Respons
 
 	respBody, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close() // Intentionally ignored in test helper
+
 	require.NoError(t, err)
 
 	return resp, respBody

@@ -221,6 +221,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		// potential bypass or refactoring. Use default limit + 1 as safe fallback.
 		fetchLimit = constant.DefaultPaginationLimit + 1
 	}
+
 	query = query.Limit(uint64(fetchLimit)) // #nosec G115 - fetchLimit validated positive above
 
 	sqlStr, args, err := query.ToSql()

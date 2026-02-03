@@ -217,6 +217,7 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 		// potential bypass or refactoring. Use default limit + 1 as safe fallback.
 		fetchLimit = model.DefaultAuditEventFilterLimit + 1
 	}
+
 	qb = qb.Limit(uint64(fetchLimit)) // #nosec G115 - fetchLimit validated positive above
 
 	sqlStr, args, err := qb.ToSql()
