@@ -114,6 +114,7 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 		if scope.IsEmpty() {
 			return nil, constant.ErrRuleInvalidScope
 		}
+
 		scopesCopy = append(scopesCopy, scope)
 	}
 
@@ -172,6 +173,15 @@ func (r *Rule) Update(
 		normalizedDescription = strings.TrimSpace(*description)
 		if len(normalizedDescription) > MaxDescriptionLength {
 			return constant.ErrRuleDescriptionTooLong
+		}
+	}
+
+	// Validate scopes - each scope must have at least one field set
+	if scopes != nil {
+		for _, scope := range *scopes {
+			if scope.IsEmpty() {
+				return constant.ErrRuleInvalidScope
+			}
 		}
 	}
 
