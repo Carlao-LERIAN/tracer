@@ -124,7 +124,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 	logger = logging.WithTrace(ctx, logger)
 
-	_, span := tracer.Start(ctx, "adapter.cel.compile")
+	ctx, span := tracer.Start(ctx, "adapter.cel.compile")
 	defer span.End()
 
 	// Validate expression is not empty (fail fast before any processing)
@@ -277,7 +277,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed from tracking context
 
-	_, span := tracer.Start(ctx, "adapter.cel.evaluate")
+	ctx, span := tracer.Start(ctx, "adapter.cel.evaluate")
 	defer span.End()
 
 	// Validate inputs
@@ -356,7 +356,7 @@ func (a *Adapter) Invalidate(ctx context.Context, expressionHash string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 	logger = logging.WithTrace(ctx, logger)
 
-	_, span := tracer.Start(ctx, "adapter.cel.invalidate")
+	ctx, span := tracer.Start(ctx, "adapter.cel.invalidate")
 	defer span.End()
 
 	// Set span attributes for the invalidation operation
