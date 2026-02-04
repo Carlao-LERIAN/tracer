@@ -358,7 +358,11 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 }
 
 func TestAuditEventType_IsValid(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Valid event types", func(t *testing.T) {
+		t.Parallel()
+
 		validTypes := []AuditEventType{
 			AuditEventRuleCreated,
 			AuditEventRuleUpdated,
@@ -379,6 +383,8 @@ func TestAuditEventType_IsValid(t *testing.T) {
 	})
 
 	t.Run("Invalid event types", func(t *testing.T) {
+		t.Parallel()
+
 		invalidTypes := []AuditEventType{
 			AuditEventType(""),
 			AuditEventType("INVALID"),
@@ -393,7 +399,11 @@ func TestAuditEventType_IsValid(t *testing.T) {
 }
 
 func TestAuditAction_IsValid(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Valid actions", func(t *testing.T) {
+		t.Parallel()
+
 		validActions := []AuditAction{
 			AuditActionCreate,
 			AuditActionUpdate,
@@ -409,6 +419,8 @@ func TestAuditAction_IsValid(t *testing.T) {
 	})
 
 	t.Run("Invalid actions", func(t *testing.T) {
+		t.Parallel()
+
 		invalidActions := []AuditAction{
 			AuditAction(""),
 			AuditAction("INVALID"),
@@ -423,7 +435,11 @@ func TestAuditAction_IsValid(t *testing.T) {
 }
 
 func TestAuditResult_IsValid(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Valid results", func(t *testing.T) {
+		t.Parallel()
+
 		validResults := []AuditResult{
 			AuditResultSuccess,
 			AuditResultFailed,
@@ -438,6 +454,8 @@ func TestAuditResult_IsValid(t *testing.T) {
 	})
 
 	t.Run("Invalid results", func(t *testing.T) {
+		t.Parallel()
+
 		invalidResults := []AuditResult{
 			AuditResult(""),
 			AuditResult("INVALID"),
@@ -452,7 +470,11 @@ func TestAuditResult_IsValid(t *testing.T) {
 }
 
 func TestResourceType_IsValid(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Valid resource types", func(t *testing.T) {
+		t.Parallel()
+
 		validTypes := []ResourceType{
 			ResourceTypeRule,
 			ResourceTypeLimit,
@@ -465,6 +487,8 @@ func TestResourceType_IsValid(t *testing.T) {
 	})
 
 	t.Run("Invalid resource types", func(t *testing.T) {
+		t.Parallel()
+
 		invalidTypes := []ResourceType{
 			ResourceType(""),
 			ResourceType("INVALID"),
