@@ -145,31 +145,47 @@ func NewValidationRequest(
 // Currency is NOT normalized - API enforces strict ISO 4217 uppercase validation (e.g., "usd" will fail).
 // Returns error if validation fails after normalization.
 //
+// Atomicity: If validation fails, the receiver is NOT modified. Normalization is only applied
+// after successful validation. This allows callers to safely retry or inspect the original values.
+//
 // Use this method when:
 // - Validating after JSON deserialization where strict ISO 4217 uppercase currency is required
 // - You want to enforce that clients send properly formatted currency codes
 //
 // For programmatic construction with automatic currency normalization, use NewValidationRequest() instead.
 func (r *ValidationRequest) NormalizeAndValidate() error {
-	// Normalize subType if provided (trim whitespace)
+	// Prepare normalized values without mutating the receiver yet
+	var normalizedSubType *string
+
 	if r.SubType != nil {
 		trimmed := strings.TrimSpace(*r.SubType)
-		r.SubType = &trimmed
+		normalizedSubType = &trimmed
 	}
 
-	// Shallow copy metadata to detach top-level map entries
-	// Note: nested maps/slices share references with original (acceptable trade-off)
+	// Prepare shallow copy of metadata
+	var metadataCopy map[string]any
 	if r.Metadata != nil {
-		metadataCopy := make(map[string]any, len(r.Metadata))
+		metadataCopy = make(map[string]any, len(r.Metadata))
 		for k, v := range r.Metadata {
 			metadataCopy[k] = v
 		}
-
-		r.Metadata = metadataCopy
 	}
 
-	// Validate (currency will be validated as-is, enforcing uppercase ISO 4217)
-	return r.Validate()
+	// Create temporary copy with normalized values for validation
+	temp := *r
+	temp.SubType = normalizedSubType
+	temp.Metadata = metadataCopy
+
+	// Validate on temp - if error, original r remains unchanged
+	if err := temp.Validate(); err != nil {
+		return err
+	}
+
+	// Only apply changes if validation succeeded (atomic commit)
+	r.SubType = normalizedSubType
+	r.Metadata = metadataCopy
+
+	return nil
 }
 
 // LimitUsageDetail contains usage information for a checked limit.
