@@ -77,6 +77,50 @@ func TestInvalidTransitionError(t *testing.T) {
 	assert.Equal(t, "invalid status transition from ACTIVE to DRAFT", err.Error())
 }
 
+func TestRuleStatus_CanTransitionTo_InvalidSourceStatus(t *testing.T) {
+	// Edge case: source status not in validTransitions map should always return false
+	invalidStatus := RuleStatus("INVALID_STATUS")
+
+	tests := []struct {
+		name   string
+		target RuleStatus
+	}{
+		{"INVALID → DRAFT", RuleStatusDraft},
+		{"INVALID → ACTIVE", RuleStatusActive},
+		{"INVALID → INACTIVE", RuleStatusInactive},
+		{"INVALID → DELETED", RuleStatusDeleted},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.False(t, invalidStatus.CanTransitionTo(tt.target),
+				"Invalid source status should not be able to transition to any target")
+		})
+	}
+}
+
+func TestRuleStatus_CanTransitionTo_InvalidTargetStatus(t *testing.T) {
+	// Edge case: valid source status transitioning to invalid target should return false
+	invalidTarget := RuleStatus("INVALID_TARGET")
+
+	tests := []struct {
+		name   string
+		source RuleStatus
+	}{
+		{"DRAFT → INVALID", RuleStatusDraft},
+		{"ACTIVE → INVALID", RuleStatusActive},
+		{"INACTIVE → INVALID", RuleStatusInactive},
+		{"DELETED → INVALID", RuleStatusDeleted},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.False(t, tt.source.CanTransitionTo(invalidTarget),
+				"Valid source status should not be able to transition to invalid target")
+		})
+	}
+}
+
 func TestRuleStatus_String(t *testing.T) {
 	tests := []struct {
 		name     string
