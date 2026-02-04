@@ -4,6 +4,7 @@ This document defines the architecture patterns, code conventions, testing requi
 
 ## Table of Contents
 
+- [Coding Standards (NEW!)](#coding-standards)
 - [Architecture](#architecture)
 - [Code Conventions](#code-conventions)
 - [Error Handling](#error-handling)
@@ -18,6 +19,32 @@ This document defines the architecture patterns, code conventions, testing requi
 - [Observability Patterns](#observability-patterns)
 - [Forbidden Practices](#forbidden-practices)
 - [AI Assistant Rules](#ai-assistant-rules)
+
+---
+
+## Coding Standards
+
+**📘 See full document:** [docs/CODING_STANDARDS.md](./CODING_STANDARDS.md)  
+**🌐 Language Policy:** [docs/LANGUAGE_POLICY.md](./LANGUAGE_POLICY.md) - **All code, comments, docs MUST be in English**
+
+This document consolidates best practices identified through code reviews to ensure consistency. Main topics:
+
+1. **Domain Model Invariants** - Always-Valid Objects, Validate Before Mutate
+2. **Error Handling** - %w vs %v, Context Propagation, Typed Errors
+3. **Testing Standards** - Deterministic Tests, Build Tags, Parallelization
+4. **Encapsulation & DDD** - Domain Logic Location, Tell Don't Ask
+5. **Normalization & Validation** - Normalize-Validate-Store Pattern
+6. **Code Organization** - Error Constants Order, Test Helpers Centralization
+7. **Review Checklist** - For authors and reviewers
+8. **Language Policy** - English only for all artifacts
+
+**Golden Rules:**
+- ✅ **Validate Before Mutate** - Atomicity in error-returning methods
+- ✅ **Domain Logic in Domain** - Not in service layer
+- ✅ **Deterministic Tests** - testutil.FixedTime(), never time.Now()
+- ✅ **Error Chain Preservation** - Always `%w`, never `%v`
+- ✅ **Normalize-Validate-Store** - In that order, store normalized value
+- ✅ **English Only** - All code, comments, docs, commits in English
 
 ---
 
