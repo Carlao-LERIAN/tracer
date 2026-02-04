@@ -179,7 +179,6 @@ func TestValidateMetadata(t *testing.T) {
 		specialChars := []string{"key@test", "key#test", "key$test", "key%test", "key&test"}
 
 		for _, key := range specialChars {
-			key := key // Capture loop variable
 			t.Run(key, func(t *testing.T) {
 				req := createValidRequest()
 				req.Metadata = map[string]any{
