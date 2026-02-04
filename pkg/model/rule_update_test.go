@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 )
 
@@ -24,7 +25,7 @@ func newTestRule(t *testing.T) *Rule {
 		"Test Rule",
 		"amount > 1000",
 		DecisionDeny,
-		[]Scope{{AccountID: UUIDPtr(uuid.New())}},
+		[]Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
 		nil,
 	)
 	require.NoError(t, err, "newTestRule: NewRule failed")
@@ -49,7 +50,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 
 	t.Run("Error - rejects multiple scopes where one is empty", func(t *testing.T) {
 		rule := newTestRule(t)
-		validScope := Scope{AccountID: UUIDPtr(uuid.New())}
+		validScope := Scope{AccountID: testutil.UUIDPtr(uuid.New())}
 		emptyScope := Scope{} // All fields nil
 
 		scopesWithOneEmpty := &[]Scope{validScope, emptyScope}
@@ -63,7 +64,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 	t.Run("Error - empty scope in first position", func(t *testing.T) {
 		rule := newTestRule(t)
 		emptyScope := Scope{}
-		validScope := Scope{AccountID: UUIDPtr(uuid.New())}
+		validScope := Scope{AccountID: testutil.UUIDPtr(uuid.New())}
 
 		scopesWithFirstEmpty := &[]Scope{emptyScope, validScope}
 
@@ -79,8 +80,8 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 		copy(originalScopes, rule.Scopes)
 
 		validScopes := &[]Scope{
-			{AccountID: UUIDPtr(uuid.New())},
-			{PortfolioID: UUIDPtr(uuid.New())},
+			{AccountID: testutil.UUIDPtr(uuid.New())},
+			{PortfolioID: testutil.UUIDPtr(uuid.New())},
 		}
 
 		err := rule.Update(nil, nil, nil, validScopes)

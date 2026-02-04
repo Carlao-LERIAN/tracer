@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 )
 
@@ -20,7 +21,7 @@ func TestNewRule(t *testing.T) {
 	t.Parallel()
 
 	validScopes := []Scope{
-		{AccountID: UUIDPtr(uuid.New())},
+		{AccountID: testutil.UUIDPtr(uuid.New())},
 	}
 	validDescription := "Test description"
 
@@ -285,7 +286,7 @@ func TestNewRule(t *testing.T) {
 
 	t.Run("Defensive copy - external scope mutation doesn't affect rule", func(t *testing.T) {
 		externalScopes := []Scope{
-			{AccountID: UUIDPtr(uuid.New())},
+			{AccountID: testutil.UUIDPtr(uuid.New())},
 		}
 		originalAccountID := *externalScopes[0].AccountID
 
