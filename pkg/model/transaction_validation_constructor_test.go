@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 )
 
@@ -19,7 +20,7 @@ func TestNewTransactionValidation_Validation(t *testing.T) {
 	t.Parallel()
 
 	fixedTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
-	validID := uuid.New()
+	validID := testutil.MustDeterministicUUID(1)
 
 	t.Run("Success - creates with ALLOW decision", func(t *testing.T) {
 		result, err := NewTransactionValidation(validID, DecisionAllow, fixedTime)
