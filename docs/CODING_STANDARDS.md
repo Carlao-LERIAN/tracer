@@ -132,15 +132,47 @@ assert.WithinDuration(t, time.Now(), rule.CreatedAt, 1*time.Second)
 ```
 
 **NEVER use in tests:**
-- `time.Now()`
-- `uuid.New()`
-- `rand.Intn()`
-- `time.Sleep()`
+- `time.Now()` - Use `testutil.FixedTime()` instead
+- `uuid.New()` - Use `testutil.MustDeterministicUUID(seed)` instead
+- `rand.Intn()` - Use fixed seeds with `rand.New(rand.NewSource(42))`
+- `time.Sleep()` - Use mock clocks or polling with timeouts
 
 **ALWAYS use:**
-- `testutil.FixedTime()`
-- `testutil.MustDeterministicUUID(seed)`
-- `testutil.NewDefaultMockClock()`
+- `testutil.FixedTime()` - Returns consistent 2024-01-01T00:00:00Z
+- `testutil.MustDeterministicUUID(seed)` - Returns same UUID for same seed
+- `testutil.NewDefaultMockClock()` - Mock clock for time-dependent logic
+
+**CRITICAL: Test Helpers Must Be Deterministic**
+
+```go
+// ❌ INCORRECT - Test helper with non-deterministic values
+func createTestRequest() *ValidationRequest {
+    return &ValidationRequest{
+        RequestID:            uuid.New(),   // FORBIDDEN
+        TransactionTimestamp: time.Now(),  // FORBIDDEN
+        Account: AccountContext{
+            ID: uuid.New(),  // FORBIDDEN
+        },
+    }
+}
+
+// ✅ CORRECT - Deterministic test helper
+func createTestRequest() *ValidationRequest {
+    return &ValidationRequest{
+        RequestID:            testutil.MustDeterministicUUID(1),
+        TransactionTimestamp: testutil.FixedTime(),
+        Account: AccountContext{
+            ID: testutil.MustDeterministicUUID(2),
+        },
+    }
+}
+```
+
+**Why This Matters:**
+- Flaky tests waste time and erode trust
+- Non-deterministic failures are impossible to reproduce
+- CI/CD builds should be deterministic
+- Test failures should always be investigable
 
 ### Build Tags and Parallelization
 

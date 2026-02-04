@@ -79,8 +79,6 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 
 	t.Run("Success - accepts valid scopes", func(t *testing.T) {
 		rule := newTestRule(t)
-		originalScopes := make([]Scope, len(rule.Scopes))
-		copy(originalScopes, rule.Scopes)
 
 		validScopes := &[]Scope{
 			{AccountID: testutil.UUIDPtr(uuid.New())},

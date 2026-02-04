@@ -1868,19 +1868,40 @@ require.ErrorIs(t, err, context.Canceled)
 
 #### Deterministic Test Data
 
+**CRITICAL RULE:** Never use `uuid.New()`, `time.Now()`, or any non-deterministic values in tests or test helpers.
+
 Use deterministic UUIDs and timestamps for reproducible tests:
 
 ```go
 // WRONG - non-deterministic, hard to debug
 rule := &model.Rule{
-    ID:        uuid.New(),           // Random each run
-    CreatedAt: time.Now(),           // Different each run
+    ID:        uuid.New(),           // Random each run - FORBIDDEN
+    CreatedAt: time.Now(),           // Different each run - FORBIDDEN
+}
+
+// WRONG - test helper with non-deterministic values
+func createTestRequest() *ValidationRequest {
+    return &ValidationRequest{
+        RequestID:            uuid.New(),   // FORBIDDEN IN HELPERS
+        TransactionTimestamp: time.Now(),  // FORBIDDEN IN HELPERS
+    }
 }
 
 // CORRECT - deterministic, reproducible
 rule := &model.Rule{
     ID:        testutil.DeterministicUUID(1),  // Always same UUID
     CreatedAt: testutil.FixedTime(),           // Consistent timestamp
+}
+
+// CORRECT - test helper with deterministic values
+func createTestRequest() *ValidationRequest {
+    return &ValidationRequest{
+        RequestID:            testutil.MustDeterministicUUID(1),
+        TransactionTimestamp: testutil.FixedTime(),
+        Account: AccountContext{
+            ID: testutil.MustDeterministicUUID(2),
+        },
+    }
 }
 
 // For multiple UUIDs
@@ -1890,8 +1911,36 @@ require.NoError(t, err)
 
 **Benefits:**
 - Tests are reproducible across runs
-- Easier to debug failures
+- Easier to debug failures (same values every time)
 - Consistent expected values in assertions
+- Prevents flaky tests from timing issues
+- CI/CD builds are deterministic
+
+**Available Deterministic Helpers:**
+- `testutil.FixedTime()` - Returns 2024-01-01T00:00:00Z
+- `testutil.MustDeterministicUUID(seed)` - Returns deterministic UUID based on seed
+- `testutil.DeterministicUUIDs(start, count)` - Returns slice of deterministic UUIDs
+- `testutil.NewDefaultMockClock()` - Returns mock clock with fixed time
+
+**Common Violations:**
+```go
+// ❌ WRONG - uuid.New() in test helper
+createValidRequest := func() *ValidationRequest {
+    return &ValidationRequest{
+        RequestID: uuid.New(),  // Will cause flaky tests
+    }
+}
+
+// ❌ WRONG - time.Now() in test setup
+beforeTest := time.Now()
+// Test logic...
+assert.True(t, createdAt.After(beforeTest))  // Timing-dependent
+
+// ✅ CORRECT - Fixed time reference
+fixedTime := testutil.FixedTime()
+// Test logic...
+assert.Equal(t, fixedTime, createdAt)  // Deterministic assertion
+```
 
 #### Boundary Value Tests
 
