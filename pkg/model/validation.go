@@ -71,14 +71,16 @@ type ValidationRequest struct {
 }
 
 // NewValidationRequest creates a new ValidationRequest with validation and normalization.
-// Currency is normalized to uppercase and trimmed.
+// Currency is normalized to uppercase and trimmed (auto-corrects case).
 // SubType is trimmed if provided.
 // Metadata is deep-copied to prevent external mutation.
 // Returns error if validation fails after normalization.
 //
-// This constructor can be called in two ways:
-// 1. After JSON parsing: construct from parsed struct to normalize and validate
-// 2. Programmatically: construct from individual fields
+// Use this constructor when:
+// - Building requests programmatically where currency normalization is desired
+// - You want automatic currency case correction (e.g., "usd" → "USD")
+//
+// For strict post-JSON-parse validation without currency normalization, use NormalizeAndValidate() instead.
 func NewValidationRequest(
 	requestID uuid.UUID,
 	transactionType TransactionType,
@@ -137,8 +139,14 @@ func NewValidationRequest(
 // NormalizeAndValidate normalizes non-critical fields and validates the request in-place.
 // This method is useful after JSON parsing where the struct is already constructed.
 // SubType is trimmed and Metadata is deep-copied to prevent external mutation.
-// Currency is NOT normalized - API enforces strict ISO 4217 uppercase validation.
+// Currency is NOT normalized - API enforces strict ISO 4217 uppercase validation (e.g., "usd" will fail).
 // Returns error if validation fails after normalization.
+//
+// Use this method when:
+// - Validating after JSON deserialization where strict ISO 4217 uppercase currency is required
+// - You want to enforce that clients send properly formatted currency codes
+//
+// For programmatic construction with automatic currency normalization, use NewValidationRequest() instead.
 func (r *ValidationRequest) NormalizeAndValidate() error {
 	// Normalize subType if provided (trim whitespace)
 	if r.SubType != nil {
