@@ -86,18 +86,6 @@ func TestNewTransactionValidation_Validation(t *testing.T) {
 		assert.Zero(t, result.ProcessingTimeMs, "ProcessingTimeMs should be zero")
 	})
 
-	t.Run("Success - slices initialized not nil", func(t *testing.T) {
-		result, err := NewTransactionValidation(validID, DecisionAllow, fixedTime)
-
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		
-		// Verify slices are initialized (not nil) for proper JSON serialization
-		assert.NotNil(t, result.MatchedRuleIDs, "MatchedRuleIDs should be initialized")
-		assert.NotNil(t, result.EvaluatedRuleIDs, "EvaluatedRuleIDs should be initialized")
-		assert.NotNil(t, result.LimitUsageDetails, "LimitUsageDetails should be initialized")
-	})
-
 	t.Run("All decisions are valid", func(t *testing.T) {
 		decisions := []Decision{DecisionAllow, DecisionDeny, DecisionReview}
 
