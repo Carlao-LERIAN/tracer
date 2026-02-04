@@ -216,7 +216,7 @@ func (r *Rule) SetStatus(status RuleStatus) error {
 
 	// Check if transition is allowed
 	if !r.Status.CanTransitionTo(status) {
-		return constant.ErrRuleInvalidStatus
+		return constant.ErrRuleInvalidTransition
 	}
 
 	now := time.Now().UTC()

@@ -83,6 +83,7 @@ var (
 	ErrRuleInvalidScope        = errors.New("TRC-0111") // scope must have at least one field set
 	ErrRuleDescriptionTooLong  = errors.New("TRC-0112") // rule description exceeds max length (1000)
 	ErrRuleScopesTooMany       = errors.New("TRC-0113") // rule scopes exceed maximum (100)
+	ErrRuleInvalidTransition   = errors.New("TRC-0114") // status transition not allowed
 
 	// =============================================================================
 	// Limit Errors (TRC-0120 to TRC-0139)

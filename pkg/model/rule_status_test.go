@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"tracer/pkg/constant"
 )
 
 func TestRuleStatus_CanTransitionTo_Activate(t *testing.T) {
@@ -138,4 +140,26 @@ func TestRuleStatus_String(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.status.String())
 		})
 	}
+}
+
+func TestRule_SetStatus_InvalidStatus(t *testing.T) {
+	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil)
+	require.NoError(t, err)
+
+	// Test with invalid status value
+	err = rule.SetStatus(RuleStatus("INVALID"))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, constant.ErrRuleInvalidStatus, "should return ErrRuleInvalidStatus for invalid status value")
+}
+
+func TestRule_SetStatus_InvalidTransition(t *testing.T) {
+	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, RuleStatusDraft, rule.Status)
+
+	// Try invalid transition: DRAFT → INACTIVE (not allowed)
+	err = rule.SetStatus(RuleStatusInactive)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, constant.ErrRuleInvalidTransition, "should return ErrRuleInvalidTransition for disallowed transition")
+	assert.Equal(t, RuleStatusDraft, rule.Status, "status should not change on invalid transition")
 }
