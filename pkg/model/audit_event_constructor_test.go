@@ -209,6 +209,150 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 		assert.Empty(t, event.Context, "Context should be empty map")
 		assert.Empty(t, event.Metadata, "Metadata should be empty map")
 	})
+
+	t.Run("Success - normalizes resourceID with whitespace", func(t *testing.T) {
+		testCases := []struct {
+			name       string
+			resourceID string
+			expected   string
+		}{
+			{
+				name:       "leading spaces",
+				resourceID: "  resource-123",
+				expected:   "resource-123",
+			},
+			{
+				name:       "trailing spaces",
+				resourceID: "resource-123  ",
+				expected:   "resource-123",
+			},
+			{
+				name:       "leading and trailing spaces",
+				resourceID: "  resource-123  ",
+				expected:   "resource-123",
+			},
+			{
+				name:       "tabs and newlines",
+				resourceID: "\t resource-123 \n",
+				expected:   "resource-123",
+			},
+			{
+				name:       "no whitespace",
+				resourceID: "resource-123",
+				expected:   "resource-123",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				event, err := NewAuditEvent(
+					AuditEventRuleCreated,
+					AuditActionCreate,
+					AuditResultSuccess,
+					tc.resourceID,
+					ResourceTypeRule,
+					validActor,
+				)
+
+				require.NoError(t, err)
+				require.NotNil(t, event)
+				assert.Equal(t, tc.expected, event.ResourceID, "ResourceID should be trimmed")
+			})
+		}
+	})
+
+	t.Run("Success - normalizes actor.ID with whitespace", func(t *testing.T) {
+		testCases := []struct {
+			name     string
+			actorID  string
+			expected string
+		}{
+			{
+				name:     "leading spaces",
+				actorID:  "  actor-123",
+				expected: "actor-123",
+			},
+			{
+				name:     "trailing spaces",
+				actorID:  "actor-123  ",
+				expected: "actor-123",
+			},
+			{
+				name:     "leading and trailing spaces",
+				actorID:  "  actor-123  ",
+				expected: "actor-123",
+			},
+			{
+				name:     "tabs and newlines",
+				actorID:  "\t actor-123 \n",
+				expected: "actor-123",
+			},
+			{
+				name:     "no whitespace",
+				actorID:  "actor-123",
+				expected: "actor-123",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				actorWithWhitespace := Actor{
+					ActorType: ActorTypeSystem,
+					ID:        tc.actorID,
+					Name:      "Test Actor",
+				}
+
+				event, err := NewAuditEvent(
+					AuditEventRuleCreated,
+					AuditActionCreate,
+					AuditResultSuccess,
+					uuid.NewString(),
+					ResourceTypeRule,
+					actorWithWhitespace,
+				)
+
+				require.NoError(t, err)
+				require.NotNil(t, event)
+				assert.Equal(t, tc.expected, event.Actor.ID, "Actor.ID should be trimmed")
+			})
+		}
+	})
+
+	t.Run("Error - whitespace-only resourceID", func(t *testing.T) {
+		event, err := NewAuditEvent(
+			AuditEventRuleCreated,
+			AuditActionCreate,
+			AuditResultSuccess,
+			"   ",
+			ResourceTypeRule,
+			validActor,
+		)
+
+		require.Error(t, err)
+		assert.Nil(t, event)
+		assert.ErrorIs(t, err, constant.ErrAuditEventResourceIDRequired)
+	})
+
+	t.Run("Error - whitespace-only actor.ID", func(t *testing.T) {
+		invalidActor := Actor{
+			ActorType: ActorTypeUser,
+			ID:        "   ",
+			Name:      "Test Actor",
+		}
+
+		event, err := NewAuditEvent(
+			AuditEventRuleCreated,
+			AuditActionCreate,
+			AuditResultSuccess,
+			uuid.NewString(),
+			ResourceTypeRule,
+			invalidActor,
+		)
+
+		require.Error(t, err)
+		assert.Nil(t, event)
+		assert.ErrorIs(t, err, constant.ErrAuditEventActorIDRequired)
+	})
 }
 
 func TestAuditEventType_IsValid(t *testing.T) {

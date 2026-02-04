@@ -197,6 +197,10 @@ func NewAuditEvent(
 	resourceType ResourceType,
 	actor Actor,
 ) (*AuditEvent, error) {
+	// Normalize textual inputs
+	normalizedResourceID := strings.TrimSpace(resourceID)
+	normalizedActorID := strings.TrimSpace(actor.ID)
+
 	// Validate eventType
 	if !eventType.IsValid() {
 		return nil, constant.ErrAuditEventInvalidType
@@ -213,7 +217,7 @@ func NewAuditEvent(
 	}
 
 	// Validate resourceID
-	if strings.TrimSpace(resourceID) == "" {
+	if normalizedResourceID == "" {
 		return nil, constant.ErrAuditEventResourceIDRequired
 	}
 
@@ -228,9 +232,13 @@ func NewAuditEvent(
 	}
 
 	// Validate actor.ID
-	if strings.TrimSpace(actor.ID) == "" {
+	if normalizedActorID == "" {
 		return nil, constant.ErrAuditEventActorIDRequired
 	}
+
+	// Update actor with normalized ID
+	normalizedActor := actor
+	normalizedActor.ID = normalizedActorID
 
 	return &AuditEvent{
 		EventID:      uuid.New(),
@@ -238,9 +246,9 @@ func NewAuditEvent(
 		CreatedAt:    time.Now().UTC(),
 		Action:       action,
 		Result:       result,
-		ResourceID:   resourceID,
+		ResourceID:   normalizedResourceID,
 		ResourceType: resourceType,
-		Actor:        actor,
+		Actor:        normalizedActor,
 		Context:      make(map[string]any),
 		Metadata:     make(map[string]any),
 	}, nil
