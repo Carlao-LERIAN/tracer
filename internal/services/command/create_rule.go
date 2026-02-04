@@ -126,7 +126,9 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		description = &input.Description
 	}
 
-	rule, err := model.NewRule(normalizedName, input.Expression, input.Action, scopes, description)
+	now := c.clock.Now()
+
+	rule, err := model.NewRule(normalizedName, input.Expression, input.Action, scopes, description, now)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule input", err)
 		logger.WithFields(
@@ -136,11 +138,6 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 
 		return nil, err
 	}
-
-	// Override timestamps with injected clock for testability
-	now := c.clock.Now()
-	rule.CreatedAt = now
-	rule.UpdatedAt = now
 
 	// 4. Persist rule
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule_input", rule)

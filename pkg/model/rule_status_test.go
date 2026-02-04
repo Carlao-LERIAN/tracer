@@ -7,6 +7,7 @@ package model
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,7 +145,7 @@ func TestRuleStatus_String(t *testing.T) {
 }
 
 func TestRule_SetStatus_InvalidStatus(t *testing.T) {
-	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil)
+	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil, time.Now().UTC())
 	require.NoError(t, err)
 
 	// Test with invalid status value
@@ -154,7 +155,7 @@ func TestRule_SetStatus_InvalidStatus(t *testing.T) {
 }
 
 func TestRule_SetStatus_InvalidTransition(t *testing.T) {
-	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil)
+	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil, time.Now().UTC())
 	require.NoError(t, err)
 	require.Equal(t, RuleStatusDraft, rule.Status)
 

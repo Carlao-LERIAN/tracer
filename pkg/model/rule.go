@@ -64,9 +64,8 @@ const MaxRuleExpressionLength = 5000
 // NewRule creates a new Rule entity with validation.
 // Name is trimmed of leading/trailing whitespace before validation and storage.
 // Scopes ordering is preserved: the returned Rule.Scopes maintains the same order as the input.
-// The rule is created in DRAFT status with CreatedAt and UpdatedAt set to current UTC time.
-func NewRule(name, expression string, action Decision, scopes []Scope, description *string) (*Rule, error) {
-	now := time.Now().UTC()
+// The rule is created in DRAFT status with CreatedAt and UpdatedAt set to the provided createdAt time.
+func NewRule(name, expression string, action Decision, scopes []Scope, description *string, createdAt time.Time) (*Rule, error) {
 
 	// Normalize textual inputs
 	normalizedName := strings.TrimSpace(name)
@@ -126,8 +125,8 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 		Action:      action,
 		Scopes:      scopesCopy,
 		Status:      RuleStatusDraft,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		CreatedAt:   createdAt,
+		UpdatedAt:   createdAt,
 	}, nil
 }
 

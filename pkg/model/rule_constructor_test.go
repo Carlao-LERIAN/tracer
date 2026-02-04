@@ -9,7 +9,6 @@ package model
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -28,12 +27,14 @@ func TestNewRule(t *testing.T) {
 	validDescription := "Test description"
 
 	t.Run("Success - creates rule with all required fields", func(t *testing.T) {
+		fixedTime := testutil.FixedTime()
 		rule, err := NewRule(
 			"Test Rule",
 			"amount > 1000",
 			DecisionDeny,
 			validScopes,
 			&validDescription,
+			fixedTime,
 		)
 
 		require.NoError(t, err)
@@ -46,8 +47,8 @@ func TestNewRule(t *testing.T) {
 		require.NotNil(t, rule.Description)
 		assert.Equal(t, validDescription, *rule.Description)
 		assert.Equal(t, RuleStatusDraft, rule.Status, "New rules start in DRAFT status")
-		assert.WithinDuration(t, time.Now().UTC(), rule.CreatedAt, 1*time.Second)
-		assert.WithinDuration(t, time.Now().UTC(), rule.UpdatedAt, 1*time.Second)
+		assert.Equal(t, fixedTime, rule.CreatedAt)
+		assert.Equal(t, fixedTime, rule.UpdatedAt)
 		assert.Nil(t, rule.ActivatedAt)
 		assert.Nil(t, rule.DeactivatedAt)
 		assert.Nil(t, rule.DeletedAt)
@@ -60,6 +61,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -74,6 +76,7 @@ func TestNewRule(t *testing.T) {
 			DecisionReview,
 			[]Scope{},
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -89,6 +92,7 @@ func TestNewRule(t *testing.T) {
 			DecisionReview,
 			nil,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -106,6 +110,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			[]Scope{emptyScope},
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.Error(t, err)
@@ -120,6 +125,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -133,6 +139,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -147,6 +154,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			&desc,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -162,6 +170,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			&desc,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -178,6 +187,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.Error(t, err)
@@ -193,6 +203,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.Error(t, err)
@@ -208,6 +219,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -222,6 +234,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.Error(t, err)
@@ -237,6 +250,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.Error(t, err)
@@ -252,6 +266,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -266,6 +281,7 @@ func TestNewRule(t *testing.T) {
 			Decision("INVALID"),
 			validScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.Error(t, err)
@@ -281,6 +297,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			&longDesc,
+			testutil.FixedTime(),
 		)
 
 		require.Error(t, err)
@@ -296,6 +313,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			validScopes,
 			&descAtMax,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -315,6 +333,7 @@ func TestNewRule(t *testing.T) {
 			DecisionAllow,
 			externalScopes,
 			nil,
+			testutil.FixedTime(),
 		)
 
 		require.NoError(t, err)
@@ -339,6 +358,7 @@ func TestNewRule(t *testing.T) {
 					decision,
 					validScopes,
 					nil,
+					testutil.FixedTime(),
 				)
 
 				require.NoError(t, err)

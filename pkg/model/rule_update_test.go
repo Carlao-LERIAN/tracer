@@ -29,6 +29,7 @@ func newTestRule(t *testing.T) *Rule {
 		DecisionDeny,
 		[]Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
 		nil,
+		testutil.FixedTime(),
 	)
 	require.NoError(t, err, "newTestRule: NewRule failed")
 
