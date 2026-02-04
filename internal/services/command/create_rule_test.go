@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -313,8 +312,8 @@ func TestCreateRuleCommand_Execute_SetsCorrectFields(t *testing.T) {
 			assert.Equal(t, model.RuleStatusDraft, rule.Status)
 			assert.Len(t, rule.Scopes, 1)
 			assert.Equal(t, testAccountID, *rule.Scopes[0].AccountID)
-			assert.WithinDuration(t, time.Now().UTC(), rule.CreatedAt, 1*time.Second)
-			assert.WithinDuration(t, time.Now().UTC(), rule.UpdatedAt, 1*time.Second)
+			assert.Equal(t, testutil.FixedTime(), rule.CreatedAt)
+			assert.Equal(t, testutil.FixedTime(), rule.UpdatedAt)
 			assert.Nil(t, rule.DeletedAt)
 			return rule, nil
 		})

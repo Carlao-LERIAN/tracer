@@ -137,6 +137,11 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		return nil, err
 	}
 
+	// Override timestamps with injected clock for testability
+	now := c.clock.Now()
+	rule.CreatedAt = now
+	rule.UpdatedAt = now
+
 	// 4. Persist rule
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule_input", rule)
 	if err != nil {
