@@ -124,6 +124,123 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 	}, nil
 }
 
+// Update modifies rule fields with validation.
+// All parameters are optional (use nil to keep current value).
+// Validates ALL inputs before mutating ANY (atomicity guarantee).
+// Updates UpdatedAt timestamp on successful mutation.
+func (r *Rule) Update(
+	name *string,
+	expression *string,
+	description *string,
+	scopes *[]Scope,
+) error {
+	updated := false
+
+	// Validate ALL before mutating ANY
+	if name != nil {
+		normalizedName := strings.TrimSpace(*name)
+		if normalizedName == "" {
+			return constant.ErrRuleNameRequired
+		}
+
+		if len(normalizedName) > MaxRuleNameLength {
+			return constant.ErrRuleNameTooLong
+		}
+	}
+
+	if expression != nil {
+		normalizedExpression := strings.TrimSpace(*expression)
+		if normalizedExpression == "" {
+			return constant.ErrRuleExpressionRequired
+		}
+
+		if len(normalizedExpression) > MaxRuleExpressionLength {
+			return constant.ErrRuleExpressionTooLong
+		}
+	}
+
+	if description != nil {
+		normalizedDescription := strings.TrimSpace(*description)
+		if len(normalizedDescription) > MaxDescriptionLength {
+			return constant.ErrRuleDescriptionTooLong
+		}
+	}
+
+	// All validations passed - now mutate
+	if name != nil {
+		r.Name = strings.TrimSpace(*name)
+		updated = true
+	}
+
+	if expression != nil {
+		r.Expression = strings.TrimSpace(*expression)
+		updated = true
+	}
+
+	if description != nil {
+		normalizedDescription := strings.TrimSpace(*description)
+		r.Description = &normalizedDescription
+		updated = true
+	}
+
+	if scopes != nil {
+		// Defensive copy to prevent external mutation
+		r.Scopes = append([]Scope{}, *scopes...)
+		updated = true
+	}
+
+	if updated {
+		r.UpdatedAt = time.Now().UTC()
+	}
+
+	return nil
+}
+
+// SetStatus changes the rule status with transition validation.
+// Idempotent: same-status transitions are no-ops (return nil without updating timestamp).
+// DELETED is a terminal state and cannot be transitioned from.
+// Maintains timestamp invariants based on status:
+// - RuleStatusActive → sets ActivatedAt, clears DeactivatedAt
+// - RuleStatusInactive → sets DeactivatedAt
+// - RuleStatusDeleted → sets DeletedAt
+// - RuleStatusDraft → clears ActivatedAt and DeactivatedAt
+func (r *Rule) SetStatus(status RuleStatus) error {
+	if !status.IsValid() {
+		return constant.ErrRuleInvalidStatus
+	}
+
+	// Idempotency: same status is a no-op
+	if r.Status == status {
+		return nil
+	}
+
+	// Check if transition is allowed
+	if !r.Status.CanTransitionTo(status) {
+		return constant.ErrRuleInvalidStatus
+	}
+
+	now := time.Now().UTC()
+
+	// Update status and maintain timestamp invariants
+	r.Status = status
+	r.UpdatedAt = now
+
+	switch status {
+	case RuleStatusActive:
+		r.ActivatedAt = &now
+		r.DeactivatedAt = nil
+	case RuleStatusInactive:
+		r.DeactivatedAt = &now
+	case RuleStatusDeleted:
+		r.DeletedAt = &now
+	case RuleStatusDraft:
+		r.ActivatedAt = nil
+		r.DeactivatedAt = nil
+	}
+
+	return nil
+}
+
 // ListRulesFilter represents the filter criteria for listing rules.
 // Uses cursor-based pagination for consistent results during navigation.
 type ListRulesFilter struct {

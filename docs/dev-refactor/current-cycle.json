@@ -1,0 +1,193 @@
+{
+  "version": "1.0.0",
+  "cycle_id": "7ffe392a-302c-4063-9632-89f22b79d00a",
+  "started_at": "2026-02-03T21:47:24Z",
+  "updated_at": "2026-02-03T21:47:24Z",
+  "source_file": "/Users/alexgarzao/lerian/projects/tracer/docs/refactor/20260203-180148/tasks.md",
+  "state_path": "/Users/alexgarzao/lerian/projects/tracer/docs/dev-refactor/current-cycle.json",
+  "cycle_type": "refactor",
+  "execution_mode": "manual_per_task",
+  "commit_timing": "per_task",
+  "status": "in_progress",
+  "feedback_loop_completed": false,
+  "current_task_index": 0,
+  "current_gate": 0,
+  "current_subtask_index": 0,
+  "tasks": [
+    {
+      "id": "REFACTOR-001",
+      "title": "Add Always-Valid Constructors to Domain Models",
+      "priority": "CRITICAL",
+      "effort_hours": 6,
+      "status": "in_progress",
+      "feedback_loop_completed": false,
+      "requirements": "Add validating constructors (returning (*T, error)) to Rule, TransactionValidation, and AuditEvent models per PROJECT_RULES.md Always Valid Domain Model pattern",
+      "acceptance_criteria": [
+        "All 3 constructors return (*T, error) instead of *T",
+        "All constructors validate inputs before construction",
+        "Defensive copies created for slice parameters",
+        "No invalid states can be constructed",
+        "All callers updated to handle errors",
+        "Unit tests pass"
+      ],
+      "subtasks": [],
+      "gate_progress": {
+        "implementation": {
+          "status": "pending",
+          "tdd_red": {"status": "pending"},
+          "tdd_green": {"status": "pending"}
+        },
+        "devops": {"status": "pending"},
+        "sre": {"status": "pending"},
+        "testing": {"status": "pending"},
+        "review": {"status": "pending"},
+        "validation": {"status": "pending"}
+      },
+      "artifacts": {},
+      "agent_outputs": {}
+    },
+    {
+      "id": "REFACTOR-002",
+      "title": "Add Mutation Methods to Rule Model",
+      "priority": "HIGH",
+      "effort_hours": 4,
+      "status": "pending",
+      "feedback_loop_completed": false,
+      "requirements": "Add Rule.Update() and Rule.SetStatus() methods following validate-before-mutate pattern per PROJECT_RULES.md",
+      "acceptance_criteria": [
+        "Rule.Update() validates all before mutating any (no partial mutations on error)",
+        "Rule.Update() creates defensive copies of slices",
+        "Rule.SetStatus() enforces state machine transitions",
+        "Rule.SetStatus() maintains timestamp invariants",
+        "Command layer uses domain methods instead of direct field access",
+        "Unit tests verify no-mutation on validation failure"
+      ],
+      "subtasks": [],
+      "gate_progress": {
+        "implementation": {"status": "pending", "tdd_red": {"status": "pending"}, "tdd_green": {"status": "pending"}},
+        "devops": {"status": "pending"},
+        "sre": {"status": "pending"},
+        "testing": {"status": "pending"},
+        "review": {"status": "pending"},
+        "validation": {"status": "pending"}
+      },
+      "artifacts": {},
+      "agent_outputs": {}
+    },
+    {
+      "id": "REFACTOR-003",
+      "title": "Refactor ValidationRequest to Use Constructor Pattern",
+      "priority": "HIGH",
+      "effort_hours": 3,
+      "status": "pending",
+      "feedback_loop_completed": false,
+      "requirements": "Add NewValidationRequest() constructor to prevent invalid state construction per PROJECT_RULES.md anti-patterns",
+      "acceptance_criteria": [
+        "ValidationRequest cannot be created in invalid state",
+        "Constructor normalizes inputs (currency uppercase, trim whitespace)",
+        "Constructor creates defensive copies of scopes and metadata",
+        "Handlers use constructor instead of struct literal + Validate() call",
+        "No regression in validation behavior"
+      ],
+      "subtasks": [],
+      "gate_progress": {
+        "implementation": {"status": "pending", "tdd_red": {"status": "pending"}, "tdd_green": {"status": "pending"}},
+        "devops": {"status": "pending"},
+        "sre": {"status": "pending"},
+        "testing": {"status": "pending"},
+        "review": {"status": "pending"},
+        "validation": {"status": "pending"}
+      },
+      "artifacts": {},
+      "agent_outputs": {}
+    },
+    {
+      "id": "REFACTOR-004",
+      "title": "Remove Direct OTel Imports",
+      "priority": "MEDIUM",
+      "effort_hours": 2,
+      "status": "pending",
+      "feedback_loop_completed": false,
+      "requirements": "Remove go.opentelemetry.io/otel/trace imports from 12 application files, use lib-commons tracer interface instead",
+      "acceptance_criteria": [
+        "Zero import 'go.opentelemetry.io/otel/trace' in application code (except pkg/logging/trace.go and test files)",
+        "All 12 files use lib-commons tracer interface",
+        "Observability behavior unchanged (verified via Jaeger)",
+        "Unit tests pass",
+        "Integration tests pass"
+      ],
+      "subtasks": [],
+      "gate_progress": {
+        "implementation": {"status": "pending", "tdd_red": {"status": "pending"}, "tdd_green": {"status": "pending"}},
+        "devops": {"status": "pending"},
+        "sre": {"status": "pending"},
+        "testing": {"status": "pending"},
+        "review": {"status": "pending"},
+        "validation": {"status": "pending"}
+      },
+      "artifacts": {},
+      "agent_outputs": {}
+    },
+    {
+      "id": "REFACTOR-005",
+      "title": "Add Constructor Tests for Domain Models",
+      "priority": "HIGH",
+      "effort_hours": 4,
+      "status": "pending",
+      "feedback_loop_completed": false,
+      "requirements": "Add comprehensive constructor tests for Rule, TransactionValidation, and AuditEvent after REFACTOR-001 constructors are implemented",
+      "acceptance_criteria": [
+        "All new constructors have comprehensive test coverage",
+        "All edge cases tested (empty, nil, boundary conditions)",
+        "Defensive copy tests verify external mutation doesn't affect internal state",
+        "No-mutation tests verify validation failures don't partially mutate objects",
+        "Test coverage for new constructors >= 90%"
+      ],
+      "subtasks": [],
+      "gate_progress": {
+        "implementation": {"status": "pending", "tdd_red": {"status": "pending"}, "tdd_green": {"status": "pending"}},
+        "devops": {"status": "pending"},
+        "sre": {"status": "pending"},
+        "testing": {"status": "pending"},
+        "review": {"status": "pending"},
+        "validation": {"status": "pending"}
+      },
+      "artifacts": {},
+      "agent_outputs": {}
+    },
+    {
+      "id": "REFACTOR-006",
+      "title": "Improve Validation Function Test Coverage",
+      "priority": "MEDIUM",
+      "effort_hours": 3,
+      "status": "pending",
+      "feedback_loop_completed": false,
+      "requirements": "Increase test coverage for validateMetadata (20% -> 90%), Scope.ToMap (0% -> 100%), validateOptionalFields (72.7% -> 90%), and RuleStatus.CanTransitionTo (85.7% -> 100%)",
+      "acceptance_criteria": [
+        "validateMetadata test coverage >= 90%",
+        "Scope.ToMap test coverage = 100%",
+        "validateOptionalFields test coverage >= 90%",
+        "RuleStatus.CanTransitionTo test coverage = 100%",
+        "All boundary conditions tested",
+        "All edge cases tested (nil pointers, invalid enum values, etc.)"
+      ],
+      "subtasks": [],
+      "gate_progress": {
+        "implementation": {"status": "pending", "tdd_red": {"status": "pending"}, "tdd_green": {"status": "pending"}},
+        "devops": {"status": "pending"},
+        "sre": {"status": "pending"},
+        "testing": {"status": "pending"},
+        "review": {"status": "pending"},
+        "validation": {"status": "pending"}
+      },
+      "artifacts": {},
+      "agent_outputs": {}
+    }
+  ],
+  "metrics": {
+    "total_duration_ms": 0,
+    "gate_durations": {},
+    "review_iterations": 0,
+    "testing_iterations": 0
+  }
+}

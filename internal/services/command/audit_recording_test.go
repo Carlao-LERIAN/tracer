@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +65,9 @@ func TestAuditEventRecording_ActivateRule(t *testing.T) {
 		ID: ruleID, Expression: "true", Status: model.RuleStatusDraft,
 	}, nil)
 	mockCEL.EXPECT().Compile(gomock.Any(), gomock.Any()).Return(nil, nil)
-	mockRepo.EXPECT().UpdateStatus(gomock.Any(), ruleID, model.RuleStatusActive, gomock.Any(), gomock.AssignableToTypeOf(&time.Time{}), gomock.Nil()).Return(nil)
+	mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, rule *model.Rule) (*model.Rule, error) {
+		return rule, nil
+	})
 
 	// VALIDATE: Before and After states captured
 	auditWriter.EXPECT().RecordRuleEvent(
@@ -96,7 +97,9 @@ func TestAuditEventRecording_DeactivateRule(t *testing.T) {
 	mockRepo.EXPECT().GetByID(gomock.Any(), ruleID).Return(&model.Rule{
 		ID: ruleID, Status: model.RuleStatusActive,
 	}, nil)
-	mockRepo.EXPECT().UpdateStatus(gomock.Any(), ruleID, model.RuleStatusInactive, gomock.Any(), gomock.Nil(), gomock.Not(gomock.Nil())).Return(nil)
+	mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, rule *model.Rule) (*model.Rule, error) {
+		return rule, nil
+	})
 
 	// VALIDATE: Before and After states captured
 	auditWriter.EXPECT().RecordRuleEvent(

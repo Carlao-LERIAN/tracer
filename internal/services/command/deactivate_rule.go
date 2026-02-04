@@ -79,10 +79,8 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 		return nil, fmt.Errorf("failed to get rule: %w", err)
 	}
 
-	// Capture "before" state for audit
-	beforeState := RuleToMap(rule)
-
 	// Idempotency: if already inactive, return the rule (no-op)
+	// Check before audit capture to avoid unnecessary state snapshots
 	if rule.Status == model.RuleStatusInactive {
 		logger.WithFields(
 			"operation", "service.rule.deactivate",
@@ -92,52 +90,57 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 		return rule, nil
 	}
 
-	// Check if transition is valid
-	if !rule.Status.CanTransitionTo(model.RuleStatusInactive) {
-		err := model.NewInvalidTransitionError(rule.Status, model.RuleStatusInactive)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
-		logger.WithFields(
-			"operation", "service.rule.deactivate",
-			"rule.id", ruleID.String(),
-			"rule.status_from", string(rule.Status),
-			"rule.status_to", "INACTIVE",
-		).Warn("Invalid transition")
+	// Capture "before" state for audit
+	beforeState := RuleToMap(rule)
 
-		return nil, err
+	// Use domain model method for status transition (validates and maintains invariants)
+	if err := rule.SetStatus(model.RuleStatusInactive); err != nil {
+		if errors.Is(err, constant.ErrRuleInvalidStatus) {
+			businessErr := model.NewInvalidTransitionError(rule.Status, model.RuleStatusInactive)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", businessErr)
+			logger.WithFields(
+				"operation", "service.rule.deactivate",
+				"rule.id", ruleID.String(),
+				"rule.status_from", string(rule.Status),
+				"rule.status_to", "INACTIVE",
+			).Warn("Invalid transition")
+
+			return nil, businessErr
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to set rule status", err)
+
+		return nil, fmt.Errorf("failed to set rule status: %w", err)
 	}
 
-	now := s.clock.Now()
-	if err := s.repository.UpdateStatus(ctx, ruleID, model.RuleStatusInactive, now, nil, &now); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update rule status", err)
+	// Persist updated rule
+	updatedRule, err := s.repository.Update(ctx, rule)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update rule", err)
 		logger.WithFields(
 			"operation", "service.rule.deactivate",
 			"rule.id", ruleID.String(),
 			"error.message", err.Error(),
-		).Error("Failed to update rule status")
+		).Error("Failed to update rule")
 
-		return nil, fmt.Errorf("failed to update rule status: %w", err)
+		return nil, fmt.Errorf("failed to update rule: %w", err)
 	}
-
-	// Update the rule object with new status and timestamps
-	rule.Status = model.RuleStatusInactive
-	rule.UpdatedAt = now
-	rule.DeactivatedAt = &now
 
 	logger.WithFields(
 		"operation", "service.rule.deactivate",
-		"rule.id", ruleID.String(),
+		"rule.id", updatedRule.ID.String(),
 	).Info("Rule deactivated successfully")
 
 	// Record audit event (best-effort)
 	if s.auditWriter != nil {
 		clientIP := contextutil.GetClientIP(ctx)
 
-		afterState := RuleToMap(rule)
+		afterState := RuleToMap(updatedRule)
 		if err := s.auditWriter.RecordRuleEvent(
 			ctx,
 			model.AuditEventRuleDeactivated,
 			model.AuditActionDeactivate,
-			rule.ID,
+			updatedRule.ID,
 			beforeState,
 			afterState,
 			"Rule deactivated via API",
@@ -145,11 +148,11 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 		); err != nil {
 			logger.WithFields(
 				"operation", "service.rule.deactivate.audit",
-				"rule.id", ruleID.String(),
+				"rule.id", updatedRule.ID.String(),
 				"error", err.Error(),
 			).Warn("Failed to record audit event")
 		}
 	}
 
-	return rule, nil
+	return updatedRule, nil
 }

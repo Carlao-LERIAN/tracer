@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/trace"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -79,17 +78,52 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 
 	beforeState := RuleToMap(rule)
 
-	if err := c.validateAndUpdateExpression(ctx, &span, input, rule); err != nil {
+	// Validate expression update (only for DRAFT rules)
+	if input.Expression != nil {
+		if rule.Status != model.RuleStatusDraft {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Expression cannot be modified for non-DRAFT rules", constant.ErrExpressionNotModifiable)
+			return nil, constant.ErrExpressionNotModifiable
+		}
+
+		_, err := c.cel.Compile(ctx, *input.Expression)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid CEL expression", err)
+			return nil, err
+		}
+	}
+
+	// Validate name uniqueness if changing and prepare normalized name
+	var normalizedName *string
+
+	if input.Name != nil {
+		normalized := NormalizeName(*input.Name)
+		normalizedName = &normalized
+
+		if normalized != rule.Name {
+			existing, err := c.repo.GetByName(ctx, normalized)
+			if err != nil && !errors.Is(err, constant.ErrRuleNotFound) {
+				libOpentelemetry.HandleSpanError(&span, "Failed to check name uniqueness", err)
+				return nil, fmt.Errorf("failed to check name uniqueness: %w", err)
+			}
+
+			if existing != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule name already exists", constant.ErrRuleNameAlreadyExists)
+				return nil, constant.ErrRuleNameAlreadyExists
+			}
+		}
+	}
+
+	// Use domain model Update method with normalized name (validates all before mutating any)
+	if err := rule.Update(normalizedName, input.Expression, input.Description, input.Scopes); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update rule", err)
 		return nil, err
 	}
 
-	if err := c.validateAndUpdateName(ctx, &span, input, rule); err != nil {
-		return nil, err
+	// Apply action update if provided (not part of Update method as it doesn't need validation beyond type)
+	if input.Action != nil {
+		rule.Action = *input.Action
+		rule.UpdatedAt = c.clock.Now()
 	}
-
-	c.applyOptionalUpdates(input, rule)
-
-	rule.UpdatedAt = c.clock.Now()
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule_update", rule)
 	if err != nil {
@@ -119,67 +153,6 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 	return result, nil
 }
 
-func (c *UpdateRuleCommand) validateAndUpdateExpression(ctx context.Context, span *trace.Span, input *UpdateRuleInput, rule *model.Rule) error {
-	if input.Expression == nil {
-		return nil
-	}
-
-	if rule.Status != model.RuleStatusDraft {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression cannot be modified for non-DRAFT rules", constant.ErrExpressionNotModifiable)
-		return constant.ErrExpressionNotModifiable
-	}
-
-	_, err := c.cel.Compile(ctx, *input.Expression)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid CEL expression", err)
-		return err
-	}
-
-	rule.Expression = *input.Expression
-
-	return nil
-}
-
-func (c *UpdateRuleCommand) validateAndUpdateName(ctx context.Context, span *trace.Span, input *UpdateRuleInput, rule *model.Rule) error {
-	if input.Name == nil {
-		return nil
-	}
-
-	normalizedName := NormalizeName(*input.Name)
-	if normalizedName == rule.Name {
-		return nil
-	}
-
-	existing, err := c.repo.GetByName(ctx, normalizedName)
-	if err != nil && !errors.Is(err, constant.ErrRuleNotFound) {
-		libOpentelemetry.HandleSpanError(span, "Failed to check name uniqueness", err)
-		return fmt.Errorf("failed to check name uniqueness: %w", err)
-	}
-
-	if existing != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule name already exists", constant.ErrRuleNameAlreadyExists)
-		return constant.ErrRuleNameAlreadyExists
-	}
-
-	rule.Name = normalizedName
-
-	return nil
-}
-
-func (c *UpdateRuleCommand) applyOptionalUpdates(input *UpdateRuleInput, rule *model.Rule) {
-	if input.Description != nil {
-		rule.Description = input.Description
-	}
-
-	if input.Action != nil {
-		rule.Action = *input.Action
-	}
-
-	if input.Scopes != nil {
-		rule.Scopes = *input.Scopes
-	}
-}
-
 func (c *UpdateRuleCommand) recordAuditEvent(ctx context.Context, logger libLog.Logger, result *model.Rule, beforeState map[string]any) {
 	if c.auditWriter == nil {
 		return
@@ -205,4 +178,3 @@ func (c *UpdateRuleCommand) recordAuditEvent(ctx context.Context, logger libLog.
 		).Warn("Failed to record audit event")
 	}
 }
-
