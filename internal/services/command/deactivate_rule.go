@@ -95,19 +95,21 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 
 	// Use domain model method for status transition (validates and maintains invariants)
 	if err := rule.SetStatus(model.RuleStatusInactive); err != nil {
-		if errors.Is(err, constant.ErrRuleInvalidStatus) {
-			businessErr := model.NewInvalidTransitionError(rule.Status, model.RuleStatusInactive)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", businessErr)
+		// Check for invalid transition (business error)
+		var transitionErr *model.InvalidTransitionError
+		if errors.As(err, &transitionErr) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", transitionErr)
 			logger.WithFields(
 				"operation", "service.rule.deactivate",
 				"rule.id", ruleID.String(),
-				"rule.status_from", string(rule.Status),
-				"rule.status_to", "INACTIVE",
+				"rule.status_from", string(transitionErr.From),
+				"rule.status_to", string(transitionErr.To),
 			).Warn("Invalid transition")
 
-			return nil, businessErr
+			return nil, transitionErr
 		}
 
+		// Technical error (invalid status value or other)
 		libOpentelemetry.HandleSpanError(&span, "Failed to set rule status", err)
 
 		return nil, fmt.Errorf("failed to set rule status: %w", err)
