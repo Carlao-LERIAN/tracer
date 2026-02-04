@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"github.com/google/uuid"
@@ -36,7 +37,7 @@ func (c *RecordAuditEventCommand) RecordValidationEvent(
 ) error {
 	result := model.DecisionToAuditResult(evalResult.Decision)
 
-	event := model.NewAuditEvent(
+	event, err := model.NewAuditEvent(
 		model.AuditEventTransactionValidated,
 		model.AuditActionValidate,
 		result,
@@ -48,7 +49,12 @@ func (c *RecordAuditEventCommand) RecordValidationEvent(
 			Name:      "Tracer Validation Engine",
 			IPAddress: normalizeIP(clientIP),
 		},
-	).WithValidationContext(request, evalResult, responseContext)
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create audit event: %w", err)
+	}
+
+	event.WithValidationContext(request, evalResult, responseContext)
 
 	return c.repo.Insert(ctx, event)
 }
@@ -64,7 +70,7 @@ func (c *RecordAuditEventCommand) RecordRuleEvent(
 	reason string,
 	clientIP string,
 ) error {
-	event := model.NewAuditEvent(
+	event, err := model.NewAuditEvent(
 		eventType,
 		action,
 		model.AuditResultSuccess,
@@ -76,7 +82,12 @@ func (c *RecordAuditEventCommand) RecordRuleEvent(
 			Name:      "Tracer Rule Manager",
 			IPAddress: normalizeIP(clientIP),
 		},
-	).WithCRUDContext(before, after, reason)
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create audit event: %w", err)
+	}
+
+	event.WithCRUDContext(before, after, reason)
 
 	return c.repo.Insert(ctx, event)
 }
@@ -92,7 +103,7 @@ func (c *RecordAuditEventCommand) RecordLimitEvent(
 	reason string,
 	clientIP string,
 ) error {
-	event := model.NewAuditEvent(
+	event, err := model.NewAuditEvent(
 		eventType,
 		action,
 		model.AuditResultSuccess,
@@ -104,7 +115,12 @@ func (c *RecordAuditEventCommand) RecordLimitEvent(
 			Name:      "Tracer Limit Manager",
 			IPAddress: normalizeIP(clientIP),
 		},
-	).WithCRUDContext(before, after, reason)
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create audit event: %w", err)
+	}
+
+	event.WithCRUDContext(before, after, reason)
 
 	return c.repo.Insert(ctx, event)
 }

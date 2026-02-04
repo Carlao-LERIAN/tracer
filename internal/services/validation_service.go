@@ -225,7 +225,15 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 //
 // The timeout (validationPersistTimeout) bounds the maximum wait time.
 func (s *ValidationService) persistTransactionValidation(ctx context.Context, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) {
-	tv := model.NewTransactionValidation(resp.ValidationID, resp.Decision, time.Now().UTC())
+	tv, err := model.NewTransactionValidation(resp.ValidationID, resp.Decision, time.Now().UTC())
+	if err != nil {
+		logger.WithFields(
+			"request.id", resp.RequestID,
+			"error.message", err.Error(),
+		).Error("failed to create transaction validation record - invalid parameters")
+
+		return
+	}
 
 	// Populate request fields for compliance (SOX/GLBA: full reconstruction of validation input)
 	tv.RequestID = req.RequestID

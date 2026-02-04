@@ -20,41 +20,54 @@ func TestNewTransactionValidation(t *testing.T) {
 	fixedTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 
 	tests := []struct {
-		name     string
-		id       uuid.UUID
-		decision Decision
+		name      string
+		id        uuid.UUID
+		decision  Decision
+		expectErr bool
 	}{
 		{
-			name:     "creates audit with ALLOW decision",
-			id:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
-			decision: DecisionAllow,
+			name:      "creates audit with ALLOW decision",
+			id:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
+			decision:  DecisionAllow,
+			expectErr: false,
 		},
 		{
-			name:     "creates audit with DENY decision",
-			id:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"),
-			decision: DecisionDeny,
+			name:      "creates audit with DENY decision",
+			id:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"),
+			decision:  DecisionDeny,
+			expectErr: false,
 		},
 		{
-			name:     "creates audit with REVIEW decision",
-			id:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
-			decision: DecisionReview,
+			name:      "creates audit with REVIEW decision",
+			id:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
+			decision:  DecisionReview,
+			expectErr: false,
 		},
 		{
-			name:     "creates audit with invalid decision (documents current behavior)",
-			id:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"),
-			decision: Decision("INVALID"),
+			name:      "rejects invalid decision",
+			id:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"),
+			decision:  Decision("INVALID"),
+			expectErr: true,
 		},
 		{
-			name:     "creates audit with zero UUID",
-			id:       uuid.Nil,
-			decision: DecisionAllow,
+			name:      "rejects zero UUID",
+			id:        uuid.Nil,
+			decision:  DecisionAllow,
+			expectErr: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := NewTransactionValidation(tc.id, tc.decision, fixedTime)
+			result, err := NewTransactionValidation(tc.id, tc.decision, fixedTime)
 
+			if tc.expectErr {
+				require.Error(t, err)
+				require.Nil(t, result)
+				return
+			}
+
+			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tc.id, result.ID)
 			assert.Equal(t, tc.decision, result.Decision)

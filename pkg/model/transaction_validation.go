@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"tracer/pkg/constant"
 )
 
 // TransactionValidation is the immutable audit record for compliance (SOX/GLBA).
@@ -35,7 +37,26 @@ type TransactionValidation struct {
 // NewTransactionValidation creates a TransactionValidation with initialized slices.
 // Ensures JSON serialization produces [] instead of null for empty arrays.
 // The createdAt parameter allows deterministic testing; use time.Now().UTC() in production.
-func NewTransactionValidation(id uuid.UUID, decision Decision, createdAt time.Time) *TransactionValidation {
+// Returns error if:
+//   - id is uuid.Nil → constant.ErrTransactionValidationIDRequired
+//   - decision is not valid → constant.ErrInvalidDecision
+//   - createdAt is zero → constant.ErrTransactionValidationCreatedAtRequired
+func NewTransactionValidation(id uuid.UUID, decision Decision, createdAt time.Time) (*TransactionValidation, error) {
+	// Validate id
+	if id == uuid.Nil {
+		return nil, constant.ErrTransactionValidationIDRequired
+	}
+
+	// Validate decision
+	if !decision.IsValid() {
+		return nil, constant.ErrInvalidDecision
+	}
+
+	// Validate createdAt
+	if createdAt.IsZero() {
+		return nil, constant.ErrTransactionValidationCreatedAtRequired
+	}
+
 	return &TransactionValidation{
 		ID: id,
 		EvaluationResult: EvaluationResult{
@@ -46,5 +67,5 @@ func NewTransactionValidation(id uuid.UUID, decision Decision, createdAt time.Ti
 		},
 		LimitUsageDetails: []LimitUsageDetail{},
 		CreatedAt:         createdAt,
-	}
+	}, nil
 }

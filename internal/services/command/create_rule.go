@@ -15,7 +15,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/google/uuid"
 
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
@@ -115,28 +114,27 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		return nil, constant.ErrRuleNameAlreadyExists
 	}
 
-	// 3. Build rule entity (store normalized name)
-	now := c.clock.Now()
-
+	// 3. Build rule entity using validating constructor (store normalized name)
 	// Ensure scopes is never nil (return empty array instead of null in JSON)
 	scopes := input.Scopes
 	if scopes == nil {
 		scopes = []model.Scope{}
 	}
 
-	rule := &model.Rule{
-		ID:         uuid.New(),
-		Name:       normalizedName,
-		Expression: input.Expression,
-		Action:     input.Action,
-		Scopes:     scopes,
-		Status:     model.RuleStatusDraft,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+	var description *string
+	if input.Description != "" {
+		description = &input.Description
 	}
 
-	if input.Description != "" {
-		rule.Description = &input.Description
+	rule, err := model.NewRule(normalizedName, input.Expression, input.Action, scopes, description)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule input", err)
+		logger.WithFields(
+			"operation", "service.rule.create",
+			"error.message", err.Error(),
+		).Warn("Invalid rule input")
+
+		return nil, err
 	}
 
 	// 4. Persist rule

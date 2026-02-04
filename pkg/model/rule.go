@@ -5,9 +5,12 @@
 package model
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"tracer/pkg/constant"
 )
 
 // RuleStatus represents the lifecycle status of a rule
@@ -50,6 +53,75 @@ type Rule struct {
 	ActivatedAt   *time.Time `json:"activatedAt,omitempty" format:"date-time"`
 	DeactivatedAt *time.Time `json:"deactivatedAt,omitempty" format:"date-time"`
 	DeletedAt     *time.Time `json:"deletedAt,omitempty" format:"date-time"`
+}
+
+// MaxRuleNameLength defines the maximum length for rule names (aligned with VARCHAR(255) in database)
+const MaxRuleNameLength = 255
+
+// MaxRuleExpressionLength defines the maximum length for CEL expressions
+const MaxRuleExpressionLength = 5000
+
+// NewRule creates a new Rule entity with validation.
+// Name is trimmed of leading/trailing whitespace before validation and storage.
+// Scopes ordering is preserved: the returned Rule.Scopes maintains the same order as the input.
+// The rule is created in DRAFT status with CreatedAt and UpdatedAt set to current UTC time.
+func NewRule(name, expression string, action Decision, scopes []Scope, description *string) (*Rule, error) {
+	now := time.Now().UTC()
+
+	// Normalize textual inputs
+	normalizedName := strings.TrimSpace(name)
+	normalizedExpression := strings.TrimSpace(expression)
+
+	var normalizedDescription *string
+
+	if description != nil {
+		trimmed := strings.TrimSpace(*description)
+		normalizedDescription = &trimmed
+	}
+
+	// Validate name
+	if normalizedName == "" {
+		return nil, constant.ErrRuleNameRequired
+	}
+
+	if len(normalizedName) > MaxRuleNameLength {
+		return nil, constant.ErrRuleNameTooLong
+	}
+
+	// Validate expression
+	if normalizedExpression == "" {
+		return nil, constant.ErrRuleExpressionRequired
+	}
+
+	if len(normalizedExpression) > MaxRuleExpressionLength {
+		return nil, constant.ErrRuleExpressionTooLong
+	}
+
+	// Validate action
+	if !action.IsValid() {
+		return nil, constant.ErrRuleInvalidAction
+	}
+
+	// Validate description length if provided
+	if normalizedDescription != nil && len(*normalizedDescription) > MaxDescriptionLength {
+		return nil, constant.ErrRuleDescriptionTooLong
+	}
+
+	// Defensive copy of scopes to prevent external mutation
+	// Always use empty slice instead of nil to ensure proper JSON serialization
+	scopesCopy := append([]Scope{}, scopes...)
+
+	return &Rule{
+		ID:          uuid.New(),
+		Name:        normalizedName,
+		Description: normalizedDescription,
+		Expression:  normalizedExpression,
+		Action:      action,
+		Scopes:      scopesCopy,
+		Status:      RuleStatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}, nil
 }
 
 // ListRulesFilter represents the filter criteria for listing rules.

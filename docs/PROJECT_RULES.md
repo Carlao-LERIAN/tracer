@@ -294,6 +294,341 @@ type LimitUsage struct {
 }
 ```
 
+### Always Valid Domain Model
+
+Domain entities must maintain their invariants at all times. An object should never exist in an invalid state - validation and invariant enforcement happen at construction and mutation, not as a separate step.
+
+**Core Principles:**
+
+1. **Validate in constructors** - Objects are born valid
+2. **Validate before mutation** - State changes preserve validity
+3. **Private setters** - No external code can break invariants
+4. **Defensive copies** - Slices and maps cannot be mutated externally
+5. **No invalid state** - Impossible to represent invalid combinations
+
+#### Constructor Validation
+
+All domain entity constructors must validate inputs and return errors for invalid data:
+
+```go
+// WRONG - entity can be created in invalid state
+func NewRule(name, expression string, action Decision) *Rule {
+    return &Rule{
+        ID:         uuid.New(),
+        Name:       name,  // Not validated - could be empty or too long
+        Expression: expression,  // Not validated - could be malformed
+        Action:     action,
+        Status:     RuleStatusDraft,
+        CreatedAt:  time.Now(),
+    }
+}
+
+// Usage creates invalid entity with no error feedback
+rule := NewRule("", "invalid CEL", "INVALID_ACTION")  // Silent failure!
+
+// CORRECT - validation at construction prevents invalid state
+func NewRule(name, expression string, action Decision) (*Rule, error) {
+    // Normalize input
+    name = strings.TrimSpace(name)
+    expression = strings.TrimSpace(expression)
+
+    // Validate all invariants
+    if name == "" {
+        return nil, ErrRuleNameRequired
+    }
+    if len(name) > MaxRuleNameLength {
+        return nil, ErrRuleNameTooLong
+    }
+    if expression == "" {
+        return nil, ErrExpressionRequired
+    }
+    if !isValidDecision(action) {
+        return nil, ErrInvalidAction
+    }
+
+    // Object is guaranteed valid
+    return &Rule{
+        ID:         uuid.New(),
+        Name:       name,
+        Expression: expression,
+        Action:     action,
+        Status:     RuleStatusDraft,
+        CreatedAt:  time.Now(),
+        UpdatedAt:  time.Now(),
+    }, nil
+}
+
+// Usage forces error handling
+rule, err := NewRule(input.Name, input.Expression, input.Action)
+if err != nil {
+    return nil, err  // Cannot proceed with invalid entity
+}
+```
+
+#### Mutation Validation
+
+Methods that change state must validate before applying changes. Failed validations must leave the object unchanged (no partial mutations):
+
+```go
+// WRONG - partial mutation on validation failure
+func (l *Limit) Update(name string, maxAmount int64) error {
+    l.Name = strings.TrimSpace(name)  // Mutated!
+    
+    if l.Name == "" {
+        return ErrNameRequired  // BUG: Name was mutated even though validation failed
+    }
+    
+    l.MaxAmount = maxAmount  // Mutated!
+    
+    if maxAmount <= 0 {
+        return ErrInvalidAmount  // BUG: Both fields mutated before validation completed
+    }
+    
+    l.UpdatedAt = time.Now()
+    return nil
+}
+
+// CORRECT - validate first, then mutate atomically
+func (l *Limit) Update(name string, maxAmount int64) error {
+    // Normalize inputs (does not mutate state)
+    normalizedName := strings.TrimSpace(name)
+    
+    // Validate ALL invariants before ANY mutation
+    if normalizedName == "" {
+        return ErrNameRequired
+    }
+    if len(normalizedName) > MaxLimitNameLength {
+        return ErrNameTooLong
+    }
+    if maxAmount <= 0 {
+        return ErrInvalidAmount
+    }
+    if maxAmount > MaxAllowedAmount {
+        return ErrAmountExceedsMax
+    }
+    
+    // All validations passed - now mutate atomically
+    l.Name = normalizedName
+    l.MaxAmount = maxAmount
+    l.UpdatedAt = time.Now()
+    
+    return nil
+}
+```
+
+#### Private Fields with Validated Setters
+
+Expose fields through methods that enforce invariants, not public fields:
+
+```go
+// WRONG - public fields allow invalid mutations
+type Rule struct {
+    Status     RuleStatus  // Anyone can set invalid status!
+    DeletedAt  *time.Time  // Can be inconsistent with Status!
+}
+
+// External code can break invariants
+rule.Status = "INVALID_STATUS"  // Compiles but violates domain rules
+rule.DeletedAt = &now  // Inconsistent: DeletedAt set but Status != DELETED
+
+// CORRECT - private fields with validated setters
+type Rule struct {
+    status    RuleStatus   // Private - cannot be set externally
+    deletedAt *time.Time   // Private - managed by SetStatus
+}
+
+// Getter (read-only access)
+func (r *Rule) Status() RuleStatus {
+    return r.status
+}
+
+// Setter enforces invariants
+func (r *Rule) SetStatus(status RuleStatus) error {
+    // Validate state transition
+    if !r.isValidTransition(r.status, status) {
+        return ErrInvalidStatusTransition
+    }
+    
+    // Update status
+    r.status = status
+    r.updatedAt = time.Now()
+    
+    // Maintain invariant: DeletedAt set iff status is DELETED
+    if status == RuleStatusDeleted {
+        now := time.Now()
+        r.deletedAt = &now
+    } else {
+        r.deletedAt = nil
+    }
+    
+    return nil
+}
+
+// External code cannot break invariants
+err := rule.SetStatus(RuleStatusActive)  // Validated transition
+if err != nil {
+    // Handle invalid transition
+}
+```
+
+#### Defensive Copies for Collections
+
+Always create defensive copies of slices and maps to prevent external mutation:
+
+```go
+// WRONG - stores reference to external slice
+func NewLimit(name string, scopes []Scope) *Limit {
+    return &Limit{
+        Name:   name,
+        Scopes: scopes,  // DANGER: External code can modify this slice!
+    }
+}
+
+// External code breaks encapsulation
+scopes := []Scope{{AccountID: &accountID}}
+limit := NewLimit("Daily Limit", scopes)
+scopes[0].AccountID = nil  // BUG: Mutates limit.Scopes!
+
+// CORRECT - defensive copy prevents external mutation
+func NewLimit(name string, scopes []Scope) (*Limit, error) {
+    // Validate inputs
+    name = strings.TrimSpace(name)
+    if name == "" {
+        return nil, ErrNameRequired
+    }
+    
+    // Defensive copy of slice
+    scopesCopy := make([]Scope, len(scopes))
+    copy(scopesCopy, scopes)
+    
+    return &Limit{
+        ID:        uuid.New(),
+        Name:      name,
+        Scopes:    scopesCopy,  // Safe: external changes don't affect this
+        CreatedAt: time.Now(),
+    }, nil
+}
+
+// Also apply in getters that return slices
+func (l *Limit) Scopes() []Scope {
+    // Return defensive copy, not internal slice
+    scopesCopy := make([]Scope, len(l.scopes))
+    copy(scopesCopy, l.scopes)
+    return scopesCopy
+}
+```
+
+#### Validation Method
+
+Every domain entity should have a `Validate()` method that checks all invariants. This serves as documentation and enables defensive validation at persistence boundaries:
+
+```go
+// Validation errors for Limit entity
+var (
+    ErrLimitNameRequired     = errors.New("limit name is required")
+    ErrLimitNameTooLong      = errors.New("limit name exceeds maximum length")
+    ErrInvalidMaxAmount      = errors.New("max amount must be positive")
+    ErrMaxAmountExceedsLimit = errors.New("max amount exceeds maximum allowed value")
+    ErrInvalidCurrency       = errors.New("currency must be valid ISO 4217 code")
+    ErrDeletedAtInconsistent = errors.New("deletedAt must be set iff status is DELETED")
+)
+
+func (l *Limit) Validate() error {
+    // Name validation
+    if strings.TrimSpace(l.Name) == "" {
+        return ErrLimitNameRequired
+    }
+    if len(l.Name) > MaxLimitNameLength {
+        return ErrLimitNameTooLong
+    }
+    
+    // Amount validation
+    if l.MaxAmount <= 0 {
+        return ErrInvalidMaxAmount
+    }
+    if l.MaxAmount > MaxAllowedAmount {
+        return ErrMaxAmountExceedsLimit
+    }
+    
+    // Currency validation
+    if !isValidCurrency(l.Currency) {
+        return ErrInvalidCurrency
+    }
+    
+    // Invariant: DeletedAt set iff status is DELETED
+    if l.Status == LimitStatusDeleted && l.DeletedAt == nil {
+        return ErrDeletedAtInconsistent
+    }
+    if l.Status != LimitStatusDeleted && l.DeletedAt != nil {
+        return ErrDeletedAtInconsistent
+    }
+    
+    return nil
+}
+
+// Use at persistence boundaries
+func (r *Repository) Save(ctx context.Context, limit *Limit) error {
+    // Defensive validation before persistence
+    if err := limit.Validate(); err != nil {
+        return fmt.Errorf("invalid limit: %w", err)
+    }
+    
+    // Proceed with persistence
+    return r.db.Insert(ctx, limit)
+}
+```
+
+#### Benefits
+
+**Type Safety:** Invalid states are unrepresentable - the type system prevents bugs at compile time.
+
+**No Validation Drift:** Validation logic lives with the entity, not scattered across handlers/services.
+
+**Testability:** Constructor and mutation validation can be unit tested independently.
+
+**Clarity:** Reading a constructor shows all business rules and constraints.
+
+**Fail Fast:** Invalid data is caught at creation/mutation, not deep in the call stack.
+
+#### Anti-Patterns to Avoid
+
+```go
+// ❌ Don't: Separate validation from construction
+limit := &Limit{Name: input.Name, MaxAmount: input.Amount}
+if err := limit.Validate(); err != nil {
+    return err  // Too late - already constructed invalid object
+}
+
+// ✅ Do: Validate during construction
+limit, err := NewLimit(input.Name, input.Amount)
+if err != nil {
+    return err  // Cannot create invalid object
+}
+
+// ❌ Don't: Allow mutation via exported fields
+limit.MaxAmount = -1000  // Compiles but violates domain rules
+
+// ✅ Do: Mutation through validated methods
+err := limit.SetMaxAmount(newAmount)
+if err != nil {
+    return err  // Validation failed
+}
+
+// ❌ Don't: Return internal slices directly
+func (l *Limit) Scopes() []Scope {
+    return l.scopes  // Caller can mutate internal state!
+}
+
+// ✅ Do: Return defensive copies
+func (l *Limit) Scopes() []Scope {
+    copy := make([]Scope, len(l.scopes))
+    copy(copy, l.scopes)
+    return copy
+}
+```
+
+**Apply to:** All domain entities in `pkg/model` - Rule, Limit, Scope, and any future domain types.
+
 ### State Invariant Enforcement (Soft-Delete)
 
 Models using soft-delete patterns must enforce invariants that ensure data consistency. The `DeletedAt` field must be set if and only if the status is `DELETED`:
