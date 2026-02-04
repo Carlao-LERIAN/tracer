@@ -66,7 +66,6 @@ const MaxRuleExpressionLength = 5000
 // Scopes ordering is preserved: the returned Rule.Scopes maintains the same order as the input.
 // The rule is created in DRAFT status with CreatedAt and UpdatedAt set to the provided createdAt time.
 func NewRule(name, expression string, action Decision, scopes []Scope, description *string, createdAt time.Time) (*Rule, error) {
-
 	// Normalize textual inputs
 	normalizedName := strings.TrimSpace(name)
 	normalizedExpression := strings.TrimSpace(expression)
