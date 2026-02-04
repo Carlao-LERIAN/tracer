@@ -127,6 +127,8 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	ctx, span := tracer.Start(ctx, "adapter.cel.compile")
 	defer span.End()
 
+	_ = ctx // Context used for tracing only
+
 	// Validate expression is not empty (fail fast before any processing)
 	if expression == "" {
 		err := fmt.Errorf("%w: expression cannot be empty", constant.ErrExpressionSyntax)
@@ -280,6 +282,8 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	ctx, span := tracer.Start(ctx, "adapter.cel.evaluate")
 	defer span.End()
 
+	_ = ctx // Context used for tracing only
+
 	// Validate inputs
 	if program == nil {
 		err := fmt.Errorf("program is required")
@@ -358,6 +362,8 @@ func (a *Adapter) Invalidate(ctx context.Context, expressionHash string) error {
 
 	ctx, span := tracer.Start(ctx, "adapter.cel.invalidate")
 	defer span.End()
+
+	_ = ctx // Context used for tracing only
 
 	// Set span attributes for the invalidation operation
 	if err := libOtel.SetSpanAttributesFromStruct(&span, "invalidate_input", map[string]any{
