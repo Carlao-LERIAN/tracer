@@ -14,7 +14,7 @@ import (
 func TestScope_ToMap(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Success - empty scope returns empty map", func(t *testing.T) {
+	t.Run("empty scope returns empty map", func(t *testing.T) {
 		scope := &Scope{}
 		result := scope.ToMap()
 
@@ -22,79 +22,70 @@ func TestScope_ToMap(t *testing.T) {
 		assert.Empty(t, result, "Result should be empty map")
 	})
 
-	t.Run("Success - scope with only SegmentID", func(t *testing.T) {
+	t.Run("single field populates map with one entry", func(t *testing.T) {
+		// Shared test values
 		segmentID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
-		scope := &Scope{
-			SegmentID: &segmentID,
-		}
-
-		result := scope.ToMap()
-
-		assert.Len(t, result, 1)
-		assert.Equal(t, segmentID.String(), result["segmentId"])
-	})
-
-	t.Run("Success - scope with only PortfolioID", func(t *testing.T) {
 		portfolioID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
-		scope := &Scope{
-			PortfolioID: &portfolioID,
-		}
-
-		result := scope.ToMap()
-
-		assert.Len(t, result, 1)
-		assert.Equal(t, portfolioID.String(), result["portfolioId"])
-	})
-
-	t.Run("Success - scope with only AccountID", func(t *testing.T) {
 		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
-		scope := &Scope{
-			AccountID: &accountID,
-		}
-
-		result := scope.ToMap()
-
-		assert.Len(t, result, 1)
-		assert.Equal(t, accountID.String(), result["accountId"])
-	})
-
-	t.Run("Success - scope with only MerchantID", func(t *testing.T) {
 		merchantID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440004")
-		scope := &Scope{
-			MerchantID: &merchantID,
-		}
-
-		result := scope.ToMap()
-
-		assert.Len(t, result, 1)
-		assert.Equal(t, merchantID.String(), result["merchantId"])
-	})
-
-	t.Run("Success - scope with only TransactionType", func(t *testing.T) {
 		txType := TransactionTypeCard
-		scope := &Scope{
-			TransactionType: &txType,
-		}
-
-		result := scope.ToMap()
-
-		assert.Len(t, result, 1)
-		assert.Equal(t, txType.String(), result["transactionType"])
-	})
-
-	t.Run("Success - scope with only SubType", func(t *testing.T) {
 		subType := "CREDIT"
-		scope := &Scope{
-			SubType: &subType,
+
+		testCases := []struct {
+			name     string
+			scope    *Scope
+			key      string
+			expected string
+		}{
+			{
+				name:     "SegmentID",
+				scope:    &Scope{SegmentID: &segmentID},
+				key:      "segmentId",
+				expected: segmentID.String(),
+			},
+			{
+				name:     "PortfolioID",
+				scope:    &Scope{PortfolioID: &portfolioID},
+				key:      "portfolioId",
+				expected: portfolioID.String(),
+			},
+			{
+				name:     "AccountID",
+				scope:    &Scope{AccountID: &accountID},
+				key:      "accountId",
+				expected: accountID.String(),
+			},
+			{
+				name:     "MerchantID",
+				scope:    &Scope{MerchantID: &merchantID},
+				key:      "merchantId",
+				expected: merchantID.String(),
+			},
+			{
+				name:     "TransactionType",
+				scope:    &Scope{TransactionType: &txType},
+				key:      "transactionType",
+				expected: txType.String(),
+			},
+			{
+				name:     "SubType",
+				scope:    &Scope{SubType: &subType},
+				key:      "subType",
+				expected: subType,
+			},
 		}
 
-		result := scope.ToMap()
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				result := tc.scope.ToMap()
 
-		assert.Len(t, result, 1)
-		assert.Equal(t, subType, result["subType"])
+				assert.Len(t, result, 1)
+				assert.Equal(t, tc.expected, result[tc.key])
+			})
+		}
 	})
 
-	t.Run("Success - scope with nil SubType pointer is excluded", func(t *testing.T) {
+	t.Run("scope with nil SubType pointer is excluded", func(t *testing.T) {
 		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
 		scope := &Scope{
 			AccountID: &accountID,
@@ -108,7 +99,7 @@ func TestScope_ToMap(t *testing.T) {
 		assert.NotContains(t, result, "subType", "nil SubType should not be included")
 	})
 
-	t.Run("Success - scope with non-nil SubType pointer is included", func(t *testing.T) {
+	t.Run("scope with non-nil SubType pointer is included", func(t *testing.T) {
 		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
 		subType := "INSTANT"
 		scope := &Scope{
@@ -123,7 +114,7 @@ func TestScope_ToMap(t *testing.T) {
 		assert.Equal(t, "INSTANT", result["subType"])
 	})
 
-	t.Run("Success - scope with nil TransactionType pointer is excluded", func(t *testing.T) {
+	t.Run("scope with nil TransactionType pointer is excluded", func(t *testing.T) {
 		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
 		scope := &Scope{
 			AccountID:       &accountID,
@@ -137,7 +128,7 @@ func TestScope_ToMap(t *testing.T) {
 		assert.NotContains(t, result, "transactionType", "nil TransactionType should not be included")
 	})
 
-	t.Run("Success - scope with non-nil TransactionType pointer is included", func(t *testing.T) {
+	t.Run("scope with non-nil TransactionType pointer is included", func(t *testing.T) {
 		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
 		txType := TransactionTypePix
 		scope := &Scope{
@@ -152,7 +143,7 @@ func TestScope_ToMap(t *testing.T) {
 		assert.Equal(t, "PIX", result["transactionType"])
 	})
 
-	t.Run("Success - scope with all fields populated", func(t *testing.T) {
+	t.Run("scope with all fields populated", func(t *testing.T) {
 		segmentID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 		portfolioID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
 		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
@@ -180,7 +171,7 @@ func TestScope_ToMap(t *testing.T) {
 		assert.Equal(t, subType, result["subType"])
 	})
 
-	t.Run("Success - scope with mixed populated fields", func(t *testing.T) {
+	t.Run("scope with mixed populated fields", func(t *testing.T) {
 		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
 		txType := TransactionTypeWire
 		subType := "INTERNATIONAL"
@@ -202,7 +193,7 @@ func TestScope_ToMap(t *testing.T) {
 		assert.NotContains(t, result, "merchantId")
 	})
 
-	t.Run("Success - map keys use camelCase", func(t *testing.T) {
+	t.Run("map keys use camelCase", func(t *testing.T) {
 		segmentID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 		portfolioID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
 		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
@@ -238,7 +229,7 @@ func TestScope_ToMap(t *testing.T) {
 		assert.NotContains(t, result, "SubType")
 	})
 
-	t.Run("Success - UUID values are converted to strings", func(t *testing.T) {
+	t.Run("UUID values are converted to strings", func(t *testing.T) {
 		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
 		scope := &Scope{
 			AccountID: &accountID,
@@ -252,7 +243,7 @@ func TestScope_ToMap(t *testing.T) {
 		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440003", value)
 	})
 
-	t.Run("Success - TransactionType values use String() method", func(t *testing.T) {
+	t.Run("TransactionType values use String() method", func(t *testing.T) {
 		testCases := []struct {
 			txType   TransactionType
 			expected string
@@ -264,6 +255,8 @@ func TestScope_ToMap(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.expected, func(t *testing.T) {
+				t.Parallel()
+				
 				scope := &Scope{
 					TransactionType: &tc.txType,
 				}
