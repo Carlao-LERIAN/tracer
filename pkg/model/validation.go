@@ -6,6 +6,7 @@ package model
 
 import (
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,6 +55,7 @@ const (
 // ValidationRequest is the input for transaction validation.
 // Amount is expressed in the smallest currency unit (e.g., cents for USD/BRL).
 // Example: $10.50 should be sent as 1050.
+// Use NewValidationRequest() to construct - ensures validation and normalization.
 type ValidationRequest struct {
 	RequestID            uuid.UUID         `json:"requestId" validate:"required" swaggertype:"string" format:"uuid"`
 	TransactionType      TransactionType   `json:"transactionType" validate:"required"`
@@ -66,6 +68,94 @@ type ValidationRequest struct {
 	Portfolio            *PortfolioContext `json:"portfolio,omitempty"`
 	Merchant             *MerchantContext  `json:"merchant,omitempty"`
 	Metadata             map[string]any    `json:"metadata,omitempty"`
+}
+
+// NewValidationRequest creates a new ValidationRequest with validation and normalization.
+// Currency is normalized to uppercase and trimmed.
+// SubType is trimmed if provided.
+// Metadata is deep-copied to prevent external mutation.
+// Returns error if validation fails after normalization.
+//
+// This constructor can be called in two ways:
+// 1. After JSON parsing: construct from parsed struct to normalize and validate
+// 2. Programmatically: construct from individual fields
+func NewValidationRequest(
+	requestID uuid.UUID,
+	transactionType TransactionType,
+	subType *string,
+	amount int64,
+	currency string,
+	transactionTimestamp time.Time,
+	account AccountContext,
+	segment *SegmentContext,
+	portfolio *PortfolioContext,
+	merchant *MerchantContext,
+	metadata map[string]any,
+) (*ValidationRequest, error) {
+	// Normalize currency (uppercase and trim)
+	normalizedCurrency := strings.ToUpper(strings.TrimSpace(currency))
+
+	// Normalize subType if provided
+	var normalizedSubType *string
+	if subType != nil {
+		trimmed := strings.TrimSpace(*subType)
+		normalizedSubType = &trimmed
+	}
+
+	// Defensive copy of metadata to prevent external mutation
+	var metadataCopy map[string]any
+	if metadata != nil {
+		metadataCopy = make(map[string]any, len(metadata))
+		for k, v := range metadata {
+			metadataCopy[k] = v
+		}
+	}
+
+	req := &ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      transactionType,
+		SubType:              normalizedSubType,
+		Amount:               amount,
+		Currency:             normalizedCurrency,
+		TransactionTimestamp: transactionTimestamp,
+		Account:              account,
+		Segment:              segment,
+		Portfolio:            portfolio,
+		Merchant:             merchant,
+		Metadata:             metadataCopy,
+	}
+
+	// Validate after construction
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NormalizeAndValidate normalizes non-critical fields and validates the request in-place.
+// This method is useful after JSON parsing where the struct is already constructed.
+// SubType is trimmed and Metadata is deep-copied to prevent external mutation.
+// Currency is NOT normalized - API enforces strict ISO 4217 uppercase validation.
+// Returns error if validation fails after normalization.
+func (r *ValidationRequest) NormalizeAndValidate() error {
+	// Normalize subType if provided (trim whitespace)
+	if r.SubType != nil {
+		trimmed := strings.TrimSpace(*r.SubType)
+		r.SubType = &trimmed
+	}
+
+	// Deep copy metadata to prevent external mutation
+	if r.Metadata != nil {
+		metadataCopy := make(map[string]any, len(r.Metadata))
+		for k, v := range r.Metadata {
+			metadataCopy[k] = v
+		}
+		r.Metadata = metadataCopy
+	}
+
+	// Validate (currency will be validated as-is, enforcing uppercase ISO 4217)
+	return r.Validate()
 }
 
 // LimitUsageDetail contains usage information for a checked limit.

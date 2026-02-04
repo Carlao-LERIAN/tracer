@@ -101,8 +101,9 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0003", "Bad Request", h.parseErrorToUserMessage(err))
 	}
 
-	// Validate request (business error - use HandleSpanBusinessErrorEvent)
-	if err := request.Validate(); err != nil {
+	// Normalize and validate request (business error - use HandleSpanBusinessErrorEvent)
+	// This normalizes currency (uppercase), trims subType, and creates defensive metadata copy
+	if err := request.NormalizeAndValidate(); err != nil {
 		logger.WithFields(
 			"operation", "handler.validations.validate",
 			"error.message", err.Error(),
