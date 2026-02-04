@@ -184,6 +184,7 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 		for k, v := range temp.Segment.Metadata {
 			segmentMetaCopy[k] = v
 		}
+
 		segmentCopy := *temp.Segment
 		segmentCopy.Metadata = segmentMetaCopy
 		temp.Segment = &segmentCopy
@@ -194,6 +195,7 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 		for k, v := range temp.Portfolio.Metadata {
 			portfolioMetaCopy[k] = v
 		}
+
 		portfolioCopy := *temp.Portfolio
 		portfolioCopy.Metadata = portfolioMetaCopy
 		temp.Portfolio = &portfolioCopy
@@ -204,6 +206,7 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 		for k, v := range temp.Merchant.Metadata {
 			merchantMetaCopy[k] = v
 		}
+
 		merchantCopy := *temp.Merchant
 		merchantCopy.Metadata = merchantMetaCopy
 		temp.Merchant = &merchantCopy

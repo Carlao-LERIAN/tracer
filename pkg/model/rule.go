@@ -120,10 +120,12 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 			accountIDCopy := *scope.AccountID
 			scopeCopy.AccountID = &accountIDCopy
 		}
+
 		if scope.SegmentID != nil {
 			segmentIDCopy := *scope.SegmentID
 			scopeCopy.SegmentID = &segmentIDCopy
 		}
+
 		if scope.PortfolioID != nil {
 			portfolioIDCopy := *scope.PortfolioID
 			scopeCopy.PortfolioID = &portfolioIDCopy
