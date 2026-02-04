@@ -140,8 +140,10 @@ func NewValidationRequest(
 
 // NormalizeAndValidate normalizes non-critical fields and validates the request in-place.
 // This method is useful after JSON parsing where the struct is already constructed.
-// SubType is trimmed and Metadata is shallow-copied (top-level keys only) to detach from the original map.
-// Note: nested maps/slices within metadata values remain shared references.
+// SubType is trimmed and Metadata maps are defensively copied at all levels:
+// - Top-level Metadata map is shallow-copied
+// - Nested context metadata (Segment.Metadata, Portfolio.Metadata, Merchant.Metadata) are also shallow-copied
+// Note: Values within metadata maps remain shared references if they are maps/slices themselves.
 // Currency is NOT normalized - API enforces strict ISO 4217 uppercase validation (e.g., "usd" will fail).
 // Returns error if validation fails after normalization.
 //
@@ -162,7 +164,7 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 		normalizedSubType = &trimmed
 	}
 
-	// Prepare shallow copy of metadata
+	// Prepare shallow copy of top-level metadata
 	var metadataCopy map[string]any
 	if r.Metadata != nil {
 		metadataCopy = make(map[string]any, len(r.Metadata))
@@ -176,6 +178,37 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 	temp.SubType = normalizedSubType
 	temp.Metadata = metadataCopy
 
+	// Deep copy nested context metadata to prevent shared references
+	if temp.Segment != nil && temp.Segment.Metadata != nil {
+		segmentMetaCopy := make(map[string]any, len(temp.Segment.Metadata))
+		for k, v := range temp.Segment.Metadata {
+			segmentMetaCopy[k] = v
+		}
+		segmentCopy := *temp.Segment
+		segmentCopy.Metadata = segmentMetaCopy
+		temp.Segment = &segmentCopy
+	}
+
+	if temp.Portfolio != nil && temp.Portfolio.Metadata != nil {
+		portfolioMetaCopy := make(map[string]any, len(temp.Portfolio.Metadata))
+		for k, v := range temp.Portfolio.Metadata {
+			portfolioMetaCopy[k] = v
+		}
+		portfolioCopy := *temp.Portfolio
+		portfolioCopy.Metadata = portfolioMetaCopy
+		temp.Portfolio = &portfolioCopy
+	}
+
+	if temp.Merchant != nil && temp.Merchant.Metadata != nil {
+		merchantMetaCopy := make(map[string]any, len(temp.Merchant.Metadata))
+		for k, v := range temp.Merchant.Metadata {
+			merchantMetaCopy[k] = v
+		}
+		merchantCopy := *temp.Merchant
+		merchantCopy.Metadata = merchantMetaCopy
+		temp.Merchant = &merchantCopy
+	}
+
 	// Validate on temp - if error, original r remains unchanged
 	if err := temp.Validate(); err != nil {
 		return err
@@ -184,6 +217,9 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 	// Only apply changes if validation succeeded (atomic commit)
 	r.SubType = normalizedSubType
 	r.Metadata = metadataCopy
+	r.Segment = temp.Segment
+	r.Portfolio = temp.Portfolio
+	r.Merchant = temp.Merchant
 
 	return nil
 }

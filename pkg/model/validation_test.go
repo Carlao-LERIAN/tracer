@@ -447,3 +447,123 @@ func TestValidationRequest_Validate_MerchantID(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
+	t.Run("nested context metadata are defensively copied", func(t *testing.T) {
+		// Create original metadata maps for nested contexts
+		segmentMeta := map[string]any{"segment_key": "segment_value"}
+		portfolioMeta := map[string]any{"portfolio_key": "portfolio_value"}
+		merchantMeta := map[string]any{"merchant_key": "merchant_value"}
+
+		req := ValidationRequest{
+			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
+			TransactionType:      TransactionTypeCard,
+			Amount:               1000,
+			Currency:             "USD",
+			TransactionTimestamp: time.Now(),
+			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
+			Segment: &SegmentContext{
+				ID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
+				Name:     "VIP",
+				Metadata: segmentMeta,
+			},
+			Portfolio: &PortfolioContext{
+				ID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"),
+				Name:     "Premium",
+				Metadata: portfolioMeta,
+			},
+			Merchant: &MerchantContext{
+				ID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440005"),
+				Name:     "Amazon",
+				Category: "5411",
+				Country:  "US",
+				Metadata: merchantMeta,
+			},
+		}
+
+		// Call NormalizeAndValidate
+		err := req.NormalizeAndValidate()
+		require.NoError(t, err)
+
+		// Mutate original metadata maps
+		segmentMeta["_marker"] = "mutated"
+		portfolioMeta["_marker"] = "mutated"
+		merchantMeta["_marker"] = "mutated"
+
+		// Verify request's nested metadata are detached (defensive copies)
+		_, hasSegmentMarker := req.Segment.Metadata["_marker"]
+		assert.False(t, hasSegmentMarker, "Segment metadata should be detached, marker should not appear")
+		assert.Equal(t, "segment_value", req.Segment.Metadata["segment_key"], "Segment metadata values should be preserved")
+
+		_, hasPortfolioMarker := req.Portfolio.Metadata["_marker"]
+		assert.False(t, hasPortfolioMarker, "Portfolio metadata should be detached, marker should not appear")
+		assert.Equal(t, "portfolio_value", req.Portfolio.Metadata["portfolio_key"], "Portfolio metadata values should be preserved")
+
+		_, hasMerchantMarker := req.Merchant.Metadata["_marker"]
+		assert.False(t, hasMerchantMarker, "Merchant metadata should be detached, marker should not appear")
+		assert.Equal(t, "merchant_value", req.Merchant.Metadata["merchant_key"], "Merchant metadata values should be preserved")
+	})
+
+	t.Run("nil nested contexts remain unchanged", func(t *testing.T) {
+		req := ValidationRequest{
+			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
+			TransactionType:      TransactionTypeCard,
+			Amount:               1000,
+			Currency:             "USD",
+			TransactionTimestamp: time.Now(),
+			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
+			Segment:              nil,
+			Portfolio:            nil,
+			Merchant:             nil,
+		}
+
+		err := req.NormalizeAndValidate()
+		require.NoError(t, err)
+
+		// Verify nil contexts remain nil
+		assert.Nil(t, req.Segment)
+		assert.Nil(t, req.Portfolio)
+		assert.Nil(t, req.Merchant)
+	})
+
+	t.Run("nested contexts with nil metadata remain unchanged", func(t *testing.T) {
+		req := ValidationRequest{
+			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
+			TransactionType:      TransactionTypeCard,
+			Amount:               1000,
+			Currency:             "USD",
+			TransactionTimestamp: time.Now(),
+			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
+			Segment: &SegmentContext{
+				ID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
+				Name:     "VIP",
+				Metadata: nil,
+			},
+			Portfolio: &PortfolioContext{
+				ID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"),
+				Name:     "Premium",
+				Metadata: nil,
+			},
+			Merchant: &MerchantContext{
+				ID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440005"),
+				Name:     "Amazon",
+				Category: "5411",
+				Country:  "US",
+				Metadata: nil,
+			},
+		}
+
+		err := req.NormalizeAndValidate()
+		require.NoError(t, err)
+
+		// Verify contexts exist but metadata remain nil
+		require.NotNil(t, req.Segment)
+		assert.Nil(t, req.Segment.Metadata)
+
+		require.NotNil(t, req.Portfolio)
+		assert.Nil(t, req.Portfolio.Metadata)
+
+		require.NotNil(t, req.Merchant)
+		assert.Nil(t, req.Merchant.Metadata)
+	})
+}
