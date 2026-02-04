@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 )
 
@@ -24,13 +25,13 @@ func TestValidateMetadata(t *testing.T) {
 
 	createValidRequest := func() *ValidationRequest {
 		return &ValidationRequest{
-			RequestID:            uuid.New(),
+			RequestID:            testutil.MustDeterministicUUID(1),
 			TransactionType:      TransactionTypeCard,
 			Amount:               1000,
 			Currency:             "USD",
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
-				ID: uuid.New(),
+				ID: testutil.MustDeterministicUUID(2),
 			},
 			Metadata: nil,
 		}
