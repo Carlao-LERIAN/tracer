@@ -621,9 +621,9 @@ func (l *Limit) Scopes() []Scope {
 
 // ✅ Do: Return defensive copies
 func (l *Limit) Scopes() []Scope {
-    copy := make([]Scope, len(l.scopes))
-    copy(copy, l.scopes)
-    return copy
+    result := make([]Scope, len(l.scopes))
+    copy(result, l.scopes)
+    return result
 }
 ```
 
