@@ -168,7 +168,7 @@ var (
 
 	// =============================================================================
 	// Audit Event Errors (TRC-0140 to TRC-0159)
-	// New category for audit events - extends beyond Transaction Validation (TRC-0130 to TRC-0139)
+	// New category for audit events - extends beyond Limit Errors (TRC-0120 to TRC-0139)
 	// =============================================================================
 	ErrAuditEventNotFound             = errors.New("TRC-0140") // audit event not found
 	ErrInvalidAuditEventFilters       = errors.New("TRC-0141") // invalid audit event filter parameters
