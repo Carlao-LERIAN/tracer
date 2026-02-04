@@ -152,6 +152,23 @@ func TestNewRule(t *testing.T) {
 		assert.Equal(t, "Test description", *rule.Description, "Description whitespace should be trimmed")
 	})
 
+	t.Run("Success - whitespace-only description becomes empty string", func(t *testing.T) {
+		desc := "   "
+		rule, err := NewRule(
+			"Test Rule",
+			"amount > 1000",
+			DecisionAllow,
+			validScopes,
+			&desc,
+		)
+
+		require.NoError(t, err)
+		require.NotNil(t, rule)
+		require.NotNil(t, rule.Description, "Whitespace-only description becomes pointer to empty string, not nil")
+		assert.Equal(t, "", *rule.Description, "Whitespace should be trimmed to empty string")
+		assert.Len(t, *rule.Description, 0, "Description length should be zero after trim")
+	})
+
 	t.Run("Error - empty name after trim", func(t *testing.T) {
 		rule, err := NewRule(
 			"   ",
