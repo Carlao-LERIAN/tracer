@@ -314,6 +314,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	if err != nil {
 		wrappedErr := fmt.Errorf("%w: failed to build activation: %v", constant.ErrExpressionEvaluation, err)
 		libOtel.HandleSpanError(&span, "failed to build activation", wrappedErr)
+
 		return false, wrappedErr
 	}
 
