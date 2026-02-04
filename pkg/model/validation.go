@@ -73,7 +73,8 @@ type ValidationRequest struct {
 // NewValidationRequest creates a new ValidationRequest with validation and normalization.
 // Currency is normalized to uppercase and trimmed (auto-corrects case).
 // SubType is trimmed if provided.
-// Metadata is deep-copied to prevent external mutation.
+// Metadata is shallow-copied (top-level keys only) to detach from the original map.
+// Note: nested maps/slices within metadata values remain shared references.
 // Returns error if validation fails after normalization.
 //
 // Use this constructor when:
@@ -105,7 +106,8 @@ func NewValidationRequest(
 		normalizedSubType = &trimmed
 	}
 
-	// Defensive copy of metadata to prevent external mutation
+	// Shallow copy of metadata to detach top-level map entries
+	// Note: nested maps/slices share references with original (acceptable trade-off)
 	var metadataCopy map[string]any
 	if metadata != nil {
 		metadataCopy = make(map[string]any, len(metadata))
@@ -154,7 +156,8 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 		r.SubType = &trimmed
 	}
 
-	// Deep copy metadata to prevent external mutation
+	// Shallow copy metadata to detach top-level map entries
+	// Note: nested maps/slices share references with original (acceptable trade-off)
 	if r.Metadata != nil {
 		metadataCopy := make(map[string]any, len(r.Metadata))
 		for k, v := range r.Metadata {
