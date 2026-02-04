@@ -7,6 +7,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -65,8 +66,9 @@ func TestValidateMetadata(t *testing.T) {
 		req := createValidRequest()
 		req.Metadata = make(map[string]any, 50)
 
-		for i := 1; i <= 50; i++ {
-			req.Metadata[string(rune('a'+i%26))+string(rune('a'+(i/26)%26))] = i
+		for i := 0; i < 50; i++ {
+			key := fmt.Sprintf("key%d", i)
+			req.Metadata[key] = i
 		}
 
 		err := req.validateMetadata()
@@ -77,8 +79,9 @@ func TestValidateMetadata(t *testing.T) {
 		req := createValidRequest()
 		req.Metadata = make(map[string]any, 51)
 
-		for i := 1; i <= 51; i++ {
-			req.Metadata[string(rune('a'+i%26))+string(rune('a'+(i/26)%26))+string(rune('0'+i%10))] = i
+		for i := 0; i < 51; i++ {
+			key := fmt.Sprintf("key%d", i)
+			req.Metadata[key] = i
 		}
 
 		err := req.validateMetadata()
