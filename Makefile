@@ -234,6 +234,32 @@ lint:
 		echo "$(YELLOW)No Go files found, skipping linting$(NC)"; \
 	fi
 
+.PHONY: check-build-tags
+check-build-tags:
+	$(call title1,"Checking test files for build tags")
+	@echo "Verifying all test files have build tags..."
+	@missing=$$(find . -name '*_test.go' -not -path '*/vendor/*' -exec grep -L "//go:build" {} \;); \
+	if [ -n "$$missing" ]; then \
+		echo "$(RED)❌ ERROR: Test files missing //go:build tags:$(NC)"; \
+		echo "$$missing"; \
+		echo "$(YELLOW)All test files must have: //go:build unit$(NC)"; \
+		echo "$(YELLOW)See: docs/CODING_STANDARDS.md section 3$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✅ All test files have build tags$(NC)"
+
+.PHONY: quality
+quality: lint check-build-tags test
+	$(call title1,"Quality checks complete")
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) All quality checks passed$(GREEN) ✔️$(NC)"
+	@echo ""
+	@echo "Checks passed:"
+	@echo "  ✅ Linting (errorlint, contextcheck)"
+	@echo "  ✅ Build tags verification"
+	@echo "  ✅ Unit tests"
+	@echo ""
+	@echo "$(GREEN)Ready to commit and push!$(NC)"
+
 .PHONY: format
 format:
 	$(call title1,"Formatting code")
