@@ -18,6 +18,7 @@ import (
 	"github.com/google/cel-go/checker"
 
 	"tracer/pkg/constant"
+	"tracer/pkg/logging"
 	"tracer/pkg/model"
 )
 
@@ -121,7 +122,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	start := time.Now()
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-	_ = logger // Not used in this method but retrieved to avoid dogsled warning
+	logger = logging.WithTrace(ctx, logger)
 
 	_, span := tracer.Start(ctx, "adapter.cel.compile")
 	defer span.End()
@@ -260,7 +261,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
 	}
 
-	a.logger.WithFields(
+	logger.WithFields(
 		"operation", "adapter.cel.compile",
 		"expression.hash", safePrefix(hash, 8),
 		"compile.time_ms", compileTimeMs,
@@ -274,8 +275,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *model.ValidationRequest) (bool, error) {
 	start := time.Now()
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-	_ = logger // Not used in this method but retrieved to avoid dogsled warning
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed from tracking context
 
 	_, span := tracer.Start(ctx, "adapter.cel.evaluate")
 	defer span.End()
@@ -352,7 +352,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 // Propagates ctx through logging and tracing for observability.
 func (a *Adapter) Invalidate(ctx context.Context, expressionHash string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-	_ = logger // Not used in this method but retrieved to avoid dogsled warning
+	logger = logging.WithTrace(ctx, logger)
 
 	_, span := tracer.Start(ctx, "adapter.cel.invalidate")
 	defer span.End()
@@ -367,12 +367,10 @@ func (a *Adapter) Invalidate(ctx context.Context, expressionHash string) error {
 	// Invalidate from cache
 	a.cache.Invalidate(expressionHash)
 
-	// Log with trace context using existing span from startSpan
-	a.logger.WithFields(
+	// Log with trace context
+	logger.WithFields(
 		"operation", "adapter.cel.invalidate",
 		"expression.hash", safePrefix(expressionHash, 8),
-		"trace.id", span.SpanContext().TraceID().String(),
-		"span.id", span.SpanContext().SpanID().String(),
 	).Info("CEL expression invalidated")
 
 	return nil
