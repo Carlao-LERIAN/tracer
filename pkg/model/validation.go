@@ -140,7 +140,8 @@ func NewValidationRequest(
 
 // NormalizeAndValidate normalizes non-critical fields and validates the request in-place.
 // This method is useful after JSON parsing where the struct is already constructed.
-// SubType is trimmed and Metadata is deep-copied to prevent external mutation.
+// SubType is trimmed and Metadata is shallow-copied (top-level keys only) to detach from the original map.
+// Note: nested maps/slices within metadata values remain shared references.
 // Currency is NOT normalized - API enforces strict ISO 4217 uppercase validation (e.g., "usd" will fail).
 // Returns error if validation fails after normalization.
 //
