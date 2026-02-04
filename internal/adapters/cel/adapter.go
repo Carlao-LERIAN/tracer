@@ -16,7 +16,6 @@ import (
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker"
-	"go.opentelemetry.io/otel/trace"
 
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
@@ -47,12 +46,6 @@ func safePrefix(s string, n int) string {
 	}
 
 	return s[:n]
-}
-
-// startSpan creates a new span using lib-commons tracer from context.
-func startSpan(ctx context.Context, spanName string) (context.Context, trace.Span) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
-	return tracer.Start(ctx, spanName)
 }
 
 // ExpressionEngine compiles and evaluates CEL expressions.
@@ -127,13 +120,16 @@ func NewAdapter(cfg AdapterConfig, logger libLog.Logger) (*Adapter, error) {
 func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProgram, error) {
 	start := time.Now()
 
-	_, span := startSpan(ctx, "adapter.cel.compile")
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_ = logger // Not used in this method but retrieved to avoid dogsled warning
+
+	_, span := tracer.Start(ctx, "adapter.cel.compile")
 	defer span.End()
 
 	// Validate expression is not empty (fail fast before any processing)
 	if expression == "" {
 		err := fmt.Errorf("%w: expression cannot be empty", constant.ErrExpressionSyntax)
-		recordSpanError(&span, "empty expression", err)
+		libOtel.HandleSpanError(&span, "empty expression", err)
 
 		return nil, err
 	}
@@ -174,15 +170,15 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 			// Use the structured IsTypeError flag for deterministic classification
 			if compileErr.IsTypeError {
 				wrappedErr = fmt.Errorf("%w: %v", constant.ErrExpressionType, err)
-				recordSpanError(&span, "type error", wrappedErr)
+				libOtel.HandleSpanError(&span, "type error", wrappedErr)
 			} else {
 				wrappedErr = fmt.Errorf("%w: %v", constant.ErrExpressionSyntax, err)
-				recordSpanError(&span, "compilation failed", wrappedErr)
+				libOtel.HandleSpanError(&span, "compilation failed", wrappedErr)
 			}
 		} else {
 			// Fallback for unexpected error types (shouldn't happen with our Environment)
 			wrappedErr = fmt.Errorf("%w: %v", constant.ErrExpressionSyntax, err)
-			recordSpanError(&span, "compilation failed", wrappedErr)
+			libOtel.HandleSpanError(&span, "compilation failed", wrappedErr)
 		}
 
 		return nil, wrappedErr
@@ -191,7 +187,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// Validate boolean return type
 	if ast.OutputType() != cel.BoolType {
 		err := fmt.Errorf("%w: expression returns %v, expected bool", constant.ErrExpressionType, ast.OutputType())
-		recordSpanError(&span, "type validation failed", err)
+		libOtel.HandleSpanError(&span, "type validation failed", err)
 
 		return nil, err
 	}
@@ -202,7 +198,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	if err != nil {
 		// Use distinct error for estimation failures vs actual cost exceeded
 		costErr := fmt.Errorf("%w: %v", constant.ErrExpressionCostEstimation, err)
-		recordSpanError(&span, "cost estimation failed", costErr)
+		libOtel.HandleSpanError(&span, "cost estimation failed", costErr)
 
 		return nil, costErr
 	}
@@ -211,7 +207,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// costEstimate.Max is uint64, so we compare with costLimit
 	if costEstimate.Max > a.costLimit {
 		costErr := fmt.Errorf("%w: estimated cost %d exceeds limit %d", constant.ErrExpressionCostExceeded, costEstimate.Max, a.costLimit)
-		recordSpanError(&span, "expression cost exceeds limit", costErr)
+		libOtel.HandleSpanError(&span, "expression cost exceeds limit", costErr)
 
 		if err := libOtel.SetSpanAttributesFromStruct(&span, "cost_validation", map[string]any{
 			"estimated_cost_min": costEstimate.Min,
@@ -238,7 +234,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	program, err := a.env.Program(ast)
 	if err != nil {
 		progErr := fmt.Errorf("%w: %v", constant.ErrExpressionProgram, err)
-		recordSpanError(&span, "program creation failed", progErr)
+		libOtel.HandleSpanError(&span, "program creation failed", progErr)
 
 		return nil, progErr
 	}
@@ -278,20 +274,23 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *model.ValidationRequest) (bool, error) {
 	start := time.Now()
 
-	_, span := startSpan(ctx, "adapter.cel.evaluate")
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_ = logger // Not used in this method but retrieved to avoid dogsled warning
+
+	_, span := tracer.Start(ctx, "adapter.cel.evaluate")
 	defer span.End()
 
 	// Validate inputs
 	if program == nil {
 		err := fmt.Errorf("program is required")
-		recordSpanError(&span, "nil program", err)
+		libOtel.HandleSpanError(&span, "nil program", err)
 
 		return false, err
 	}
 
 	if program.Program == nil {
 		err := fmt.Errorf("compiled program is nil")
-		recordSpanError(&span, "nil compiled program", err)
+		libOtel.HandleSpanError(&span, "nil compiled program", err)
 
 		return false, err
 	}
@@ -305,7 +304,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	// Validate request is not nil
 	if req == nil {
 		err := fmt.Errorf("validation request is required")
-		recordSpanError(&span, "nil request", err)
+		libOtel.HandleSpanError(&span, "nil request", err)
 
 		return false, err
 	}
@@ -313,7 +312,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	// Build activation from request
 	activation, err := BuildActivation(req)
 	if err != nil {
-		recordSpanError(&span, "failed to build activation", err)
+		libOtel.HandleSpanError(&span, "failed to build activation", err)
 		return false, fmt.Errorf("failed to build activation: %w", err)
 	}
 
@@ -321,7 +320,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	out, _, err := program.Program.Eval(activation)
 	if err != nil {
 		evalErr := fmt.Errorf("%w: %v", constant.ErrExpressionEvaluation, err)
-		recordSpanError(&span, "evaluation failed", evalErr)
+		libOtel.HandleSpanError(&span, "evaluation failed", evalErr)
 
 		return false, evalErr
 	}
@@ -330,7 +329,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	result, ok := out.Value().(bool)
 	if !ok {
 		err := fmt.Errorf("%w: expected bool, got %T", constant.ErrExpressionType, out.Value())
-		recordSpanError(&span, "type assertion failed", err)
+		libOtel.HandleSpanError(&span, "type assertion failed", err)
 
 		return false, err
 	}
@@ -352,7 +351,10 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 // Uses OpenTelemetry tracing with span name: adapter.cel.invalidate
 // Propagates ctx through logging and tracing for observability.
 func (a *Adapter) Invalidate(ctx context.Context, expressionHash string) error {
-	_, span := startSpan(ctx, "adapter.cel.invalidate")
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_ = logger // Not used in this method but retrieved to avoid dogsled warning
+
+	_, span := tracer.Start(ctx, "adapter.cel.invalidate")
 	defer span.End()
 
 	// Set span attributes for the invalidation operation

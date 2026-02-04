@@ -97,6 +97,7 @@ func NewValidationRequest(
 
 	// Normalize subType if provided
 	var normalizedSubType *string
+
 	if subType != nil {
 		trimmed := strings.TrimSpace(*subType)
 		normalizedSubType = &trimmed
@@ -151,6 +152,7 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 		for k, v := range r.Metadata {
 			metadataCopy[k] = v
 		}
+
 		r.Metadata = metadataCopy
 	}
 
