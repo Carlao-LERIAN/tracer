@@ -171,17 +171,20 @@ func TestValidateMetadata(t *testing.T) {
 	})
 
 	t.Run("Error - metadata key with special characters", func(t *testing.T) {
-		req := createValidRequest()
 		specialChars := []string{"key@test", "key#test", "key$test", "key%test", "key&test"}
 
 		for _, key := range specialChars {
-			req.Metadata = map[string]any{
-				key: "value",
-			}
+			key := key // Capture loop variable
+			t.Run(key, func(t *testing.T) {
+				req := createValidRequest()
+				req.Metadata = map[string]any{
+					key: "value",
+				}
 
-			err := req.validateMetadata()
-			require.Error(t, err, "key %q should be invalid", key)
-			assert.ErrorIs(t, err, constant.ErrMetadataKeyInvalidChars)
+				err := req.validateMetadata()
+				require.Error(t, err)
+				assert.ErrorIs(t, err, constant.ErrMetadataKeyInvalidChars)
+			})
 		}
 	})
 
