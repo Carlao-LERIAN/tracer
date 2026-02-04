@@ -21,6 +21,16 @@ const (
 	ActorTypeSystem ActorType = "system"
 )
 
+// IsValid checks if the ActorType is a valid enum value.
+func (a ActorType) IsValid() bool {
+	switch a {
+	case ActorTypeUser, ActorTypeSystem:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuditEventType represents the type of audit event.
 type AuditEventType string
 
@@ -210,6 +220,11 @@ func NewAuditEvent(
 	// Validate resourceType
 	if !resourceType.IsValid() {
 		return nil, constant.ErrAuditEventInvalidResourceType
+	}
+
+	// Validate actor.ActorType
+	if !actor.ActorType.IsValid() {
+		return nil, constant.ErrAuditEventActorTypeInvalid
 	}
 
 	// Validate actor.ID

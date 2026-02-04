@@ -119,6 +119,27 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 		assert.ErrorIs(t, err, constant.ErrAuditEventActorIDRequired)
 	})
 
+	t.Run("Error - invalid actor type", func(t *testing.T) {
+		invalidActor := Actor{
+			ActorType: ActorType("INVALID"),
+			ID:        "test_actor",
+			Name:      "Test Actor",
+		}
+
+		event, err := NewAuditEvent(
+			AuditEventRuleCreated,
+			AuditActionCreate,
+			AuditResultSuccess,
+			uuid.NewString(),
+			ResourceTypeRule,
+			invalidActor,
+		)
+
+		require.Error(t, err)
+		assert.Nil(t, event)
+		assert.ErrorIs(t, err, constant.ErrAuditEventActorTypeInvalid)
+	})
+
 	t.Run("Success - all valid enums", func(t *testing.T) {
 		testCases := []struct {
 			name         string

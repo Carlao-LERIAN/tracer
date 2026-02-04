@@ -178,6 +178,7 @@ var (
 	ErrAuditEventResourceIDRequired   = errors.New("TRC-0145") // resource ID is required
 	ErrAuditEventInvalidResourceType  = errors.New("TRC-0146") // invalid resource type
 	ErrAuditEventActorIDRequired      = errors.New("TRC-0147") // actor ID is required
+	ErrAuditEventActorTypeInvalid     = errors.New("TRC-0148") // actor type must be 'user' or 'system'
 
 	// =============================================================================
 	// Transaction Validation Constructor Errors (TRC-0270 to TRC-0279)
