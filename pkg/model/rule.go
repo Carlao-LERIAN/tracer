@@ -259,6 +259,20 @@ func (r *Rule) SetStatus(status RuleStatus) error {
 	return nil
 }
 
+// SetAction updates the rule's action/decision with validation.
+// Returns error if action is invalid.
+// Updates UpdatedAt timestamp on successful mutation.
+func (r *Rule) SetAction(action Decision, now time.Time) error {
+	if !action.IsValid() {
+		return constant.ErrInvalidDecision
+	}
+
+	r.Action = action
+	r.UpdatedAt = now
+
+	return nil
+}
+
 // ListRulesFilter represents the filter criteria for listing rules.
 // Uses cursor-based pagination for consistent results during navigation.
 type ListRulesFilter struct {

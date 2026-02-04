@@ -113,24 +113,18 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 		}
 	}
 
-	// Validate action first (before any mutations)
-	if input.Action != nil {
-		if !input.Action.IsValid() {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid decision value", constant.ErrInvalidDecision)
-			return nil, constant.ErrInvalidDecision
-		}
-	}
-
 	// Use domain model Update method with normalized name (validates all before mutating any)
 	if err := rule.Update(normalizedName, input.Expression, input.Description, input.Scopes); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update rule", err)
 		return nil, err
 	}
 
-	// Apply action update if provided (already validated above)
+	// Apply action update if provided (domain method handles validation + mutation)
 	if input.Action != nil {
-		rule.Action = *input.Action
-		rule.UpdatedAt = c.clock.Now()
+		if err := rule.SetAction(*input.Action, c.clock.Now()); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid decision value", err)
+			return nil, err
+		}
 	}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule_update", rule)
