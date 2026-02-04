@@ -323,6 +323,25 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name:   "error - invalid action decision",
+			ruleID: ruleID,
+			input: &UpdateRuleInput{
+				Action: testutil.Ptr(model.Decision("INVALID")),
+			},
+			mockSetup: func(ctrl *gomock.Controller) (*MockRuleRepository, *MockExpressionCompiler) {
+				mockRepo := NewMockRuleRepository(ctrl)
+				mockCEL := NewMockExpressionCompiler(ctrl)
+
+				mockRepo.EXPECT().
+					GetByID(gomock.Any(), ruleID).
+					Return(copyRule(existingRule), nil)
+
+				return mockRepo, mockCEL
+			},
+			wantErr: true,
+			errIs:   constant.ErrInvalidDecision,
+		},
 	}
 
 	for _, tt := range tests {

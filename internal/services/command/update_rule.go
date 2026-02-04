@@ -119,8 +119,13 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 		return nil, err
 	}
 
-	// Apply action update if provided (not part of Update method as it doesn't need validation beyond type)
+	// Apply action update if provided
 	if input.Action != nil {
+		if !input.Action.IsValid() {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid decision value", constant.ErrInvalidDecision)
+			return nil, constant.ErrInvalidDecision
+		}
+
 		rule.Action = *input.Action
 		rule.UpdatedAt = c.clock.Now()
 	}
