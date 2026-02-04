@@ -102,7 +102,7 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 	}
 
 	// Normalize and validate request (business error - use HandleSpanBusinessErrorEvent)
-	// This normalizes currency (uppercase), trims subType, and creates defensive metadata copy
+	// This validates currency is ISO 4217 uppercase (does NOT normalize), trims subType, and creates defensive metadata copy
 	if err := request.NormalizeAndValidate(); err != nil {
 		logger.WithFields(
 			"operation", "handler.validations.validate",
