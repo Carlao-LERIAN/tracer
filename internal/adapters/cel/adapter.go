@@ -170,15 +170,15 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		if errors.As(err, &compileErr) {
 			// Use the structured IsTypeError flag for deterministic classification
 			if compileErr.IsTypeError {
-				wrappedErr = fmt.Errorf("%w: %v", constant.ErrExpressionType, err)
+				wrappedErr = fmt.Errorf("%w: %w", constant.ErrExpressionType, err)
 				libOtel.HandleSpanError(&span, "type error", wrappedErr)
 			} else {
-				wrappedErr = fmt.Errorf("%w: %v", constant.ErrExpressionSyntax, err)
+				wrappedErr = fmt.Errorf("%w: %w", constant.ErrExpressionSyntax, err)
 				libOtel.HandleSpanError(&span, "compilation failed", wrappedErr)
 			}
 		} else {
 			// Fallback for unexpected error types (shouldn't happen with our Environment)
-			wrappedErr = fmt.Errorf("%w: %v", constant.ErrExpressionSyntax, err)
+			wrappedErr = fmt.Errorf("%w: %w", constant.ErrExpressionSyntax, err)
 			libOtel.HandleSpanError(&span, "compilation failed", wrappedErr)
 		}
 
@@ -198,7 +198,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	costEstimate, err := checker.Cost(ast.NativeRep(), &defaultCostEstimator{})
 	if err != nil {
 		// Use distinct error for estimation failures vs actual cost exceeded
-		costErr := fmt.Errorf("%w: %v", constant.ErrExpressionCostEstimation, err)
+		costErr := fmt.Errorf("%w: %w", constant.ErrExpressionCostEstimation, err)
 		libOtel.HandleSpanError(&span, "cost estimation failed", costErr)
 
 		return nil, costErr
@@ -234,7 +234,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// Create program (compile-time cost validation already done above via checker.Cost)
 	program, err := a.env.Program(ast)
 	if err != nil {
-		progErr := fmt.Errorf("%w: %v", constant.ErrExpressionProgram, err)
+		progErr := fmt.Errorf("%w: %w", constant.ErrExpressionProgram, err)
 		libOtel.HandleSpanError(&span, "program creation failed", progErr)
 
 		return nil, progErr
@@ -312,7 +312,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	// Build activation from request
 	activation, err := BuildActivation(req)
 	if err != nil {
-		wrappedErr := fmt.Errorf("%w: failed to build activation: %v", constant.ErrExpressionEvaluation, err)
+		wrappedErr := fmt.Errorf("%w: failed to build activation: %w", constant.ErrExpressionEvaluation, err)
 		libOtel.HandleSpanError(&span, "failed to build activation", wrappedErr)
 
 		return false, wrappedErr
@@ -321,7 +321,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	// Evaluate
 	out, _, err := program.Program.Eval(activation)
 	if err != nil {
-		evalErr := fmt.Errorf("%w: %v", constant.ErrExpressionEvaluation, err)
+		evalErr := fmt.Errorf("%w: %w", constant.ErrExpressionEvaluation, err)
 		libOtel.HandleSpanError(&span, "evaluation failed", evalErr)
 
 		return false, evalErr
