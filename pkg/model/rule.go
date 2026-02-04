@@ -105,15 +105,31 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 		return nil, constant.ErrRuleDescriptionTooLong
 	}
 
-	// Defensive copy of scopes with validation
+	// Defensive deep copy of scopes with validation
 	// Always use empty slice instead of nil to ensure proper JSON serialization
+	// Deep copy UUID pointers to prevent external mutations from affecting rule
 	scopesCopy := make([]Scope, 0, len(scopes))
 	for _, scope := range scopes {
 		if scope.IsEmpty() {
 			return nil, constant.ErrRuleInvalidScope
 		}
 
-		scopesCopy = append(scopesCopy, scope)
+		// Deep copy the scope with independent UUID pointer
+		scopeCopy := scope
+		if scope.AccountID != nil {
+			accountIDCopy := *scope.AccountID
+			scopeCopy.AccountID = &accountIDCopy
+		}
+		if scope.SegmentID != nil {
+			segmentIDCopy := *scope.SegmentID
+			scopeCopy.SegmentID = &segmentIDCopy
+		}
+		if scope.PortfolioID != nil {
+			portfolioIDCopy := *scope.PortfolioID
+			scopeCopy.PortfolioID = &portfolioIDCopy
+		}
+
+		scopesCopy = append(scopesCopy, scopeCopy)
 	}
 
 	return &Rule{
