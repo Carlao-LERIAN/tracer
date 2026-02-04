@@ -94,6 +94,22 @@ func TestNewRule(t *testing.T) {
 		assert.NotNil(t, rule.Scopes, "Scopes should be initialized as empty array")
 	})
 
+	t.Run("Error - scope with all nil fields", func(t *testing.T) {
+		emptyScope := Scope{} // All fields nil
+
+		rule, err := NewRule(
+			"Test Rule",
+			"amount > 1000",
+			DecisionAllow,
+			[]Scope{emptyScope},
+			nil,
+		)
+
+		require.Error(t, err)
+		assert.Nil(t, rule)
+		assert.ErrorIs(t, err, constant.ErrRuleInvalidScope)
+	})
+
 	t.Run("Success - trims whitespace from name", func(t *testing.T) {
 		rule, err := NewRule(
 			"  Test Rule  ",

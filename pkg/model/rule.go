@@ -107,9 +107,15 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 		return nil, constant.ErrRuleDescriptionTooLong
 	}
 
-	// Defensive copy of scopes to prevent external mutation
+	// Defensive copy of scopes with validation
 	// Always use empty slice instead of nil to ensure proper JSON serialization
-	scopesCopy := append([]Scope{}, scopes...)
+	scopesCopy := make([]Scope, 0, len(scopes))
+	for _, scope := range scopes {
+		if scope.IsEmpty() {
+			return nil, constant.ErrRuleInvalidScope
+		}
+		scopesCopy = append(scopesCopy, scope)
+	}
 
 	return &Rule{
 		ID:          uuid.New(),
