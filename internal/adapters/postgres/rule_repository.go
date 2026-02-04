@@ -604,7 +604,7 @@ func (r *Repository) applyCursorFilter(query sq.SelectBuilder, cursorStr string,
 	cursor, err := pkgHTTP.DecodeCursor(cursorStr)
 	if err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
-		return query, "", "", "", fmt.Errorf("%w: %v", constant.ErrInvalidCursor, err)
+		return query, "", "", "", fmt.Errorf("%w: %w", constant.ErrInvalidCursor, err)
 	}
 
 	// Use sort field from cursor (in camelCase)

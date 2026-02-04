@@ -187,7 +187,7 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 
 	if err := filters.Validate(); err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid audit event filters", err)
-		return nil, fmt.Errorf("%w: %v", constant.ErrInvalidAuditEventFilters, err)
+		return nil, fmt.Errorf("%w: %w", constant.ErrInvalidAuditEventFilters, err)
 	}
 
 	db, err := r.conn.GetDB()
@@ -368,7 +368,7 @@ func (r *AuditEventRepository) applyCursorPagination(qb sq.SelectBuilder, filter
 
 	cursor, err := pkgHTTP.DecodeCursor(filters.Cursor)
 	if err != nil {
-		return qb, fmt.Errorf("%w: %v", constant.ErrInvalidCursor, err)
+		return qb, fmt.Errorf("%w: %w", constant.ErrInvalidCursor, err)
 	}
 
 	// Validate that cursor sort parameters match request filters

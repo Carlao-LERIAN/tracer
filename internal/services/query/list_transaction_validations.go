@@ -69,7 +69,7 @@ func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *
 	// Validate filters after defaults are applied
 	if err := filters.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction validation filters", err)
-		return nil, fmt.Errorf("%w: %v", constant.ErrInvalidTransactionValidationFilters, err)
+		return nil, fmt.Errorf("%w: %w", constant.ErrInvalidTransactionValidationFilters, err)
 	}
 
 	// Log the filters AFTER SetDefaults() so we log the actual values being used

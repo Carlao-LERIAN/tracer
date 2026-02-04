@@ -125,7 +125,7 @@ type CreateRuleInput struct {
 func (c *CreateRuleInput) Validate() error {
 	v, err := getValidator()
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrValidatorInit, err)
+		return fmt.Errorf("%w: %w", ErrValidatorInit, err)
 	}
 
 	if err := v.Struct(c); err != nil {
@@ -150,7 +150,7 @@ type UpdateRuleInput struct {
 func (u *UpdateRuleInput) Validate() error {
 	v, err := getValidator()
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrValidatorInit, err)
+		return fmt.Errorf("%w: %w", ErrValidatorInit, err)
 	}
 
 	if err := v.Struct(u); err != nil {
@@ -312,7 +312,9 @@ func toListResponse(result *model.ListRulesResult) *ListRulesResponse {
 // formatValidationError formats validator errors into ValidationError with specific TRC codes.
 // Returns the first validation error with its specific TRC code for consistent API responses.
 func formatValidationError(err error) error {
-	validationErrors, ok := err.(validator.ValidationErrors)
+	var validationErrors validator.ValidationErrors
+
+	ok := errors.As(err, &validationErrors)
 	if !ok {
 		return err
 	}
@@ -498,7 +500,7 @@ func extractScopeIndex(namespace string) (int, error) {
 
 	n, scanErr := fmt.Sscanf(namespace[start:start+end], "%d", &index)
 	if n != 1 {
-		return -1, fmt.Errorf("failed to parse index from substring '%s' in namespace: %s (scan error: %v)", namespace[start:start+end], namespace, scanErr)
+		return -1, fmt.Errorf("failed to parse index from substring '%s' in namespace: %s (scan error: %w)", namespace[start:start+end], namespace, scanErr)
 	}
 
 	if index < 0 {

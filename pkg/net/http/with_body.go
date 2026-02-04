@@ -6,6 +6,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -345,7 +346,9 @@ func ValidateStruct(s any) error {
 
 	err := v.Struct(s)
 	if err != nil {
-		validationErrors, ok := err.(validator.ValidationErrors)
+		var validationErrors validator.ValidationErrors
+
+		ok := errors.As(err, &validationErrors)
 		if !ok {
 			return err
 		}
@@ -408,7 +411,8 @@ func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pk
 
 	result := pkg.ValidateBadRequestFieldsError(requiredFields, invalidFieldsMap, "", make(map[string]any))
 
-	if vErr, ok := result.(pkg.ValidationKnownFieldsError); ok {
+	var vErr pkg.ValidationKnownFieldsError
+	if errors.As(result, &vErr) {
 		return vErr
 	}
 
@@ -532,12 +536,19 @@ func ParseUUIDPathParameters(c *fiber.Ctx) error {
 
 // wrapJSONError wraps JSON unmarshal errors with user-friendly messages.
 func wrapJSONError(err error) error {
-	switch e := err.(type) {
-	case *json.SyntaxError:
-		return fmt.Errorf("invalid JSON syntax at position %d: %w", e.Offset, err)
-	case *json.UnmarshalTypeError:
-		return fmt.Errorf("invalid type for field '%s': expected %s, got %s", e.Field, e.Type.String(), e.Value)
-	default:
-		return fmt.Errorf("invalid JSON: %w", err)
+	{
+		var (
+			e  *json.SyntaxError
+			e1 *json.UnmarshalTypeError
+		)
+
+		switch {
+		case errors.As(err, &e):
+			return fmt.Errorf("invalid JSON syntax at position %d: %w", e.Offset, err)
+		case errors.As(err, &e1):
+			return fmt.Errorf("invalid type for field '%s': expected %s, got %s", e1.Field, e1.Type.String(), e1.Value)
+		default:
+			return fmt.Errorf("invalid JSON: %w", err)
+		}
 	}
 }

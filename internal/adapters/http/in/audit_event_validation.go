@@ -207,7 +207,7 @@ func (l *ListAuditEventsInput) Validate() error {
 	// Validate remaining fields using go-playground validator
 	v, err := getValidator()
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrValidatorInit, err)
+		return fmt.Errorf("%w: %w", ErrValidatorInit, err)
 	}
 
 	if err := v.Struct(l); err != nil {
