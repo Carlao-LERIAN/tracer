@@ -142,9 +142,12 @@ func (r *Rule) Update(
 ) error {
 	updated := false
 
+	// Normalize values once for validation and later mutation
+	var normalizedName, normalizedExpression, normalizedDescription string
+
 	// Validate ALL before mutating ANY
 	if name != nil {
-		normalizedName := strings.TrimSpace(*name)
+		normalizedName = strings.TrimSpace(*name)
 		if normalizedName == "" {
 			return constant.ErrRuleNameRequired
 		}
@@ -155,7 +158,7 @@ func (r *Rule) Update(
 	}
 
 	if expression != nil {
-		normalizedExpression := strings.TrimSpace(*expression)
+		normalizedExpression = strings.TrimSpace(*expression)
 		if normalizedExpression == "" {
 			return constant.ErrRuleExpressionRequired
 		}
@@ -166,25 +169,24 @@ func (r *Rule) Update(
 	}
 
 	if description != nil {
-		normalizedDescription := strings.TrimSpace(*description)
+		normalizedDescription = strings.TrimSpace(*description)
 		if len(normalizedDescription) > MaxDescriptionLength {
 			return constant.ErrRuleDescriptionTooLong
 		}
 	}
 
-	// All validations passed - now mutate
+	// All validations passed - now mutate (reuse normalized values)
 	if name != nil {
-		r.Name = strings.TrimSpace(*name)
+		r.Name = normalizedName
 		updated = true
 	}
 
 	if expression != nil {
-		r.Expression = strings.TrimSpace(*expression)
+		r.Expression = normalizedExpression
 		updated = true
 	}
 
 	if description != nil {
-		normalizedDescription := strings.TrimSpace(*description)
 		r.Description = &normalizedDescription
 		updated = true
 	}
@@ -222,7 +224,7 @@ func (r *Rule) SetStatus(status RuleStatus) error {
 
 	// Check if transition is allowed
 	if !r.Status.CanTransitionTo(status) {
-		return constant.ErrRuleInvalidTransition
+		return NewInvalidTransitionError(r.Status, status)
 	}
 
 	now := time.Now().UTC()

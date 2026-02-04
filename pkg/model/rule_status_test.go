@@ -5,6 +5,7 @@
 package model
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -160,6 +161,14 @@ func TestRule_SetStatus_InvalidTransition(t *testing.T) {
 	// Try invalid transition: DRAFT → INACTIVE (not allowed)
 	err = rule.SetStatus(RuleStatusInactive)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, constant.ErrRuleInvalidTransition, "should return ErrRuleInvalidTransition for disallowed transition")
+
+	// Verify it's an InvalidTransitionError with correct from/to
+	var transitionErr *InvalidTransitionError
+	assert.True(t, errors.As(err, &transitionErr), "should return InvalidTransitionError for disallowed transition")
+	if transitionErr != nil {
+		assert.Equal(t, RuleStatusDraft, transitionErr.From)
+		assert.Equal(t, RuleStatusInactive, transitionErr.To)
+	}
+
 	assert.Equal(t, RuleStatusDraft, rule.Status, "status should not change on invalid transition")
 }
