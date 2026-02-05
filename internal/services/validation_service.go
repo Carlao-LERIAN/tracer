@@ -303,7 +303,7 @@ func validateTransactionValidation(tv *model.TransactionValidation) error {
 	}
 
 	// Decision must be valid
-	if tv.Decision != model.DecisionAllow && tv.Decision != model.DecisionDeny && tv.Decision != model.DecisionReview {
+	if !tv.Decision.IsValid() {
 		return fmt.Errorf("invalid decision: %s", tv.Decision)
 	}
 
