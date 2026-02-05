@@ -340,7 +340,7 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 				return mockRepo, mockCEL
 			},
 			wantErr: true,
-			errIs:   constant.ErrInvalidDecision,
+			errIs:   constant.ErrRuleInvalidAction,
 		},
 	}
 
