@@ -35,6 +35,8 @@ func TestRule_SetAction(t *testing.T) {
 		t.Parallel()
 
 		rule := createValidRuleForSetAction(t)
+		// Change initial action to something different to test actual change
+		rule.Action = DecisionAllow
 		now := time.Date(2026, 2, 4, 12, 0, 0, 0, time.UTC)
 
 		err := rule.SetAction(DecisionDeny, now)
@@ -120,7 +122,7 @@ func TestRule_SetAction(t *testing.T) {
 		assert.Equal(t, originalUpdatedAt, rule.UpdatedAt, "UpdatedAt should not be mutated on error")
 	})
 
-	t.Run("Idempotency - setting same action updates timestamp", func(t *testing.T) {
+	t.Run("Idempotency - setting same action does not update timestamp", func(t *testing.T) {
 		t.Parallel()
 
 		rule := createValidRuleForSetAction(t)
@@ -132,8 +134,7 @@ func TestRule_SetAction(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, DecisionDeny, rule.Action)
-		assert.NotEqual(t, originalUpdatedAt, rule.UpdatedAt, "UpdatedAt should be updated even for same action")
-		assert.Equal(t, newTime, rule.UpdatedAt)
+		assert.Equal(t, originalUpdatedAt, rule.UpdatedAt, "UpdatedAt should NOT be updated when setting same action (idempotency)")
 	})
 }
 
