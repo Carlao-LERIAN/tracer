@@ -292,13 +292,16 @@ func (r *Rule) SetStatus(status RuleStatus) error {
 	case RuleStatusActive:
 		r.ActivatedAt = &now
 		r.DeactivatedAt = nil
+		r.DeletedAt = nil
 	case RuleStatusInactive:
 		r.DeactivatedAt = &now
+		r.DeletedAt = nil
 	case RuleStatusDeleted:
 		r.DeletedAt = &now
 	case RuleStatusDraft:
 		r.ActivatedAt = nil
 		r.DeactivatedAt = nil
+		r.DeletedAt = nil
 	}
 
 	return nil

@@ -173,3 +173,48 @@ func TestRule_SetStatus_InvalidTransition(t *testing.T) {
 
 	assert.Equal(t, RuleStatusDraft, rule.Status, "status should not change on invalid transition")
 }
+
+func TestRule_SetStatus_ClearsDeletedAtWhenNotDeleted(t *testing.T) {
+	t.Parallel()
+
+	staleTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	// Create rule in INACTIVE state with simulated stale DeletedAt
+	// (This could happen if rule was previously DELETED and somehow has stale timestamp)
+	rule := &Rule{
+		Status:    RuleStatusInactive,
+		DeletedAt: &staleTime,
+	}
+
+	t.Run("INACTIVE → ACTIVE clears DeletedAt", func(t *testing.T) {
+		err := rule.SetStatus(RuleStatusActive)
+		require.NoError(t, err)
+
+		assert.Nil(t, rule.DeletedAt, "DeletedAt should be cleared when transitioning to ACTIVE")
+		assert.NotNil(t, rule.ActivatedAt, "ActivatedAt should be set")
+	})
+
+	// Reset rule to INACTIVE with stale DeletedAt
+	rule.Status = RuleStatusInactive
+	rule.DeletedAt = &staleTime
+
+	t.Run("INACTIVE → DRAFT clears DeletedAt", func(t *testing.T) {
+		err := rule.SetStatus(RuleStatusDraft)
+		require.NoError(t, err)
+
+		assert.Nil(t, rule.DeletedAt, "DeletedAt should be cleared when transitioning to DRAFT")
+		assert.Nil(t, rule.ActivatedAt, "ActivatedAt should be cleared for DRAFT")
+	})
+
+	// Reset rule to INACTIVE
+	rule.Status = RuleStatusInactive
+
+	t.Run("INACTIVE → INACTIVE (idempotent) preserves DeletedAt = nil", func(t *testing.T) {
+		rule.DeletedAt = nil // Clean state
+
+		err := rule.SetStatus(RuleStatusInactive)
+		require.NoError(t, err)
+
+		assert.Nil(t, rule.DeletedAt, "DeletedAt should remain nil for INACTIVE")
+	})
+}
