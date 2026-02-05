@@ -264,7 +264,8 @@ func (r *Rule) Update(
 // - RuleStatusInactive → sets DeactivatedAt
 // - RuleStatusDeleted → sets DeletedAt
 // - RuleStatusDraft → clears ActivatedAt and DeactivatedAt
-func (r *Rule) SetStatus(status RuleStatus) error {
+// now parameter allows deterministic timestamps in tests (follows SetAction/Update pattern).
+func (r *Rule) SetStatus(status RuleStatus, now time.Time) error {
 	if !status.IsValid() {
 		return constant.ErrRuleInvalidStatus
 	}
@@ -278,8 +279,6 @@ func (r *Rule) SetStatus(status RuleStatus) error {
 	if !r.Status.CanTransitionTo(status) {
 		return NewInvalidTransitionError(r.Status, status)
 	}
-
-	now := time.Now().UTC()
 
 	// Update status and maintain timestamp invariants
 	r.Status = status

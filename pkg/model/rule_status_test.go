@@ -145,22 +145,24 @@ func TestRuleStatus_String(t *testing.T) {
 }
 
 func TestRule_SetStatus_InvalidStatus(t *testing.T) {
-	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil, time.Now().UTC())
+	fixedTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil, fixedTime)
 	require.NoError(t, err)
 
 	// Test with invalid status value
-	err = rule.SetStatus(RuleStatus("INVALID"))
+	err = rule.SetStatus(RuleStatus("INVALID"), fixedTime)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, constant.ErrRuleInvalidStatus, "should return ErrRuleInvalidStatus for invalid status value")
 }
 
 func TestRule_SetStatus_InvalidTransition(t *testing.T) {
-	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil, time.Now().UTC())
+	fixedTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	rule, err := NewRule("Test", "amount > 100", DecisionAllow, nil, nil, fixedTime)
 	require.NoError(t, err)
 	require.Equal(t, RuleStatusDraft, rule.Status)
 
 	// Try invalid transition: DRAFT → INACTIVE (not allowed)
-	err = rule.SetStatus(RuleStatusInactive)
+	err = rule.SetStatus(RuleStatusInactive, fixedTime)
 	require.Error(t, err)
 
 	// Verify it's an InvalidTransitionError with correct from/to
@@ -178,6 +180,7 @@ func TestRule_SetStatus_ClearsDeletedAtWhenNotDeleted(t *testing.T) {
 	t.Parallel()
 
 	staleTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	fixedTime := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	// Create rule in INACTIVE state with simulated stale DeletedAt
 	// (This could happen if rule was previously DELETED and somehow has stale timestamp)
@@ -187,7 +190,7 @@ func TestRule_SetStatus_ClearsDeletedAtWhenNotDeleted(t *testing.T) {
 	}
 
 	t.Run("INACTIVE → ACTIVE clears DeletedAt", func(t *testing.T) {
-		err := rule.SetStatus(RuleStatusActive)
+		err := rule.SetStatus(RuleStatusActive, fixedTime)
 		require.NoError(t, err)
 
 		assert.Nil(t, rule.DeletedAt, "DeletedAt should be cleared when transitioning to ACTIVE")
@@ -199,7 +202,7 @@ func TestRule_SetStatus_ClearsDeletedAtWhenNotDeleted(t *testing.T) {
 	rule.DeletedAt = &staleTime
 
 	t.Run("INACTIVE → DRAFT clears DeletedAt", func(t *testing.T) {
-		err := rule.SetStatus(RuleStatusDraft)
+		err := rule.SetStatus(RuleStatusDraft, fixedTime)
 		require.NoError(t, err)
 
 		assert.Nil(t, rule.DeletedAt, "DeletedAt should be cleared when transitioning to DRAFT")
@@ -212,7 +215,7 @@ func TestRule_SetStatus_ClearsDeletedAtWhenNotDeleted(t *testing.T) {
 	t.Run("INACTIVE → INACTIVE (idempotent) preserves DeletedAt = nil", func(t *testing.T) {
 		rule.DeletedAt = nil // Clean state
 
-		err := rule.SetStatus(RuleStatusInactive)
+		err := rule.SetStatus(RuleStatusInactive, fixedTime)
 		require.NoError(t, err)
 
 		assert.Nil(t, rule.DeletedAt, "DeletedAt should remain nil for INACTIVE")

@@ -143,7 +143,7 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 	}
 
 	// Use domain model method for status transition (validates and maintains invariants)
-	if err := rule.SetStatus(model.RuleStatusActive); err != nil {
+	if err := rule.SetStatus(model.RuleStatusActive, s.clock.Now()); err != nil {
 		// Check for invalid transition (business error)
 		var transitionErr *model.InvalidTransitionError
 		if errors.As(err, &transitionErr) {
