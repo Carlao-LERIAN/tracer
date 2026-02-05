@@ -226,7 +226,7 @@ lint:
 	@if find . -name "*.go" -type f | grep -q .; then \
 		if ! command -v golangci-lint >/dev/null 2>&1; then \
 			echo "$(YELLOW)Installing golangci-lint v2...$(NC)"; \
-			go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.7.2; \
+			go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.8.0; \
 		fi; \
 		golangci-lint run --fix ./... --verbose; \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
@@ -533,7 +533,7 @@ dev-setup:
 	@echo "$(CYAN)Installing development tools...$(NC)"
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing golangci-lint v2...$(NC)"; \
-		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.7.2; \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.8.0; \
 	fi
 	@if ! command -v swag >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \
