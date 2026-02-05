@@ -306,6 +306,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		// Capture original values before call
 		originalSubType := *req.SubType
 		originalSubTypePtr := req.SubType
+		originalCurrency := req.Currency
 
 		// Call NormalizeAndValidate - should fail due to invalid currency
 		err := req.NormalizeAndValidate()
@@ -318,6 +319,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		require.NotNil(t, req.SubType, "SubType should not be nil")
 		assert.Equal(t, originalSubType, *req.SubType, "SubType should be unchanged after failed validation")
 		assert.Same(t, originalSubTypePtr, req.SubType, "SubType pointer should be unchanged (same reference)")
+		assert.Equal(t, originalCurrency, req.Currency, "Currency should be unchanged after failed validation")
 
 		// Verify original metadata map still assigned (not replaced)
 		// Add a marker to original to verify it's the same map instance
@@ -373,11 +375,15 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			Metadata:             nil, // no metadata
 		}
 
+		// Capture original currency before call
+		originalCurrency := req.Currency
+
 		err := req.NormalizeAndValidate()
 
 		assert.Error(t, err)
 		assert.Nil(t, req.SubType, "SubType should remain nil")
 		assert.Nil(t, req.Metadata, "Metadata should remain nil")
+		assert.Equal(t, originalCurrency, req.Currency, "Currency should be unchanged after failed validation")
 	})
 }
 
