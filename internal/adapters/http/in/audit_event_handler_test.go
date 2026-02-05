@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -19,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
@@ -36,7 +36,7 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 			queryParams: "",
 			mockSetup: func(ctrl *gomock.Controller) *MockAuditEventService {
 				mockService := NewMockAuditEventService(ctrl)
-				eventID := uuid.New()
+				eventID := testutil.MustDeterministicUUID(1)
 				mockService.EXPECT().
 					ListAuditEvents(gomock.Any(), gomock.Any()).
 					Return(&model.ListAuditEventsResult{
@@ -46,9 +46,9 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 								EventType:    model.AuditEventRuleCreated,
 								Action:       model.AuditActionCreate,
 								Result:       model.AuditResultSuccess,
-								ResourceID:   uuid.New().String(),
+								ResourceID:   testutil.MustDeterministicUUID(2).String(),
 								ResourceType: model.ResourceTypeRule,
-								CreatedAt:    time.Now(),
+								CreatedAt:    testutil.FixedTime(),
 								Actor: model.Actor{
 									ActorType: model.ActorTypeUser,
 									ID:        "user-123",
@@ -111,13 +111,13 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 						return &model.ListAuditEventsResult{
 							AuditEvents: []*model.AuditEvent{
 								{
-									EventID:      uuid.New(),
+									EventID:      testutil.MustDeterministicUUID(10),
 									EventType:    model.AuditEventRuleCreated,
 									Action:       model.AuditActionCreate,
 									Result:       model.AuditResultSuccess,
-									ResourceID:   uuid.New().String(),
+									ResourceID:   testutil.MustDeterministicUUID(11).String(),
 									ResourceType: model.ResourceTypeRule,
-									CreatedAt:    time.Now(),
+									CreatedAt:    testutil.FixedTime(),
 									Actor: model.Actor{
 										ActorType: model.ActorTypeUser,
 										ID:        "user-1",
@@ -125,13 +125,13 @@ func TestAuditEventHandler_ListAuditEvents(t *testing.T) {
 									},
 								},
 								{
-									EventID:      uuid.New(),
+									EventID:      testutil.MustDeterministicUUID(12),
 									EventType:    model.AuditEventLimitActivated,
 									Action:       model.AuditActionActivate,
 									Result:       model.AuditResultSuccess,
-									ResourceID:   uuid.New().String(),
+									ResourceID:   testutil.MustDeterministicUUID(13).String(),
 									ResourceType: model.ResourceTypeLimit,
-									CreatedAt:    time.Now(),
+									CreatedAt:    testutil.FixedTime(),
 									Actor: model.Actor{
 										ActorType: model.ActorTypeUser,
 										ID:        "user-2",
@@ -303,12 +303,12 @@ func TestAuditEventHandler_ListAuditEvents_MultiPagePagination(t *testing.T) {
 	mockService := NewMockAuditEventService(ctrl)
 
 	// Create unique event IDs for tracking across pages
-	event1ID := uuid.New()
-	event2ID := uuid.New()
-	event3ID := uuid.New()
-	event4ID := uuid.New()
-	event5ID := uuid.New()
-	event6ID := uuid.New()
+	event1ID := testutil.MustDeterministicUUID(20)
+	event2ID := testutil.MustDeterministicUUID(21)
+	event3ID := testutil.MustDeterministicUUID(22)
+	event4ID := testutil.MustDeterministicUUID(23)
+	event5ID := testutil.MustDeterministicUUID(24)
+	event6ID := testutil.MustDeterministicUUID(25)
 
 	// Setup mock to return different pages based on cursor
 	callCount := 0
@@ -324,8 +324,8 @@ func TestAuditEventHandler_ListAuditEvents_MultiPagePagination(t *testing.T) {
 				assert.Empty(t, filters.Cursor, "first page should have empty cursor")
 				return &model.ListAuditEventsResult{
 					AuditEvents: []*model.AuditEvent{
-						{EventID: event1ID, EventType: model.AuditEventRuleCreated, Action: model.AuditActionCreate, Result: model.AuditResultSuccess, ResourceID: "res-1", ResourceType: model.ResourceTypeRule, CreatedAt: time.Now(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-1", Name: "User 1"}},
-						{EventID: event2ID, EventType: model.AuditEventLimitActivated, Action: model.AuditActionActivate, Result: model.AuditResultSuccess, ResourceID: "res-2", ResourceType: model.ResourceTypeLimit, CreatedAt: time.Now(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-2", Name: "User 2"}},
+						{EventID: event1ID, EventType: model.AuditEventRuleCreated, Action: model.AuditActionCreate, Result: model.AuditResultSuccess, ResourceID: "res-1", ResourceType: model.ResourceTypeRule, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-1", Name: "User 1"}},
+						{EventID: event2ID, EventType: model.AuditEventLimitActivated, Action: model.AuditActionActivate, Result: model.AuditResultSuccess, ResourceID: "res-2", ResourceType: model.ResourceTypeLimit, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-2", Name: "User 2"}},
 					},
 					HasMore:    true,
 					NextCursor: "cursor-page-2",
@@ -335,8 +335,8 @@ func TestAuditEventHandler_ListAuditEvents_MultiPagePagination(t *testing.T) {
 				assert.Equal(t, "cursor-page-2", filters.Cursor, "second page should have cursor from page 1")
 				return &model.ListAuditEventsResult{
 					AuditEvents: []*model.AuditEvent{
-						{EventID: event3ID, EventType: model.AuditEventRuleActivated, Action: model.AuditActionActivate, Result: model.AuditResultSuccess, ResourceID: "res-3", ResourceType: model.ResourceTypeRule, CreatedAt: time.Now(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-3", Name: "User 3"}},
-						{EventID: event4ID, EventType: model.AuditEventLimitDeactivated, Action: model.AuditActionDeactivate, Result: model.AuditResultSuccess, ResourceID: "res-4", ResourceType: model.ResourceTypeLimit, CreatedAt: time.Now(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-4", Name: "User 4"}},
+						{EventID: event3ID, EventType: model.AuditEventRuleActivated, Action: model.AuditActionActivate, Result: model.AuditResultSuccess, ResourceID: "res-3", ResourceType: model.ResourceTypeRule, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-3", Name: "User 3"}},
+						{EventID: event4ID, EventType: model.AuditEventLimitDeactivated, Action: model.AuditActionDeactivate, Result: model.AuditResultSuccess, ResourceID: "res-4", ResourceType: model.ResourceTypeLimit, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-4", Name: "User 4"}},
 					},
 					HasMore:    true,
 					NextCursor: "cursor-page-3",
@@ -346,8 +346,8 @@ func TestAuditEventHandler_ListAuditEvents_MultiPagePagination(t *testing.T) {
 				assert.Equal(t, "cursor-page-3", filters.Cursor, "third page should have cursor from page 2")
 				return &model.ListAuditEventsResult{
 					AuditEvents: []*model.AuditEvent{
-						{EventID: event5ID, EventType: model.AuditEventRuleDeleted, Action: model.AuditActionDelete, Result: model.AuditResultSuccess, ResourceID: "res-5", ResourceType: model.ResourceTypeRule, CreatedAt: time.Now(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-5", Name: "User 5"}},
-						{EventID: event6ID, EventType: model.AuditEventLimitUpdated, Action: model.AuditActionUpdate, Result: model.AuditResultSuccess, ResourceID: "res-6", ResourceType: model.ResourceTypeLimit, CreatedAt: time.Now(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-6", Name: "User 6"}},
+						{EventID: event5ID, EventType: model.AuditEventRuleDeleted, Action: model.AuditActionDelete, Result: model.AuditResultSuccess, ResourceID: "res-5", ResourceType: model.ResourceTypeRule, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-5", Name: "User 5"}},
+						{EventID: event6ID, EventType: model.AuditEventLimitUpdated, Action: model.AuditActionUpdate, Result: model.AuditResultSuccess, ResourceID: "res-6", ResourceType: model.ResourceTypeLimit, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-6", Name: "User 6"}},
 					},
 					HasMore:    false,
 					NextCursor: "",
@@ -448,7 +448,7 @@ func TestAuditEventHandler_GetAuditEvent(t *testing.T) {
 	}{
 		{
 			name:    "success - retrieves audit event",
-			eventID: uuid.New().String(),
+			eventID: testutil.MustDeterministicUUID(30).String(),
 			mockSetup: func(ctrl *gomock.Controller, eventID uuid.UUID) *MockAuditEventService {
 				mockService := NewMockAuditEventService(ctrl)
 				mockService.EXPECT().
@@ -458,9 +458,9 @@ func TestAuditEventHandler_GetAuditEvent(t *testing.T) {
 						EventType:    model.AuditEventLimitActivated,
 						Action:       model.AuditActionActivate,
 						Result:       model.AuditResultSuccess,
-						ResourceID:   uuid.New().String(),
+						ResourceID:   testutil.MustDeterministicUUID(31).String(),
 						ResourceType: model.ResourceTypeLimit,
-						CreatedAt:    time.Now(),
+						CreatedAt:    testutil.FixedTime(),
 						Actor: model.Actor{
 							ActorType: model.ActorTypeSystem,
 							ID:        "system",
@@ -498,7 +498,7 @@ func TestAuditEventHandler_GetAuditEvent(t *testing.T) {
 		},
 		{
 			name:    "error - audit event not found",
-			eventID: uuid.New().String(),
+			eventID: testutil.MustDeterministicUUID(33).String(),
 			mockSetup: func(ctrl *gomock.Controller, eventID uuid.UUID) *MockAuditEventService {
 				mockService := NewMockAuditEventService(ctrl)
 				mockService.EXPECT().
@@ -561,7 +561,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 	}{
 		{
 			name:    "success - chain is valid",
-			eventID: uuid.New().String(),
+			eventID: testutil.MustDeterministicUUID(40).String(),
 			mockSetup: func(ctrl *gomock.Controller) *MockAuditEventService {
 				mockService := NewMockAuditEventService(ctrl)
 				mockService.EXPECT().
@@ -584,7 +584,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 		},
 		{
 			name:    "success - chain has tampering detected",
-			eventID: uuid.New().String(),
+			eventID: testutil.MustDeterministicUUID(41).String(),
 			mockSetup: func(ctrl *gomock.Controller) *MockAuditEventService {
 				mockService := NewMockAuditEventService(ctrl)
 				invalidID := int64(50)
@@ -627,7 +627,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 		},
 		{
 			name:    "error - audit event not found",
-			eventID: uuid.New().String(),
+			eventID: testutil.MustDeterministicUUID(42).String(),
 			mockSetup: func(ctrl *gomock.Controller) *MockAuditEventService {
 				mockService := NewMockAuditEventService(ctrl)
 				mockService.EXPECT().
@@ -648,7 +648,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 		},
 		{
 			name:    "error - service returns generic error (default case)",
-			eventID: uuid.New().String(),
+			eventID: testutil.MustDeterministicUUID(43).String(),
 			mockSetup: func(ctrl *gomock.Controller) *MockAuditEventService {
 				mockService := NewMockAuditEventService(ctrl)
 				mockService.EXPECT().

@@ -8,9 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -39,16 +37,16 @@ func TestNewListLimitsQuery_NilRepository(t *testing.T) {
 }
 
 func TestListLimitsQuery_Execute(t *testing.T) {
-	now := time.Now().UTC()
+	now := testutil.FixedTime().UTC()
 
 	createLimit := func(name string, limitType model.LimitType, status model.LimitStatus) model.Limit {
 		return model.Limit{
-			ID:        uuid.New(),
+			ID:        testutil.MustDeterministicUUID(1),
 			Name:      name,
 			LimitType: limitType,
 			MaxAmount: 100000,
 			Currency:  "USD",
-			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 			Status:    status,
 			CreatedAt: now,
 			UpdatedAt: now,

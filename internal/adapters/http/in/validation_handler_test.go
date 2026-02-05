@@ -60,12 +60,12 @@ func TestValidationHandler_Validate(t *testing.T) {
 				mockService.EXPECT().
 					Validate(gomock.Any(), gomock.Any()).
 					Return(&model.ValidationResponse{
-						ValidationID: uuid.New(),
+						ValidationID: testutil.MustDeterministicUUID(10),
 						RequestID:    validRequestID,
 						EvaluationResult: model.EvaluationResult{
 							Decision:         model.DecisionAllow,
 							MatchedRuleIDs:   []uuid.UUID{},
-							EvaluatedRuleIDs: []uuid.UUID{uuid.New()},
+							EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(11)},
 							Reason:           "No matching rules found",
 						},
 						LimitUsageDetails: []model.LimitUsageDetail{},
@@ -88,11 +88,11 @@ func TestValidationHandler_Validate(t *testing.T) {
 			requestBody: validRequest,
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
 				mockService := mocks.NewMockValidationService(ctrl)
-				matchedRuleID := uuid.New()
+				matchedRuleID := testutil.MustDeterministicUUID(20)
 				mockService.EXPECT().
 					Validate(gomock.Any(), gomock.Any()).
 					Return(&model.ValidationResponse{
-						ValidationID: uuid.New(),
+						ValidationID: testutil.MustDeterministicUUID(21),
 						RequestID:    validRequestID,
 						EvaluationResult: model.EvaluationResult{
 							Decision:         model.DecisionDeny,
@@ -119,11 +119,11 @@ func TestValidationHandler_Validate(t *testing.T) {
 			requestBody: validRequest,
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
 				mockService := mocks.NewMockValidationService(ctrl)
-				limitID := uuid.New()
+				limitID := testutil.MustDeterministicUUID(30)
 				mockService.EXPECT().
 					Validate(gomock.Any(), gomock.Any()).
 					Return(&model.ValidationResponse{
-						ValidationID: uuid.New(),
+						ValidationID: testutil.MustDeterministicUUID(31),
 						RequestID:    validRequestID,
 						EvaluationResult: model.EvaluationResult{
 							Decision:         model.DecisionAllow,
@@ -452,9 +452,9 @@ func TestValidationHandler_Validate_PayloadSizeCheck(t *testing.T) {
 		t.Helper()
 
 		// Base valid request
-		validRequestID := uuid.New()
-		accountID := uuid.New()
-		now := time.Now()
+		validRequestID := testutil.MustDeterministicUUID(100)
+		accountID := testutil.MustDeterministicUUID(101)
+		now := testutil.FixedTime()
 
 		baseRequest := model.ValidationRequest{
 			RequestID:       validRequestID,
@@ -532,8 +532,8 @@ func TestValidationHandler_Validate_PayloadSizeCheck(t *testing.T) {
 				mockService.EXPECT().
 					Validate(gomock.Any(), gomock.Any()).
 					Return(&model.ValidationResponse{
-						ValidationID: uuid.New(),
-						RequestID:    uuid.New(),
+						ValidationID: testutil.MustDeterministicUUID(110),
+						RequestID:    testutil.MustDeterministicUUID(111),
 						EvaluationResult: model.EvaluationResult{
 							Decision:         model.DecisionAllow,
 							MatchedRuleIDs:   []uuid.UUID{},

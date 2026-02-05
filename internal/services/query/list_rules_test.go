@@ -8,9 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -22,22 +20,22 @@ import (
 func TestListRulesQuery_Execute(t *testing.T) {
 	rules := []model.Rule{
 		{
-			ID:         uuid.New(),
+			ID:         testutil.MustDeterministicUUID(1),
 			Name:       "rule 1",
 			Expression: "amount > 1000",
 			Action:     model.DecisionDeny,
 			Status:     model.RuleStatusActive,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			CreatedAt:  testutil.FixedTime(),
+			UpdatedAt:  testutil.FixedTime(),
 		},
 		{
-			ID:         uuid.New(),
+			ID:         testutil.MustDeterministicUUID(1),
 			Name:       "rule 2",
 			Expression: "amount > 5000",
 			Action:     model.DecisionReview,
 			Status:     model.RuleStatusActive,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			CreatedAt:  testutil.FixedTime(),
+			UpdatedAt:  testutil.FixedTime(),
 		},
 	}
 

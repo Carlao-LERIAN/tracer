@@ -362,7 +362,7 @@ func TestTransactionValidationPostgresRepository_GetByID_ConnectionError(t *test
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	result, err := repo.GetByID(ctx, uuid.New())
+	result, err := repo.GetByID(ctx, testutil.MustDeterministicUUID(999))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")

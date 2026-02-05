@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"tracer/internal/testutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -110,15 +112,15 @@ func TestRule_JSONSerialization(t *testing.T) {
 
 	t.Run("Success - rule without description serializes correctly", func(t *testing.T) {
 		rule := Rule{
-			ID:          uuid.New(),
+			ID:          testutil.MustDeterministicUUID(1),
 			Name:        "test rule",
 			Description: nil,
 			Expression:  "amount > 1000",
 			Action:      DecisionAllow,
 			Scopes:      []Scope{},
 			Status:      RuleStatusActive,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			CreatedAt:   testutil.FixedTime(),
+			UpdatedAt:   testutil.FixedTime(),
 		}
 
 		data, err := json.Marshal(rule)
@@ -199,8 +201,8 @@ func TestListRulesFilter_Defaults(t *testing.T) {
 func TestListRulesResult_Fields(t *testing.T) {
 	t.Run("Success - result with rules and pagination", func(t *testing.T) {
 		rules := []Rule{
-			{ID: uuid.New(), Name: "rule1", Status: RuleStatusDraft},
-			{ID: uuid.New(), Name: "rule2", Status: RuleStatusActive},
+			{ID: testutil.MustDeterministicUUID(2), Name: "rule1", Status: RuleStatusDraft},
+			{ID: testutil.MustDeterministicUUID(3), Name: "rule2", Status: RuleStatusActive},
 		}
 
 		result := ListRulesResult{

@@ -12,11 +12,11 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
@@ -25,7 +25,7 @@ func TestActivateRuleHandler_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	rule := &model.Rule{
 		ID:     ruleID,
@@ -78,7 +78,7 @@ func TestActivateRuleHandler_ServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 
@@ -101,7 +101,7 @@ func TestActivateRuleHandler_NotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 
@@ -124,7 +124,7 @@ func TestActivateRuleHandler_InternalError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 
@@ -147,7 +147,7 @@ func TestDeactivateRuleHandler_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	rule := &model.Rule{
 		ID:     ruleID,
@@ -200,7 +200,7 @@ func TestDeactivateRuleHandler_ServiceError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 
@@ -223,7 +223,7 @@ func TestDeactivateRuleHandler_NotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 
@@ -246,7 +246,7 @@ func TestDeactivateRuleHandler_InternalError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 
@@ -269,7 +269,7 @@ func TestDeleteRuleHandler_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 
@@ -310,7 +310,7 @@ func TestDeleteRuleHandler_NotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 
@@ -333,7 +333,7 @@ func TestDeleteRuleHandler_InvalidTransition(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 
@@ -356,7 +356,7 @@ func TestDeleteRuleHandler_InternalError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	app := fiber.New()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockService := NewMockRuleService(ctrl)
 

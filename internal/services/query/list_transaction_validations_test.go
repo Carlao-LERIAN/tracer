@@ -16,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"tracer/internal/services/query/mocks"
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
@@ -23,14 +24,14 @@ import (
 // newTestTransactionValidationList creates a fresh list of TransactionValidation instances for test isolation.
 // Each call returns new structs to prevent cross-test contamination.
 func newTestTransactionValidationList() []*model.TransactionValidation {
-	now := time.Now().UTC()
+	now := testutil.FixedTime().UTC()
 	return []*model.TransactionValidation{
 		{
-			ID: uuid.New(),
+			ID: testutil.MustDeterministicUUID(1),
 			EvaluationResult: model.EvaluationResult{
 				Decision:         model.DecisionAllow,
 				MatchedRuleIDs:   []uuid.UUID{},
-				EvaluatedRuleIDs: []uuid.UUID{uuid.New()},
+				EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(2)},
 				Reason:           "All checks passed",
 			},
 			LimitUsageDetails: []model.LimitUsageDetail{},
@@ -38,11 +39,11 @@ func newTestTransactionValidationList() []*model.TransactionValidation {
 			CreatedAt:         now.Add(-time.Hour),
 		},
 		{
-			ID: uuid.New(),
+			ID: testutil.MustDeterministicUUID(3),
 			EvaluationResult: model.EvaluationResult{
 				Decision:         model.DecisionDeny,
-				MatchedRuleIDs:   []uuid.UUID{uuid.New()},
-				EvaluatedRuleIDs: []uuid.UUID{uuid.New()},
+				MatchedRuleIDs:   []uuid.UUID{testutil.MustDeterministicUUID(4)},
+				EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(5)},
 				Reason:           "Blocked by rule",
 			},
 			LimitUsageDetails: []model.LimitUsageDetail{},

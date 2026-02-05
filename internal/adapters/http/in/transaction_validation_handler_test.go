@@ -55,8 +55,8 @@ func assertStringErrorContains(t *testing.T, body []byte, expected string) {
 }
 
 func TestTransactionValidationHandler_GetTransactionValidation(t *testing.T) {
-	auditID := uuid.New()
-	now := time.Now().UTC()
+	auditID := testutil.MustDeterministicUUID(1)
+	now := testutil.FixedTime().UTC()
 
 	tests := []struct {
 		name           string
@@ -77,7 +77,7 @@ func TestTransactionValidationHandler_GetTransactionValidation(t *testing.T) {
 						EvaluationResult: model.EvaluationResult{
 							Decision:         model.DecisionAllow,
 							MatchedRuleIDs:   []uuid.UUID{},
-							EvaluatedRuleIDs: []uuid.UUID{uuid.New()},
+							EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(2)},
 							Reason:           "All checks passed",
 						},
 						LimitUsageDetails: []model.LimitUsageDetail{},
@@ -183,25 +183,25 @@ func TestTransactionValidationHandler_GetTransactionValidation(t *testing.T) {
 }
 
 func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
-	now := time.Now().UTC()
+	now := testutil.FixedTime().UTC()
 	audits := []*model.TransactionValidation{
 		{
-			ID: uuid.New(),
+			ID: testutil.MustDeterministicUUID(10),
 			EvaluationResult: model.EvaluationResult{
 				Decision:         model.DecisionAllow,
 				MatchedRuleIDs:   []uuid.UUID{},
-				EvaluatedRuleIDs: []uuid.UUID{uuid.New()},
+				EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(11)},
 			},
 			LimitUsageDetails: []model.LimitUsageDetail{},
 			ProcessingTimeMs:  35,
 			CreatedAt:         now.Add(-time.Hour),
 		},
 		{
-			ID: uuid.New(),
+			ID: testutil.MustDeterministicUUID(12),
 			EvaluationResult: model.EvaluationResult{
 				Decision:         model.DecisionDeny,
-				MatchedRuleIDs:   []uuid.UUID{uuid.New()},
-				EvaluatedRuleIDs: []uuid.UUID{uuid.New()},
+				MatchedRuleIDs:   []uuid.UUID{testutil.MustDeterministicUUID(13)},
+				EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(14)},
 			},
 			LimitUsageDetails: []model.LimitUsageDetail{},
 			ProcessingTimeMs:  42,
@@ -403,7 +403,7 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 		},
 		{
 			name:        "success - with segmentId filter",
-			queryParams: "?segmentId=" + uuid.New().String(),
+			queryParams: "?segmentId=" + testutil.MustDeterministicUUID(100).String(),
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockTransactionValidationService {
 				mockService := mocks.NewMockTransactionValidationService(ctrl)
 				mockService.EXPECT().
@@ -428,7 +428,7 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 		},
 		{
 			name:        "success - with portfolioId filter",
-			queryParams: "?portfolioId=" + uuid.New().String(),
+			queryParams: "?portfolioId=" + testutil.MustDeterministicUUID(101).String(),
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockTransactionValidationService {
 				mockService := mocks.NewMockTransactionValidationService(ctrl)
 				mockService.EXPECT().
@@ -568,11 +568,11 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 }
 
 func TestToTransactionValidationFilters(t *testing.T) {
-	accountID := uuid.New()
-	matchedRuleID := uuid.New()
-	exceededLimitID := uuid.New()
-	segmentID := uuid.New()
-	portfolioID := uuid.New()
+	accountID := testutil.MustDeterministicUUID(200)
+	matchedRuleID := testutil.MustDeterministicUUID(201)
+	exceededLimitID := testutil.MustDeterministicUUID(202)
+	segmentID := testutil.MustDeterministicUUID(203)
+	portfolioID := testutil.MustDeterministicUUID(204)
 
 	tests := []struct {
 		name           string
@@ -845,11 +845,11 @@ func TestListTransactionValidationsInput_Validate(t *testing.T) {
 				StartDate:       "2026-01-01T00:00:00Z",
 				EndDate:         "2026-01-15T00:00:00Z",
 				Decision:        "ALLOW",
-				AccountID:       uuid.New().String(),
-				MatchedRuleID:   uuid.New().String(),
-				ExceededLimitID: uuid.New().String(),
-				SegmentID:       uuid.New().String(),
-				PortfolioID:     uuid.New().String(),
+				AccountID:       testutil.MustDeterministicUUID(300).String(),
+				MatchedRuleID:   testutil.MustDeterministicUUID(301).String(),
+				ExceededLimitID: testutil.MustDeterministicUUID(302).String(),
+				SegmentID:       testutil.MustDeterministicUUID(303).String(),
+				PortfolioID:     testutil.MustDeterministicUUID(304).String(),
 				TransactionType: "CARD",
 			},
 			wantErr: false,
@@ -1009,8 +1009,8 @@ func TestListTransactionValidationsInput_Validate(t *testing.T) {
 func TestToValidationSummary_NilSlices_ReturnEmptyArrays(t *testing.T) {
 	t.Parallel()
 
-	accountID := uuid.New()
-	validationID := uuid.New()
+	accountID := testutil.MustDeterministicUUID(400)
+	validationID := testutil.MustDeterministicUUID(401)
 
 	tv := &model.TransactionValidation{
 		ID:              validationID,
@@ -1025,7 +1025,7 @@ func TestToValidationSummary_NilSlices_ReturnEmptyArrays(t *testing.T) {
 		},
 		LimitUsageDetails: nil,
 		ProcessingTimeMs:  5,
-		CreatedAt:         time.Now(),
+		CreatedAt:         testutil.FixedTime(),
 	}
 
 	summary := ToValidationSummary(tv)
@@ -1058,8 +1058,8 @@ func TestEnsureUUIDSlice_NilInput_ReturnsEmptySlice(t *testing.T) {
 func TestEnsureUUIDSlice_NonNilInput_ReturnsSameSlice(t *testing.T) {
 	t.Parallel()
 
-	id1 := uuid.New()
-	id2 := uuid.New()
+	id1 := testutil.MustDeterministicUUID(500)
+	id2 := testutil.MustDeterministicUUID(501)
 	input := []uuid.UUID{id1, id2}
 
 	result := ensureUUIDSlice(input)

@@ -21,7 +21,7 @@ import (
 )
 
 func TestGetRuleQuery_Execute(t *testing.T) {
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 	testAccountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 	existingRule := &model.Rule{
 		ID:         ruleID,
@@ -32,8 +32,8 @@ func TestGetRuleQuery_Execute(t *testing.T) {
 		Scopes: []model.Scope{
 			{AccountID: testutil.UUIDPtr(testAccountID)},
 		},
-		CreatedAt: time.Now().Add(-time.Hour),
-		UpdatedAt: time.Now(),
+		CreatedAt: testutil.FixedTime().Add(-time.Hour),
+		UpdatedAt: testutil.FixedTime(),
 	}
 
 	tests := []struct {

@@ -76,7 +76,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate_ConnectionError(t *testing.
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(999)
 
 	_, err := repo.GetOrCreateForUpdate(ctx, limitID, "acct:123", "2025-01")
 
@@ -260,7 +260,7 @@ func TestUsageCounterRepository_IncrementAtomic_ConnectionError(t *testing.T) {
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	err := repo.IncrementAtomic(ctx, uuid.New(), 100)
+	err := repo.IncrementAtomic(ctx, testutil.MustDeterministicUUID(998), 100)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -389,7 +389,7 @@ func TestUsageCounterRepository_DecrementAtomic_ConnectionError(t *testing.T) {
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	err := repo.DecrementAtomic(ctx, uuid.New(), 100)
+	err := repo.DecrementAtomic(ctx, testutil.MustDeterministicUUID(997), 100)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -510,7 +510,7 @@ func TestUsageCounterRepository_GetByLimitID_ConnectionError(t *testing.T) {
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	_, err := repo.GetByLimitID(ctx, uuid.New())
+	_, err := repo.GetByLimitID(ctx, testutil.MustDeterministicUUID(996))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -611,7 +611,7 @@ func TestUsageCounterRepository_GetUsageForLimits_ConnectionError(t *testing.T) 
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	_, err := repo.GetUsageForLimits(ctx, []uuid.UUID{uuid.New()}, "acct:123", "2025-01")
+	_, err := repo.GetUsageForLimits(ctx, []uuid.UUID{testutil.MustDeterministicUUID(995)}, "acct:123", "2025-01")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -737,7 +737,7 @@ func TestUsageCounterRepository_DeleteExpiredCounters_ConnectionError(t *testing
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	_, err := repo.DeleteExpiredCounters(ctx, time.Now().UTC())
+	_, err := repo.DeleteExpiredCounters(ctx, testutil.FixedTime())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")

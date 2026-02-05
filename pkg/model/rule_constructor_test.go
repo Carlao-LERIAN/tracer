@@ -320,7 +320,7 @@ func TestNewRule(t *testing.T) {
 	})
 
 	t.Run("Defensive copy - external scope mutation doesn't affect rule", func(t *testing.T) {
-		originalAccountID := uuid.New()
+		originalAccountID := testutil.MustDeterministicUUID(1)
 		externalScopes := []Scope{
 			{AccountID: testutil.UUIDPtr(originalAccountID)},
 		}
@@ -337,7 +337,7 @@ func TestNewRule(t *testing.T) {
 		require.NoError(t, err)
 
 		// Mutate the UUID value through the external pointer (tests deep copy semantics)
-		newAccountID := uuid.New()
+		newAccountID := testutil.MustDeterministicUUID(2)
 		*externalScopes[0].AccountID = newAccountID
 
 		// Verify rule's scopes are unaffected (should still have original value)

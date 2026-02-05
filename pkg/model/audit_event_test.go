@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"tracer/internal/testutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,8 +76,8 @@ func TestAuditEvent_WithValidationContext(t *testing.T) {
 			"currency":        "BRL",
 		}
 
-		matchedRuleID := uuid.New()
-		evaluatedRuleID := uuid.New()
+		matchedRuleID := testutil.MustDeterministicUUID(1)
+		evaluatedRuleID := testutil.MustDeterministicUUID(2)
 
 		evalResult := EvaluationResult{
 			Decision:         DecisionAllow,
@@ -333,8 +335,8 @@ func TestAuditEvent_GetProcessingTimeMs(t *testing.T) {
 func TestAuditEvent_GetMatchedRuleIDs(t *testing.T) {
 	t.Run("Success - extracts matched rule IDs from response", func(t *testing.T) {
 		event := createTestAuditEvent(t)
-		ruleID1 := uuid.New()
-		ruleID2 := uuid.New()
+		ruleID1 := testutil.MustDeterministicUUID(10)
+		ruleID2 := testutil.MustDeterministicUUID(11)
 
 		event.Context = map[string]any{
 			"response": map[string]any{
@@ -360,7 +362,7 @@ func TestAuditEvent_GetMatchedRuleIDs(t *testing.T) {
 
 	t.Run("Skips invalid UUID strings", func(t *testing.T) {
 		event := createTestAuditEvent(t)
-		validID := uuid.New()
+		validID := testutil.MustDeterministicUUID(12)
 
 		event.Context = map[string]any{
 			"response": map[string]any{
@@ -378,9 +380,9 @@ func TestAuditEvent_GetMatchedRuleIDs(t *testing.T) {
 func TestAuditEvent_GetEvaluatedRuleIDs(t *testing.T) {
 	t.Run("Success - extracts evaluated rule IDs from response", func(t *testing.T) {
 		event := createTestAuditEvent(t)
-		ruleID1 := uuid.New()
-		ruleID2 := uuid.New()
-		ruleID3 := uuid.New()
+		ruleID1 := testutil.MustDeterministicUUID(20)
+		ruleID2 := testutil.MustDeterministicUUID(21)
+		ruleID3 := testutil.MustDeterministicUUID(22)
 
 		event.Context = map[string]any{
 			"response": map[string]any{

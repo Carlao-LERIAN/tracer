@@ -30,8 +30,8 @@ func TestNewGetLimitQuery(t *testing.T) {
 }
 
 func TestGetLimitQuery_Execute(t *testing.T) {
-	limitID := uuid.New()
-	now := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(1)
+	now := testutil.FixedTime().UTC()
 
 	existingLimit := &model.Limit{
 		ID:          limitID,
@@ -40,7 +40,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 		LimitType:   model.LimitTypeDaily,
 		MaxAmount:   100000,
 		Currency:    "USD",
-		Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 		Status:      model.LimitStatusActive,
 		ResetAt:     testutil.Ptr(now.Add(24 * time.Hour)),
 		CreatedAt:   now,
@@ -83,7 +83,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 					LimitType: model.LimitTypeMonthly,
 					MaxAmount: 500000,
 					Currency:  "BRL",
-					Scopes:    []model.Scope{{PortfolioID: testutil.UUIDPtr(uuid.New())}},
+					Scopes:    []model.Scope{{PortfolioID: testutil.UUIDPtr(testutil.MustDeterministicUUID(10))}},
 					Status:    model.LimitStatusInactive,
 					CreatedAt: now,
 					UpdatedAt: now,
@@ -105,7 +105,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 					LimitType: model.LimitTypePerTransaction,
 					MaxAmount: 10000,
 					Currency:  "EUR",
-					Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+					Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11))}},
 					Status:    model.LimitStatusActive,
 					ResetAt:   nil,
 					CreatedAt: now,
@@ -121,7 +121,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 		},
 		{
 			name:    "Failure - limit not found",
-			limitID: uuid.New(),
+			limitID: testutil.MustDeterministicUUID(20),
 			setupMock: func(m *MockLimitRepository) {
 				m.EXPECT().GetByID(gomock.Any(), gomock.Any()).Return(nil, constant.ErrLimitNotFound)
 			},
@@ -185,7 +185,7 @@ func TestGetLimitQuery_Execute_ContextCancellation(t *testing.T) {
 	// calling the repository - it relies on the repository to respect context cancellation.
 	ctrl := gomock.NewController(t)
 
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(30)
 	mockRepo := NewMockLimitRepository(ctrl)
 	mockRepo.EXPECT().GetByID(gomock.Any(), limitID).Return(nil, context.Canceled)
 
@@ -206,7 +206,7 @@ func TestGetLimitQuery_Execute_DeletedLimit(t *testing.T) {
 	// This test verifies the query layer correctly propagates that error.
 	ctrl := gomock.NewController(t)
 
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(30)
 
 	mockRepo := NewMockLimitRepository(ctrl)
 	// Repository returns ErrLimitNotFound for deleted limits (filtered by WHERE deleted_at IS NULL)

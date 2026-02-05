@@ -31,7 +31,7 @@ func newTestLimit(t *testing.T) *Limit {
 		LimitTypeDaily,
 		100000,
 		"USD",
-		[]Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 		testutil.StringPtr("Test description"),
 	)
 	require.NoError(t, err, "newTestLimit: NewLimit failed")
@@ -219,7 +219,7 @@ func TestCalculateResetAt(t *testing.T) {
 
 func TestNewLimit(t *testing.T) {
 	validScope := Scope{
-		AccountID: testutil.UUIDPtr(uuid.New()),
+		AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(10)),
 	}
 
 	tests := []struct {
@@ -384,7 +384,7 @@ func TestNewLimit(t *testing.T) {
 			limitType:   LimitTypeDaily,
 			maxAmount:   100000,
 			currency:    "USD",
-			scopes:      []Scope{{AccountID: testutil.UUIDPtr(uuid.New()), TransactionType: testutil.Ptr(TransactionType("INVALID"))}},
+			scopes:      []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11)), TransactionType: testutil.Ptr(TransactionType("INVALID"))}},
 			expectError: true,
 			errorIs:     constant.ErrLimitInvalidScope,
 		},
@@ -578,12 +578,12 @@ func TestNewLimit(t *testing.T) {
 	}
 
 	t.Run("does not allow external mutation of scopes slice passed to NewLimit", func(t *testing.T) {
-		scopes := []Scope{{AccountID: testutil.UUIDPtr(uuid.New())}}
+		scopes := []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(12))}}
 		limit, err := NewLimit("Test Limit", LimitTypeDaily, 100000, "USD", scopes, nil)
 		require.NoError(t, err)
 
 		// mutate caller slice after creation
-		scopes[0] = Scope{PortfolioID: testutil.UUIDPtr(uuid.New())}
+		scopes[0] = Scope{PortfolioID: testutil.UUIDPtr(testutil.MustDeterministicUUID(13))}
 
 		// limit must remain unchanged
 		require.Len(t, limit.Scopes, 1)
@@ -632,7 +632,7 @@ func TestLimit_Update(t *testing.T) {
 		},
 		{
 			name:        "updates scopes",
-			updateScope: &[]Scope{{PortfolioID: testutil.UUIDPtr(uuid.New())}},
+			updateScope: &[]Scope{{PortfolioID: testutil.UUIDPtr(testutil.MustDeterministicUUID(14))}},
 			expectError: false,
 		},
 		{
@@ -679,7 +679,7 @@ func TestLimit_Update(t *testing.T) {
 		},
 		{
 			name:        "rejects scope with invalid TransactionType",
-			updateScope: &[]Scope{{AccountID: testutil.UUIDPtr(uuid.New()), TransactionType: testutil.Ptr(TransactionType("INVALID"))}},
+			updateScope: &[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(15)), TransactionType: testutil.Ptr(TransactionType("INVALID"))}},
 			expectError: true,
 			errorIs:     constant.ErrLimitInvalidScope,
 		},
@@ -712,7 +712,7 @@ func TestLimit_Update(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			limit := newTestLimit(t)
 			// Set a deterministic past time to detect UpdatedAt changes without sleeping
-			originalUpdatedAt := time.Now().Add(-1 * time.Minute)
+			originalUpdatedAt := testutil.FixedTime().Add(-1 * time.Minute)
 			limit.UpdatedAt = originalUpdatedAt
 
 			// Capture original state to verify no partial mutation on error
@@ -856,7 +856,7 @@ func TestLimit_SetStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			limit := newTestLimitWithStatus(t, tc.initialStatus)
 			// Set a deterministic past time to detect UpdatedAt changes without sleeping
-			originalUpdatedAt := time.Now().Add(-1 * time.Minute)
+			originalUpdatedAt := testutil.FixedTime().Add(-1 * time.Minute)
 			limit.UpdatedAt = originalUpdatedAt
 
 			// Capture original values to verify no mutation on failure
@@ -927,7 +927,7 @@ func TestLimit_IsActive(t *testing.T) {
 }
 
 func TestLimit_Validate(t *testing.T) {
-	validScope := Scope{AccountID: testutil.UUIDPtr(uuid.New())}
+	validScope := Scope{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(20))}
 
 	tests := []struct {
 		name        string
@@ -938,22 +938,22 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "valid limit passes",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(21),
 				Name:      "Valid Limit",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+				CreatedAt: testutil.FixedTime(),
+				UpdatedAt: testutil.FixedTime(),
 			},
 			expectError: false,
 		},
 		{
 			name: "rejects empty name",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(22),
 				Name:      "",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
@@ -967,7 +967,7 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "rejects name with invalid characters (loaded from DB)",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(23),
 				Name:      "<script>alert('xss')</script>",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
@@ -981,7 +981,7 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "rejects name exceeding max length (loaded from DB)",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(24),
 				Name:      strings.Repeat("a", MaxNameLength+1),
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
@@ -995,7 +995,7 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "rejects invalid limit type",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(25),
 				Name:      "Test",
 				LimitType: LimitType("INVALID"),
 				MaxAmount: 100000,
@@ -1009,7 +1009,7 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "rejects zero maxAmount",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(26),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 0,
@@ -1023,7 +1023,7 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "rejects invalid currency",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(27),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
@@ -1037,7 +1037,7 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "rejects empty scopes",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(28),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
@@ -1051,7 +1051,7 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "rejects invalid status",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(29),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
@@ -1065,7 +1065,7 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "rejects DELETED without DeletedAt",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(30),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
@@ -1080,14 +1080,14 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "rejects non-DELETED with DeletedAt",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(31),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
-				DeletedAt: testutil.Ptr(time.Now()),
+				DeletedAt: testutil.Ptr(testutil.FixedTime()),
 			},
 			expectError: true,
 			errorIs:     constant.ErrLimitDeletedAtInvariant,
@@ -1095,16 +1095,16 @@ func TestLimit_Validate(t *testing.T) {
 		{
 			name: "DELETED with DeletedAt passes",
 			limit: &Limit{
-				ID:        uuid.New(),
+				ID:        testutil.MustDeterministicUUID(32),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
 				MaxAmount: 100000,
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusDeleted,
-				DeletedAt: testutil.Ptr(time.Now()),
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+				DeletedAt: testutil.Ptr(testutil.FixedTime()),
+				CreatedAt: testutil.FixedTime(),
+				UpdatedAt: testutil.FixedTime(),
 			},
 			expectError: false,
 		},
@@ -1125,7 +1125,7 @@ func TestLimit_Validate(t *testing.T) {
 }
 
 func TestNewUsageCounter(t *testing.T) {
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(40)
 
 	tests := []struct {
 		name              string
@@ -1234,7 +1234,7 @@ func TestUsageCounter_Increment(t *testing.T) {
 	createCounter := func(t *testing.T) *UsageCounter {
 		t.Helper()
 
-		counter, err := NewUsageCounter(uuid.New(), "acct:123", "2025-01")
+		counter, err := NewUsageCounter(testutil.MustDeterministicUUID(41), "acct:123", "2025-01")
 		require.NoError(t, err, "NewUsageCounter failed")
 
 		return counter
@@ -1290,7 +1290,7 @@ func TestUsageCounter_Increment(t *testing.T) {
 				counter.CurrentUsage = tc.initialUsage
 			}
 			// Set a deterministic past time to detect LastUpdatedAt changes without sleeping
-			originalUpdatedAt := time.Now().Add(-1 * time.Minute)
+			originalUpdatedAt := testutil.FixedTime().Add(-1 * time.Minute)
 			counter.LastUpdatedAt = originalUpdatedAt
 
 			// Capture original state to verify no mutation on error
@@ -1328,84 +1328,84 @@ func TestUsageCounter_Validate(t *testing.T) {
 		{
 			name: "valid counter passes",
 			counter: &UsageCounter{
-				ID:            uuid.New(),
-				LimitID:       uuid.New(),
+				ID:            testutil.MustDeterministicUUID(50),
+				LimitID:       testutil.MustDeterministicUUID(51),
 				ScopeKey:      "acct:123",
 				PeriodKey:     "2025-01",
 				CurrentUsage:  1000,
-				LastUpdatedAt: time.Now(),
+				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: nil,
 		},
 		{
 			name: "rejects nil limitID",
 			counter: &UsageCounter{
-				ID:            uuid.New(),
+				ID:            testutil.MustDeterministicUUID(52),
 				LimitID:       uuid.Nil,
 				ScopeKey:      "acct:123",
 				PeriodKey:     "2025-01",
 				CurrentUsage:  0,
-				LastUpdatedAt: time.Now(),
+				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterLimitIDRequired,
 		},
 		{
 			name: "rejects empty scopeKey",
 			counter: &UsageCounter{
-				ID:            uuid.New(),
-				LimitID:       uuid.New(),
+				ID:            testutil.MustDeterministicUUID(53),
+				LimitID:       testutil.MustDeterministicUUID(54),
 				ScopeKey:      "",
 				PeriodKey:     "2025-01",
 				CurrentUsage:  0,
-				LastUpdatedAt: time.Now(),
+				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterScopeKeyRequired,
 		},
 		{
 			name: "rejects empty periodKey",
 			counter: &UsageCounter{
-				ID:            uuid.New(),
-				LimitID:       uuid.New(),
+				ID:            testutil.MustDeterministicUUID(55),
+				LimitID:       testutil.MustDeterministicUUID(56),
 				ScopeKey:      "acct:123",
 				PeriodKey:     "",
 				CurrentUsage:  0,
-				LastUpdatedAt: time.Now(),
+				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterPeriodKeyRequired,
 		},
 		{
 			name: "rejects negative currentUsage",
 			counter: &UsageCounter{
-				ID:            uuid.New(),
-				LimitID:       uuid.New(),
+				ID:            testutil.MustDeterministicUUID(57),
+				LimitID:       testutil.MustDeterministicUUID(58),
 				ScopeKey:      "acct:123",
 				PeriodKey:     "2025-01",
 				CurrentUsage:  -100,
-				LastUpdatedAt: time.Now(),
+				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterCurrentUsageNegative,
 		},
 		{
 			name: "rejects whitespace-only scopeKey",
 			counter: &UsageCounter{
-				ID:            uuid.New(),
-				LimitID:       uuid.New(),
+				ID:            testutil.MustDeterministicUUID(59),
+				LimitID:       testutil.MustDeterministicUUID(60),
 				ScopeKey:      "   \t  ",
 				PeriodKey:     "2025-01",
 				CurrentUsage:  0,
-				LastUpdatedAt: time.Now(),
+				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterScopeKeyRequired,
 		},
 		{
 			name: "rejects whitespace-only periodKey",
 			counter: &UsageCounter{
-				ID:            uuid.New(),
-				LimitID:       uuid.New(),
+				ID:            testutil.MustDeterministicUUID(61),
+				LimitID:       testutil.MustDeterministicUUID(62),
 				ScopeKey:      "acct:123",
 				PeriodKey:     "   \t  ",
 				CurrentUsage:  0,
-				LastUpdatedAt: time.Now(),
+				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterPeriodKeyRequired,
 		},
@@ -1608,12 +1608,12 @@ func TestListLimitsFilter_Validate(t *testing.T) {
 // are added/removed from UsageCounter without updating ScanFields, catching drift early.
 func TestUsageCounter_ScanFields(t *testing.T) {
 	counter := &UsageCounter{
-		ID:            uuid.New(),
-		LimitID:       uuid.New(),
+		ID:            testutil.MustDeterministicUUID(70),
+		LimitID:       testutil.MustDeterministicUUID(71),
 		ScopeKey:      "acct:123",
 		PeriodKey:     "2025-01",
 		CurrentUsage:  5000,
-		LastUpdatedAt: time.Now().UTC(),
+		LastUpdatedAt: testutil.FixedTime(),
 	}
 
 	scanFields := counter.ScanFields()
@@ -1703,7 +1703,7 @@ func TestNewUsageSnapshot_NearLimitThreshold(t *testing.T) {
 				LimitTypeDaily,
 				tc.maxAmount,
 				"USD",
-				[]Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+				[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(80))}},
 				nil,
 			)
 			require.NoError(t, err)
@@ -1725,7 +1725,7 @@ func TestNewUsageSnapshot_PerTransactionLimit(t *testing.T) {
 		LimitTypePerTransaction,
 		100000,
 		"USD",
-		[]Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(81))}},
 		nil,
 	)
 	require.NoError(t, err)
@@ -1775,7 +1775,7 @@ func TestNewUsageSnapshot_MonthlyLimit(t *testing.T) {
 		LimitTypeMonthly,
 		1000000,
 		"USD",
-		[]Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(82))}},
 		nil,
 	)
 	require.NoError(t, err)

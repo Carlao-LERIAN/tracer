@@ -229,7 +229,7 @@ func TestLimitRepository_GetByID_ConnectionError(t *testing.T) {
 	repo := NewLimitRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	result, err := repo.GetByID(ctx, uuid.New())
+	result, err := repo.GetByID(ctx, testutil.MustDeterministicUUID(999))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -548,7 +548,7 @@ func TestLimitRepository_UpdateStatus_ConnectionError(t *testing.T) {
 	repo := NewLimitRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	err := repo.UpdateStatus(ctx, uuid.New(), model.LimitStatusInactive, time.Now().UTC())
+	err := repo.UpdateStatus(ctx, testutil.MustDeterministicUUID(998), model.LimitStatusInactive, testutil.FixedTime())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -631,7 +631,7 @@ func TestLimitRepository_UpdateStatus(t *testing.T) {
 			tt.mockSetup(sqlMock)
 
 			ctx := context.Background()
-			err := repo.UpdateStatus(ctx, tt.limitID, tt.status, time.Now().UTC())
+			err := repo.UpdateStatus(ctx, tt.limitID, tt.status, testutil.FixedTime())
 
 			if tt.wantErr {
 				require.Error(t, err)
