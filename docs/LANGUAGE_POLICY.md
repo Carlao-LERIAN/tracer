@@ -222,7 +222,7 @@ linters-settings:
 
 ### 4. CI/CD Pipeline
 
-Add check in `.github/workflows/quality.yml`:
+Add check in `.github/workflows/code-quality.yml`:
 
 ```yaml
 - name: Check for non-English content
