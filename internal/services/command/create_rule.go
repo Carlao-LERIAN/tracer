@@ -115,12 +115,7 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 	}
 
 	// 3. Build rule entity using validating constructor (store normalized name)
-	// Ensure scopes is never nil (return empty array instead of null in JSON)
-	scopes := input.Scopes
-	if scopes == nil {
-		scopes = []model.Scope{}
-	}
-
+	// model.NewRule normalizes nil scopes to empty slice for proper JSON serialization
 	var description *string
 	if input.Description != "" {
 		description = &input.Description
@@ -128,7 +123,7 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 
 	now := c.clock.Now()
 
-	rule, err := model.NewRule(normalizedName, input.Expression, input.Action, scopes, description, now)
+	rule, err := model.NewRule(normalizedName, input.Expression, input.Action, input.Scopes, description, now)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule input", err)
 		logger.WithFields(
