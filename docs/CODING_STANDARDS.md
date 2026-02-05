@@ -206,7 +206,7 @@ func TestNewRule(t *testing.T) {
 
 ### Domain Logic Location
 
-```
+```text
 Command/Service Layer:
   ✓ Orchestration between aggregates
   ✓ Transaction management
