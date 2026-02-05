@@ -38,7 +38,7 @@ jobs:
           go-version: '1.25'
       
       - name: Run unit tests
-        run: go test ./...
+        run: go test -race ./...
 
   test-integration:
     name: Integration Tests
