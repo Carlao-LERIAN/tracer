@@ -32,6 +32,10 @@ func WithError(c *fiber.Ctx, err error) error {
 		return NotFound(c, notFoundErr.Code, notFoundErr.Title, notFoundErr.Message)
 	case errors.As(err, &conflictErr):
 		return Conflict(c, conflictErr.Code, conflictErr.Title, conflictErr.Message)
+	case errors.As(err, &knownFieldsErr):
+		return BadRequest(c, *knownFieldsErr)
+	case errors.As(err, &unknownFieldsErr):
+		return BadRequest(c, *unknownFieldsErr)
 	case errors.As(err, &validationErr):
 		return BadRequest(c, pkg.ValidationKnownFieldsError{
 			Code:    validationErr.Code,
@@ -45,10 +49,6 @@ func WithError(c *fiber.Ctx, err error) error {
 		return Unauthorized(c, unauthorizedErr.Code, unauthorizedErr.Title, unauthorizedErr.Message)
 	case errors.As(err, &forbiddenErr):
 		return Forbidden(c, forbiddenErr.Code, forbiddenErr.Title, forbiddenErr.Message)
-	case errors.As(err, &knownFieldsErr):
-		return BadRequest(c, *knownFieldsErr)
-	case errors.As(err, &unknownFieldsErr):
-		return BadRequest(c, *unknownFieldsErr)
 	case errors.As(err, &responseErr):
 		return JSONResponseError(c, *responseErr)
 	default:
