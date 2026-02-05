@@ -132,7 +132,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// Validate expression is not empty (fail fast before any processing)
 	if expression == "" {
 		err := fmt.Errorf("%w: expression cannot be empty", constant.ErrExpressionSyntax)
-		libOtel.HandleSpanError(&span, "empty expression", err)
+		libOtel.HandleSpanBusinessErrorEvent(&span, "empty expression", err)
 
 		return nil, err
 	}
@@ -173,15 +173,15 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 			// Use the structured IsTypeError flag for deterministic classification
 			if compileErr.IsTypeError {
 				wrappedErr = fmt.Errorf("%w: %w", constant.ErrExpressionType, err)
-				libOtel.HandleSpanError(&span, "type error", wrappedErr)
+				libOtel.HandleSpanBusinessErrorEvent(&span, "type error", wrappedErr)
 			} else {
 				wrappedErr = fmt.Errorf("%w: %w", constant.ErrExpressionSyntax, err)
-				libOtel.HandleSpanError(&span, "compilation failed", wrappedErr)
+				libOtel.HandleSpanBusinessErrorEvent(&span, "compilation failed", wrappedErr)
 			}
 		} else {
 			// Fallback for unexpected error types (shouldn't happen with our Environment)
 			wrappedErr = fmt.Errorf("%w: %w", constant.ErrExpressionSyntax, err)
-			libOtel.HandleSpanError(&span, "compilation failed", wrappedErr)
+			libOtel.HandleSpanBusinessErrorEvent(&span, "compilation failed", wrappedErr)
 		}
 
 		return nil, wrappedErr
@@ -190,7 +190,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// Validate boolean return type
 	if ast.OutputType() != cel.BoolType {
 		err := fmt.Errorf("%w: expression returns %v, expected bool", constant.ErrExpressionType, ast.OutputType())
-		libOtel.HandleSpanError(&span, "type validation failed", err)
+		libOtel.HandleSpanBusinessErrorEvent(&span, "type validation failed", err)
 
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// costEstimate.Max is uint64, so we compare with costLimit
 	if costEstimate.Max > a.costLimit {
 		costErr := fmt.Errorf("%w: estimated cost %d exceeds limit %d", constant.ErrExpressionCostExceeded, costEstimate.Max, a.costLimit)
-		libOtel.HandleSpanError(&span, "expression cost exceeds limit", costErr)
+		libOtel.HandleSpanBusinessErrorEvent(&span, "expression cost exceeds limit", costErr)
 
 		if err := libOtel.SetSpanAttributesFromStruct(&span, "cost_validation", map[string]any{
 			"estimated_cost_min": costEstimate.Min,
@@ -317,7 +317,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	activation, err := BuildActivation(req)
 	if err != nil {
 		wrappedErr := fmt.Errorf("%w: failed to build activation: %w", constant.ErrExpressionEvaluation, err)
-		libOtel.HandleSpanError(&span, "failed to build activation", wrappedErr)
+		libOtel.HandleSpanBusinessErrorEvent(&span, "failed to build activation", wrappedErr)
 
 		return false, wrappedErr
 	}
@@ -326,7 +326,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	out, _, err := program.Program.Eval(activation)
 	if err != nil {
 		evalErr := fmt.Errorf("%w: %w", constant.ErrExpressionEvaluation, err)
-		libOtel.HandleSpanError(&span, "evaluation failed", evalErr)
+		libOtel.HandleSpanBusinessErrorEvent(&span, "evaluation failed", evalErr)
 
 		return false, evalErr
 	}
@@ -335,7 +335,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	result, ok := out.Value().(bool)
 	if !ok {
 		err := fmt.Errorf("%w: expected bool, got %T", constant.ErrExpressionType, out.Value())
-		libOtel.HandleSpanError(&span, "type assertion failed", err)
+		libOtel.HandleSpanBusinessErrorEvent(&span, "type assertion failed", err)
 
 		return false, err
 	}
