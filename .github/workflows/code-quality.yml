@@ -70,7 +70,7 @@ jobs:
           echo "Running tests 3 times to verify determinism..."
           for i in 1 2 3; do
             echo "Run $i/3"
-            if ! go test ./...; then
+            if ! go test -count=1 ./...; then
               echo "❌ Tests failed on run $i"
               exit 1
             fi
