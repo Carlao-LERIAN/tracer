@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,7 +43,7 @@ import (
 // Test 4.6.1 from roteiro
 // Reference: API Design 5.1 Validation Flow Integration
 func TestValidation_DenyPrecedence_OverAllow(t *testing.T) {
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(4701).String()
 
 	// Create 5 ALLOW rules that match
 	allowRules := make([]string, 5)
@@ -135,7 +134,7 @@ func TestValidation_DenyPrecedence_OverAllow(t *testing.T) {
 // Test 4.6.2 from roteiro
 // Reference: API Design 5.1 Validation Flow Integration
 func TestValidation_DenyPrecedence_OverReview(t *testing.T) {
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(4702).String()
 
 	// Create 3 REVIEW rules that match
 	reviewRules := make([]string, 3)
@@ -225,7 +224,7 @@ func TestValidation_DenyPrecedence_OverReview(t *testing.T) {
 // Test 4.6.3 from roteiro
 // Reference: API Design 5.1 Validation Flow Integration
 func TestValidation_ReviewDecision_WhenNoDeny(t *testing.T) {
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(4703).String()
 
 	// Create 3 ALLOW rules that match
 	allowRules := make([]string, 3)

@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -109,7 +108,7 @@ func TestGetAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 		},
 		{
 			name:    "random_uuid_v4",
-			eventID: uuid.New().String(),
+			eventID: testutil.MustDeterministicUUID(7103).String(),
 			desc:    "Random valid UUID that doesn't exist",
 		},
 		{
@@ -515,7 +514,7 @@ func TestVerifyAuditEvent_NonExistentUUID_ReturnsTRC0140(t *testing.T) {
 		},
 		{
 			name:    "random_uuid_v4",
-			eventID: uuid.New().String(),
+			eventID: testutil.MustDeterministicUUID(7102).String(),
 			desc:    "Random valid UUID that doesn't exist",
 		},
 	}
