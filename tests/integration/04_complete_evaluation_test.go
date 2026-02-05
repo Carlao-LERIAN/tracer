@@ -48,7 +48,7 @@ import (
 // Reference: API Design 5.1 Validation Flow Integration
 func TestValidation_CompleteEvaluation_AllActiveRules(t *testing.T) {
 	// Create unique scope for test isolation
-	testAccountID := uuid.New().String()
+	testAccountID := testutil.MustDeterministicUUID(4001).String()
 	accountScope := testutil.ScopeInput{AccountID: &testAccountID}
 
 	// PRECONDITIONS: Create and activate 5 rules that all match
@@ -111,7 +111,7 @@ func TestValidation_CompleteEvaluation_AllActiveRules(t *testing.T) {
 // Reference: API Design 5.1 Validation Flow Integration
 func TestValidation_CompleteEvaluation_CollectsMatchingWithDenyPrecedence(t *testing.T) {
 	// Create unique scope for test isolation
-	testAccountID := uuid.New().String()
+	testAccountID := testutil.MustDeterministicUUID(4002).String()
 	accountScope := testutil.ScopeInput{AccountID: &testAccountID}
 
 	// PRECONDITIONS: Create 3 ALLOW rules that match
@@ -180,7 +180,7 @@ func TestValidation_CompleteEvaluation_CollectsMatchingWithDenyPrecedence(t *tes
 // TestValidation_CompleteEvaluation_CollectsEvaluatedRules verifies evaluatedRuleIds reflects scope filtering.
 // Test 4.3.3 from roteiro 04-rules-evaluation.md
 func TestValidation_CompleteEvaluation_CollectsEvaluatedRules(t *testing.T) {
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(4003).String()
 
 	// PRECONDITIONS: Create 3 rules scoped to accountID
 	accountIDValue := accountID
@@ -200,7 +200,7 @@ func TestValidation_CompleteEvaluation_CollectsEvaluatedRules(t *testing.T) {
 	t.Cleanup(func() { testutil.CleanupRule(t, rule3) })
 
 	// Create 1 rule scoped to different accountId (should be filtered)
-	differentAccountID := uuid.New().String()
+	differentAccountID := testutil.MustDeterministicUUID(4004).String()
 	differentAccountIDValue := differentAccountID
 	rule4 := testutil.CreateRuleWithScope(t, "Different Account Rule", "amount > 0", "ALLOW",
 		[]testutil.ScopeInput{{AccountID: &differentAccountIDValue}})
@@ -365,7 +365,7 @@ func TestValidation_CompleteEvaluation_DeletedRulesNotEvaluated(t *testing.T) {
 // Test 4.5.1 from roteiro 04-rules-evaluation.md
 // Reference: API Design 4.1.1 ValidationResponse, Change Log 1.3.2
 func TestValidation_ResponseStructure_ValidationIdIsServerGenerated(t *testing.T) {
-	requestID := uuid.New().String()
+	requestID := testutil.MustDeterministicUUID(4005).String()
 
 	// EXECUTION 1: First validation
 	payload1 := testutil.CreateBasicValidationPayload()
@@ -388,7 +388,7 @@ func TestValidation_ResponseStructure_ValidationIdIsServerGenerated(t *testing.T
 
 	// EXECUTION 2: Second validation with different requestId
 	payload2 := testutil.CreateBasicValidationPayload()
-	payload2["requestId"] = uuid.New().String()
+	payload2["requestId"] = testutil.MustDeterministicUUID(4006).String()
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
 	require.Equal(t, http.StatusOK, status2)
@@ -526,7 +526,7 @@ func TestValidation_ResponseStructure_LimitUsageDetails_EmptyArray(t *testing.T)
 	payload := testutil.CreateBasicValidationPayload()
 	// Use unique account to avoid any existing limits
 	payload["account"] = map[string]any{
-		"accountId": uuid.New().String(),
+		"accountId": testutil.MustDeterministicUUID(4007).String(),
 		"type":      "checking",
 		"status":    "active",
 	}
@@ -544,7 +544,7 @@ func TestValidation_ResponseStructure_LimitUsageDetails_EmptyArray(t *testing.T)
 // Test 4.5.6 from roteiro 04-rules-evaluation.md
 // Reference: API Design 4.1.1 LimitUsage Structure
 func TestValidation_ResponseStructure_LimitUsageDetails_Populated(t *testing.T) {
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(4008).String()
 
 	// PRECONDITIONS: Create and activate 2 limits
 	dailyLimitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 500000, "DAILY")

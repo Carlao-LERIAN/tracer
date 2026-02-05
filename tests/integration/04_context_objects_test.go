@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -68,13 +67,13 @@ func TestValidation_AccountContext_AllFields(t *testing.T) {
 
 	// Create validation with complete AccountContext
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4101).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4102).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -115,7 +114,7 @@ func TestValidation_AccountContext_MinimalFields(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(4103).String()
 
 	// Create rule that only checks accountId
 	ruleID := testutil.CreateTestRuleWithExpression(t,
@@ -130,11 +129,11 @@ func TestValidation_AccountContext_MinimalFields(t *testing.T) {
 
 	// Create validation with minimal AccountContext (only accountId)
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4104).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": accountID,
 			// type and status omitted (optional fields)
@@ -179,11 +178,11 @@ func TestValidation_ContextObjects_MissingAccount_ReturnsError(t *testing.T) {
 
 	// Create validation request WITHOUT account field
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4105).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		// account field intentionally omitted
 	}
 
@@ -230,18 +229,18 @@ func TestValidation_SegmentContext_Structure(t *testing.T) {
 
 	// Create validation with SegmentContext
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4106).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4107).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
 		"segment": map[string]any{
-			"segmentId": uuid.New().String(),
+			"segmentId": testutil.MustDeterministicUUID(4108).String(),
 			"name":      "premium",
 		},
 	}
@@ -281,7 +280,7 @@ func TestValidation_SegmentContext_CELFieldAccess(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
-	segmentID := uuid.New().String()
+	segmentID := testutil.MustDeterministicUUID(4109).String()
 
 	// Create rule that accesses both segmentId and name
 	ruleID := testutil.CreateTestRuleWithExpression(t,
@@ -296,13 +295,13 @@ func TestValidation_SegmentContext_CELFieldAccess(t *testing.T) {
 
 	// Create validation with complete SegmentContext
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4110).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4111).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -360,18 +359,18 @@ func TestValidation_PortfolioContext_Structure(t *testing.T) {
 
 	// Create validation with PortfolioContext
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4112).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4113).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
 		"portfolio": map[string]any{
-			"portfolioId": uuid.New().String(),
+			"portfolioId": testutil.MustDeterministicUUID(4114).String(),
 			"name":        "corporate",
 		},
 	}
@@ -411,7 +410,7 @@ func TestValidation_PortfolioContext_CELFieldAccess(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
-	portfolioID := uuid.New().String()
+	portfolioID := testutil.MustDeterministicUUID(4115).String()
 
 	// Create rule that accesses both portfolioId and name
 	ruleID := testutil.CreateTestRuleWithExpression(t,
@@ -426,13 +425,13 @@ func TestValidation_PortfolioContext_CELFieldAccess(t *testing.T) {
 
 	// Create validation with complete PortfolioContext
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4116).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4117).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -490,18 +489,18 @@ func TestValidation_MerchantContext_CompleteStructure(t *testing.T) {
 
 	// Create validation with complete MerchantContext
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4118).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4119).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
 		"merchant": map[string]any{
-			"merchantId": uuid.New().String(),
+			"merchantId": testutil.MustDeterministicUUID(4120).String(),
 			"name":       "Grocery Store ABC",
 			"category":   "5411",
 			"country":    "BR",
@@ -546,11 +545,11 @@ func TestValidation_AccountContext_MissingAccountId(t *testing.T) {
 
 	// EXECUTION: Send request with account missing accountId
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4121).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			// "accountId" intentionally omitted
 			"type":   "checking",
@@ -587,7 +586,7 @@ func TestValidation_AccountContext_MissingAccountId(t *testing.T) {
 // Test 4.7.5b from roteiro 04-rules-evaluation.md
 // Reference: API Design 6.12 SegmentContext ("name is optional")
 func TestValidation_SegmentContext_Minimal(t *testing.T) {
-	segmentID := uuid.New().String()
+	segmentID := testutil.MustDeterministicUUID(4122).String()
 
 	// PRECONDITIONS: Create rule checking segment["segmentId"]
 	ruleID := testutil.CreateTestRuleWithExpression(t,
@@ -618,7 +617,7 @@ func TestValidation_SegmentContext_Minimal(t *testing.T) {
 // Test 4.7.7b from roteiro 04-rules-evaluation.md
 // Reference: API Design 6.13 PortfolioContext ("name is optional")
 func TestValidation_PortfolioContext_Minimal(t *testing.T) {
-	portfolioID := uuid.New().String()
+	portfolioID := testutil.MustDeterministicUUID(4123).String()
 
 	// PRECONDITIONS: Create rule checking portfolio["portfolioId"]
 	ruleID := testutil.CreateTestRuleWithExpression(t,
@@ -649,7 +648,7 @@ func TestValidation_PortfolioContext_Minimal(t *testing.T) {
 // Test 4.7.8b from roteiro 04-rules-evaluation.md
 // Reference: API Design 6.15 MerchantContext ("All fields optional except merchantId")
 func TestValidation_MerchantContext_Minimal(t *testing.T) {
-	merchantID := uuid.New().String()
+	merchantID := testutil.MustDeterministicUUID(4124).String()
 
 	// PRECONDITIONS: Create rule checking merchant["merchantId"]
 	ruleID := testutil.CreateTestRuleWithExpression(t,
