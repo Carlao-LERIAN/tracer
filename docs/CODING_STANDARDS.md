@@ -223,6 +223,54 @@ func (a *Adapter) Method(ctx context.Context) error {
 }
 ```
 
+### Trace Context Initialization Order
+
+**CRITICAL RULE:** Create span BEFORE enriching logger with trace context.
+
+```go
+// ✅ CORRECT - Span created before logger enrichment
+func (a *Adapter) Method(ctx context.Context) error {
+    logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+    
+    // 1. Create span first and capture updated context
+    ctx, span := tracer.Start(ctx, "operation")
+    defer span.End()
+    
+    // 2. Enrich logger with trace context (now span exists!)
+    logger = logging.WithTrace(ctx, logger)
+    
+    logger.Info("operation started")  // ← Includes trace_id and span_id
+    return nil
+}
+
+// ❌ INCORRECT - Logger enrichment before span creation
+func (a *Adapter) Method(ctx context.Context) error {
+    logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+    
+    // WithTrace called BEFORE span exists
+    logger = logging.WithTrace(ctx, logger)  // ← trace.SpanFromContext(ctx) returns nil!
+    
+    ctx, span := tracer.Start(ctx, "operation")
+    defer span.End()
+    
+    logger.Info("operation started")  // ← Missing trace_id and span_id!
+    return nil
+}
+```
+
+**Why this matters:**
+- `logging.WithTrace(ctx, logger)` calls `trace.SpanFromContext(ctx)` internally
+- If span doesn't exist in context yet, returns nil
+- Logger entries miss trace_id/span_id → broken log-trace correlation
+- Always: `tracer.Start()` → capture ctx → `logging.WithTrace(updatedCtx, logger)`
+
+**Pattern for methods using both tracing and logging:**
+1. Get logger and tracer from context
+2. Start span and capture updated context
+3. Defer span.End()
+4. Enrich logger with updated context containing span
+5. Use enriched logger for all log entries
+
 ---
 
 ## 3. Testing Standards
