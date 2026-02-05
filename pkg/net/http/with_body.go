@@ -536,19 +536,17 @@ func ParseUUIDPathParameters(c *fiber.Ctx) error {
 
 // wrapJSONError wraps JSON unmarshal errors with user-friendly messages.
 func wrapJSONError(err error) error {
-	{
-		var (
-			e  *json.SyntaxError
-			e1 *json.UnmarshalTypeError
-		)
+	var (
+		e  *json.SyntaxError
+		e1 *json.UnmarshalTypeError
+	)
 
-		switch {
-		case errors.As(err, &e):
-			return fmt.Errorf("invalid JSON syntax at position %d: %w", e.Offset, err)
-		case errors.As(err, &e1):
-			return fmt.Errorf("invalid type for field '%s': expected %s, got %s", e1.Field, e1.Type.String(), e1.Value)
-		default:
-			return fmt.Errorf("invalid JSON: %w", err)
-		}
+	switch {
+	case errors.As(err, &e):
+		return fmt.Errorf("invalid JSON syntax at position %d: %w", e.Offset, err)
+	case errors.As(err, &e1):
+		return fmt.Errorf("invalid type for field '%s': expected %s, got %s", e1.Field, e1.Type.String(), e1.Value)
+	default:
+		return fmt.Errorf("invalid JSON: %w", err)
 	}
 }
