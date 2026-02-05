@@ -83,7 +83,7 @@ func TestRule_SetAction(t *testing.T) {
 		err := rule.SetAction(Decision(""), now)
 
 		require.Error(t, err)
-		assert.ErrorIs(t, err, constant.ErrInvalidDecision)
+		assert.ErrorIs(t, err, constant.ErrRuleInvalidAction)
 		// Verify no mutation occurred
 		assert.Equal(t, originalAction, rule.Action, "Action should not be mutated on error")
 		assert.Equal(t, originalUpdatedAt, rule.UpdatedAt, "UpdatedAt should not be mutated on error")
@@ -100,7 +100,7 @@ func TestRule_SetAction(t *testing.T) {
 		err := rule.SetAction(Decision("allow"), now)
 
 		require.Error(t, err)
-		assert.ErrorIs(t, err, constant.ErrInvalidDecision)
+		assert.ErrorIs(t, err, constant.ErrRuleInvalidAction)
 		assert.Equal(t, originalAction, rule.Action, "Action should not be mutated on error")
 		assert.Equal(t, originalUpdatedAt, rule.UpdatedAt, "UpdatedAt should not be mutated on error")
 	})
@@ -116,7 +116,7 @@ func TestRule_SetAction(t *testing.T) {
 		err := rule.SetAction(Decision("INVALID"), now)
 
 		require.Error(t, err)
-		assert.ErrorIs(t, err, constant.ErrInvalidDecision)
+		assert.ErrorIs(t, err, constant.ErrRuleInvalidAction)
 		assert.Equal(t, originalAction, rule.Action, "Action should not be mutated on error")
 		assert.Equal(t, originalUpdatedAt, rule.UpdatedAt, "UpdatedAt should not be mutated on error")
 	})

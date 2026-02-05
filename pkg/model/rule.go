@@ -308,7 +308,7 @@ func (r *Rule) SetStatus(status RuleStatus, now time.Time) error {
 // Updates UpdatedAt timestamp on successful mutation.
 func (r *Rule) SetAction(action Decision, now time.Time) error {
 	if !action.IsValid() {
-		return constant.ErrInvalidDecision
+		return constant.ErrRuleInvalidAction
 	}
 
 	r.Action = action
