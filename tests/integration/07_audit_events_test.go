@@ -1012,15 +1012,20 @@ func TestAuditEvents_11_3_3_VerifiesSingleEvent(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	db := testutil.SetupIntegrationDB(t)
 
-	// Get first audit event (genesis)
+	// Setup: Create a rule to generate an audit event
+	ruleName := "Verify Single Event Test " + testutil.MustDeterministicUUID(7102).String()[:8]
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 5000", "DENY")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, ruleID)
+	})
+
+	// Get the audit event that was just created
 	var eventID string
 	err := db.QueryRowContext(context.Background(),
-		`SELECT event_id FROM audit_events ORDER BY id ASC LIMIT 1`,
+		`SELECT event_id FROM audit_events WHERE resource_type = 'rule' AND resource_id = $1 ORDER BY id DESC LIMIT 1`,
+		ruleID,
 	).Scan(&eventID)
-
-	if err != nil {
-		t.Skip("No audit events found")
-	}
+	require.NoError(t, err, "Audit event should be created for rule creation")
 
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events/"+eventID+"/verify", nil)
 	require.NoError(t, err)
@@ -1038,8 +1043,8 @@ func TestAuditEvents_11_3_3_VerifiesSingleEvent(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	require.NoError(t, err)
 
-	assert.True(t, result.IsValid)
-	assert.Equal(t, int64(1), result.TotalChecked)
+	assert.True(t, result.IsValid, "Hash chain should be valid")
+	assert.GreaterOrEqual(t, result.TotalChecked, int64(1), "Should verify at least 1 event")
 }
 
 // TestAuditEvents_11_3_4_Returns404ForNonExistentEvent tests 404 for verify endpoint.
