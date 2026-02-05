@@ -166,7 +166,7 @@ test-integration:
 	$(call title1,"Running integration tests")
 	@echo "$(CYAN)Note: Tests use testcontainers (auto-starts PostgreSQL and app server)$(NC)"
 	@echo "$(CYAN)      Set DISABLE_TESTCONTAINERS=true to use external server instead$(NC)"
-	@go test -tags=integration -v ./tests/integration/...
+	@go test -tags=integration -v ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Integration tests completed successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: cover

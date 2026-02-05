@@ -4,7 +4,7 @@
 
 //go:build integration
 
-package testutil
+package testutil_integration
 
 import (
 	"context"

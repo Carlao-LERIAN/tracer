@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tracer/internal/testutil"
+	testutil_integration "tracer/internal/testutil_integration"
 )
 
 // =============================================================================
@@ -542,7 +543,7 @@ func TestAuth_6_1_11_PublicEndpointsIgnoreInvalidKey(t *testing.T) {
 
 func TestAuth_6_1_12_DevModeAuthDisabled(t *testing.T) {
 	// Restart server with auth disabled
-	cleanup, err := testutil.RestartServerWithConfig(map[string]string{
+	cleanup, err := testutil_integration.RestartServerWithConfig(map[string]string{
 		"API_KEY_ENABLED": "false",
 	})
 	require.NoError(t, err, "failed to restart server with auth disabled")

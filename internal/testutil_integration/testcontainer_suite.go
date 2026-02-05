@@ -4,7 +4,7 @@
 
 //go:build integration
 
-package testutil
+package testutil_integration
 
 import (
 	"context"
@@ -21,6 +21,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"tracer/internal/bootstrap"
+	"tracer/internal/testutil"
 	"tracer/pkg"
 )
 
@@ -189,7 +190,7 @@ func SetupTestSuite(m *testing.M) int {
 
 // getTestDB creates a database connection using the test environment variables.
 func getTestDB(ctx context.Context) (*sql.DB, error) {
-	dsn := GetTestDSN()
+	dsn := testutil.GetTestDSN()
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -206,7 +207,7 @@ func waitForServer(baseURL string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
-		resp, err := HTTPClient.Get(baseURL + "/health")
+		resp, err := testutil.HTTPClient.Get(baseURL + "/health")
 		if err == nil && resp.StatusCode == 200 {
 			resp.Body.Close()
 			return nil
