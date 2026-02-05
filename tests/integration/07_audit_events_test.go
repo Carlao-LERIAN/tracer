@@ -2204,9 +2204,7 @@ func TestAuditEvents_11_10_2_ValidationTriggersAuditEvent(t *testing.T) {
 	}
 	json.NewDecoder(auditResp.Body).Decode(&auditResult)
 
-	if len(auditResult.AuditEvents) == 0 {
-		t.Skip("Audit events for validations not yet implemented - skipping test")
-	}
+	require.NotEmpty(t, auditResult.AuditEvents, "Audit events for validations should be created")
 
 	// Find the event for our specific validation
 	var event map[string]any
