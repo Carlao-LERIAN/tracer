@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -989,18 +988,27 @@ func CreateRuleWithScope(t *testing.T, name, expression, action string, scopes [
 	return createdRule.ID
 }
 
+// basicPayloadCounter is used to generate deterministic UUIDs for CreateBasicValidationPayload.
+// It starts from a high base (90000) to avoid collision with other test data.
+var basicPayloadCounter int64 = 90000
+
 // CreateBasicValidationPayload returns a basic valid validation request payload
 // with all required fields (requestId, transactionType, amount, currency, timestamp, account).
 // Helper for tests that need a minimal valid payload to customize.
+// Uses deterministic UUIDs based on an incrementing counter for reproducible tests.
 func CreateBasicValidationPayload() map[string]any {
+	// Increment counter by 2 since we need 2 UUIDs per call
+	currentBase := basicPayloadCounter
+	basicPayloadCounter += 2
+
 	return map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            MustDeterministicUUID(currentBase).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": MustDeterministicUUID(currentBase + 1).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
