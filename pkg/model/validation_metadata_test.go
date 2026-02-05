@@ -199,7 +199,7 @@ func TestValidateMetadata(t *testing.T) {
 			"transaction_id":   "abc123",
 			"merchant_name":    "Test Merchant",
 			"user_agent":       "Mozilla/5.0",
-			"session_id":       uuid.New().String(),
+			"session_id":       "00000000-0000-0000-0000-000000000042",
 			"request_source":   "mobile_app",
 			"api_version":      "1.0",
 			"client_ip":        "192.168.1.1",
@@ -232,13 +232,13 @@ func TestValidateOptionalFields_AccountType(t *testing.T) {
 
 	createValidRequest := func() *ValidationRequest {
 		return &ValidationRequest{
-			RequestID:            uuid.New(),
+			RequestID:            testutil.MustDeterministicUUID(10),
 			TransactionType:      TransactionTypeCard,
 			Amount:               1000,
 			Currency:             "USD",
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
-				ID: uuid.New(),
+				ID: testutil.MustDeterministicUUID(11),
 			},
 		}
 	}
@@ -299,13 +299,13 @@ func TestValidateOptionalFields_AccountStatus(t *testing.T) {
 
 	createValidRequest := func() *ValidationRequest {
 		return &ValidationRequest{
-			RequestID:            uuid.New(),
+			RequestID:            testutil.MustDeterministicUUID(10),
 			TransactionType:      TransactionTypeCard,
 			Amount:               1000,
 			Currency:             "USD",
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
-				ID: uuid.New(),
+				ID: testutil.MustDeterministicUUID(11),
 			},
 		}
 	}
@@ -366,13 +366,13 @@ func TestValidateOptionalFields_SubType(t *testing.T) {
 
 	createValidRequest := func() *ValidationRequest {
 		return &ValidationRequest{
-			RequestID:            uuid.New(),
+			RequestID:            testutil.MustDeterministicUUID(10),
 			TransactionType:      TransactionTypeCard,
 			Amount:               1000,
 			Currency:             "USD",
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
-				ID: uuid.New(),
+				ID: testutil.MustDeterministicUUID(11),
 			},
 		}
 	}

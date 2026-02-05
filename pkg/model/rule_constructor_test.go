@@ -22,7 +22,7 @@ func TestNewRule(t *testing.T) {
 	t.Parallel()
 
 	validScopes := []Scope{
-		{AccountID: testutil.UUIDPtr(uuid.New())},
+		{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))},
 	}
 	validDescription := "Test description"
 

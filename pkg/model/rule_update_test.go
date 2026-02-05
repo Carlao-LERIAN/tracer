@@ -27,7 +27,7 @@ func newTestRule(t *testing.T) *Rule {
 		"Test Rule",
 		"amount > 1000",
 		DecisionDeny,
-		[]Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 		nil,
 		testutil.FixedTime(),
 	)
@@ -55,7 +55,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 
 	t.Run("Error - rejects multiple scopes where one is empty", func(t *testing.T) {
 		rule := newTestRule(t)
-		validScope := Scope{AccountID: testutil.UUIDPtr(uuid.New())}
+		validScope := Scope{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}
 		emptyScope := Scope{} // All fields nil
 
 		scopesWithOneEmpty := &[]Scope{validScope, emptyScope}
@@ -69,7 +69,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 	t.Run("Error - empty scope in first position", func(t *testing.T) {
 		rule := newTestRule(t)
 		emptyScope := Scope{}
-		validScope := Scope{AccountID: testutil.UUIDPtr(uuid.New())}
+		validScope := Scope{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}
 
 		scopesWithFirstEmpty := &[]Scope{emptyScope, validScope}
 
@@ -83,8 +83,8 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 		rule := newTestRule(t)
 
 		validScopes := &[]Scope{
-			{AccountID: testutil.UUIDPtr(uuid.New())},
-			{PortfolioID: testutil.UUIDPtr(uuid.New())},
+			{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(3))},
+			{PortfolioID: testutil.UUIDPtr(testutil.MustDeterministicUUID(4))},
 		}
 
 		err := rule.Update(nil, nil, nil, validScopes, fixedTime)
@@ -133,7 +133,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 		rule := newTestRule(t)
 
 		// Create scope with UUID pointer
-		originalAccountID := uuid.New()
+		originalAccountID := testutil.MustDeterministicUUID(5)
 		externalScopes := []Scope{
 			{AccountID: testutil.UUIDPtr(originalAccountID)},
 		}
@@ -143,7 +143,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 		require.NoError(t, err)
 
 		// Mutate the UUID value through the external pointer (tests deep copy semantics)
-		newAccountID := uuid.New()
+		newAccountID := testutil.MustDeterministicUUID(6)
 		*externalScopes[0].AccountID = newAccountID
 
 		// Verify rule's scopes are unaffected (should still have original value)

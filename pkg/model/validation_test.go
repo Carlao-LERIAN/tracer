@@ -299,7 +299,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			SubType:              &subType,
 			Amount:               1000,
 			Currency:             "invalid", // lowercase - will fail validation
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Metadata:             originalMetadata,
 		}
@@ -336,7 +336,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			SubType:              &subType,
 			Amount:               1000,
 			Currency:             "USD", // valid uppercase
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Metadata:             originalMetadata,
 		}
@@ -369,7 +369,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			SubType:              nil, // no subtype
 			Amount:               1000,
 			Currency:             "invalid", // will fail
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Metadata:             nil, // no metadata
 		}
@@ -460,7 +460,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			TransactionType:      TransactionTypeCard,
 			Amount:               1000,
 			Currency:             "USD",
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Segment: &SegmentContext{
 				ID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
@@ -510,7 +510,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			TransactionType:      TransactionTypeCard,
 			Amount:               1000,
 			Currency:             "USD",
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Segment:              nil,
 			Portfolio:            nil,
@@ -532,7 +532,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			TransactionType:      TransactionTypeCard,
 			Amount:               1000,
 			Currency:             "USD",
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
 			Segment: &SegmentContext{
 				ID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
