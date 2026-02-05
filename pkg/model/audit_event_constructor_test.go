@@ -7,15 +7,21 @@ package model
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 )
 
 func TestNewAuditEvent_Validation(t *testing.T) {
 	t.Parallel()
+
+	// Deterministic UUIDs for reproducible tests
+	resourceID1 := testutil.MustDeterministicUUID(1).String()
+	resourceID2 := testutil.MustDeterministicUUID(2).String()
+	resourceID3 := testutil.MustDeterministicUUID(3).String()
+	resourceID4 := testutil.MustDeterministicUUID(4).String()
 
 	validActor := Actor{
 		ActorType: ActorTypeSystem,
@@ -28,7 +34,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 			AuditEventType("INVALID"),
 			AuditActionCreate,
 			AuditResultSuccess,
-			uuid.NewString(),
+			resourceID1,
 			ResourceTypeRule,
 			validActor,
 		)
@@ -43,7 +49,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 			AuditEventRuleCreated,
 			AuditAction("INVALID"),
 			AuditResultSuccess,
-			uuid.NewString(),
+			resourceID2,
 			ResourceTypeRule,
 			validActor,
 		)
@@ -58,7 +64,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 			AuditEventRuleCreated,
 			AuditActionCreate,
 			AuditResult("INVALID"),
-			uuid.NewString(),
+			resourceID3,
 			ResourceTypeRule,
 			validActor,
 		)
@@ -88,7 +94,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 			AuditEventRuleCreated,
 			AuditActionCreate,
 			AuditResultSuccess,
-			uuid.NewString(),
+			resourceID4,
 			ResourceType("INVALID"),
 			validActor,
 		)
@@ -99,6 +105,8 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 	})
 
 	t.Run("Error - empty actor ID", func(t *testing.T) {
+		resourceID5 := testutil.MustDeterministicUUID(5).String()
+		
 		invalidActor := Actor{
 			ActorType: ActorTypeUser,
 			ID:        "",
@@ -109,7 +117,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 			AuditEventRuleCreated,
 			AuditActionCreate,
 			AuditResultSuccess,
-			uuid.NewString(),
+			resourceID5,
 			ResourceTypeRule,
 			invalidActor,
 		)
@@ -120,6 +128,8 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 	})
 
 	t.Run("Error - invalid actor type", func(t *testing.T) {
+		resourceID6 := testutil.MustDeterministicUUID(6).String()
+		
 		invalidActor := Actor{
 			ActorType: ActorType("INVALID"),
 			ID:        "test_actor",
@@ -130,7 +140,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 			AuditEventRuleCreated,
 			AuditActionCreate,
 			AuditResultSuccess,
-			uuid.NewString(),
+			resourceID6,
 			ResourceTypeRule,
 			invalidActor,
 		)
@@ -147,6 +157,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 			action       AuditAction
 			result       AuditResult
 			resourceType ResourceType
+			resourceID   string
 		}{
 			{
 				name:         "Rule created",
@@ -154,6 +165,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 				action:       AuditActionCreate,
 				result:       AuditResultSuccess,
 				resourceType: ResourceTypeRule,
+				resourceID:   testutil.MustDeterministicUUID(10).String(),
 			},
 			{
 				name:         "Limit activated",
@@ -161,6 +173,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 				action:       AuditActionActivate,
 				result:       AuditResultSuccess,
 				resourceType: ResourceTypeLimit,
+				resourceID:   testutil.MustDeterministicUUID(11).String(),
 			},
 			{
 				name:         "Transaction validated",
@@ -168,6 +181,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 				action:       AuditActionValidate,
 				result:       AuditResultAllow,
 				resourceType: ResourceTypeTransaction,
+				resourceID:   testutil.MustDeterministicUUID(12).String(),
 			},
 		}
 
@@ -177,7 +191,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 					tc.eventType,
 					tc.action,
 					tc.result,
-					uuid.NewString(),
+					tc.resourceID,
 					tc.resourceType,
 					validActor,
 				)
@@ -198,11 +212,13 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 	})
 
 	t.Run("Success - context and metadata initialized as empty maps", func(t *testing.T) {
+		resourceID20 := testutil.MustDeterministicUUID(20).String()
+		
 		event, err := NewAuditEvent(
 			AuditEventRuleCreated,
 			AuditActionCreate,
 			AuditResultSuccess,
-			uuid.NewString(),
+			resourceID20,
 			ResourceTypeRule,
 			validActor,
 		)
@@ -308,8 +324,10 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 			},
 		}
 
-		for _, tc := range testCases {
+		for i, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
+				resourceID := testutil.MustDeterministicUUID(int64(30 + i)).String()
+				
 				actorWithWhitespace := Actor{
 					ActorType: ActorTypeSystem,
 					ID:        tc.actorID,
@@ -320,7 +338,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 					AuditEventRuleCreated,
 					AuditActionCreate,
 					AuditResultSuccess,
-					uuid.NewString(),
+					resourceID,
 					ResourceTypeRule,
 					actorWithWhitespace,
 				)
@@ -353,6 +371,8 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 	})
 
 	t.Run("Error - whitespace-only actor.ID", func(t *testing.T) {
+		resourceID40 := testutil.MustDeterministicUUID(40).String()
+		
 		invalidActor := Actor{
 			ActorType: ActorTypeUser,
 			ID:        "   ",
@@ -363,7 +383,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 			AuditEventRuleCreated,
 			AuditActionCreate,
 			AuditResultSuccess,
-			uuid.NewString(),
+			resourceID40,
 			ResourceTypeRule,
 			invalidActor,
 		)
