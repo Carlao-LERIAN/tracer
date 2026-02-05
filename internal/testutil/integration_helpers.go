@@ -276,7 +276,7 @@ func SkipIfRulesNotImplemented(t *testing.T) {
 		}
 
 		if strings.Contains(string(body), "Cannot GET /v1/rules") {
-			t.Skip("Rules API not yet registered in routes.go - skipping integration test")
+			t.Fatal("Rules API not registered in routes.go - this is a critical bug! Register the API endpoint before running tests.")
 		}
 	}
 }
