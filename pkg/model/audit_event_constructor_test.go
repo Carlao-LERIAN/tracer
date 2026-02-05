@@ -17,137 +17,119 @@ import (
 func TestNewAuditEvent_Validation(t *testing.T) {
 	t.Parallel()
 
-	// Deterministic UUIDs for reproducible tests
-	resourceID1 := testutil.MustDeterministicUUID(1).String()
-	resourceID2 := testutil.MustDeterministicUUID(2).String()
-	resourceID3 := testutil.MustDeterministicUUID(3).String()
-	resourceID4 := testutil.MustDeterministicUUID(4).String()
-
 	validActor := Actor{
 		ActorType: ActorTypeSystem,
 		ID:        "test_actor",
 		Name:      "Test Actor",
 	}
 
-	t.Run("Error - invalid event type", func(t *testing.T) {
-		event, err := NewAuditEvent(
-			AuditEventType("INVALID"),
-			AuditActionCreate,
-			AuditResultSuccess,
-			resourceID1,
-			ResourceTypeRule,
-			validActor,
-		)
-
-		require.Error(t, err)
-		assert.Nil(t, event)
-		assert.ErrorIs(t, err, constant.ErrAuditEventInvalidType)
-	})
-
-	t.Run("Error - invalid action", func(t *testing.T) {
-		event, err := NewAuditEvent(
-			AuditEventRuleCreated,
-			AuditAction("INVALID"),
-			AuditResultSuccess,
-			resourceID2,
-			ResourceTypeRule,
-			validActor,
-		)
-
-		require.Error(t, err)
-		assert.Nil(t, event)
-		assert.ErrorIs(t, err, constant.ErrAuditEventInvalidAction)
-	})
-
-	t.Run("Error - invalid result", func(t *testing.T) {
-		event, err := NewAuditEvent(
-			AuditEventRuleCreated,
-			AuditActionCreate,
-			AuditResult("INVALID"),
-			resourceID3,
-			ResourceTypeRule,
-			validActor,
-		)
-
-		require.Error(t, err)
-		assert.Nil(t, event)
-		assert.ErrorIs(t, err, constant.ErrAuditEventInvalidResult)
-	})
-
-	t.Run("Error - empty resource ID", func(t *testing.T) {
-		event, err := NewAuditEvent(
-			AuditEventRuleCreated,
-			AuditActionCreate,
-			AuditResultSuccess,
-			"",
-			ResourceTypeRule,
-			validActor,
-		)
-
-		require.Error(t, err)
-		assert.Nil(t, event)
-		assert.ErrorIs(t, err, constant.ErrAuditEventResourceIDRequired)
-	})
-
-	t.Run("Error - invalid resource type", func(t *testing.T) {
-		event, err := NewAuditEvent(
-			AuditEventRuleCreated,
-			AuditActionCreate,
-			AuditResultSuccess,
-			resourceID4,
-			ResourceType("INVALID"),
-			validActor,
-		)
-
-		require.Error(t, err)
-		assert.Nil(t, event)
-		assert.ErrorIs(t, err, constant.ErrAuditEventInvalidResourceType)
-	})
-
-	t.Run("Error - empty actor ID", func(t *testing.T) {
-		resourceID5 := testutil.MustDeterministicUUID(5).String()
-		
-		invalidActor := Actor{
-			ActorType: ActorTypeUser,
-			ID:        "",
-			Name:      "Test Actor",
+	t.Run("validation errors", func(t *testing.T) {
+		testCases := []struct {
+			name         string
+			eventType    AuditEventType
+			action       AuditAction
+			result       AuditResult
+			resourceID   string
+			resourceType ResourceType
+			actor        Actor
+			expectedErr  error
+		}{
+			{
+				name:         "invalid event type",
+				eventType:    AuditEventType("INVALID"),
+				action:       AuditActionCreate,
+				result:       AuditResultSuccess,
+				resourceID:   testutil.MustDeterministicUUID(1).String(),
+				resourceType: ResourceTypeRule,
+				actor:        validActor,
+				expectedErr:  constant.ErrAuditEventInvalidType,
+			},
+			{
+				name:         "invalid action",
+				eventType:    AuditEventRuleCreated,
+				action:       AuditAction("INVALID"),
+				result:       AuditResultSuccess,
+				resourceID:   testutil.MustDeterministicUUID(2).String(),
+				resourceType: ResourceTypeRule,
+				actor:        validActor,
+				expectedErr:  constant.ErrAuditEventInvalidAction,
+			},
+			{
+				name:         "invalid result",
+				eventType:    AuditEventRuleCreated,
+				action:       AuditActionCreate,
+				result:       AuditResult("INVALID"),
+				resourceID:   testutil.MustDeterministicUUID(3).String(),
+				resourceType: ResourceTypeRule,
+				actor:        validActor,
+				expectedErr:  constant.ErrAuditEventInvalidResult,
+			},
+			{
+				name:         "empty resource ID",
+				eventType:    AuditEventRuleCreated,
+				action:       AuditActionCreate,
+				result:       AuditResultSuccess,
+				resourceID:   "",
+				resourceType: ResourceTypeRule,
+				actor:        validActor,
+				expectedErr:  constant.ErrAuditEventResourceIDRequired,
+			},
+			{
+				name:         "invalid resource type",
+				eventType:    AuditEventRuleCreated,
+				action:       AuditActionCreate,
+				result:       AuditResultSuccess,
+				resourceID:   testutil.MustDeterministicUUID(4).String(),
+				resourceType: ResourceType("INVALID"),
+				actor:        validActor,
+				expectedErr:  constant.ErrAuditEventInvalidResourceType,
+			},
+			{
+				name:         "empty actor ID",
+				eventType:    AuditEventRuleCreated,
+				action:       AuditActionCreate,
+				result:       AuditResultSuccess,
+				resourceID:   testutil.MustDeterministicUUID(5).String(),
+				resourceType: ResourceTypeRule,
+				actor: Actor{
+					ActorType: ActorTypeUser,
+					ID:        "",
+					Name:      "Test Actor",
+				},
+				expectedErr: constant.ErrAuditEventActorIDRequired,
+			},
+			{
+				name:         "invalid actor type",
+				eventType:    AuditEventRuleCreated,
+				action:       AuditActionCreate,
+				result:       AuditResultSuccess,
+				resourceID:   testutil.MustDeterministicUUID(6).String(),
+				resourceType: ResourceTypeRule,
+				actor: Actor{
+					ActorType: ActorType("INVALID"),
+					ID:        "test_actor",
+					Name:      "Test Actor",
+				},
+				expectedErr: constant.ErrAuditEventActorTypeInvalid,
+			},
 		}
 
-		event, err := NewAuditEvent(
-			AuditEventRuleCreated,
-			AuditActionCreate,
-			AuditResultSuccess,
-			resourceID5,
-			ResourceTypeRule,
-			invalidActor,
-		)
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				event, err := NewAuditEvent(
+					tc.eventType,
+					tc.action,
+					tc.result,
+					tc.resourceID,
+					tc.resourceType,
+					tc.actor,
+				)
 
-		require.Error(t, err)
-		assert.Nil(t, event)
-		assert.ErrorIs(t, err, constant.ErrAuditEventActorIDRequired)
-	})
-
-	t.Run("Error - invalid actor type", func(t *testing.T) {
-		resourceID6 := testutil.MustDeterministicUUID(6).String()
-		
-		invalidActor := Actor{
-			ActorType: ActorType("INVALID"),
-			ID:        "test_actor",
-			Name:      "Test Actor",
+				require.Error(t, err)
+				assert.Nil(t, event)
+				assert.ErrorIs(t, err, tc.expectedErr)
+			})
 		}
-
-		event, err := NewAuditEvent(
-			AuditEventRuleCreated,
-			AuditActionCreate,
-			AuditResultSuccess,
-			resourceID6,
-			ResourceTypeRule,
-			invalidActor,
-		)
-
-		require.Error(t, err)
-		assert.Nil(t, event)
-		assert.ErrorIs(t, err, constant.ErrAuditEventActorTypeInvalid)
 	})
 
 	t.Run("Success - all valid enums", func(t *testing.T) {
