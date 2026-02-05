@@ -96,7 +96,7 @@ func (r *UsageCounterRepository) GetForUpdate(ctx context.Context, limitID uuid.
 		return nil, fmt.Errorf("failed to build select query: %w", err)
 	}
 
-	counter, err := r.scanCounter(db.QueryRowContext(ctx, sqlStr, args...))
+	counter, err := r.scanCounter(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		// Return sql.ErrNoRows as-is so caller can distinguish "not found" from other errors
 		libOtel.HandleSpanError(&span, "Failed to get usage counter", err)
@@ -153,7 +153,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 		return nil, fmt.Errorf("failed to build select query: %w", err)
 	}
 
-	counter, err := r.scanCounter(db.QueryRowContext(ctx, sqlStr, args...))
+	counter, err := r.scanCounter(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err == nil {
 		logger.WithFields(
 			"operation", "repository.usage_counter.get_or_create_for_update",
@@ -176,9 +176,13 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 		return nil, err
 	}
 
+	// Convert entity to database model using ToEntity/FromEntity pattern
+	var dbModel UsageCounterPostgreSQLModel
+	dbModel.FromEntity(newCounter)
+
 	insertQuery := sq.Insert(r.tableName).
 		Columns("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
-		Values(newCounter.ID, newCounter.LimitID, newCounter.ScopeKey, newCounter.PeriodKey, newCounter.CurrentUsage, newCounter.LastUpdatedAt).
+		Values(dbModel.ID, dbModel.LimitID, dbModel.ScopeKey, dbModel.PeriodKey, dbModel.CurrentUsage, dbModel.LastUpdatedAt).
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err = insertQuery.ToSql()
@@ -217,7 +221,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 		var retryErr error
 
-		counter, retryErr = r.scanCounter(db.QueryRowContext(ctx, sqlStr, args...))
+		counter, retryErr = r.scanCounter(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 		if retryErr != nil {
 			libOtel.HandleSpanError(&span, "Failed to insert or get usage counter", retryErr)
 			return nil, fmt.Errorf("failed to insert or get usage counter: %w", retryErr)
@@ -246,7 +250,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 		return nil, fmt.Errorf("failed to build post-insert select query: %w", err)
 	}
 
-	counter, err = r.scanCounter(db.QueryRowContext(ctx, sqlStr, args...))
+	counter, err = r.scanCounter(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		libOtel.HandleSpanError(&span, "Failed to select inserted usage counter", err)
 		return nil, fmt.Errorf("failed to select inserted usage counter: %w", err)
@@ -497,7 +501,7 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	var counters []model.UsageCounter
 
 	for rows.Next() {
-		counter, err := r.scanCounterFromRows(rows)
+		counter, err := r.scanCounterFromRows(ctx, rows)
 		if err != nil {
 			libOtel.HandleSpanError(&span, "Failed to scan usage counter", err)
 			return nil, fmt.Errorf("failed to scan usage counter: %w", err)
@@ -596,26 +600,64 @@ func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs
 	return result, nil
 }
 
-// scanCounter scans a single row into a UsageCounter model.
-func (r *UsageCounterRepository) scanCounter(row *sql.Row) (*model.UsageCounter, error) {
-	var counter model.UsageCounter
+// scanCounter scans a single row into a UsageCounter model using the ToEntity/FromEntity pattern.
+func (r *UsageCounterRepository) scanCounter(ctx context.Context, row *sql.Row) (*model.UsageCounter, error) {
+	var dbModel UsageCounterPostgreSQLModel
 
-	if err := row.Scan(counter.ScanFields()...); err != nil {
+	// Check for context cancellation before processing
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
+	}
+
+	err := row.Scan(
+		&dbModel.ID,
+		&dbModel.LimitID,
+		&dbModel.ScopeKey,
+		&dbModel.PeriodKey,
+		&dbModel.CurrentUsage,
+		&dbModel.LastUpdatedAt,
+	)
+	if err != nil {
 		return nil, err
 	}
 
-	return &counter, nil
+	// Convert database model to domain entity
+	counter, err := dbModel.ToEntity()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to entity: %w", err)
+	}
+
+	return counter, nil
 }
 
-// scanCounterFromRows scans a row from Rows into a UsageCounter model.
-func (r *UsageCounterRepository) scanCounterFromRows(rows *sql.Rows) (*model.UsageCounter, error) {
-	var counter model.UsageCounter
+// scanCounterFromRows scans a row from Rows into a UsageCounter model using the ToEntity/FromEntity pattern.
+func (r *UsageCounterRepository) scanCounterFromRows(ctx context.Context, rows *sql.Rows) (*model.UsageCounter, error) {
+	var dbModel UsageCounterPostgreSQLModel
 
-	if err := rows.Scan(counter.ScanFields()...); err != nil {
+	// Check for context cancellation before processing
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
+	}
+
+	err := rows.Scan(
+		&dbModel.ID,
+		&dbModel.LimitID,
+		&dbModel.ScopeKey,
+		&dbModel.PeriodKey,
+		&dbModel.CurrentUsage,
+		&dbModel.LastUpdatedAt,
+	)
+	if err != nil {
 		return nil, err
 	}
 
-	return &counter, nil
+	// Convert database model to domain entity
+	counter, err := dbModel.ToEntity()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to entity: %w", err)
+	}
+
+	return counter, nil
 }
 
 // DeleteExpiredCounters removes usage counters that haven't been updated since the specified time.

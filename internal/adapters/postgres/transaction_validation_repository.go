@@ -7,7 +7,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -15,7 +14,6 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
@@ -79,6 +77,7 @@ func NewTransactionValidationRepositoryWithConnection(conn pgdb.Connection) *Tra
 
 // Insert creates a new transaction validation record (insert-only, no updates allowed).
 // This maintains the immutability requirement for compliance (SOX/GLBA).
+// Uses the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
 func (r *TransactionValidationRepository) Insert(ctx context.Context, validation *model.TransactionValidation) error {
 	if validation == nil {
 		return errors.New("validation cannot be nil")
@@ -97,58 +96,11 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	// Marshal JSONB fields
-	accountJSON, err := json.Marshal(validation.Account)
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to marshal account", err)
-		return fmt.Errorf("failed to marshal account: %w", err)
-	}
+	// Convert domain entity to database model using FromEntity pattern
+	var dbModel TransactionValidationPostgreSQLModel
+	dbModel.FromEntity(validation)
 
-	var segmentJSON []byte
-	if validation.Segment != nil {
-		segmentJSON, err = json.Marshal(validation.Segment)
-		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to marshal segment", err)
-			return fmt.Errorf("failed to marshal segment: %w", err)
-		}
-	}
-
-	var portfolioJSON []byte
-	if validation.Portfolio != nil {
-		portfolioJSON, err = json.Marshal(validation.Portfolio)
-		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to marshal portfolio", err)
-			return fmt.Errorf("failed to marshal portfolio: %w", err)
-		}
-	}
-
-	var merchantJSON []byte
-	if validation.Merchant != nil {
-		merchantJSON, err = json.Marshal(validation.Merchant)
-		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to marshal merchant", err)
-			return fmt.Errorf("failed to marshal merchant: %w", err)
-		}
-	}
-
-	var metadataJSON []byte
-	if validation.Metadata != nil {
-		metadataJSON, err = json.Marshal(validation.Metadata)
-		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to marshal metadata", err)
-			return fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-	} else {
-		metadataJSON = []byte("{}")
-	}
-
-	limitUsageDetailsJSON, err := json.Marshal(validation.LimitUsageDetails)
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to marshal limit usage details", err)
-		return fmt.Errorf("failed to marshal limit usage details: %w", err)
-	}
-
-	// Convert UUID slices to StringArray for PostgreSQL UUID[] type
+	// Convert UUID array strings to StringArray for PostgreSQL UUID[] type
 	matchedRuleIDs := uuidSliceToStringArray(validation.MatchedRuleIDs)
 	evaluatedRuleIDs := uuidSliceToStringArray(validation.EvaluatedRuleIDs)
 
@@ -175,25 +127,25 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 			"created_at",
 		).
 		Values(
-			validation.ID,
-			validation.RequestID,
-			string(validation.TransactionType),
-			validation.SubType,
-			validation.Amount,
-			validation.Currency,
-			validation.TransactionTimestamp,
-			accountJSON,
-			segmentJSON,
-			portfolioJSON,
-			merchantJSON,
-			metadataJSON,
-			string(validation.Decision),
-			validation.Reason,
+			dbModel.ID,
+			dbModel.RequestID,
+			dbModel.TransactionType,
+			dbModel.SubType,
+			dbModel.Amount,
+			dbModel.Currency,
+			dbModel.TransactionTimestamp,
+			dbModel.Account,
+			dbModel.Segment,
+			dbModel.Portfolio,
+			dbModel.Merchant,
+			dbModel.Metadata,
+			dbModel.Decision,
+			dbModel.Reason,
 			matchedRuleIDs,
 			evaluatedRuleIDs,
-			limitUsageDetailsJSON,
-			validation.ProcessingTimeMs,
-			validation.CreatedAt,
+			dbModel.LimitUsageDetails,
+			dbModel.ProcessingTimeMs,
+			dbModel.CreatedAt,
 		).
 		PlaceholderFormat(sq.Dollar)
 
@@ -570,164 +522,159 @@ func (r *TransactionValidationRepository) applyFilters(qb sq.SelectBuilder, filt
 }
 
 // scanValidation scans a single row into a TransactionValidation struct.
+// Uses the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
 func (r *TransactionValidationRepository) scanValidation(ctx context.Context, row *sql.Row) (*model.TransactionValidation, error) {
 	var (
-		validation            model.TransactionValidation
-		transactionType       string
-		accountJSON           []byte
-		segmentJSON           []byte
-		portfolioJSON         []byte
-		merchantJSON          []byte
-		metadataJSON          []byte
-		limitUsageDetailsJSON []byte
-		matchedRuleIDs        StringArray
-		evaluatedRuleIDs      StringArray
-		decision              string
+		dbModel          TransactionValidationPostgreSQLModel
+		segmentJSON      []byte
+		portfolioJSON    []byte
+		merchantJSON     []byte
+		matchedRuleIDs   StringArray
+		evaluatedRuleIDs StringArray
 	)
+
+	// Temporary variables for nullable JSONB fields
+	var accountJSON, metadataJSON, limitUsageDetailsJSON []byte
+
+	// Check for context cancellation before processing
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
+	}
 
 	err := row.Scan(
-		&validation.ID,
-		&validation.RequestID,
-		&transactionType,
-		&validation.SubType,
-		&validation.Amount,
-		&validation.Currency,
-		&validation.TransactionTimestamp,
+		&dbModel.ID,
+		&dbModel.RequestID,
+		&dbModel.TransactionType,
+		&dbModel.SubType,
+		&dbModel.Amount,
+		&dbModel.Currency,
+		&dbModel.TransactionTimestamp,
 		&accountJSON,
 		&segmentJSON,
 		&portfolioJSON,
 		&merchantJSON,
 		&metadataJSON,
-		&decision,
-		&validation.Reason,
+		&dbModel.Decision,
+		&dbModel.Reason,
 		&matchedRuleIDs,
 		&evaluatedRuleIDs,
 		&limitUsageDetailsJSON,
-		&validation.ProcessingTimeMs,
-		&validation.CreatedAt,
+		&dbModel.ProcessingTimeMs,
+		&dbModel.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return r.hydrateValidation(ctx, &validation, transactionType, accountJSON, segmentJSON, portfolioJSON, merchantJSON, metadataJSON, limitUsageDetailsJSON, []string(matchedRuleIDs), []string(evaluatedRuleIDs), decision)
-}
+	// Convert byte slices to strings for the model
+	dbModel.Account = string(accountJSON)
+	dbModel.Metadata = string(metadataJSON)
+	dbModel.LimitUsageDetails = string(limitUsageDetailsJSON)
 
-// scanValidationFromRows scans a row from sql.Rows into a TransactionValidation struct.
-func (r *TransactionValidationRepository) scanValidationFromRows(ctx context.Context, rows *sql.Rows) (*model.TransactionValidation, error) {
-	var (
-		validation            model.TransactionValidation
-		transactionType       string
-		accountJSON           []byte
-		segmentJSON           []byte
-		portfolioJSON         []byte
-		merchantJSON          []byte
-		metadataJSON          []byte
-		limitUsageDetailsJSON []byte
-		matchedRuleIDs        StringArray
-		evaluatedRuleIDs      StringArray
-		decision              string
-	)
-
-	err := rows.Scan(
-		&validation.ID,
-		&validation.RequestID,
-		&transactionType,
-		&validation.SubType,
-		&validation.Amount,
-		&validation.Currency,
-		&validation.TransactionTimestamp,
-		&accountJSON,
-		&segmentJSON,
-		&portfolioJSON,
-		&merchantJSON,
-		&metadataJSON,
-		&decision,
-		&validation.Reason,
-		&matchedRuleIDs,
-		&evaluatedRuleIDs,
-		&limitUsageDetailsJSON,
-		&validation.ProcessingTimeMs,
-		&validation.CreatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return r.hydrateValidation(ctx, &validation, transactionType, accountJSON, segmentJSON, portfolioJSON, merchantJSON, metadataJSON, limitUsageDetailsJSON, []string(matchedRuleIDs), []string(evaluatedRuleIDs), decision)
-}
-
-// hydrateValidation unmarshals JSON fields and converts string arrays to UUIDs.
-func (r *TransactionValidationRepository) hydrateValidation(
-	ctx context.Context,
-	validation *model.TransactionValidation,
-	transactionType string,
-	accountJSON []byte,
-	segmentJSON []byte,
-	portfolioJSON []byte,
-	merchantJSON []byte,
-	metadataJSON []byte,
-	limitUsageDetailsJSON []byte,
-	matchedRuleIDs []string,
-	evaluatedRuleIDs []string,
-	decision string,
-) (*model.TransactionValidation, error) {
-	//nolint:dogsled // only logger needed for UUID parsing warnings; tracer/headerID/metrics unused here
-	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
-	logger = logging.WithTrace(ctx, logger)
-
-	// Set transaction type and decision
-	validation.TransactionType = model.TransactionType(transactionType)
-	validation.Decision = model.Decision(decision)
-
-	// Unmarshal JSONB fields
-	if len(accountJSON) > 0 {
-		if err := json.Unmarshal(accountJSON, &validation.Account); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal account: %w", err)
-		}
-	}
-
+	// Handle nullable JSONB fields
 	if len(segmentJSON) > 0 {
-		validation.Segment = &model.SegmentContext{}
-		if err := json.Unmarshal(segmentJSON, validation.Segment); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal segment: %w", err)
-		}
+		segmentStr := string(segmentJSON)
+		dbModel.Segment = &segmentStr
 	}
 
 	if len(portfolioJSON) > 0 {
-		validation.Portfolio = &model.PortfolioContext{}
-		if err := json.Unmarshal(portfolioJSON, validation.Portfolio); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal portfolio: %w", err)
-		}
+		portfolioStr := string(portfolioJSON)
+		dbModel.Portfolio = &portfolioStr
 	}
 
 	if len(merchantJSON) > 0 {
-		validation.Merchant = &model.MerchantContext{}
-		if err := json.Unmarshal(merchantJSON, validation.Merchant); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal merchant: %w", err)
-		}
+		merchantStr := string(merchantJSON)
+		dbModel.Merchant = &merchantStr
 	}
 
-	if len(metadataJSON) > 0 {
-		if err := json.Unmarshal(metadataJSON, &validation.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-		}
+	// Convert UUID arrays from PostgreSQL format
+	dbModel.MatchedRuleIds = formatUUIDArrayFromStringArray(matchedRuleIDs)
+	dbModel.EvaluatedRuleIds = formatUUIDArrayFromStringArray(evaluatedRuleIDs)
+
+	// Use ToEntity to convert to domain model
+	validation, err := dbModel.ToEntity()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to entity: %w", err)
 	}
 
-	if len(limitUsageDetailsJSON) > 0 {
-		if err := json.Unmarshal(limitUsageDetailsJSON, &validation.LimitUsageDetails); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal limit usage details: %w", err)
-		}
+	return validation, nil
+}
+
+// scanValidationFromRows scans a row from sql.Rows into a TransactionValidation struct.
+// Uses the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
+func (r *TransactionValidationRepository) scanValidationFromRows(ctx context.Context, rows *sql.Rows) (*model.TransactionValidation, error) {
+	var (
+		dbModel          TransactionValidationPostgreSQLModel
+		segmentJSON      []byte
+		portfolioJSON    []byte
+		merchantJSON     []byte
+		matchedRuleIDs   StringArray
+		evaluatedRuleIDs StringArray
+	)
+
+	// Temporary variables for nullable JSONB fields
+	var accountJSON, metadataJSON, limitUsageDetailsJSON []byte
+
+	// Check for context cancellation before processing
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
 	}
 
-	// Ensure slices are initialized (not nil)
-	if validation.LimitUsageDetails == nil {
-		validation.LimitUsageDetails = []model.LimitUsageDetail{}
+	err := rows.Scan(
+		&dbModel.ID,
+		&dbModel.RequestID,
+		&dbModel.TransactionType,
+		&dbModel.SubType,
+		&dbModel.Amount,
+		&dbModel.Currency,
+		&dbModel.TransactionTimestamp,
+		&accountJSON,
+		&segmentJSON,
+		&portfolioJSON,
+		&merchantJSON,
+		&metadataJSON,
+		&dbModel.Decision,
+		&dbModel.Reason,
+		&matchedRuleIDs,
+		&evaluatedRuleIDs,
+		&limitUsageDetailsJSON,
+		&dbModel.ProcessingTimeMs,
+		&dbModel.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	// Convert string arrays to UUID slices with warning logging for invalid UUIDs
-	validation.MatchedRuleIDs = stringArrayToUUIDSliceWithWarning(matchedRuleIDs, logger, "matched_rule_ids", validation.ID)
-	validation.EvaluatedRuleIDs = stringArrayToUUIDSliceWithWarning(evaluatedRuleIDs, logger, "evaluated_rule_ids", validation.ID)
+	// Convert byte slices to strings for the model
+	dbModel.Account = string(accountJSON)
+	dbModel.Metadata = string(metadataJSON)
+	dbModel.LimitUsageDetails = string(limitUsageDetailsJSON)
+
+	// Handle nullable JSONB fields
+	if len(segmentJSON) > 0 {
+		segmentStr := string(segmentJSON)
+		dbModel.Segment = &segmentStr
+	}
+
+	if len(portfolioJSON) > 0 {
+		portfolioStr := string(portfolioJSON)
+		dbModel.Portfolio = &portfolioStr
+	}
+
+	if len(merchantJSON) > 0 {
+		merchantStr := string(merchantJSON)
+		dbModel.Merchant = &merchantStr
+	}
+
+	// Convert UUID arrays from PostgreSQL format
+	dbModel.MatchedRuleIds = formatUUIDArrayFromStringArray(matchedRuleIDs)
+	dbModel.EvaluatedRuleIds = formatUUIDArrayFromStringArray(evaluatedRuleIDs)
+
+	// Use ToEntity to convert to domain model
+	validation, err := dbModel.ToEntity()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to entity: %w", err)
+	}
 
 	return validation, nil
 }
@@ -941,30 +888,25 @@ func uuidSliceToStringArray(uuids []uuid.UUID) StringArray {
 	return result
 }
 
-// stringArrayToUUIDSliceWithWarning converts a []string to a slice of UUIDs.
-// Invalid UUIDs are skipped with a warning log indicating possible data corruption.
-func stringArrayToUUIDSliceWithWarning(strs []string, logger libLog.Logger, fieldName string, validationID uuid.UUID) []uuid.UUID {
-	if strs == nil {
-		return []uuid.UUID{}
+// formatUUIDArrayFromStringArray converts a StringArray to PostgreSQL UUID array string format.
+// Used by scanValidation and scanValidationFromRows to prepare data for ToEntity conversion.
+// Format: "{uuid1,uuid2,...}" or "{}" for empty arrays.
+func formatUUIDArrayFromStringArray(strs StringArray) string {
+	if len(strs) == 0 {
+		return "{}"
 	}
 
-	result := make([]uuid.UUID, 0, len(strs))
+	result := "{"
 
-	for _, s := range strs {
-		id, err := uuid.Parse(s)
-		if err == nil {
-			result = append(result, id)
-		} else {
-			// Invalid UUID encountered - possible data corruption
-			logger.WithFields(
-				"operation", "repository.transaction_validation.uuid_conversion",
-				"field", fieldName,
-				"validation_id", validationID.String(),
-				"invalid_value", s,
-				"error", err.Error(),
-			).Warn("Skipped invalid UUID in transaction validation record - possible data corruption")
+	for i, s := range strs {
+		if i > 0 {
+			result += ","
 		}
+
+		result += s
 	}
+
+	result += "}"
 
 	return result
 }
