@@ -152,6 +152,8 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 // Validates ALL inputs before mutating ANY (atomicity guarantee).
 // Updates UpdatedAt timestamp on successful mutation.
 // now parameter allows deterministic timestamps in tests (follows SetAction pattern).
+//
+//nolint:gocognit,gocyclo // Complexity justified by atomic validation and deep copy requirements
 func (r *Rule) Update(
 	name *string,
 	expression *string,
