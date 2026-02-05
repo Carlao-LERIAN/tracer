@@ -62,10 +62,10 @@ From [CODING_STANDARDS.md](./CODING_STANDARDS.md):
 
 ### 3. Testing Standards
 
-- All tests have `//go:build unit` tag
 - Use `t.Parallel()` for concurrency
 - No `time.Now()`, `uuid.New()`, `rand.Intn()` in tests
 - Use `testutil.FixedTime()` and `testutil.MustDeterministicUUID()`
+- Integration tests use `//go:build integration` tag (optional for unit tests)
 
 ### 4. Error Handling
 
