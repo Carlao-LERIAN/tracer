@@ -545,7 +545,7 @@ func wrapJSONError(err error) error {
 	case errors.As(err, &e):
 		return fmt.Errorf("invalid JSON syntax at position %d: %w", e.Offset, err)
 	case errors.As(err, &e1):
-		return fmt.Errorf("invalid type for field '%s': expected %s, got %s", e1.Field, e1.Type.String(), e1.Value)
+		return fmt.Errorf("invalid type for field '%s': expected %s, got %s: %w", e1.Field, e1.Type.String(), e1.Value, err)
 	default:
 		return fmt.Errorf("invalid JSON: %w", err)
 	}
