@@ -570,7 +570,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
 	t.Parallel()
 
-	fixedTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	fixedTime := testutil.FixedTime()
 
 	// Create contexts with metadata that we'll try to mutate
 	segmentMeta := map[string]any{"seg_key": "seg_value"}
@@ -578,19 +578,19 @@ func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
 	merchantMeta := map[string]any{"merch_key": "merch_value"}
 
 	segment := &SegmentContext{
-		ID:       uuid.New(),
+		ID:       testutil.MustDeterministicUUID(1),
 		Name:     "Test Segment",
 		Metadata: segmentMeta,
 	}
 
 	portfolio := &PortfolioContext{
-		ID:       uuid.New(),
+		ID:       testutil.MustDeterministicUUID(2),
 		Name:     "Test Portfolio",
 		Metadata: portfolioMeta,
 	}
 
 	merchant := &MerchantContext{
-		ID:       uuid.New(),
+		ID:       testutil.MustDeterministicUUID(3),
 		Name:     "Test Merchant",
 		Category: "5411", // 4-digit MCC code (Grocery Stores)
 		Country:  "US",
@@ -599,13 +599,13 @@ func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
 
 	// Create request
 	req, err := NewValidationRequest(
-		uuid.New(),
+		testutil.MustDeterministicUUID(10),
 		TransactionTypeCard,
 		nil,
 		1000,
 		"USD",
 		fixedTime,
-		AccountContext{ID: uuid.New()},
+		AccountContext{ID: testutil.MustDeterministicUUID(4)},
 		segment,
 		portfolio,
 		merchant,
