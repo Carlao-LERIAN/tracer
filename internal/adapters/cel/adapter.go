@@ -122,10 +122,11 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	start := time.Now()
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-	logger = logging.WithTrace(ctx, logger)
 
 	ctx, span := tracer.Start(ctx, "adapter.cel.compile")
 	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
 
 	_ = ctx // Context used for tracing only
 
@@ -358,10 +359,11 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 // Propagates ctx through logging and tracing for observability.
 func (a *Adapter) Invalidate(ctx context.Context, expressionHash string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-	logger = logging.WithTrace(ctx, logger)
 
 	ctx, span := tracer.Start(ctx, "adapter.cel.invalidate")
 	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
 
 	_ = ctx // Context used for tracing only
 
