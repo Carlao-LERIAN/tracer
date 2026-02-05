@@ -2518,25 +2518,33 @@ func TestAuditEvents_11_5_1_HashChainIntactAfterMultipleOperations(t *testing.T)
 func TestAuditEvents_11_5_2_FirstEventHasGenesisHash(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
+	db := testutil.SetupIntegrationDB(t)
 
-	// Get first event
-	req, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?sortBy=createdAt&sortOrder=ASC&limit=1", nil)
+	// Setup: Create a rule to generate an audit event (ensures we have at least one event)
+	ruleName := "Genesis Hash Test " + testutil.MustDeterministicUUID(7103).String()[:8]
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 9000", "DENY")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, ruleID)
+	})
+
+	// Get the first event from database (by sequence, not by our test)
+	var eventID string
+	err := db.QueryRowContext(context.Background(),
+		`SELECT event_id FROM audit_events ORDER BY id ASC LIMIT 1`,
+	).Scan(&eventID)
+	require.NoError(t, err, "Should have at least one audit event after rule creation")
+
+	// Get event details via API
+	req, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events/"+eventID, nil)
 	req.Header.Set("X-API-Key", apiKey)
 
 	resp, err := testutil.HTTPClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var result struct {
-		AuditEvents []map[string]any `json:"auditEvents"`
-	}
-	json.NewDecoder(resp.Body).Decode(&result)
-
-	if len(result.AuditEvents) == 0 {
-		t.Skip("No audit events in database")
-	}
-
-	firstEvent := result.AuditEvents[0]
+	var firstEvent map[string]any
+	json.NewDecoder(resp.Body).Decode(&firstEvent)
 
 	// First event should have null or empty previousHash (genesis)
 	previousHash := firstEvent["previousHash"]
