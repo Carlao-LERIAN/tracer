@@ -87,10 +87,8 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 		return fmt.Errorf("failed to get rule: %w", err)
 	}
 
-	// Capture "before" state for audit
-	beforeState := RuleToMap(rule)
-
 	// Idempotency: if already deleted, return success (no-op)
+	// Check before audit capture to avoid unnecessary state snapshots
 	if rule.Status == model.RuleStatusDeleted {
 		logger.WithFields(
 			"operation", "service.rule.delete",
@@ -100,7 +98,10 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 		return nil
 	}
 
-	// Check if transition is valid (only INACTIVE → DELETED allowed)
+	// Capture "before" state for audit
+	beforeState := RuleToMap(rule)
+
+	// Check if transition is valid (only DRAFT/INACTIVE → DELETED allowed)
 	if !rule.Status.CanTransitionTo(model.RuleStatusDeleted) {
 		err := model.NewInvalidTransitionError(rule.Status, model.RuleStatusDeleted)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
@@ -114,6 +115,8 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 		return err
 	}
 
+	// Persist deletion (repository.Delete handles status update to DELETED)
+	// Do NOT call rule.SetStatus() before this - would mutate object before persistence succeeds
 	if err := s.repository.Delete(ctx, ruleID); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to delete rule", err)
 		logger.WithFields(

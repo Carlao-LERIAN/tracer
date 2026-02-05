@@ -5,9 +5,12 @@
 package model
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"tracer/pkg/constant"
 )
 
 // ActorType represents the type of actor that performed an action.
@@ -17,6 +20,16 @@ const (
 	ActorTypeUser   ActorType = "user"
 	ActorTypeSystem ActorType = "system"
 )
+
+// IsValid checks if the ActorType is a valid enum value.
+func (a ActorType) IsValid() bool {
+	switch a {
+	case ActorTypeUser, ActorTypeSystem:
+		return true
+	default:
+		return false
+	}
+}
 
 // AuditEventType represents the type of audit event.
 type AuditEventType string
@@ -40,6 +53,18 @@ const (
 	AuditEventLimitDeactivated AuditEventType = "LIMIT_DEACTIVATED"
 )
 
+// IsValid checks if the AuditEventType is a valid enum value.
+func (t AuditEventType) IsValid() bool {
+	switch t {
+	case AuditEventTransactionValidated,
+		AuditEventRuleCreated, AuditEventRuleUpdated, AuditEventRuleActivated, AuditEventRuleDeactivated, AuditEventRuleDeleted,
+		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuditAction represents the action performed.
 type AuditAction string
 
@@ -51,6 +76,16 @@ const (
 	AuditActionActivate   AuditAction = "ACTIVATE"
 	AuditActionDeactivate AuditAction = "DEACTIVATE"
 )
+
+// IsValid checks if the AuditAction is a valid enum value.
+func (a AuditAction) IsValid() bool {
+	switch a {
+	case AuditActionValidate, AuditActionCreate, AuditActionUpdate, AuditActionDelete, AuditActionActivate, AuditActionDeactivate:
+		return true
+	default:
+		return false
+	}
+}
 
 // AuditResult represents the result of an action (unified field).
 // For validations: ALLOW, DENY, REVIEW
@@ -68,6 +103,16 @@ const (
 	AuditResultReview AuditResult = "REVIEW"
 )
 
+// IsValid checks if the AuditResult is a valid enum value.
+func (r AuditResult) IsValid() bool {
+	switch r {
+	case AuditResultSuccess, AuditResultFailed, AuditResultAllow, AuditResultDeny, AuditResultReview:
+		return true
+	default:
+		return false
+	}
+}
+
 // ResourceType represents the type of resource affected.
 type ResourceType string
 
@@ -76,6 +121,16 @@ const (
 	ResourceTypeRule        ResourceType = "rule"
 	ResourceTypeLimit       ResourceType = "limit"
 )
+
+// IsValid checks if the ResourceType is a valid enum value.
+func (r ResourceType) IsValid() bool {
+	switch r {
+	case ResourceTypeTransaction, ResourceTypeRule, ResourceTypeLimit:
+		return true
+	default:
+		return false
+	}
+}
 
 // Actor represents who performed the action.
 type Actor struct {
@@ -126,7 +181,14 @@ type AuditEvent struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// NewAuditEvent creates a new AuditEvent with sensible defaults.
+// NewAuditEvent creates a new AuditEvent with validation.
+// Returns error if:
+//   - eventType is not valid → constant.ErrAuditEventInvalidType
+//   - action is not valid → constant.ErrAuditEventInvalidAction
+//   - result is not valid → constant.ErrAuditEventInvalidResult
+//   - resourceID is empty → constant.ErrAuditEventResourceIDRequired
+//   - resourceType is not valid → constant.ErrAuditEventInvalidResourceType
+//   - actor.ID is empty → constant.ErrAuditEventActorIDRequired
 func NewAuditEvent(
 	eventType AuditEventType,
 	action AuditAction,
@@ -134,19 +196,62 @@ func NewAuditEvent(
 	resourceID string,
 	resourceType ResourceType,
 	actor Actor,
-) *AuditEvent {
+) (*AuditEvent, error) {
+	// Normalize textual inputs
+	normalizedResourceID := strings.TrimSpace(resourceID)
+	normalizedActorID := strings.TrimSpace(actor.ID)
+
+	// Validate eventType
+	if !eventType.IsValid() {
+		return nil, constant.ErrAuditEventInvalidType
+	}
+
+	// Validate action
+	if !action.IsValid() {
+		return nil, constant.ErrAuditEventInvalidAction
+	}
+
+	// Validate result
+	if !result.IsValid() {
+		return nil, constant.ErrAuditEventInvalidResult
+	}
+
+	// Validate resourceID
+	if normalizedResourceID == "" {
+		return nil, constant.ErrAuditEventResourceIDRequired
+	}
+
+	// Validate resourceType
+	if !resourceType.IsValid() {
+		return nil, constant.ErrAuditEventInvalidResourceType
+	}
+
+	// Validate actor.ActorType
+	if !actor.ActorType.IsValid() {
+		return nil, constant.ErrAuditEventActorTypeInvalid
+	}
+
+	// Validate actor.ID
+	if normalizedActorID == "" {
+		return nil, constant.ErrAuditEventActorIDRequired
+	}
+
+	// Update actor with normalized ID
+	normalizedActor := actor
+	normalizedActor.ID = normalizedActorID
+
 	return &AuditEvent{
 		EventID:      uuid.New(),
 		EventType:    eventType,
 		CreatedAt:    time.Now().UTC(),
 		Action:       action,
 		Result:       result,
-		ResourceID:   resourceID,
+		ResourceID:   normalizedResourceID,
 		ResourceType: resourceType,
-		Actor:        actor,
+		Actor:        normalizedActor,
 		Context:      make(map[string]any),
 		Metadata:     make(map[string]any),
-	}
+	}, nil
 }
 
 // WithContext sets the context data (request/response or before/after).

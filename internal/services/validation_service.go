@@ -49,10 +49,10 @@ type LimitChecker interface {
 
 // ValidationService orchestrates transaction validation.
 type ValidationService struct {
-	ruleEvaluator                RuleEvaluator
-	limitChecker                 LimitChecker
-	transactionValidationRepo    command.TransactionValidationRepository
-	auditWriter                  AuditWriter
+	ruleEvaluator             RuleEvaluator
+	limitChecker              LimitChecker
+	transactionValidationRepo command.TransactionValidationRepository
+	auditWriter               AuditWriter
 }
 
 // NewValidationService creates a new ValidationService with dependency validation.
@@ -225,7 +225,15 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 //
 // The timeout (validationPersistTimeout) bounds the maximum wait time.
 func (s *ValidationService) persistTransactionValidation(ctx context.Context, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) {
-	tv := model.NewTransactionValidation(resp.ValidationID, resp.Decision, time.Now().UTC())
+	tv, err := model.NewTransactionValidation(resp.ValidationID, resp.Decision, time.Now().UTC())
+	if err != nil {
+		logger.WithFields(
+			"request.id", resp.RequestID,
+			"error.message", err.Error(),
+		).Error("failed to create transaction validation record - invalid parameters")
+
+		return
+	}
 
 	// Populate request fields for compliance (SOX/GLBA: full reconstruction of validation input)
 	tv.RequestID = req.RequestID
@@ -269,12 +277,13 @@ func (s *ValidationService) persistTransactionValidation(ctx context.Context, re
 	persistCtx, span := tracer.Start(persistCtx, "transaction-validation.persist")
 	defer span.End()
 
-	if err := s.transactionValidationRepo.Insert(persistCtx, tv); err != nil {
+	if err := s.transactionValidationRepo.Insert(persistCtx, tv); err != nil { //nolint:contextcheck // persistCtx intentionally from Background()
 		libOpentelemetry.HandleSpanError(&span, "failed to persist transaction validation record", err)
 
 		// Emit metric for alerting (compliance risk: audit trail gap)
+		// Note: persistCtx is intentionally derived from Background(), not parent ctx
 		if metricsFactory != nil {
-			metricsFactory.Counter(MetricAuditPersistFailures).Add(persistCtx, 1)
+			metricsFactory.Counter(MetricAuditPersistFailures).Add(persistCtx, 1) //nolint:contextcheck // persistCtx intentionally independent
 		}
 
 		logger.WithFields(
@@ -294,7 +303,7 @@ func validateTransactionValidation(tv *model.TransactionValidation) error {
 	}
 
 	// Decision must be valid
-	if tv.Decision != model.DecisionAllow && tv.Decision != model.DecisionDeny && tv.Decision != model.DecisionReview {
+	if !tv.Decision.IsValid() {
 		return fmt.Errorf("invalid decision: %s", tv.Decision)
 	}
 
@@ -406,5 +415,3 @@ func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.Va
 		).Error("failed to persist audit event")
 	}
 }
-
-

@@ -309,7 +309,7 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 	// Validate filters
 	if err := filters.Validate(); err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid transaction validation filters", err)
-		return nil, fmt.Errorf("%w: %v", constant.ErrInvalidTransactionValidationFilters, err)
+		return nil, fmt.Errorf("%w: %w", constant.ErrInvalidTransactionValidationFilters, err)
 	}
 
 	// Validate and normalize sort parameters
@@ -472,7 +472,7 @@ func (r *TransactionValidationRepository) Count(ctx context.Context, filters *mo
 	if err := filters.Validate(); err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid transaction validation filters", err)
 
-		return 0, fmt.Errorf("%w: %v", constant.ErrInvalidTransactionValidationFilters, err)
+		return 0, fmt.Errorf("%w: %w", constant.ErrInvalidTransactionValidationFilters, err)
 	}
 
 	db, err := r.conn.GetDB()
@@ -774,7 +774,7 @@ func (r *TransactionValidationRepository) applyCursorFilter(qb sq.SelectBuilder,
 	cursor, err := pkgHTTP.DecodeCursor(cursorStr)
 	if err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
-		return qb, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %v", constant.ErrInvalidCursor, err)
+		return qb, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %w", constant.ErrInvalidCursor, err)
 	}
 
 	// Use sort column and order from cursor for consistency across pages
@@ -807,7 +807,7 @@ func (r *TransactionValidationRepository) applyCursorFilter(qb sq.SelectBuilder,
 	// Validate cursor sort value type matches expected column type
 	if err := validateCursorSortValueTransactionValidation(sortColumn, cursor.SortValue); err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor sort value type", constant.ErrInvalidCursor)
-		return qb, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %v", constant.ErrInvalidCursor, err)
+		return qb, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %w", constant.ErrInvalidCursor, err)
 	}
 
 	// Build WHERE clause based on sort column

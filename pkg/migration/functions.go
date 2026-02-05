@@ -237,6 +237,7 @@ func (m *FunctionMigrator) loadMigrations() (MigrationLoadResult, error) {
 
 		content, err := io.ReadAll(f)
 		_ = f.Close() // Close immediately after reading, error intentionally ignored
+
 		if err != nil {
 			return MigrationLoadResult{}, fmt.Errorf("failed to read migration file %s: %w", file.Name(), err)
 		}

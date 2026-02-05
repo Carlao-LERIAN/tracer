@@ -112,6 +112,7 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 	}
 
 	// Idempotency: if already active, return the rule (no-op)
+	// Check before audit capture to avoid unnecessary state snapshots
 	if rule.Status == model.RuleStatusActive {
 		logger.WithFields(
 			"operation", "service.rule.activate",
@@ -121,22 +122,8 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 		return rule, nil
 	}
 
-	// Capture "before" state for audit (after idempotency check, before mutation)
+	// Capture "before" state for audit
 	beforeState := RuleToMap(rule)
-
-	// Check if transition is valid
-	if !rule.Status.CanTransitionTo(model.RuleStatusActive) {
-		err := model.NewInvalidTransitionError(rule.Status, model.RuleStatusActive)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
-		logger.WithFields(
-			"operation", "service.rule.activate",
-			"rule.id", ruleID.String(),
-			"rule.status_from", string(rule.Status),
-			"rule.status_to", "ACTIVE",
-		).Warn("Invalid transition")
-
-		return nil, err
-	}
 
 	logger.WithFields(
 		"operation", "service.rule.activate",
@@ -155,39 +142,61 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 		return nil, businessErr
 	}
 
-	now := s.clock.Now()
-	if err := s.repository.UpdateStatus(ctx, ruleID, model.RuleStatusActive, now, &now, nil); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update rule status", err)
+	// Use domain model method for status transition (validates and maintains invariants)
+	if err := rule.SetStatus(model.RuleStatusActive, s.clock.Now()); err != nil {
+		// Check for invalid transition (business error)
+		var transitionErr *model.InvalidTransitionError
+		if errors.As(err, &transitionErr) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", transitionErr)
+			logger.WithFields(
+				"operation", "service.rule.activate",
+				"rule.id", ruleID.String(),
+				"rule.status_from", string(transitionErr.From),
+				"rule.status_to", string(transitionErr.To),
+			).Warn("Invalid transition")
+
+			return nil, transitionErr
+		}
+
+		// Technical error (invalid status value or other)
+		libOpentelemetry.HandleSpanError(&span, "Failed to set rule status", err)
 		logger.WithFields(
 			"operation", "service.rule.activate",
 			"rule.id", ruleID.String(),
 			"error.message", err.Error(),
-		).Error("Failed to update rule status")
+		).Error("Failed to set rule status")
 
-		return nil, fmt.Errorf("failed to update rule status: %w", err)
+		return nil, fmt.Errorf("failed to set rule status: %w", err)
 	}
 
-	// Update the rule object with new status and timestamps
-	rule.Status = model.RuleStatusActive
-	rule.UpdatedAt = now
-	rule.ActivatedAt = &now
-	rule.DeactivatedAt = nil
+	// Persist updated rule
+	updatedRule, err := s.repository.Update(ctx, rule)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update rule", err)
+		logger.WithFields(
+			"operation", "service.rule.activate",
+			"rule.id", ruleID.String(),
+			"error.message", err.Error(),
+		).Error("Failed to update rule")
+
+		return nil, fmt.Errorf("failed to update rule: %w", err)
+	}
 
 	logger.WithFields(
 		"operation", "service.rule.activate",
-		"rule.id", ruleID.String(),
+		"rule.id", updatedRule.ID.String(),
 	).Info("Rule activated successfully")
 
 	// Record audit event (best-effort)
 	if s.auditWriter != nil {
 		clientIP := contextutil.GetClientIP(ctx)
 
-		afterState := RuleToMap(rule)
+		afterState := RuleToMap(updatedRule)
 		if err := s.auditWriter.RecordRuleEvent(
 			ctx,
 			model.AuditEventRuleActivated,
 			model.AuditActionActivate,
-			rule.ID,
+			updatedRule.ID,
 			beforeState,
 			afterState,
 			"Rule activated via API",
@@ -195,11 +204,11 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 		); err != nil {
 			logger.WithFields(
 				"operation", "service.rule.activate.audit",
-				"rule.id", ruleID.String(),
+				"rule.id", updatedRule.ID.String(),
 				"error", err.Error(),
 			).Warn("Failed to record audit event")
 		}
 	}
 
-	return rule, nil
+	return updatedRule, nil
 }

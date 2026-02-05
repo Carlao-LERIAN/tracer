@@ -23,7 +23,7 @@ func TestNewAuditEvent(t *testing.T) {
 			IPAddress: "10.0.1.5",
 		}
 
-		event := NewAuditEvent(
+		event, err := NewAuditEvent(
 			AuditEventRuleCreated,
 			AuditActionCreate,
 			AuditResultSuccess,
@@ -32,6 +32,7 @@ func TestNewAuditEvent(t *testing.T) {
 			actor,
 		)
 
+		require.NoError(t, err)
 		require.NotNil(t, event)
 		assert.NotEqual(t, uuid.Nil, event.EventID)
 		assert.Equal(t, AuditEventRuleCreated, event.EventType)
@@ -461,7 +462,7 @@ func TestResourceType_Values(t *testing.T) {
 func createTestAuditEvent(t *testing.T) *AuditEvent {
 	t.Helper()
 
-	return NewAuditEvent(
+	event, err := NewAuditEvent(
 		AuditEventRuleCreated,
 		AuditActionCreate,
 		AuditResultSuccess,
@@ -474,4 +475,7 @@ func createTestAuditEvent(t *testing.T) *AuditEvent {
 			IPAddress: "127.0.0.1",
 		},
 	)
+	require.NoError(t, err)
+
+	return event
 }

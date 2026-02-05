@@ -6,6 +6,7 @@ package model
 
 import (
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,6 +55,7 @@ const (
 // ValidationRequest is the input for transaction validation.
 // Amount is expressed in the smallest currency unit (e.g., cents for USD/BRL).
 // Example: $10.50 should be sent as 1050.
+// Use NewValidationRequest() to construct - ensures validation and normalization.
 type ValidationRequest struct {
 	RequestID            uuid.UUID         `json:"requestId" validate:"required" swaggertype:"string" format:"uuid"`
 	TransactionType      TransactionType   `json:"transactionType" validate:"required"`
@@ -66,6 +68,208 @@ type ValidationRequest struct {
 	Portfolio            *PortfolioContext `json:"portfolio,omitempty"`
 	Merchant             *MerchantContext  `json:"merchant,omitempty"`
 	Metadata             map[string]any    `json:"metadata,omitempty"`
+}
+
+// NewValidationRequest creates a new ValidationRequest with validation and normalization.
+// Currency is normalized to uppercase and trimmed (auto-corrects case).
+// SubType is trimmed if provided.
+// Metadata is shallow-copied (top-level keys only) to detach from the original map.
+// Note: nested maps/slices within metadata values remain shared references.
+// Returns error if validation fails after normalization.
+//
+// Use this constructor when:
+// - Building requests programmatically where currency normalization is desired
+// - You want automatic currency case correction (e.g., "usd" → "USD")
+//
+// For strict post-JSON-parse validation without currency normalization, use NormalizeAndValidate() instead.
+func NewValidationRequest(
+	requestID uuid.UUID,
+	transactionType TransactionType,
+	subType *string,
+	amount int64,
+	currency string,
+	transactionTimestamp time.Time,
+	account AccountContext,
+	segment *SegmentContext,
+	portfolio *PortfolioContext,
+	merchant *MerchantContext,
+	metadata map[string]any,
+) (*ValidationRequest, error) {
+	// Normalize currency (uppercase and trim)
+	normalizedCurrency := strings.ToUpper(strings.TrimSpace(currency))
+
+	// Normalize subType if provided
+	var normalizedSubType *string
+
+	if subType != nil {
+		trimmed := strings.TrimSpace(*subType)
+		normalizedSubType = &trimmed
+	}
+
+	// Shallow copy of metadata to detach top-level map entries
+	// Note: nested maps/slices share references with original (acceptable trade-off)
+	var metadataCopy map[string]any
+	if metadata != nil {
+		metadataCopy = make(map[string]any, len(metadata))
+		for k, v := range metadata {
+			metadataCopy[k] = v
+		}
+	}
+
+	// Defensive copy of nested context metadata maps
+	var segmentCopy *SegmentContext
+	if segment != nil {
+		segmentCopy = &SegmentContext{
+			ID:   segment.ID,
+			Name: segment.Name,
+		}
+		if segment.Metadata != nil {
+			segmentCopy.Metadata = make(map[string]any, len(segment.Metadata))
+			for k, v := range segment.Metadata {
+				segmentCopy.Metadata[k] = v
+			}
+		}
+	}
+
+	var portfolioCopy *PortfolioContext
+	if portfolio != nil {
+		portfolioCopy = &PortfolioContext{
+			ID:   portfolio.ID,
+			Name: portfolio.Name,
+		}
+		if portfolio.Metadata != nil {
+			portfolioCopy.Metadata = make(map[string]any, len(portfolio.Metadata))
+			for k, v := range portfolio.Metadata {
+				portfolioCopy.Metadata[k] = v
+			}
+		}
+	}
+
+	var merchantCopy *MerchantContext
+	if merchant != nil {
+		merchantCopy = &MerchantContext{
+			ID:       merchant.ID,
+			Name:     merchant.Name,
+			Category: merchant.Category,
+			Country:  merchant.Country,
+		}
+		if merchant.Metadata != nil {
+			merchantCopy.Metadata = make(map[string]any, len(merchant.Metadata))
+			for k, v := range merchant.Metadata {
+				merchantCopy.Metadata[k] = v
+			}
+		}
+	}
+
+	req := &ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      transactionType,
+		SubType:              normalizedSubType,
+		Amount:               amount,
+		Currency:             normalizedCurrency,
+		TransactionTimestamp: transactionTimestamp,
+		Account:              account,
+		Segment:              segmentCopy,
+		Portfolio:            portfolioCopy,
+		Merchant:             merchantCopy,
+		Metadata:             metadataCopy,
+	}
+
+	// Validate after construction
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NormalizeAndValidate normalizes non-critical fields and validates the request in-place.
+// This method is useful after JSON parsing where the struct is already constructed.
+// SubType is trimmed and Metadata maps are defensively copied at all levels:
+// - Top-level Metadata map is shallow-copied
+// - Nested context metadata (Segment.Metadata, Portfolio.Metadata, Merchant.Metadata) are also shallow-copied
+// Note: Values within metadata maps remain shared references if they are maps/slices themselves.
+// Currency is NOT normalized - API enforces strict ISO 4217 uppercase validation (e.g., "usd" will fail).
+// Returns error if validation fails after normalization.
+//
+// Atomicity: If validation fails, the receiver is NOT modified. Normalization is only applied
+// after successful validation. This allows callers to safely retry or inspect the original values.
+//
+// Use this method when:
+// - Validating after JSON deserialization where strict ISO 4217 uppercase currency is required
+// - You want to enforce that clients send properly formatted currency codes
+//
+// For programmatic construction with automatic currency normalization, use NewValidationRequest() instead.
+func (r *ValidationRequest) NormalizeAndValidate() error {
+	// Prepare normalized values without mutating the receiver yet
+	var normalizedSubType *string
+
+	if r.SubType != nil {
+		trimmed := strings.TrimSpace(*r.SubType)
+		normalizedSubType = &trimmed
+	}
+
+	// Prepare shallow copy of top-level metadata
+	var metadataCopy map[string]any
+	if r.Metadata != nil {
+		metadataCopy = make(map[string]any, len(r.Metadata))
+		for k, v := range r.Metadata {
+			metadataCopy[k] = v
+		}
+	}
+
+	// Create temporary copy with normalized values for validation
+	temp := *r
+	temp.SubType = normalizedSubType
+	temp.Metadata = metadataCopy
+
+	// Deep copy nested context metadata to prevent shared references
+	if temp.Segment != nil && temp.Segment.Metadata != nil {
+		segmentMetaCopy := make(map[string]any, len(temp.Segment.Metadata))
+		for k, v := range temp.Segment.Metadata {
+			segmentMetaCopy[k] = v
+		}
+
+		segmentCopy := *temp.Segment
+		segmentCopy.Metadata = segmentMetaCopy
+		temp.Segment = &segmentCopy
+	}
+
+	if temp.Portfolio != nil && temp.Portfolio.Metadata != nil {
+		portfolioMetaCopy := make(map[string]any, len(temp.Portfolio.Metadata))
+		for k, v := range temp.Portfolio.Metadata {
+			portfolioMetaCopy[k] = v
+		}
+
+		portfolioCopy := *temp.Portfolio
+		portfolioCopy.Metadata = portfolioMetaCopy
+		temp.Portfolio = &portfolioCopy
+	}
+
+	if temp.Merchant != nil && temp.Merchant.Metadata != nil {
+		merchantMetaCopy := make(map[string]any, len(temp.Merchant.Metadata))
+		for k, v := range temp.Merchant.Metadata {
+			merchantMetaCopy[k] = v
+		}
+
+		merchantCopy := *temp.Merchant
+		merchantCopy.Metadata = merchantMetaCopy
+		temp.Merchant = &merchantCopy
+	}
+
+	// Validate on temp - if error, original r remains unchanged
+	if err := temp.Validate(); err != nil {
+		return err
+	}
+
+	// Only apply changes if validation succeeded (atomic commit)
+	r.SubType = normalizedSubType
+	r.Metadata = metadataCopy
+	r.Segment = temp.Segment
+	r.Portfolio = temp.Portfolio
+	r.Merchant = temp.Merchant
+
+	return nil
 }
 
 // LimitUsageDetail contains usage information for a checked limit.

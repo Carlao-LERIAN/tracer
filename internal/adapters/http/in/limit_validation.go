@@ -5,6 +5,7 @@
 package in
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -93,7 +94,7 @@ type CreateLimitInput struct {
 func (i *CreateLimitInput) Validate() error {
 	v, err := getValidator()
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrValidatorInit, err)
+		return fmt.Errorf("%w: %w", ErrValidatorInit, err)
 	}
 
 	if err := v.Struct(i); err != nil {
@@ -115,7 +116,7 @@ type UpdateLimitInput struct {
 func (i *UpdateLimitInput) Validate() error {
 	v, err := getValidator()
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrValidatorInit, err)
+		return fmt.Errorf("%w: %w", ErrValidatorInit, err)
 	}
 
 	if err := v.Struct(i); err != nil {
@@ -305,7 +306,9 @@ func ToListLimitsResponse(result *model.ListLimitsResult) *ListLimitsResponse {
 
 // formatLimitValidationError formats validator errors into user-friendly messages for limits.
 func formatLimitValidationError(err error) error {
-	validationErrors, ok := err.(validator.ValidationErrors)
+	var validationErrors validator.ValidationErrors
+
+	ok := errors.As(err, &validationErrors)
 	if !ok {
 		return err
 	}

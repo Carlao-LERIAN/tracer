@@ -83,6 +83,7 @@ var (
 	ErrRuleInvalidScope        = errors.New("TRC-0111") // scope must have at least one field set
 	ErrRuleDescriptionTooLong  = errors.New("TRC-0112") // rule description exceeds max length (1000)
 	ErrRuleScopesTooMany       = errors.New("TRC-0113") // rule scopes exceed maximum (100)
+	ErrRuleInvalidTransition   = errors.New("TRC-0114") // status transition not allowed
 
 	// =============================================================================
 	// Limit Errors (TRC-0120 to TRC-0139)
@@ -106,6 +107,19 @@ var (
 	ErrLimitCheckFailed             = errors.New("TRC-0136") // limit check failed
 	ErrLimitNilInput                = errors.New("TRC-0137") // limit input cannot be nil
 	ErrLimitImmutableField          = errors.New("TRC-0138") // cannot modify immutable field (limitType, currency)
+
+	// =============================================================================
+	// Audit Event Errors (TRC-0140 to TRC-0159)
+	// =============================================================================
+	ErrAuditEventNotFound             = errors.New("TRC-0140") // audit event not found
+	ErrInvalidAuditEventFilters       = errors.New("TRC-0141") // invalid audit event filter parameters
+	ErrAuditEventInvalidType          = errors.New("TRC-0142") // invalid audit event type
+	ErrAuditEventInvalidAction        = errors.New("TRC-0143") // invalid audit action
+	ErrAuditEventInvalidResult        = errors.New("TRC-0144") // invalid audit result
+	ErrAuditEventResourceIDRequired   = errors.New("TRC-0145") // resource ID is required
+	ErrAuditEventInvalidResourceType  = errors.New("TRC-0146") // invalid resource type
+	ErrAuditEventActorIDRequired      = errors.New("TRC-0147") // actor ID is required
+	ErrAuditEventActorTypeInvalid     = errors.New("TRC-0148") // actor type must be 'user' or 'system'
 
 	// =============================================================================
 	// UsageCounter Errors (TRC-0160 to TRC-0179)
@@ -166,11 +180,10 @@ var (
 	ErrListValidationsTimeout              = errors.New("TRC-0252") // list validations query timeout (deadline exceeded)
 
 	// =============================================================================
-	// Audit Event Errors (TRC-0140 to TRC-0149)
-	// New category for audit events - extends beyond Transaction Validation (TRC-0130 to TRC-0139)
+	// Transaction Validation Constructor Errors (TRC-0270 to TRC-0279)
 	// =============================================================================
-	ErrAuditEventNotFound       = errors.New("TRC-0140") // audit event not found
-	ErrInvalidAuditEventFilters = errors.New("TRC-0141") // invalid audit event filter parameters
+	ErrTransactionValidationIDRequired        = errors.New("TRC-0270") // validation ID is required
+	ErrTransactionValidationCreatedAtRequired = errors.New("TRC-0271") // createdAt is required
 )
 
 // Error code constants for HTTP responses.

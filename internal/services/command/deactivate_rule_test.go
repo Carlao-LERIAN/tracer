@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -39,15 +38,14 @@ func TestDeactivateRule_Success(t *testing.T) {
 		GetByID(gomock.Any(), ruleID).
 		Return(inputRule, nil)
 	mockRepo.EXPECT().
-		UpdateStatus(
-			gomock.Any(),
-			ruleID,
-			model.RuleStatusInactive,
-			gomock.AssignableToTypeOf(time.Time{}), // updatedAt should be set
-			gomock.Nil(),                            // activatedAt should be nil for deactivate
-			gomock.Not(gomock.Nil()),                // deactivatedAt should be set
-		).
-		Return(nil)
+		Update(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, rule *model.Rule) (*model.Rule, error) {
+			assert.Equal(t, ruleID, rule.ID)
+			assert.Equal(t, model.RuleStatusInactive, rule.Status)
+			assert.NotNil(t, rule.DeactivatedAt, "deactivatedAt should be set")
+			assert.False(t, rule.UpdatedAt.IsZero(), "updatedAt should be set")
+			return rule, nil
+		})
 
 	auditWriter := NewMockAuditWriter(ctrl)
 	// Audit event should be called exactly once with specific parameters
@@ -254,18 +252,11 @@ func TestDeactivateRule_UpdateStatusError(t *testing.T) {
 		GetByID(gomock.Any(), ruleID).
 		Return(inputRule, nil)
 	mockRepo.EXPECT().
-		UpdateStatus(
-			gomock.Any(),
-			ruleID,
-			model.RuleStatusInactive,
-			gomock.AssignableToTypeOf(time.Time{}), // updatedAt should be set
-			gomock.Nil(),                            // activatedAt should be nil for deactivate
-			gomock.Not(gomock.Nil()),                // deactivatedAt should be set
-		).
-		Return(errors.New("database error"))
+		Update(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("database error"))
 
 	auditWriter := NewMockAuditWriter(ctrl)
-	// No audit event expected - UpdateStatus failed before audit
+	// No audit event expected - Update failed before audit
 	auditWriter.EXPECT().RecordRuleEvent(
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
@@ -276,4 +267,6 @@ func TestDeactivateRule_UpdateStatusError(t *testing.T) {
 	_, err := service.Execute(ctx, ruleID)
 
 	require.Error(t, err)
+	// Note: inputRule in memory IS mutated by SetStatus() before persistence fails
+	assert.Equal(t, model.RuleStatusInactive, inputRule.Status, "Status is mutated in memory by SetStatus()")
 }

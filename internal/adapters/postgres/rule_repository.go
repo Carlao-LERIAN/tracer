@@ -484,6 +484,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 		// potential bypass or refactoring. Use default limit + 1 as safe fallback.
 		fetchLimit = constant.DefaultPaginationLimit + 1
 	}
+
 	query = query.Limit(uint64(fetchLimit)) // #nosec G115 - fetchLimit validated positive above
 
 	sqlStr, args, err := query.ToSql()
@@ -603,7 +604,7 @@ func (r *Repository) applyCursorFilter(query sq.SelectBuilder, cursorStr string,
 	cursor, err := pkgHTTP.DecodeCursor(cursorStr)
 	if err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
-		return query, "", "", "", fmt.Errorf("%w: %v", constant.ErrInvalidCursor, err)
+		return query, "", "", "", fmt.Errorf("%w: %w", constant.ErrInvalidCursor, err)
 	}
 
 	// Use sort field from cursor (in camelCase)

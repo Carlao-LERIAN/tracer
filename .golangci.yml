@@ -4,10 +4,12 @@ run:
 linters:
   enable:
     - bodyclose
+    - contextcheck    # Verifies correct context propagation
     - depguard
     - dogsled
     - dupword
     - errchkjson
+    - errorlint       # Enforces %w usage in error wrapping
     - gocognit
     - gocyclo
     - loggercheck
@@ -28,6 +30,11 @@ linters:
     - wastedassign
     - wsl_v5
   settings:
+    errorlint:
+      # Enforces %w instead of %v for error wrapping
+      errorf: true
+      asserts: true
+      comparison: true
     wsl_v5:
       allow-first-in-block: true
       allow-whole-block: false

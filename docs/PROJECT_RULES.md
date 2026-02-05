@@ -4,6 +4,7 @@ This document defines the architecture patterns, code conventions, testing requi
 
 ## Table of Contents
 
+- [Coding Standards (NEW!)](#coding-standards)
 - [Architecture](#architecture)
 - [Code Conventions](#code-conventions)
 - [Error Handling](#error-handling)
@@ -18,6 +19,32 @@ This document defines the architecture patterns, code conventions, testing requi
 - [Observability Patterns](#observability-patterns)
 - [Forbidden Practices](#forbidden-practices)
 - [AI Assistant Rules](#ai-assistant-rules)
+
+---
+
+## Coding Standards
+
+**📘 See full document:** [docs/CODING_STANDARDS.md](./CODING_STANDARDS.md)  
+**🌐 Language Policy:** [docs/LANGUAGE_POLICY.md](./LANGUAGE_POLICY.md) - **All code, comments, docs MUST be in English**
+
+This document consolidates best practices identified through code reviews to ensure consistency. Main topics:
+
+1. **Domain Model Invariants** - Always-Valid Objects, Validate Before Mutate
+2. **Error Handling** - %w vs %v, Context Propagation, Typed Errors
+3. **Testing Standards** - Deterministic Tests, Build Tags, Parallelization
+4. **Encapsulation & DDD** - Domain Logic Location, Tell Don't Ask
+5. **Normalization & Validation** - Normalize-Validate-Store Pattern
+6. **Code Organization** - Error Constants Order, Test Helpers Centralization
+7. **Review Checklist** - For authors and reviewers
+8. **Language Policy** - English only for all artifacts
+
+**Golden Rules:**
+- ✅ **Validate Before Mutate** - Atomicity in error-returning methods
+- ✅ **Domain Logic in Domain** - Not in service layer
+- ✅ **Deterministic Tests** - testutil.FixedTime(), never time.Now()
+- ✅ **Error Chain Preservation** - Always `%w`, never `%v`
+- ✅ **Normalize-Validate-Store** - In that order, store normalized value
+- ✅ **English Only** - All code, comments, docs, commits in English
 
 ---
 
@@ -293,6 +320,341 @@ type LimitUsage struct {
     Exceeded     bool      `json:"exceeded"`
 }
 ```
+
+### Always Valid Domain Model
+
+Domain entities must maintain their invariants at all times. An object should never exist in an invalid state - validation and invariant enforcement happen at construction and mutation, not as a separate step.
+
+**Core Principles:**
+
+1. **Validate in constructors** - Objects are born valid
+2. **Validate before mutation** - State changes preserve validity
+3. **Private setters** - No external code can break invariants
+4. **Defensive copies** - Slices and maps cannot be mutated externally
+5. **No invalid state** - Impossible to represent invalid combinations
+
+#### Constructor Validation
+
+All domain entity constructors must validate inputs and return errors for invalid data:
+
+```go
+// WRONG - entity can be created in invalid state
+func NewRule(name, expression string, action Decision) *Rule {
+    return &Rule{
+        ID:         uuid.New(),
+        Name:       name,  // Not validated - could be empty or too long
+        Expression: expression,  // Not validated - could be malformed
+        Action:     action,
+        Status:     RuleStatusDraft,
+        CreatedAt:  time.Now(),
+    }
+}
+
+// Usage creates invalid entity with no error feedback
+rule := NewRule("", "invalid CEL", "INVALID_ACTION")  // Silent failure!
+
+// CORRECT - validation at construction prevents invalid state
+func NewRule(name, expression string, action Decision) (*Rule, error) {
+    // Normalize input
+    name = strings.TrimSpace(name)
+    expression = strings.TrimSpace(expression)
+
+    // Validate all invariants
+    if name == "" {
+        return nil, ErrRuleNameRequired
+    }
+    if len(name) > MaxRuleNameLength {
+        return nil, ErrRuleNameTooLong
+    }
+    if expression == "" {
+        return nil, ErrExpressionRequired
+    }
+    if !isValidDecision(action) {
+        return nil, ErrInvalidAction
+    }
+
+    // Object is guaranteed valid
+    return &Rule{
+        ID:         uuid.New(),
+        Name:       name,
+        Expression: expression,
+        Action:     action,
+        Status:     RuleStatusDraft,
+        CreatedAt:  time.Now(),
+        UpdatedAt:  time.Now(),
+    }, nil
+}
+
+// Usage forces error handling
+rule, err := NewRule(input.Name, input.Expression, input.Action)
+if err != nil {
+    return nil, err  // Cannot proceed with invalid entity
+}
+```
+
+#### Mutation Validation
+
+Methods that change state must validate before applying changes. Failed validations must leave the object unchanged (no partial mutations):
+
+```go
+// WRONG - partial mutation on validation failure
+func (l *Limit) Update(name string, maxAmount int64) error {
+    l.Name = strings.TrimSpace(name)  // Mutated!
+    
+    if l.Name == "" {
+        return ErrNameRequired  // BUG: Name was mutated even though validation failed
+    }
+    
+    l.MaxAmount = maxAmount  // Mutated!
+    
+    if maxAmount <= 0 {
+        return ErrInvalidAmount  // BUG: Both fields mutated before validation completed
+    }
+    
+    l.UpdatedAt = time.Now()
+    return nil
+}
+
+// CORRECT - validate first, then mutate atomically
+func (l *Limit) Update(name string, maxAmount int64) error {
+    // Normalize inputs (does not mutate state)
+    normalizedName := strings.TrimSpace(name)
+    
+    // Validate ALL invariants before ANY mutation
+    if normalizedName == "" {
+        return ErrNameRequired
+    }
+    if len(normalizedName) > MaxLimitNameLength {
+        return ErrNameTooLong
+    }
+    if maxAmount <= 0 {
+        return ErrInvalidAmount
+    }
+    if maxAmount > MaxAllowedAmount {
+        return ErrAmountExceedsMax
+    }
+    
+    // All validations passed - now mutate atomically
+    l.Name = normalizedName
+    l.MaxAmount = maxAmount
+    l.UpdatedAt = time.Now()
+    
+    return nil
+}
+```
+
+#### Private Fields with Validated Setters
+
+Expose fields through methods that enforce invariants, not public fields:
+
+```go
+// WRONG - public fields allow invalid mutations
+type Rule struct {
+    Status     RuleStatus  // Anyone can set invalid status!
+    DeletedAt  *time.Time  // Can be inconsistent with Status!
+}
+
+// External code can break invariants
+rule.Status = "INVALID_STATUS"  // Compiles but violates domain rules
+rule.DeletedAt = &now  // Inconsistent: DeletedAt set but Status != DELETED
+
+// CORRECT - private fields with validated setters
+type Rule struct {
+    status    RuleStatus   // Private - cannot be set externally
+    deletedAt *time.Time   // Private - managed by SetStatus
+}
+
+// Getter (read-only access)
+func (r *Rule) Status() RuleStatus {
+    return r.status
+}
+
+// Setter enforces invariants
+func (r *Rule) SetStatus(status RuleStatus) error {
+    // Validate state transition
+    if !r.isValidTransition(r.status, status) {
+        return ErrInvalidStatusTransition
+    }
+    
+    // Update status
+    r.status = status
+    r.updatedAt = time.Now()
+    
+    // Maintain invariant: DeletedAt set iff status is DELETED
+    if status == RuleStatusDeleted {
+        now := time.Now()
+        r.deletedAt = &now
+    } else {
+        r.deletedAt = nil
+    }
+    
+    return nil
+}
+
+// External code cannot break invariants
+err := rule.SetStatus(RuleStatusActive)  // Validated transition
+if err != nil {
+    // Handle invalid transition
+}
+```
+
+#### Defensive Copies for Collections
+
+Always create defensive copies of slices and maps to prevent external mutation:
+
+```go
+// WRONG - stores reference to external slice
+func NewLimit(name string, scopes []Scope) *Limit {
+    return &Limit{
+        Name:   name,
+        Scopes: scopes,  // DANGER: External code can modify this slice!
+    }
+}
+
+// External code breaks encapsulation
+scopes := []Scope{{AccountID: &accountID}}
+limit := NewLimit("Daily Limit", scopes)
+scopes[0].AccountID = nil  // BUG: Mutates limit.Scopes!
+
+// CORRECT - defensive copy prevents external mutation
+func NewLimit(name string, scopes []Scope) (*Limit, error) {
+    // Validate inputs
+    name = strings.TrimSpace(name)
+    if name == "" {
+        return nil, ErrNameRequired
+    }
+    
+    // Defensive copy of slice
+    scopesCopy := make([]Scope, len(scopes))
+    copy(scopesCopy, scopes)
+    
+    return &Limit{
+        ID:        uuid.New(),
+        Name:      name,
+        Scopes:    scopesCopy,  // Safe: external changes don't affect this
+        CreatedAt: time.Now(),
+    }, nil
+}
+
+// Also apply in getters that return slices
+func (l *Limit) Scopes() []Scope {
+    // Return defensive copy, not internal slice
+    scopesCopy := make([]Scope, len(l.scopes))
+    copy(scopesCopy, l.scopes)
+    return scopesCopy
+}
+```
+
+#### Validation Method
+
+Every domain entity should have a `Validate()` method that checks all invariants. This serves as documentation and enables defensive validation at persistence boundaries:
+
+```go
+// Validation errors for Limit entity
+var (
+    ErrLimitNameRequired     = errors.New("limit name is required")
+    ErrLimitNameTooLong      = errors.New("limit name exceeds maximum length")
+    ErrInvalidMaxAmount      = errors.New("max amount must be positive")
+    ErrMaxAmountExceedsLimit = errors.New("max amount exceeds maximum allowed value")
+    ErrInvalidCurrency       = errors.New("currency must be valid ISO 4217 code")
+    ErrDeletedAtInconsistent = errors.New("deletedAt must be set iff status is DELETED")
+)
+
+func (l *Limit) Validate() error {
+    // Name validation
+    if strings.TrimSpace(l.Name) == "" {
+        return ErrLimitNameRequired
+    }
+    if len(l.Name) > MaxLimitNameLength {
+        return ErrLimitNameTooLong
+    }
+    
+    // Amount validation
+    if l.MaxAmount <= 0 {
+        return ErrInvalidMaxAmount
+    }
+    if l.MaxAmount > MaxAllowedAmount {
+        return ErrMaxAmountExceedsLimit
+    }
+    
+    // Currency validation
+    if !isValidCurrency(l.Currency) {
+        return ErrInvalidCurrency
+    }
+    
+    // Invariant: DeletedAt set iff status is DELETED
+    if l.Status == LimitStatusDeleted && l.DeletedAt == nil {
+        return ErrDeletedAtInconsistent
+    }
+    if l.Status != LimitStatusDeleted && l.DeletedAt != nil {
+        return ErrDeletedAtInconsistent
+    }
+    
+    return nil
+}
+
+// Use at persistence boundaries
+func (r *Repository) Save(ctx context.Context, limit *Limit) error {
+    // Defensive validation before persistence
+    if err := limit.Validate(); err != nil {
+        return fmt.Errorf("invalid limit: %w", err)
+    }
+    
+    // Proceed with persistence
+    return r.db.Insert(ctx, limit)
+}
+```
+
+#### Benefits
+
+**Type Safety:** Invalid states are unrepresentable - the type system prevents bugs at compile time.
+
+**No Validation Drift:** Validation logic lives with the entity, not scattered across handlers/services.
+
+**Testability:** Constructor and mutation validation can be unit tested independently.
+
+**Clarity:** Reading a constructor shows all business rules and constraints.
+
+**Fail Fast:** Invalid data is caught at creation/mutation, not deep in the call stack.
+
+#### Anti-Patterns to Avoid
+
+```go
+// ❌ Don't: Separate validation from construction
+limit := &Limit{Name: input.Name, MaxAmount: input.Amount}
+if err := limit.Validate(); err != nil {
+    return err  // Too late - already constructed invalid object
+}
+
+// ✅ Do: Validate during construction
+limit, err := NewLimit(input.Name, input.Amount)
+if err != nil {
+    return err  // Cannot create invalid object
+}
+
+// ❌ Don't: Allow mutation via exported fields
+limit.MaxAmount = -1000  // Compiles but violates domain rules
+
+// ✅ Do: Mutation through validated methods
+err := limit.SetMaxAmount(newAmount)
+if err != nil {
+    return err  // Validation failed
+}
+
+// ❌ Don't: Return internal slices directly
+func (l *Limit) Scopes() []Scope {
+    return l.scopes  // Caller can mutate internal state!
+}
+
+// ✅ Do: Return defensive copies
+func (l *Limit) Scopes() []Scope {
+    result := make([]Scope, len(l.scopes))
+    copy(result, l.scopes)
+    return result
+}
+```
+
+**Apply to:** All domain entities in `pkg/model` - Rule, Limit, Scope, and any future domain types.
 
 ### State Invariant Enforcement (Soft-Delete)
 
@@ -1506,19 +1868,40 @@ require.ErrorIs(t, err, context.Canceled)
 
 #### Deterministic Test Data
 
+**CRITICAL RULE:** Never use `uuid.New()`, `time.Now()`, or any non-deterministic values in tests or test helpers.
+
 Use deterministic UUIDs and timestamps for reproducible tests:
 
 ```go
 // WRONG - non-deterministic, hard to debug
 rule := &model.Rule{
-    ID:        uuid.New(),           // Random each run
-    CreatedAt: time.Now(),           // Different each run
+    ID:        uuid.New(),           // Random each run - FORBIDDEN
+    CreatedAt: time.Now(),           // Different each run - FORBIDDEN
+}
+
+// WRONG - test helper with non-deterministic values
+func createTestRequest() *ValidationRequest {
+    return &ValidationRequest{
+        RequestID:            uuid.New(),   // FORBIDDEN IN HELPERS
+        TransactionTimestamp: time.Now(),  // FORBIDDEN IN HELPERS
+    }
 }
 
 // CORRECT - deterministic, reproducible
 rule := &model.Rule{
     ID:        testutil.DeterministicUUID(1),  // Always same UUID
     CreatedAt: testutil.FixedTime(),           // Consistent timestamp
+}
+
+// CORRECT - test helper with deterministic values
+func createTestRequest() *ValidationRequest {
+    return &ValidationRequest{
+        RequestID:            testutil.MustDeterministicUUID(1),
+        TransactionTimestamp: testutil.FixedTime(),
+        Account: AccountContext{
+            ID: testutil.MustDeterministicUUID(2),
+        },
+    }
 }
 
 // For multiple UUIDs
@@ -1528,8 +1911,36 @@ require.NoError(t, err)
 
 **Benefits:**
 - Tests are reproducible across runs
-- Easier to debug failures
+- Easier to debug failures (same values every time)
 - Consistent expected values in assertions
+- Prevents flaky tests from timing issues
+- CI/CD builds are deterministic
+
+**Available Deterministic Helpers:**
+- `testutil.FixedTime()` - Returns 2024-01-01T00:00:00Z
+- `testutil.MustDeterministicUUID(seed)` - Returns deterministic UUID based on seed
+- `testutil.DeterministicUUIDs(start, count)` - Returns slice of deterministic UUIDs
+- `testutil.NewDefaultMockClock()` - Returns mock clock with fixed time
+
+**Common Violations:**
+```go
+// ❌ WRONG - uuid.New() in test helper
+createValidRequest := func() *ValidationRequest {
+    return &ValidationRequest{
+        RequestID: uuid.New(),  // Will cause flaky tests
+    }
+}
+
+// ❌ WRONG - time.Now() in test setup
+beforeTest := time.Now()
+// Test logic...
+assert.True(t, createdAt.After(beforeTest))  // Timing-dependent
+
+// ✅ CORRECT - Fixed time reference
+fixedTime := testutil.FixedTime()
+// Test logic...
+assert.Equal(t, fixedTime, createdAt)  // Deterministic assertion
+```
 
 #### Boundary Value Tests
 

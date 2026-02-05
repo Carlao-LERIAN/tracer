@@ -221,6 +221,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		// potential bypass or refactoring. Use default limit + 1 as safe fallback.
 		fetchLimit = constant.DefaultPaginationLimit + 1
 	}
+
 	query = query.Limit(uint64(fetchLimit)) // #nosec G115 - fetchLimit validated positive above
 
 	sqlStr, args, err := query.ToSql()
@@ -431,7 +432,7 @@ func (r *LimitRepository) applyCursorFilter(query sq.SelectBuilder, cursorStr st
 	cursor, err := pkgHTTP.DecodeCursor(cursorStr)
 	if err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
-		return query, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %v", constant.ErrInvalidCursor, err)
+		return query, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %w", constant.ErrInvalidCursor, err)
 	}
 
 	// Use sort field from cursor (in camelCase) and validate
@@ -471,7 +472,7 @@ func (r *LimitRepository) applyCursorFilter(query sq.SelectBuilder, cursorStr st
 	// Use sortField (camelCase) as validateCursorSortValue expects API field names
 	if err := validateCursorSortValue(sortField, cursor.SortValue); err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor sort value type", constant.ErrInvalidCursor)
-		return query, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %v", constant.ErrInvalidCursor, err)
+		return query, requestedSortBy, requestedOrderDir, fmt.Errorf("%w: %w", constant.ErrInvalidCursor, err)
 	}
 
 	// Build WHERE clause based on sort column

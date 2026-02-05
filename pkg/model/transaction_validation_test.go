@@ -20,41 +20,67 @@ func TestNewTransactionValidation(t *testing.T) {
 	fixedTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 
 	tests := []struct {
-		name     string
-		id       uuid.UUID
-		decision Decision
+		name      string
+		id        uuid.UUID
+		decision  Decision
+		createdAt time.Time
+		expectErr bool
 	}{
 		{
-			name:     "creates audit with ALLOW decision",
-			id:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
-			decision: DecisionAllow,
+			name:      "creates audit with ALLOW decision",
+			id:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
+			decision:  DecisionAllow,
+			createdAt: fixedTime,
+			expectErr: false,
 		},
 		{
-			name:     "creates audit with DENY decision",
-			id:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"),
-			decision: DecisionDeny,
+			name:      "creates audit with DENY decision",
+			id:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"),
+			decision:  DecisionDeny,
+			createdAt: fixedTime,
+			expectErr: false,
 		},
 		{
-			name:     "creates audit with REVIEW decision",
-			id:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
-			decision: DecisionReview,
+			name:      "creates audit with REVIEW decision",
+			id:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
+			decision:  DecisionReview,
+			createdAt: fixedTime,
+			expectErr: false,
 		},
 		{
-			name:     "creates audit with invalid decision (documents current behavior)",
-			id:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"),
-			decision: Decision("INVALID"),
+			name:      "rejects invalid decision",
+			id:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"),
+			decision:  Decision("INVALID"),
+			createdAt: fixedTime,
+			expectErr: true,
 		},
 		{
-			name:     "creates audit with zero UUID",
-			id:       uuid.Nil,
-			decision: DecisionAllow,
+			name:      "rejects zero UUID",
+			id:        uuid.Nil,
+			decision:  DecisionAllow,
+			createdAt: fixedTime,
+			expectErr: true,
+		},
+		{
+			name:      "rejects zero createdAt",
+			id:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440005"),
+			decision:  DecisionAllow,
+			createdAt: time.Time{},
+			expectErr: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := NewTransactionValidation(tc.id, tc.decision, fixedTime)
+			result, err := NewTransactionValidation(tc.id, tc.decision, tc.createdAt)
 
+			if tc.expectErr {
+				require.Error(t, err)
+				require.Nil(t, result)
+				return
+			}
+
+			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tc.id, result.ID)
 			assert.Equal(t, tc.decision, result.Decision)
@@ -70,7 +96,7 @@ func TestNewTransactionValidation(t *testing.T) {
 			assert.Empty(t, result.LimitUsageDetails)
 
 			// Verify CreatedAt matches the provided time (deterministic)
-			assert.Equal(t, fixedTime, result.CreatedAt, "CreatedAt should match provided time")
+			assert.Equal(t, tc.createdAt, result.CreatedAt, "CreatedAt should match provided time")
 
 			// Verify optional fields are zero values
 			assert.Empty(t, result.Reason)
