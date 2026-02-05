@@ -86,7 +86,7 @@ func SetupTestSuite(m *testing.M) int {
 	// Start postgres container
 	pgContainer, err := NewTestPostgresContainer(ctx)
 	if err != nil {
-		fmt.Printf("Failed to start postgres container: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to start postgres container: %v\n", err)
 		restoreEnvironment()
 		return 1
 	}
@@ -96,7 +96,7 @@ func SetupTestSuite(m *testing.M) int {
 	// The server will bind to this port immediately after startup.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		fmt.Printf("Failed to find free port: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to find free port: %v\n", err)
 		pgContainer.Terminate(ctx)
 		restoreEnvironment()
 		return 1
@@ -133,7 +133,7 @@ func SetupTestSuite(m *testing.M) int {
 	// Start the application server
 	service, err := bootstrap.InitServers()
 	if err != nil {
-		fmt.Printf("Failed to initialize servers: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to initialize servers: %v\n", err)
 		pgContainer.Terminate(ctx)
 		restoreEnvironment()
 		return 1
@@ -144,7 +144,7 @@ func SetupTestSuite(m *testing.M) int {
 	// Wait for server to be ready
 	serverURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	if err := waitForServer(serverURL, 30*time.Second); err != nil {
-		fmt.Printf("Server failed to start: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Server failed to start: %v\n", err)
 		pgContainer.Terminate(ctx)
 		restoreEnvironment()
 		return 1
@@ -172,7 +172,7 @@ func SetupTestSuite(m *testing.M) int {
 	defer cancel()
 	if globalSuite.service != nil {
 		if err := globalSuite.service.Shutdown(shutdownCtx); err != nil {
-			fmt.Printf("Failed to shutdown service: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Failed to shutdown service: %v\n", err)
 		}
 	}
 
