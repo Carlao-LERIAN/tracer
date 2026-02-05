@@ -218,8 +218,35 @@ func (r *Rule) Update(
 	}
 
 	if scopes != nil {
-		// Defensive copy to prevent external mutation
-		r.Scopes = append([]Scope{}, *scopes...)
+		// Defensive deep copy of scopes to prevent external mutation
+		// Deep copy UUID pointers to prevent external mutations from affecting rule
+		scopesCopy := make([]Scope, 0, len(*scopes))
+		for _, scope := range *scopes {
+			if scope.IsEmpty() {
+				return constant.ErrRuleInvalidScope
+			}
+
+			// Deep copy the scope with independent UUID pointers
+			scopeCopy := scope
+			if scope.AccountID != nil {
+				accountIDCopy := *scope.AccountID
+				scopeCopy.AccountID = &accountIDCopy
+			}
+
+			if scope.SegmentID != nil {
+				segmentIDCopy := *scope.SegmentID
+				scopeCopy.SegmentID = &segmentIDCopy
+			}
+
+			if scope.PortfolioID != nil {
+				portfolioIDCopy := *scope.PortfolioID
+				scopeCopy.PortfolioID = &portfolioIDCopy
+			}
+
+			scopesCopy = append(scopesCopy, scopeCopy)
+		}
+
+		r.Scopes = scopesCopy
 		updated = true
 	}
 

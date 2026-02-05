@@ -126,4 +126,26 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, originalScopes, rule.Scopes, "Scopes should not be mutated on validation failure")
 	})
+
+	t.Run("Deep copy - external scope mutation doesn't affect rule", func(t *testing.T) {
+		rule := newTestRule(t)
+
+		// Create scope with UUID pointer
+		originalAccountID := uuid.New()
+		externalScopes := []Scope{
+			{AccountID: testutil.UUIDPtr(originalAccountID)},
+		}
+
+		// Update rule with scopes
+		err := rule.Update(nil, nil, nil, &externalScopes)
+		require.NoError(t, err)
+
+		// Mutate the UUID value through the external pointer (tests deep copy semantics)
+		newAccountID := uuid.New()
+		*externalScopes[0].AccountID = newAccountID
+
+		// Verify rule's scopes are unaffected (should still have original value)
+		assert.Equal(t, originalAccountID, *rule.Scopes[0].AccountID, "Rule scopes should not be affected by external mutation")
+		assert.NotEqual(t, newAccountID, *rule.Scopes[0].AccountID, "Rule should have deep-copied UUID pointer")
+	})
 }
