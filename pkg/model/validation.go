@@ -116,6 +116,51 @@ func NewValidationRequest(
 		}
 	}
 
+	// Defensive copy of nested context metadata maps
+	var segmentCopy *SegmentContext
+	if segment != nil {
+		segmentCopy = &SegmentContext{
+			ID:   segment.ID,
+			Name: segment.Name,
+		}
+		if segment.Metadata != nil {
+			segmentCopy.Metadata = make(map[string]any, len(segment.Metadata))
+			for k, v := range segment.Metadata {
+				segmentCopy.Metadata[k] = v
+			}
+		}
+	}
+
+	var portfolioCopy *PortfolioContext
+	if portfolio != nil {
+		portfolioCopy = &PortfolioContext{
+			ID:   portfolio.ID,
+			Name: portfolio.Name,
+		}
+		if portfolio.Metadata != nil {
+			portfolioCopy.Metadata = make(map[string]any, len(portfolio.Metadata))
+			for k, v := range portfolio.Metadata {
+				portfolioCopy.Metadata[k] = v
+			}
+		}
+	}
+
+	var merchantCopy *MerchantContext
+	if merchant != nil {
+		merchantCopy = &MerchantContext{
+			ID:       merchant.ID,
+			Name:     merchant.Name,
+			Category: merchant.Category,
+			Country:  merchant.Country,
+		}
+		if merchant.Metadata != nil {
+			merchantCopy.Metadata = make(map[string]any, len(merchant.Metadata))
+			for k, v := range merchant.Metadata {
+				merchantCopy.Metadata[k] = v
+			}
+		}
+	}
+
 	req := &ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      transactionType,
@@ -124,9 +169,9 @@ func NewValidationRequest(
 		Currency:             normalizedCurrency,
 		TransactionTimestamp: transactionTimestamp,
 		Account:              account,
-		Segment:              segment,
-		Portfolio:            portfolio,
-		Merchant:             merchant,
+		Segment:              segmentCopy,
+		Portfolio:            portfolioCopy,
+		Merchant:             merchantCopy,
 		Metadata:             metadataCopy,
 	}
 

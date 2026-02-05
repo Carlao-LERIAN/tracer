@@ -567,3 +567,70 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 		assert.Nil(t, req.Merchant.Metadata)
 	})
 }
+
+func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
+	t.Parallel()
+
+	fixedTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	// Create contexts with metadata that we'll try to mutate
+	segmentMeta := map[string]any{"seg_key": "seg_value"}
+	portfolioMeta := map[string]any{"port_key": "port_value"}
+	merchantMeta := map[string]any{"merch_key": "merch_value"}
+
+	segment := &SegmentContext{
+		ID:       uuid.New(),
+		Name:     "Test Segment",
+		Metadata: segmentMeta,
+	}
+
+	portfolio := &PortfolioContext{
+		ID:       uuid.New(),
+		Name:     "Test Portfolio",
+		Metadata: portfolioMeta,
+	}
+
+	merchant := &MerchantContext{
+		ID:       uuid.New(),
+		Name:     "Test Merchant",
+		Category: "retail",
+		Country:  "US",
+		Metadata: merchantMeta,
+	}
+
+	// Create request
+	req, err := NewValidationRequest(
+		uuid.New(),
+		TransactionTypeCard,
+		nil,
+		1000,
+		"USD",
+		fixedTime,
+		AccountContext{ID: uuid.New()},
+		segment,
+		portfolio,
+		merchant,
+		nil,
+	)
+	require.NoError(t, err)
+
+	// Mutate original context metadata maps
+	segmentMeta["seg_key"] = "MUTATED"
+	segmentMeta["new_key"] = "NEW_VALUE"
+
+	portfolioMeta["port_key"] = "MUTATED"
+	portfolioMeta["new_key"] = "NEW_VALUE"
+
+	merchantMeta["merch_key"] = "MUTATED"
+	merchantMeta["new_key"] = "NEW_VALUE"
+
+	// Verify request contexts are unaffected (defensive copy worked)
+	assert.Equal(t, "seg_value", req.Segment.Metadata["seg_key"], "Segment metadata should not be affected by external mutation")
+	assert.NotContains(t, req.Segment.Metadata, "new_key", "Segment metadata should not have new keys from external map")
+
+	assert.Equal(t, "port_value", req.Portfolio.Metadata["port_key"], "Portfolio metadata should not be affected by external mutation")
+	assert.NotContains(t, req.Portfolio.Metadata, "new_key", "Portfolio metadata should not have new keys from external map")
+
+	assert.Equal(t, "merch_value", req.Merchant.Metadata["merch_key"], "Merchant metadata should not be affected by external mutation")
+	assert.NotContains(t, req.Merchant.Metadata, "new_key", "Merchant metadata should not have new keys from external map")
+}
