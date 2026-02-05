@@ -185,10 +185,17 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 				assert.NotEmpty(t, event.EventID, "EventID should be generated")
 				assert.False(t, event.CreatedAt.IsZero(), "CreatedAt should be set")
 				
+				// Assert input fields are preserved
 				assert.Equal(t, tc.eventType, event.EventType)
 				assert.Equal(t, tc.action, event.Action)
 				assert.Equal(t, tc.result, event.Result)
 				assert.Equal(t, tc.resourceType, event.ResourceType)
+				assert.Equal(t, tc.resourceID, event.ResourceID, "ResourceID should be preserved")
+				
+				// Assert actor is preserved
+				assert.Equal(t, validActor.ActorType, event.Actor.ActorType, "Actor.ActorType should be preserved")
+				assert.Equal(t, validActor.ID, event.Actor.ID, "Actor.ID should be preserved")
+				assert.Equal(t, validActor.Name, event.Actor.Name, "Actor.Name should be preserved")
 			})
 		}
 	})
