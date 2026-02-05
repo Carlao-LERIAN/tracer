@@ -184,6 +184,11 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 				require.NoError(t, err)
 				require.NotNil(t, event)
+				
+				// Assert generated fields are populated
+				assert.NotEmpty(t, event.EventID, "EventID should be generated")
+				assert.False(t, event.CreatedAt.IsZero(), "CreatedAt should be set")
+				
 				assert.Equal(t, tc.eventType, event.EventType)
 				assert.Equal(t, tc.action, event.Action)
 				assert.Equal(t, tc.result, event.Result)
@@ -204,6 +209,10 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, event)
+		
+		// Assert generated fields are populated
+		assert.NotEmpty(t, event.EventID, "EventID should be generated")
+		assert.False(t, event.CreatedAt.IsZero(), "CreatedAt should be set")
 		assert.NotNil(t, event.Context, "Context should be initialized")
 		assert.NotNil(t, event.Metadata, "Metadata should be initialized")
 		assert.Empty(t, event.Context, "Context should be empty map")
@@ -256,6 +265,11 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 				require.NoError(t, err)
 				require.NotNil(t, event)
+				
+				// Assert generated fields are populated
+				assert.NotEmpty(t, event.EventID, "EventID should be generated")
+				assert.False(t, event.CreatedAt.IsZero(), "CreatedAt should be set")
+				
 				assert.Equal(t, tc.expected, event.ResourceID, "ResourceID should be trimmed")
 			})
 		}
@@ -313,6 +327,11 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 				require.NoError(t, err)
 				require.NotNil(t, event)
+				
+				// Assert generated fields are populated
+				assert.NotEmpty(t, event.EventID, "EventID should be generated")
+				assert.False(t, event.CreatedAt.IsZero(), "CreatedAt should be set")
+				
 				assert.Equal(t, tc.expected, event.Actor.ID, "Actor.ID should be trimmed")
 			})
 		}
