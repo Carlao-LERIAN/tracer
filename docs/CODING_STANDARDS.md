@@ -525,7 +525,7 @@ func UUIDPtr(id uuid.UUID) *uuid.UUID { ... }  // Duplicate!
 
 - [ ] Objects are always valid after construction?
 - [ ] No partial mutation on failures?
-- [ ] Tests pass 10x consecutively?
+- [ ] Tests pass 3x consecutively (determinism)?
 - [ ] Service layer doesn't mutate fields directly?
 - [ ] `errors.Is()` works with wrapped errors?
 - [ ] Validation order prevents inconsistent state?

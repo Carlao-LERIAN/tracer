@@ -92,8 +92,7 @@ Run: `make lint`
 ### CI/CD Pipeline
 
 Checks in `.github/workflows/`:
-- Tests run 10x for determinism
-- Build tags verification
+- Test determinism (3x runs)
 - Non-English content detection (optional)
 
 ---
