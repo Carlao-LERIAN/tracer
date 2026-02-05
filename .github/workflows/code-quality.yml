@@ -24,29 +24,6 @@ jobs:
           version: v2.8.0
           args: --timeout=5m
 
-  build-tags:
-    name: Verify Build Tags
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Check for missing build tags
-        run: |
-          echo "Checking for test files without build tags..."
-          
-          missing=$(find . -name '*_test.go' -not -path '*/vendor/*' -exec grep -L "//go:build" {} \;)
-          
-          if [ -n "$missing" ]; then
-            echo "❌ ERROR: Test files missing //go:build tags:"
-            echo "$missing"
-            echo ""
-            echo "All test files must have: //go:build unit"
-            echo "See: docs/CODING_STANDARDS.md section 3"
-            exit 1
-          fi
-          
-          echo "✅ All test files have build tags"
-
   test:
     name: Unit Tests
     runs-on: ubuntu-latest

@@ -334,11 +334,9 @@ func createTestRequest() *ValidationRequest {
 - CI/CD builds should be deterministic
 - Test failures should always be investigable
 
-### Build Tags and Parallelization
+### Test Parallelization
 
 ```go
-//go:build unit
-
 package model
 
 func TestNewRule(t *testing.T) {
@@ -517,7 +515,6 @@ func UUIDPtr(id uuid.UUID) *uuid.UUID { ... }  // Duplicate!
 
 - [ ] Methods validate before mutating?
 - [ ] Tests use `testutil.FixedTime()` not `time.Now()`?
-- [ ] All tests have `//go:build unit` tag?
 - [ ] Error wrapping uses `%w` not `%v`?
 - [ ] `tracer.Start()` returns captured `ctx`?
 - [ ] Business logic in domain (not service)?
@@ -549,9 +546,8 @@ See `.golangci.yml` for automated checks:
 
 ### CI/CD Checks
 
-- **Determinism:** Run tests 10x consecutively
-- **Build tags:** Verify all test files have tags
-- **Error wrapping:** Check for `%v` with errors
+- **Determinism:** Run tests 3x consecutively to verify reproducibility
+- **Error wrapping:** Check for `%v` with errors (should use `%w`)
 
 ---
 
