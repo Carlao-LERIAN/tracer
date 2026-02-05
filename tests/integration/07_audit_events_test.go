@@ -2558,6 +2558,19 @@ func TestAuditEvents_11_5_3_SubsequentEventsChainCorrectly(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
+	// Setup: Create 2 rules to generate at least 2 audit events
+	rule1Name := "Chain Test Rule 1 " + testutil.MustDeterministicUUID(7104).String()[:8]
+	rule1ID := testutil.CreateTestRuleWithExpression(t, rule1Name, "amount > 10000", "DENY")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, rule1ID)
+	})
+
+	rule2Name := "Chain Test Rule 2 " + testutil.MustDeterministicUUID(7105).String()[:8]
+	rule2ID := testutil.CreateTestRuleWithExpression(t, rule2Name, "amount < 100", "ALLOW")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, rule2ID)
+	})
+
 	// Get first 10 events in order
 	req, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?sortBy=createdAt&sortOrder=ASC&limit=10", nil)
 	req.Header.Set("X-API-Key", apiKey)
@@ -2571,9 +2584,7 @@ func TestAuditEvents_11_5_3_SubsequentEventsChainCorrectly(t *testing.T) {
 	}
 	json.NewDecoder(resp.Body).Decode(&result)
 
-	if len(result.AuditEvents) < 2 {
-		t.Skip("Need at least 2 events to test chaining")
-	}
+	require.GreaterOrEqual(t, len(result.AuditEvents), 2, "Should have at least 2 audit events after creating 2 rules")
 
 	// Verify each event's previousHash matches previous event's hash
 	for i := 1; i < len(result.AuditEvents); i++ {
