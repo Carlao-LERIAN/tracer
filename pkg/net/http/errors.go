@@ -16,15 +16,15 @@ import (
 // WithError returns an error with the given status code and message.
 func WithError(c *fiber.Ctx, err error) error {
 	var (
-		notFoundErr         pkg.EntityNotFoundError
-		conflictErr         pkg.EntityConflictError
-		validationErr       pkg.ValidationError
-		unprocessableErr    pkg.UnprocessableOperationError
-		unauthorizedErr     pkg.UnauthorizedError
-		forbiddenErr        pkg.ForbiddenError
-		knownFieldsErr      pkg.ValidationKnownFieldsError
-		unknownFieldsErr    pkg.ValidationUnknownFieldsError
-		responseErr         pkg.ResponseError
+		notFoundErr         *pkg.EntityNotFoundError
+		conflictErr         *pkg.EntityConflictError
+		validationErr       *pkg.ValidationError
+		unprocessableErr    *pkg.UnprocessableOperationError
+		unauthorizedErr     *pkg.UnauthorizedError
+		forbiddenErr        *pkg.ForbiddenError
+		knownFieldsErr      *pkg.ValidationKnownFieldsError
+		unknownFieldsErr    *pkg.ValidationUnknownFieldsError
+		responseErr         *pkg.ResponseError
 	)
 
 	switch {
@@ -46,14 +46,14 @@ func WithError(c *fiber.Ctx, err error) error {
 	case errors.As(err, &forbiddenErr):
 		return Forbidden(c, forbiddenErr.Code, forbiddenErr.Title, forbiddenErr.Message)
 	case errors.As(err, &knownFieldsErr):
-		return BadRequest(c, knownFieldsErr)
+		return BadRequest(c, *knownFieldsErr)
 	case errors.As(err, &unknownFieldsErr):
-		return BadRequest(c, unknownFieldsErr)
+		return BadRequest(c, *unknownFieldsErr)
 	case errors.As(err, &responseErr):
-		return JSONResponseError(c, responseErr)
+		return JSONResponseError(c, *responseErr)
 	default:
 		// ValidateInternalError always returns an InternalServerError
-		var internalErr pkg.InternalServerError
+		var internalErr *pkg.InternalServerError
 		if errors.As(pkg.ValidateInternalError(err, ""), &internalErr) {
 			return InternalServerError(c, internalErr.Code, internalErr.Title, internalErr.Message)
 		}

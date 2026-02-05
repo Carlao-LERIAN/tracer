@@ -31,7 +31,7 @@ func TestWithError(t *testing.T) {
 	}{
 		{
 			name: "EntityNotFoundError maps to 404",
-			err: pkg.EntityNotFoundError{
+			err: &pkg.EntityNotFoundError{
 				Code:    "TRC-0030",
 				Title:   "Not Found",
 				Message: "Rule not found",
@@ -43,7 +43,7 @@ func TestWithError(t *testing.T) {
 		},
 		{
 			name: "EntityConflictError maps to 409",
-			err: pkg.EntityConflictError{
+			err: &pkg.EntityConflictError{
 				Code:    "TRC-0031",
 				Title:   "Conflict",
 				Message: "Rule already exists",
@@ -55,7 +55,7 @@ func TestWithError(t *testing.T) {
 		},
 		{
 			name: "ValidationError maps to 400",
-			err: pkg.ValidationError{
+			err: &pkg.ValidationError{
 				Code:    "TRC-0001",
 				Title:   "Validation Error",
 				Message: "Invalid input",
@@ -67,7 +67,7 @@ func TestWithError(t *testing.T) {
 		},
 		{
 			name: "UnprocessableOperationError maps to 422",
-			err: pkg.UnprocessableOperationError{
+			err: &pkg.UnprocessableOperationError{
 				Code:    "TRC-0040",
 				Title:   "Unprocessable",
 				Message: "Invalid state transition",
@@ -79,7 +79,7 @@ func TestWithError(t *testing.T) {
 		},
 		{
 			name: "UnauthorizedError maps to 401",
-			err: pkg.UnauthorizedError{
+			err: &pkg.UnauthorizedError{
 				Code:    "TRC-0002",
 				Title:   "Unauthorized",
 				Message: "API key required",
@@ -91,7 +91,7 @@ func TestWithError(t *testing.T) {
 		},
 		{
 			name: "ForbiddenError maps to 403",
-			err: pkg.ForbiddenError{
+			err: &pkg.ForbiddenError{
 				Code:    "TRC-0003",
 				Title:   "Forbidden",
 				Message: "Access denied",
@@ -103,7 +103,7 @@ func TestWithError(t *testing.T) {
 		},
 		{
 			name: "ValidationKnownFieldsError maps to 400 with fields",
-			err: pkg.ValidationKnownFieldsError{
+			err: &pkg.ValidationKnownFieldsError{
 				Code:    "TRC-0001",
 				Title:   "Validation Error",
 				Message: "Field validation failed",
@@ -117,7 +117,7 @@ func TestWithError(t *testing.T) {
 		},
 		{
 			name: "ValidationUnknownFieldsError maps to 400 with fields",
-			err: pkg.ValidationUnknownFieldsError{
+			err: &pkg.ValidationUnknownFieldsError{
 				Code:    "TRC-0001",
 				Title:   "Validation Error",
 				Message: "Unknown fields",
@@ -131,7 +131,7 @@ func TestWithError(t *testing.T) {
 		},
 		{
 			name: "ResponseError uses provided status",
-			err: pkg.ResponseError{
+			err: &pkg.ResponseError{
 				Code:    http.StatusTeapot,
 				Title:   "I'm a teapot",
 				Message: "Short and stout",
