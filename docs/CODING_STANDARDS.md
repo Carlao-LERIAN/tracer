@@ -77,6 +77,94 @@ func (r *Request) BadUpdate() error {
 }
 ```
 
+### Defensive Copy Consistency
+
+**CRITICAL RULE:** Constructor and Update methods MUST have consistent defensive copy semantics.
+
+```go
+// ✅ CORRECT - NewRule deep copies UUID pointers
+func NewRule(..., scopes []Scope) (*Rule, error) {
+    scopesCopy := make([]Scope, 0, len(scopes))
+    for _, scope := range scopes {
+        scopeCopy := scope
+        if scope.AccountID != nil {
+            accountIDCopy := *scope.AccountID
+            scopeCopy.AccountID = &accountIDCopy
+        }
+        // ... same for SegmentID, PortfolioID
+        scopesCopy = append(scopesCopy, scopeCopy)
+    }
+    return &Rule{Scopes: scopesCopy}, nil
+}
+
+// ✅ CORRECT - Update() MUST use same deep copy pattern
+func (r *Rule) Update(..., scopes *[]Scope, now time.Time) error {
+    if scopes != nil {
+        // Same defensive deep copy as NewRule!
+        scopesCopy := make([]Scope, 0, len(*scopes))
+        for _, scope := range *scopes {
+            scopeCopy := scope
+            if scope.AccountID != nil {
+                accountIDCopy := *scope.AccountID
+                scopeCopy.AccountID = &accountIDCopy
+            }
+            // ... same for SegmentID, PortfolioID
+            scopesCopy = append(scopesCopy, scopeCopy)
+        }
+        r.Scopes = scopesCopy
+    }
+    return nil
+}
+
+// ❌ INCORRECT - Update() shallow copy (inconsistent with NewRule!)
+func (r *Rule) Update(..., scopes *[]Scope) error {
+    if scopes != nil {
+        r.Scopes = append([]Scope{}, *scopes...)  // SHALLOW - UUID pointers shared!
+    }
+    return nil
+}
+```
+
+**Why:** External mutations to pointer fields corrupt rule state if only shallow copied.
+
+### Clock Injection in Domain Methods
+
+**CRITICAL RULE:** Domain methods that set timestamps MUST accept `now time.Time` parameter.
+
+```go
+// ✅ CORRECT - Inject time for testability
+func (r *Rule) SetAction(action Decision, now time.Time) error {
+    r.Action = action
+    r.UpdatedAt = now  // ← Injected
+    return nil
+}
+
+func (r *Rule) Update(..., now time.Time) error {
+    if updated {
+        r.UpdatedAt = now  // ← Consistent with SetAction
+    }
+    return nil
+}
+
+// ❌ INCORRECT - Using time.Now() directly (non-testable!)
+func (r *Rule) Update(...) error {
+    if updated {
+        r.UpdatedAt = time.Now().UTC()  // ← Cannot control in tests!
+    }
+    return nil
+}
+```
+
+**Service layer pattern:**
+```go
+// Service passes clock
+if err := rule.Update(name, expr, desc, scopes, c.clock.Now()); err != nil {
+    return err
+}
+```
+
+**Why:** Deterministic timestamps in tests, consistent dependency injection pattern.
+
 ---
 
 ## 2. Error Handling
@@ -92,6 +180,30 @@ return fmt.Errorf("%w: description: %w", sentinel, err)
 return fmt.Errorf("failed to build activation: %v", err)
 return fmt.Errorf("%w: description: %v", sentinel, err)
 ```
+
+### Error Detection: errors.Is vs errors.As
+
+```go
+// ✅ CORRECT - Use errors.Is for sentinel errors
+if errors.Is(err, constant.ErrRuleInvalidStatus) {
+    // Handle sentinel error
+}
+
+// ✅ CORRECT - Use errors.As for typed errors
+var transitionErr *model.InvalidTransitionError
+if errors.As(err, &transitionErr) {
+    // Access transitionErr.From and transitionErr.To
+    log.Warn("Invalid transition from %s to %s", transitionErr.From, transitionErr.To)
+}
+
+// ❌ INCORRECT - Using errors.Is for typed errors (doesn't work!)
+if errors.Is(err, constant.ErrRuleInvalidStatus) {
+    // This won't catch InvalidTransitionError which wraps different sentinel
+    businessErr := model.NewInvalidTransitionError(...)  // Won't be reached!
+}
+```
+
+**Rule:** Use `errors.Is` for sentinel errors, `errors.As` for typed errors with fields.
 
 ### Context Propagation
 
