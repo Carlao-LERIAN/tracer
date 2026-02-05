@@ -18,6 +18,8 @@ import (
 )
 
 func TestValidateAuthConfig_Success_AuthDisabled_LogsWarning(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	logger := testutil.NewMockLogger()
 	cfg := &Config{
@@ -35,6 +37,8 @@ func TestValidateAuthConfig_Success_AuthDisabled_LogsWarning(t *testing.T) {
 }
 
 func TestValidateAuthConfig_Error_AuthEnabledNoKey_ReturnsError(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	logger := testutil.NewMockLogger()
 	cfg := &Config{
@@ -51,6 +55,8 @@ func TestValidateAuthConfig_Error_AuthEnabledNoKey_ReturnsError(t *testing.T) {
 }
 
 func TestValidateAuthConfig_Success_AuthEnabledShortKey_LogsWarning(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	logger := testutil.NewMockLogger()
 	cfg := &Config{
@@ -68,6 +74,8 @@ func TestValidateAuthConfig_Success_AuthEnabledShortKey_LogsWarning(t *testing.T
 }
 
 func TestValidateAuthConfig_Success_AuthEnabledValidKey_NoError(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	logger := testutil.NewMockLogger()
 	// Generate a key that is exactly 32 characters
@@ -86,6 +94,8 @@ func TestValidateAuthConfig_Success_AuthEnabledValidKey_NoError(t *testing.T) {
 }
 
 func TestParseCELCostLimit(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       string
@@ -144,6 +154,8 @@ func TestParseCELCostLimit(t *testing.T) {
 }
 
 func TestParseCELCacheMaxSize(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       string
@@ -199,6 +211,8 @@ func TestParseCELCacheMaxSize(t *testing.T) {
 }
 
 func TestValidateAuthConfig_TableDriven(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		apiKeyEnabled     bool
@@ -278,6 +292,8 @@ func TestValidateAuthConfig_TableDriven(t *testing.T) {
 }
 
 func TestCelCompilerAdapter_Compile(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		expression  string
@@ -333,6 +349,8 @@ func TestCelCompilerAdapter_Compile(t *testing.T) {
 }
 
 func TestParseDefaultDecision(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       string
@@ -389,6 +407,8 @@ func TestParseDefaultDecision(t *testing.T) {
 }
 
 func TestParseMaxRulesPerRequest(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       string
@@ -456,6 +476,8 @@ func TestParseMaxRulesPerRequest(t *testing.T) {
 }
 
 func TestLoadEvaluationConfig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                string
 		defaultDecision     string
@@ -548,6 +570,8 @@ func TestLoadEvaluationConfig(t *testing.T) {
 }
 
 func TestLoadEvaluationConfig_NilConfig(t *testing.T) {
+	t.Parallel()
+
 	logger := testutil.NewMockLogger()
 	result, err := LoadEvaluationConfig(nil, logger)
 
@@ -557,6 +581,8 @@ func TestLoadEvaluationConfig_NilConfig(t *testing.T) {
 }
 
 func TestLoadEvaluationConfig_NilLogger(t *testing.T) {
+	t.Parallel()
+
 	cfg := &Config{
 		DefaultDecisionWhenNoMatch: "",
 		MaxRulesPerRequest:         "",
@@ -569,6 +595,8 @@ func TestLoadEvaluationConfig_NilLogger(t *testing.T) {
 }
 
 func TestLoadEvaluationConfig_DefaultALLOW_LogsWarning(t *testing.T) {
+	t.Parallel()
+
 	logger := testutil.NewMockLogger()
 	cfg := &Config{
 		DefaultDecisionWhenNoMatch: "", // Empty = default ALLOW
@@ -587,6 +615,8 @@ func TestLoadEvaluationConfig_DefaultALLOW_LogsWarning(t *testing.T) {
 }
 
 func TestParseCleanupIntervalHours(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       string
@@ -660,6 +690,8 @@ func TestParseCleanupIntervalHours(t *testing.T) {
 }
 
 func TestParseCleanupRetentionDays(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       string
@@ -733,6 +765,8 @@ func TestParseCleanupRetentionDays(t *testing.T) {
 }
 
 func TestLoadCleanupWorkerConfig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                    string
 		cleanupWorkerEnabled    bool
@@ -867,6 +901,8 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 }
 
 func TestLoadCleanupWorkerConfig_NilConfig(t *testing.T) {
+	t.Parallel()
+
 	logger := testutil.NewMockLogger()
 	result, err := LoadCleanupWorkerConfig(nil, logger)
 
@@ -876,6 +912,8 @@ func TestLoadCleanupWorkerConfig_NilConfig(t *testing.T) {
 }
 
 func TestLoadCleanupWorkerConfig_NilLogger(t *testing.T) {
+	t.Parallel()
+
 	cfg := &Config{CleanupWorkerEnabled: true}
 	result, err := LoadCleanupWorkerConfig(cfg, nil)
 
