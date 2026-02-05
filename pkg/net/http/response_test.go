@@ -124,6 +124,66 @@ func TestBadRequest(t *testing.T) {
 	})
 }
 
+func TestBadRequestWithMessage(t *testing.T) {
+	tests := []struct {
+		name            string
+		code            string
+		title           string
+		message         string
+		expectedStatus  int
+		expectedCode    string
+		expectedTitle   string
+		expectedMessage string
+	}{
+		{
+			name:            "Success - returns 400 with structured error",
+			code:            "TRC-1001",
+			title:           "Validation Error",
+			message:         "Field 'name' is required",
+			expectedStatus:  http.StatusBadRequest,
+			expectedCode:    "TRC-1001",
+			expectedTitle:   "Validation Error",
+			expectedMessage: "Field 'name' is required",
+		},
+		{
+			name:            "Success - returns 400 with empty values",
+			code:            "",
+			title:           "",
+			message:         "",
+			expectedStatus:  http.StatusBadRequest,
+			expectedCode:    "",
+			expectedTitle:   "",
+			expectedMessage: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app := setupTestApp(func(c *fiber.Ctx) error {
+				return BadRequestWithMessage(c, tc.code, tc.title, tc.message)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var result map[string]any
+			err = json.Unmarshal(body, &result)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedCode, result["code"])
+			assert.Equal(t, tc.expectedTitle, result["title"])
+			assert.Equal(t, tc.expectedMessage, result["message"])
+		})
+	}
+}
+
 func TestCreated(t *testing.T) {
 	t.Run("Success - returns 201 with body", func(t *testing.T) {
 		app := setupTestApp(func(c *fiber.Ctx) error {

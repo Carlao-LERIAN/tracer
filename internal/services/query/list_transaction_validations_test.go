@@ -271,6 +271,41 @@ func TestListTransactionValidationsQuery_Execute(t *testing.T) {
 	}
 }
 
+func TestFormatTimeOrNotSet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    time.Time
+		expected string
+	}{
+		{
+			name:     "zero time returns 'not set'",
+			input:    time.Time{},
+			expected: "not set",
+		},
+		{
+			name:     "non-zero time returns RFC3339 format",
+			input:    time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
+			expected: "2025-01-15T10:30:00Z",
+		},
+		{
+			name:     "time with offset returns RFC3339 format",
+			input:    time.Date(2025, 6, 15, 14, 30, 0, 0, time.FixedZone("UTC-5", -5*60*60)),
+			expected: "2025-06-15T14:30:00-05:00",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := formatTimeOrNotSet(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 func TestListTransactionValidationsQuery_Execute_ContextCancellation(t *testing.T) {
 	tests := []struct {
 		name      string

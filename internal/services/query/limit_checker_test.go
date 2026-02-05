@@ -1795,3 +1795,141 @@ func TestFormatScopeString(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildTransactionScope(t *testing.T) {
+	t.Parallel()
+
+	accountID := testutil.MustDeterministicUUID(1)
+	segmentID := testutil.MustDeterministicUUID(2)
+	portfolioID := testutil.MustDeterministicUUID(3)
+	transactionType := model.TransactionTypeCard
+	subType := "online"
+
+	tests := []struct {
+		name     string
+		input    *model.CheckLimitsInput
+		validate func(*testing.T, *model.Scope)
+	}{
+		{
+			name:  "nil input returns nil scope",
+			input: nil,
+			validate: func(t *testing.T, scope *model.Scope) {
+				assert.Nil(t, scope)
+			},
+		},
+		{
+			name: "full input builds complete scope",
+			input: &model.CheckLimitsInput{
+				AccountID:            accountID,
+				SegmentID:            &segmentID,
+				PortfolioID:          &portfolioID,
+				TransactionType:      &transactionType,
+				SubType:              &subType,
+				Amount:               10000,
+				Currency:             "USD",
+				TransactionTimestamp: time.Now(),
+			},
+			validate: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope)
+				assert.Equal(t, accountID, *scope.AccountID)
+				assert.Equal(t, segmentID, *scope.SegmentID)
+				assert.Equal(t, portfolioID, *scope.PortfolioID)
+				assert.Equal(t, transactionType, *scope.TransactionType)
+				assert.Equal(t, subType, *scope.SubType)
+			},
+		},
+		{
+			name: "minimal input builds scope with account only",
+			input: &model.CheckLimitsInput{
+				AccountID:            accountID,
+				Amount:               5000,
+				Currency:             "USD",
+				TransactionTimestamp: time.Now(),
+			},
+			validate: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope)
+				assert.Equal(t, accountID, *scope.AccountID)
+				assert.Nil(t, scope.SegmentID)
+				assert.Nil(t, scope.PortfolioID)
+				assert.Nil(t, scope.TransactionType)
+				assert.Nil(t, scope.SubType)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := buildTransactionScope(tc.input)
+			tc.validate(t, result)
+		})
+	}
+}
+
+func TestScopeMatchesLimit(t *testing.T) {
+	t.Parallel()
+
+	accountID1 := testutil.MustDeterministicUUID(1)
+	accountID2 := testutil.MustDeterministicUUID(2)
+	segmentID := testutil.MustDeterministicUUID(3)
+
+	tests := []struct {
+		name        string
+		limitScopes []model.Scope
+		txScope     *model.Scope
+		expected    bool
+	}{
+		{
+			name:        "empty limit scopes (global) matches any transaction",
+			limitScopes: []model.Scope{},
+			txScope:     &model.Scope{AccountID: &accountID1},
+			expected:    true,
+		},
+		{
+			name:        "nil limit scopes (global) matches any transaction",
+			limitScopes: nil,
+			txScope:     &model.Scope{AccountID: &accountID1},
+			expected:    true,
+		},
+		{
+			name:        "nil transaction scope doesn't match non-global limit",
+			limitScopes: []model.Scope{{AccountID: &accountID1}},
+			txScope:     nil,
+			expected:    false,
+		},
+		{
+			name:        "matching account scope",
+			limitScopes: []model.Scope{{AccountID: &accountID1}},
+			txScope:     &model.Scope{AccountID: &accountID1},
+			expected:    true,
+		},
+		{
+			name:        "non-matching account scope",
+			limitScopes: []model.Scope{{AccountID: &accountID1}},
+			txScope:     &model.Scope{AccountID: &accountID2},
+			expected:    false,
+		},
+		{
+			name:        "multiple limit scopes - one matches",
+			limitScopes: []model.Scope{{AccountID: &accountID1}, {AccountID: &accountID2}},
+			txScope:     &model.Scope{AccountID: &accountID2},
+			expected:    true,
+		},
+		{
+			name:        "multiple limit scopes - none match",
+			limitScopes: []model.Scope{{AccountID: &accountID1, SegmentID: &segmentID}},
+			txScope:     &model.Scope{AccountID: &accountID1}, // Missing segment
+			expected:    false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := scopeMatchesLimit(tc.limitScopes, tc.txScope)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}

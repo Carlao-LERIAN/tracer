@@ -207,3 +207,111 @@ func TestNewRuleEvaluator_NilExpressionEvaluator(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNilExpressionEvaluator)
 	assert.Nil(t, evaluator)
 }
+
+// TestRuleEvaluator_ScopeMismatch verifies that rules with scopes that don't match
+// the transaction return false without evaluating the expression.
+func TestRuleEvaluator_ScopeMismatch(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ruleID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	differentAccountID := testutil.MustDeterministicUUID(3)
+	requestID := testutil.MustDeterministicUUID(4)
+	now := time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	// Rule with specific account scope
+	ruleWithScope := &model.Rule{
+		ID:         ruleID,
+		Name:       "Account specific rule",
+		Expression: "amount > 1000",
+		Action:     model.DecisionDeny,
+		Status:     model.RuleStatusActive,
+		Scopes:     []model.Scope{{AccountID: &differentAccountID}}, // Different account
+		CreatedAt:  now.Add(-24 * time.Hour),
+		UpdatedAt:  now.Add(-1 * time.Hour),
+	}
+
+	// Request from a different account
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               150000,
+		Currency:             "USD",
+		TransactionTimestamp: now,
+		Account: model.AccountContext{
+			ID: accountID, // Different account than rule scope
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	// Mock should NOT be called because scope doesn't match
+	mockEval := NewMockExpressionEvaluator(ctrl)
+
+	evaluator, err := NewRuleEvaluator(mockEval)
+	require.NoError(t, err)
+
+	// Act
+	result, err := evaluator.Evaluate(context.Background(), ruleWithScope, request)
+
+	// Assert - rule didn't match because scope mismatched, no error
+	require.NoError(t, err)
+	assert.False(t, result, "Rule should not match when scopes don't match")
+}
+
+// TestRuleEvaluator_ScopeMatch verifies that rules with matching scopes
+// do evaluate their expression.
+func TestRuleEvaluator_ScopeMatch(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ruleID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	requestID := testutil.MustDeterministicUUID(4)
+	now := time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	// Rule with specific account scope
+	ruleWithScope := &model.Rule{
+		ID:         ruleID,
+		Name:       "Account specific rule",
+		Expression: "amount > 1000",
+		Action:     model.DecisionDeny,
+		Status:     model.RuleStatusActive,
+		Scopes:     []model.Scope{{AccountID: &accountID}}, // Same account
+		CreatedAt:  now.Add(-24 * time.Hour),
+		UpdatedAt:  now.Add(-1 * time.Hour),
+	}
+
+	// Request from the same account
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               150000,
+		Currency:             "USD",
+		TransactionTimestamp: now,
+		Account: model.AccountContext{
+			ID: accountID, // Same account as rule scope
+		},
+	}
+
+	mockCompiledProgram := &cel.CompiledProgram{
+		ExpressionHash:   "test-hash",
+		SourceExpression: ruleWithScope.Expression,
+		CompiledAt:       now,
+		CompileTimeMs:    1,
+	}
+
+	ctrl := gomock.NewController(t)
+	mockEval := NewMockExpressionEvaluator(ctrl)
+	// Expect Compile and Evaluate to be called since scope matches
+	mockEval.EXPECT().Compile(gomock.Any(), ruleWithScope.Expression).Return(mockCompiledProgram, nil)
+	mockEval.EXPECT().Evaluate(gomock.Any(), mockCompiledProgram, request).Return(true, nil)
+
+	evaluator, err := NewRuleEvaluator(mockEval)
+	require.NoError(t, err)
+
+	// Act
+	result, err := evaluator.Evaluate(context.Background(), ruleWithScope, request)
+
+	// Assert - rule should match because scope matched and expression evaluated to true
+	require.NoError(t, err)
+	assert.True(t, result, "Rule should match when scopes match and expression is true")
+}

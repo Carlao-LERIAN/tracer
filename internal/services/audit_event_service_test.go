@@ -41,6 +41,79 @@ func TestNewAuditEventService(t *testing.T) {
 	assert.Equal(t, verifyQuery, service.verifyQuery)
 }
 
+func TestNewAuditEventService_NilDependencies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockRepo := query.NewMockAuditEventRepository(ctrl)
+	validGetQuery, _ := query.NewGetAuditEventQuery(mockRepo)
+	validListQuery, _ := query.NewListAuditEventsQuery(mockRepo)
+	validVerifyQuery, _ := query.NewVerifyAuditEventQuery(mockRepo)
+
+	tests := []struct {
+		name        string
+		getQuery    *query.GetAuditEventQuery
+		listQuery   *query.ListAuditEventsQuery
+		verifyQuery *query.VerifyAuditEventQuery
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "nil getQuery returns error",
+			getQuery:    nil,
+			listQuery:   validListQuery,
+			verifyQuery: validVerifyQuery,
+			expectError: true,
+			errContains: "getQuery cannot be nil",
+		},
+		{
+			name:        "nil listQuery returns error",
+			getQuery:    validGetQuery,
+			listQuery:   nil,
+			verifyQuery: validVerifyQuery,
+			expectError: true,
+			errContains: "listQuery cannot be nil",
+		},
+		{
+			name:        "nil verifyQuery returns error",
+			getQuery:    validGetQuery,
+			listQuery:   validListQuery,
+			verifyQuery: nil,
+			expectError: true,
+			errContains: "verifyQuery cannot be nil",
+		},
+		{
+			name:        "all nil returns error for getQuery first",
+			getQuery:    nil,
+			listQuery:   nil,
+			verifyQuery: nil,
+			expectError: true,
+			errContains: "getQuery cannot be nil",
+		},
+		{
+			name:        "all valid dependencies succeeds",
+			getQuery:    validGetQuery,
+			listQuery:   validListQuery,
+			verifyQuery: validVerifyQuery,
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			service, err := NewAuditEventService(tc.getQuery, tc.listQuery, tc.verifyQuery)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errContains)
+				assert.Nil(t, service)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, service)
+			}
+		})
+	}
+}
+
 func TestAuditEventService_GetByID(t *testing.T) {
 	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
 	eventID := testutil.MustDeterministicUUID(1)

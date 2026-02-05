@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"tracer/pkg"
 )
 
 func TestFormatErrorFieldName(t *testing.T) {
@@ -286,5 +288,287 @@ func TestNewOfType(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "expected pointer")
+	})
+}
+
+func TestValidateMetadataNestedValues(t *testing.T) {
+	// Access the validator to test the custom validation function
+	v, _, err := getValidator()
+	require.NoError(t, err)
+
+	type TestStructWithMetadata struct {
+		Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	}
+
+	tests := []struct {
+		name        string
+		input       TestStructWithMetadata
+		expectError bool
+	}{
+		{
+			name: "valid flat metadata",
+			input: TestStructWithMetadata{
+				Metadata: map[string]any{
+					"key1": "value1",
+					"key2": 123,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty metadata",
+			input: TestStructWithMetadata{
+				Metadata: map[string]any{},
+			},
+			expectError: false,
+		},
+		{
+			name: "nil metadata",
+			input: TestStructWithMetadata{
+				Metadata: nil,
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := v.Struct(tt.input)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateMetadataKeyMaxLength(t *testing.T) {
+	v, _, err := getValidator()
+	require.NoError(t, err)
+
+	type TestStruct struct {
+		Key string `json:"key" validate:"keymax=10"`
+	}
+
+	tests := []struct {
+		name        string
+		input       TestStruct
+		expectError bool
+	}{
+		{
+			name:        "key within limit",
+			input:       TestStruct{Key: "short"},
+			expectError: false,
+		},
+		{
+			name:        "key at exact limit",
+			input:       TestStruct{Key: "1234567890"},
+			expectError: false,
+		},
+		{
+			name:        "key exceeds limit",
+			input:       TestStruct{Key: "12345678901"},
+			expectError: true,
+		},
+		{
+			name:        "empty key",
+			input:       TestStruct{Key: ""},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := v.Struct(tt.input)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateMetadataValueMaxLength(t *testing.T) {
+	v, _, err := getValidator()
+	require.NoError(t, err)
+
+	type TestStructString struct {
+		Value string `json:"value" validate:"valuemax=10"`
+	}
+
+	type TestStructInt struct {
+		Value int `json:"value" validate:"valuemax=10"`
+	}
+
+	type TestStructFloat struct {
+		Value float64 `json:"value" validate:"valuemax=10"`
+	}
+
+	type TestStructBool struct {
+		Value bool `json:"value" validate:"valuemax=10"`
+	}
+
+	t.Run("string value within limit", func(t *testing.T) {
+		err := v.Struct(TestStructString{Value: "short"})
+		assert.NoError(t, err)
+	})
+
+	t.Run("string value exceeds limit", func(t *testing.T) {
+		err := v.Struct(TestStructString{Value: "12345678901"})
+		assert.Error(t, err)
+	})
+
+	t.Run("int value within limit", func(t *testing.T) {
+		err := v.Struct(TestStructInt{Value: 123})
+		assert.NoError(t, err)
+	})
+
+	t.Run("float value within limit", func(t *testing.T) {
+		err := v.Struct(TestStructFloat{Value: 1.23})
+		assert.NoError(t, err)
+	})
+
+	t.Run("bool value within limit", func(t *testing.T) {
+		err := v.Struct(TestStructBool{Value: true})
+		assert.NoError(t, err)
+	})
+}
+
+func TestParseMetadata(t *testing.T) {
+	type TestStructWithMetadata struct {
+		Name     string         `json:"name"`
+		Metadata map[string]any `json:"metadata"`
+	}
+
+	tests := []struct {
+		name           string
+		input          *TestStructWithMetadata
+		originalMap    map[string]any
+		expectMetadata bool
+	}{
+		{
+			name:  "metadata not in original - creates empty map",
+			input: &TestStructWithMetadata{Name: "test"},
+			originalMap: map[string]any{
+				"name": "test",
+				// no "metadata" key
+			},
+			expectMetadata: true,
+		},
+		{
+			name:  "metadata in original - keeps as-is",
+			input: &TestStructWithMetadata{Name: "test", Metadata: map[string]any{"key": "value"}},
+			originalMap: map[string]any{
+				"name":     "test",
+				"metadata": map[string]any{"key": "value"},
+			},
+			expectMetadata: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parseMetadata(tt.input, tt.originalMap)
+
+			if tt.expectMetadata {
+				assert.NotNil(t, tt.input.Metadata)
+			}
+		})
+	}
+}
+
+func TestParseMetadata_NonStruct(t *testing.T) {
+	// Test that parseMetadata handles non-struct input gracefully
+	originalMap := map[string]any{"key": "value"}
+
+	// Should not panic
+	parseMetadata("string input", originalMap)
+	parseMetadata(nil, originalMap)
+	parseMetadata(123, originalMap)
+}
+
+func TestFieldsRequired(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    pkg.FieldValidations
+		expected pkg.FieldValidations
+	}{
+		{
+			name: "filters required fields only",
+			input: pkg.FieldValidations{
+				"name":  "name is a required field",
+				"email": "email must be a valid email address",
+				"age":   "age is a required field",
+			},
+			expected: pkg.FieldValidations{
+				"name": "name is a required field",
+				"age":  "age is a required field",
+			},
+		},
+		{
+			name:     "empty input",
+			input:    pkg.FieldValidations{},
+			expected: pkg.FieldValidations{},
+		},
+		{
+			name: "no required fields",
+			input: pkg.FieldValidations{
+				"email": "email must be a valid email address",
+			},
+			expected: pkg.FieldValidations{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := fieldsRequired(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestCompareSlices_NestedMaps(t *testing.T) {
+	original := []any{
+		map[string]any{"id": "1", "extra": "field"},
+		map[string]any{"id": "2"},
+	}
+	marshaled := []any{
+		map[string]any{"id": "1"},
+		map[string]any{"id": "2"},
+	}
+
+	result := compareSlices(original, marshaled)
+
+	// Should detect the "extra" field in first item
+	assert.NotEmpty(t, result)
+}
+
+func TestFindUnknownFields_TypeMismatch(t *testing.T) {
+	t.Run("map vs non-map type mismatch", func(t *testing.T) {
+		original := map[string]any{
+			"field": map[string]any{"nested": "value"},
+		}
+		marshaled := map[string]any{
+			"field": "simple string",
+		}
+
+		result := findUnknownFields(original, marshaled)
+		assert.Contains(t, result, "field")
+	})
+
+	t.Run("slice vs non-slice type mismatch", func(t *testing.T) {
+		original := map[string]any{
+			"items": []any{"item1", "item2"},
+		}
+		marshaled := map[string]any{
+			"items": "not an array",
+		}
+
+		result := findUnknownFields(original, marshaled)
+		assert.Contains(t, result, "items")
 	})
 }
