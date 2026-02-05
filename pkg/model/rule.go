@@ -306,11 +306,17 @@ func (r *Rule) SetStatus(status RuleStatus, now time.Time) error {
 }
 
 // SetAction updates the rule's action/decision with validation.
+// Idempotent: same-action assignments are no-ops (return nil without updating timestamp).
 // Returns error if action is invalid.
 // Updates UpdatedAt timestamp on successful mutation.
 func (r *Rule) SetAction(action Decision, now time.Time) error {
 	if !action.IsValid() {
 		return constant.ErrRuleInvalidAction
+	}
+
+	// Idempotency: same action is a no-op
+	if r.Action == action {
+		return nil
 	}
 
 	r.Action = action
