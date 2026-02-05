@@ -222,12 +222,9 @@ func (r *Rule) Update(
 	if scopes != nil {
 		// Defensive deep copy of scopes to prevent external mutation
 		// Deep copy UUID pointers to prevent external mutations from affecting rule
+		// Note: IsEmpty() already validated in the validation phase above
 		scopesCopy := make([]Scope, 0, len(*scopes))
 		for _, scope := range *scopes {
-			if scope.IsEmpty() {
-				return constant.ErrRuleInvalidScope
-			}
-
 			// Deep copy the scope with independent UUID pointers
 			scopeCopy := scope
 			if scope.AccountID != nil {
