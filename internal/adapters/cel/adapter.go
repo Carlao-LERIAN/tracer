@@ -280,10 +280,8 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed from tracking context
 
-	ctx, span := tracer.Start(ctx, "adapter.cel.evaluate")
+	_, span := tracer.Start(ctx, "adapter.cel.evaluate")
 	defer span.End()
-
-	_ = ctx // Context used for tracing only
 
 	// Validate inputs
 	if program == nil {
