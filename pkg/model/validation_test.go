@@ -2,8 +2,6 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-//go:build unit
-
 package model
 
 import (
@@ -594,7 +592,7 @@ func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
 	merchant := &MerchantContext{
 		ID:       uuid.New(),
 		Name:     "Test Merchant",
-		Category: "retail",
+		Category: "5411", // 4-digit MCC code (Grocery Stores)
 		Country:  "US",
 		Metadata: merchantMeta,
 	}
