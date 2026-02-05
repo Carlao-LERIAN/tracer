@@ -160,6 +160,11 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 
 		// Technical error (invalid status value or other)
 		libOpentelemetry.HandleSpanError(&span, "Failed to set rule status", err)
+		logger.WithFields(
+			"operation", "service.rule.activate",
+			"rule.id", ruleID.String(),
+			"error.message", err.Error(),
+		).Error("Failed to set rule status")
 
 		return nil, fmt.Errorf("failed to set rule status: %w", err)
 	}
