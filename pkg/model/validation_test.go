@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 )
 
