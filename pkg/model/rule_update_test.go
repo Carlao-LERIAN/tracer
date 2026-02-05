@@ -39,13 +39,15 @@ func newTestRule(t *testing.T) *Rule {
 func TestRule_Update_ScopeValidation(t *testing.T) {
 	t.Parallel()
 
+	fixedTime := testutil.FixedTime()
+
 	t.Run("Error - rejects scope with all nil fields (empty scope)", func(t *testing.T) {
 		rule := newTestRule(t)
 		emptyScope := Scope{} // All fields nil
 
 		scopesWithEmpty := &[]Scope{emptyScope}
 
-		err := rule.Update(nil, nil, nil, scopesWithEmpty)
+		err := rule.Update(nil, nil, nil, scopesWithEmpty, fixedTime)
 
 		require.Error(t, err, "Update should reject empty scope")
 		assert.ErrorIs(t, err, constant.ErrRuleInvalidScope)
@@ -58,7 +60,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 
 		scopesWithOneEmpty := &[]Scope{validScope, emptyScope}
 
-		err := rule.Update(nil, nil, nil, scopesWithOneEmpty)
+		err := rule.Update(nil, nil, nil, scopesWithOneEmpty, fixedTime)
 
 		require.Error(t, err, "Update should reject when any scope is empty")
 		assert.ErrorIs(t, err, constant.ErrRuleInvalidScope)
@@ -71,7 +73,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 
 		scopesWithFirstEmpty := &[]Scope{emptyScope, validScope}
 
-		err := rule.Update(nil, nil, nil, scopesWithFirstEmpty)
+		err := rule.Update(nil, nil, nil, scopesWithFirstEmpty, fixedTime)
 
 		require.Error(t, err, "Update should reject when first scope is empty")
 		assert.ErrorIs(t, err, constant.ErrRuleInvalidScope)
@@ -85,7 +87,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 			{PortfolioID: testutil.UUIDPtr(uuid.New())},
 		}
 
-		err := rule.Update(nil, nil, nil, validScopes)
+		err := rule.Update(nil, nil, nil, validScopes, fixedTime)
 
 		require.NoError(t, err)
 		assert.Len(t, rule.Scopes, 2)
@@ -96,7 +98,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 
 		emptySlice := &[]Scope{}
 
-		err := rule.Update(nil, nil, nil, emptySlice)
+		err := rule.Update(nil, nil, nil, emptySlice, fixedTime)
 
 		require.NoError(t, err)
 		assert.Empty(t, rule.Scopes)
@@ -107,7 +109,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 		originalScopes := make([]Scope, len(rule.Scopes))
 		copy(originalScopes, rule.Scopes)
 
-		err := rule.Update(nil, nil, nil, nil)
+		err := rule.Update(nil, nil, nil, nil, fixedTime)
 
 		require.NoError(t, err)
 		assert.Equal(t, originalScopes, rule.Scopes, "Scopes should remain unchanged when nil is passed")
@@ -121,7 +123,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 		emptyScope := Scope{}
 		invalidScopes := &[]Scope{emptyScope}
 
-		err := rule.Update(nil, nil, nil, invalidScopes)
+		err := rule.Update(nil, nil, nil, invalidScopes, fixedTime)
 
 		require.Error(t, err)
 		assert.Equal(t, originalScopes, rule.Scopes, "Scopes should not be mutated on validation failure")
@@ -137,7 +139,7 @@ func TestRule_Update_ScopeValidation(t *testing.T) {
 		}
 
 		// Update rule with scopes
-		err := rule.Update(nil, nil, nil, &externalScopes)
+		err := rule.Update(nil, nil, nil, &externalScopes, fixedTime)
 		require.NoError(t, err)
 
 		// Mutate the UUID value through the external pointer (tests deep copy semantics)

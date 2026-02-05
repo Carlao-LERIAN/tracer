@@ -122,7 +122,7 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 	}
 
 	// Use domain model Update method with normalized name (validates all before mutating any)
-	if err := rule.Update(normalizedName, input.Expression, input.Description, input.Scopes); err != nil {
+	if err := rule.Update(normalizedName, input.Expression, input.Description, input.Scopes, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update rule", err)
 		return nil, err
 	}

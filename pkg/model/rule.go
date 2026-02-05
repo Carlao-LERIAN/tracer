@@ -151,11 +151,13 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 // All parameters are optional (use nil to keep current value).
 // Validates ALL inputs before mutating ANY (atomicity guarantee).
 // Updates UpdatedAt timestamp on successful mutation.
+// now parameter allows deterministic timestamps in tests (follows SetAction pattern).
 func (r *Rule) Update(
 	name *string,
 	expression *string,
 	description *string,
 	scopes *[]Scope,
+	now time.Time,
 ) error {
 	updated := false
 
@@ -251,7 +253,7 @@ func (r *Rule) Update(
 	}
 
 	if updated {
-		r.UpdatedAt = time.Now().UTC()
+		r.UpdatedAt = now
 	}
 
 	return nil
