@@ -526,7 +526,7 @@ func UUIDPtr(id uuid.UUID) *uuid.UUID { ... }  // Duplicate!
 
 ### For Code Reviewers
 
-- [ ] Objects always valid after construction?
+- [ ] Objects are always valid after construction?
 - [ ] No partial mutation on failures?
 - [ ] Tests pass 10x consecutively?
 - [ ] Service layer doesn't mutate fields directly?
