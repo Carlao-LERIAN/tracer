@@ -351,6 +351,19 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
+	// Setup: Create 2 rules to ensure we have enough events for pagination
+	rule1Name := "Cursor Params Test 1 " + testutil.MustDeterministicUUID(7109).String()[:8]
+	rule1ID := testutil.CreateTestRuleWithExpression(t, rule1Name, "amount > 20000", "DENY")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, rule1ID)
+	})
+
+	rule2Name := "Cursor Params Test 2 " + testutil.MustDeterministicUUID(7110).String()[:8]
+	rule2ID := testutil.CreateTestRuleWithExpression(t, rule2Name, "amount < 50", "ALLOW")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, rule2ID)
+	})
+
 	// Step 1: Get a valid cursor by listing audit events with a small limit
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?limit=1", nil)
 	require.NoError(t, err)
@@ -373,10 +386,7 @@ func TestListAuditEvents_CursorWithSortParams_ReturnsTRC0045(t *testing.T) {
 	err = json.Unmarshal(respBody, &listResp)
 	require.NoError(t, err)
 
-	// Skip test if no cursor is available (not enough audit events)
-	if listResp.NextCursor == "" {
-		t.Skip("No cursor available - need more audit events for this test")
-	}
+	require.NotEmpty(t, listResp.NextCursor, "Should have next cursor after creating 2+ events with limit=1")
 
 	// Step 2: Test cursor with sortBy parameter
 	t.Run("cursor_with_sortBy", func(t *testing.T) {
