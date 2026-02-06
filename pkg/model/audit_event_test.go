@@ -468,7 +468,7 @@ func createTestAuditEvent(t *testing.T) *AuditEvent {
 		AuditEventRuleCreated,
 		AuditActionCreate,
 		AuditResultSuccess,
-		uuid.NewString(),
+		testutil.MustDeterministicUUID(100).String(),
 		ResourceTypeRule,
 		Actor{
 			ActorType: ActorTypeSystem,
