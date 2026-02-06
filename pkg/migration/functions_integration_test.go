@@ -37,8 +37,11 @@ func TestMigratorIntegration(t *testing.T) {
 	}
 
 	// Cleanup any previous test state (functions_migrations table may exist from previous runs)
-	_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS "+functionsMigrationsTable)
-	_, _ = db.ExecContext(ctx, "DROP FUNCTION IF EXISTS test_func()")
+	_, err = db.ExecContext(ctx, "DROP TABLE IF EXISTS "+functionsMigrationsTable)
+	require.NoError(t, err, "failed to drop migrations table")
+
+	_, err = db.ExecContext(ctx, "DROP FUNCTION IF EXISTS test_func()")
+	require.NoError(t, err, "failed to drop test function")
 
 	tempDir := t.TempDir()
 
@@ -52,10 +55,13 @@ func TestMigratorIntegration(t *testing.T) {
 
 	migrator := NewFunctionMigrator(db, tempDir, nil)
 
-	defer func() {
-		_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS "+functionsMigrationsTable)
-		_, _ = db.ExecContext(ctx, "DROP FUNCTION IF EXISTS test_func()")
-	}()
+	t.Cleanup(func() {
+		_, cleanupErr := db.ExecContext(ctx, "DROP TABLE IF EXISTS "+functionsMigrationsTable)
+		assert.NoError(t, cleanupErr, "cleanup: failed to drop migrations table")
+
+		_, cleanupErr = db.ExecContext(ctx, "DROP FUNCTION IF EXISTS test_func()")
+		assert.NoError(t, cleanupErr, "cleanup: failed to drop test function")
+	})
 
 	version, dirty, err := migrator.Version(ctx)
 	require.NoError(t, err)
