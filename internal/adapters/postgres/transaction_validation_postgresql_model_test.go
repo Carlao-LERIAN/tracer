@@ -569,7 +569,8 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 
 			// Act
 			var dbModel TransactionValidationPostgreSQLModel
-			dbModel.FromEntity(tt.entity)
+			err := dbModel.FromEntity(tt.entity)
+			require.NoError(t, err, "FromEntity should not return error for valid entity")
 
 			// Assert
 			tt.assertFn(t, &dbModel)
