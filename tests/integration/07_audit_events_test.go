@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -58,7 +57,7 @@ func TestAuditEvents_11_1_1_RetrievesAuditEventByID(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Precondition: Create a rule to generate RULE_CREATED audit event
-	ruleName := "audit-test-rule-" + uuid.New().String()[:8]
+	ruleName := "audit-test-rule-" + testutil.MustDeterministicUUID(7001).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "amount > 1000",
@@ -190,7 +189,7 @@ func TestAuditEvents_11_1_3_Returns400ForInvalidUUID(t *testing.T) {
 func TestAuditEvents_11_1_4_Returns401WithoutAPIKey(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
-	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events/"+uuid.New().String(), nil)
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events/"+testutil.MustDeterministicUUID(7002).String(), nil)
 	require.NoError(t, err)
 	// No API Key header
 
@@ -256,7 +255,7 @@ func TestAuditEvents_11_2_2_FiltersByEventType(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create a rule (generates RULE_CREATED event)
-	ruleName := "filter-test-" + uuid.New().String()[:8]
+	ruleName := "filter-test-" + testutil.MustDeterministicUUID(7003).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "true",
@@ -423,13 +422,13 @@ func TestAuditEvents_11_2_7_FiltersByAccountId(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create a validation with known accountId
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7004).String()
 	validationReq := &testutil.ValidationRequest{
-		RequestID:            uuid.New().String(),
+		RequestID:            testutil.MustDeterministicUUID(7005).String(),
 		TransactionType:      "PIX",
 		Amount:               50000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
 			Type:   "checking",
@@ -481,13 +480,13 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 
 	// Create PIX validation
 	pixReq := &testutil.ValidationRequest{
-		RequestID:            uuid.New().String(),
+		RequestID:            testutil.MustDeterministicUUID(7006).String(),
 		TransactionType:      "PIX",
 		Amount:               1000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
-			ID:     uuid.New().String(),
+			ID:     testutil.MustDeterministicUUID(7007).String(),
 			Type:   "checking",
 			Status: "active",
 		},
@@ -497,13 +496,13 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 
 	// Create CARD validation
 	cardReq := &testutil.ValidationRequest{
-		RequestID:            uuid.New().String(),
+		RequestID:            testutil.MustDeterministicUUID(7008).String(),
 		TransactionType:      "CARD",
 		Amount:               2000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
-			ID:     uuid.New().String(),
+			ID:     testutil.MustDeterministicUUID(7009).String(),
 			Type:   "checking",
 			Status: "active",
 		},
@@ -547,7 +546,7 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 
 	// Create and activate a rule with ALLOW action
 	// (ALLOW rules are included in matchedRuleIds even when other rules might DENY)
-	ruleName := "matched-rule-" + uuid.New().String()[:8]
+	ruleName := "matched-rule-" + testutil.MustDeterministicUUID(7010).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 500", "ALLOW")
 	defer testutil.CleanupRule(t, ruleID)
 
@@ -557,13 +556,13 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 
 	// Validate a transaction that matches the rule
 	validationReq := &testutil.ValidationRequest{
-		RequestID:            uuid.New().String(),
+		RequestID:            testutil.MustDeterministicUUID(7011).String(),
 		TransactionType:      "PIX",
 		Amount:               1000, // > 500, will match rule
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
-			ID:     uuid.New().String(),
+			ID:     testutil.MustDeterministicUUID(7012).String(),
 			Type:   "checking",
 			Status: "active",
 		},
@@ -624,7 +623,7 @@ func TestAuditEvents_11_2_10_A_ReturnsAllResultsWithoutPagination(t *testing.T) 
 	// Create exactly 2 rules to generate exactly 2 audit events (predictable scenario)
 	var ruleIDs []string
 	for i := 0; i < 2; i++ {
-		ruleName := fmt.Sprintf("no-pagination-test-%d-%s", i, uuid.New().String()[:8])
+		ruleName := fmt.Sprintf("no-pagination-test-%d-%s", i, testutil.MustDeterministicUUID(int64(7100+i)).String()[:8])
 		ruleReq := testutil.RuleRequest{
 			Name:       ruleName,
 			Expression: "true",
@@ -696,7 +695,7 @@ func TestAuditEvents_11_2_10_B_IteratesThroughMultiplePages(t *testing.T) {
 	// Create at least 7 rules to ensure we have at least 3 pages (7 events / 2 per page = 3.5 pages)
 	var ruleIDs []string
 	for i := 0; i < 7; i++ {
-		ruleName := fmt.Sprintf("pagination-test-%d-%s", i, uuid.New().String()[:8])
+		ruleName := fmt.Sprintf("pagination-test-%d-%s", i, testutil.MustDeterministicUUID(int64(7200+i)).String()[:8])
 		ruleReq := testutil.RuleRequest{
 			Name:       ruleName,
 			Expression: "true",
@@ -947,7 +946,7 @@ func TestAuditEvents_11_3_1_VerifiesValidHashChain(t *testing.T) {
 	resetAuditEvents(t, db)
 
 	// Create a rule to generate a fresh audit event with valid hash chain
-	ruleName := "verify-hash-" + uuid.New().String()[:8]
+	ruleName := "verify-hash-" + testutil.MustDeterministicUUID(7013).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "true",
@@ -1013,15 +1012,20 @@ func TestAuditEvents_11_3_3_VerifiesSingleEvent(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	db := testutil.SetupIntegrationDB(t)
 
-	// Get first audit event (genesis)
+	// Setup: Create a rule to generate an audit event
+	ruleName := "Verify Single Event Test " + testutil.MustDeterministicUUID(7102).String()[:8]
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 5000", "DENY")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, ruleID)
+	})
+
+	// Get the audit event that was just created
 	var eventID string
 	err := db.QueryRowContext(context.Background(),
-		`SELECT event_id FROM audit_events ORDER BY id ASC LIMIT 1`,
+		`SELECT event_id FROM audit_events WHERE resource_type = 'rule' AND resource_id = $1 ORDER BY id DESC LIMIT 1`,
+		ruleID,
 	).Scan(&eventID)
-
-	if err != nil {
-		t.Skip("No audit events found")
-	}
+	require.NoError(t, err, "Audit event should be created for rule creation")
 
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events/"+eventID+"/verify", nil)
 	require.NoError(t, err)
@@ -1039,8 +1043,8 @@ func TestAuditEvents_11_3_3_VerifiesSingleEvent(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	require.NoError(t, err)
 
-	assert.True(t, result.IsValid)
-	assert.Equal(t, int64(1), result.TotalChecked)
+	assert.True(t, result.IsValid, "Hash chain should be valid")
+	assert.GreaterOrEqual(t, result.TotalChecked, int64(1), "Should verify at least 1 event")
 }
 
 // TestAuditEvents_11_3_4_Returns404ForNonExistentEvent tests 404 for verify endpoint.
@@ -1098,7 +1102,7 @@ func TestAuditEvents_11_4_1_GeneratesAuditForRuleCreation(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	ruleName := "audit-gen-test-" + uuid.New().String()[:8]
+	ruleName := "audit-gen-test-" + testutil.MustDeterministicUUID(7014).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "amount > 1000",
@@ -1166,7 +1170,7 @@ func TestAuditEvents_11_4_2_GeneratesAuditForRuleActivation(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create rule in DRAFT
-	ruleName := "activate-audit-" + uuid.New().String()[:8]
+	ruleName := "activate-audit-" + testutil.MustDeterministicUUID(7015).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "true",
@@ -1239,7 +1243,7 @@ func TestAuditEvents_11_4_3_GeneratesAuditForRuleUpdate(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create rule
-	ruleName := "update-audit-" + uuid.New().String()[:8]
+	ruleName := "update-audit-" + testutil.MustDeterministicUUID(7016).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "amount > 1000",
@@ -1326,7 +1330,7 @@ func TestAuditEvents_11_4_4_GeneratesAuditForRuleDelete(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create and deactivate rule
-	ruleName := "delete-audit-" + uuid.New().String()[:8]
+	ruleName := "delete-audit-" + testutil.MustDeterministicUUID(7017).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "true",
@@ -1412,15 +1416,15 @@ func TestAuditEvents_11_4_5_GeneratesAuditForTransactionValidation(t *testing.T)
 	baseURL := testutil.GetBaseURL()
 
 	// Create validation request
-	accountID := uuid.New().String()
-	requestID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7018).String()
+	requestID := testutil.MustDeterministicUUID(7019).String()
 
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "PIX",
 		Amount:               50000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
 			Type:   "checking",
@@ -1481,7 +1485,7 @@ func TestAuditEvents_11_4_6_CapturesClientIPInAuditEvents(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	ruleName := "ip-test-" + uuid.New().String()[:8]
+	ruleName := "ip-test-" + testutil.MustDeterministicUUID(7020).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "true",
@@ -1550,7 +1554,7 @@ func TestAuditEvents_11_4_7_GeneratesAuditForLimitCreation(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Precondition: Create a limit to generate LIMIT_CREATED audit event
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7021).String()
 	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
 	defer testutil.CleanupLimit(t, limitID)
 
@@ -1603,7 +1607,7 @@ func TestAuditEvents_11_4_8_GeneratesAuditForLimitActivation(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create limit in DRAFT
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7022).String()
 	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
 	defer testutil.CleanupLimit(t, limitID)
 
@@ -1650,7 +1654,7 @@ func TestAuditEvents_11_4_9_GeneratesAuditForLimitUpdate(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create limit
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7023).String()
 	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
 	defer testutil.CleanupLimit(t, limitID)
 
@@ -1715,7 +1719,7 @@ func TestAuditEvents_11_4_10_GeneratesAuditForLimitDeactivation(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create and activate limit
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7024).String()
 	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
 	defer testutil.CleanupLimit(t, limitID)
 
@@ -1774,7 +1778,7 @@ func TestAuditEvents_11_4_11_GeneratesAuditForLimitDelete(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create limit in DRAFT status
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7025).String()
 	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
 
 	// Delete limit directly from DRAFT (DRAFT → DELETED is allowed)
@@ -2074,7 +2078,7 @@ func TestAuditEvents_11_10_1_CompleteRuleLifecycleIsAudited(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// 1. Create rule
-	ruleName := "lifecycle-test-" + uuid.New().String()[:8]
+	ruleName := "lifecycle-test-" + testutil.MustDeterministicUUID(7026).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "true",
@@ -2155,15 +2159,15 @@ func TestAuditEvents_11_10_2_ValidationTriggersAuditEvent(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Step 1: POST /v1/validations
-	accountID := uuid.New().String()
-	requestID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7027).String()
+	requestID := testutil.MustDeterministicUUID(7028).String()
 
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "PIX",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
 			Type:   "checking",
@@ -2205,9 +2209,7 @@ func TestAuditEvents_11_10_2_ValidationTriggersAuditEvent(t *testing.T) {
 	}
 	json.NewDecoder(auditResp.Body).Decode(&auditResult)
 
-	if len(auditResult.AuditEvents) == 0 {
-		t.Skip("Audit events for validations not yet implemented - skipping test")
-	}
+	require.NotEmpty(t, auditResult.AuditEvents, "Audit events for validations should be created")
 
 	// Find the event for our specific validation
 	var event map[string]any
@@ -2259,7 +2261,7 @@ func TestAuditEvents_11_10_3_CompleteLimitLifecycleIsAudited(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// 1. Create limit
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7029).String()
 	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
 
 	// 2. Activate limit
@@ -2401,7 +2403,7 @@ func TestAuditEvents_11_11_2_ActorInformationCaptured(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Perform any operation
-	ruleName := "actor-test-" + uuid.New().String()[:8]
+	ruleName := "actor-test-" + testutil.MustDeterministicUUID(7030).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
 		Expression: "true",
@@ -2465,7 +2467,7 @@ func TestAuditEvents_11_5_1_HashChainIntactAfterMultipleOperations(t *testing.T)
 
 	// Perform multiple operations to generate events
 	for i := 0; i < 5; i++ {
-		ruleName := fmt.Sprintf("chain-test-%d-%s", i, uuid.New().String()[:8])
+		ruleName := fmt.Sprintf("chain-test-%d-%s", i, testutil.MustDeterministicUUID(int64(7300+i)).String()[:8])
 		ruleReq := testutil.RuleRequest{
 			Name:       ruleName,
 			Expression: "true",
@@ -2516,25 +2518,33 @@ func TestAuditEvents_11_5_1_HashChainIntactAfterMultipleOperations(t *testing.T)
 func TestAuditEvents_11_5_2_FirstEventHasGenesisHash(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
+	db := testutil.SetupIntegrationDB(t)
 
-	// Get first event
-	req, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?sortBy=createdAt&sortOrder=ASC&limit=1", nil)
+	// Setup: Create a rule to generate an audit event (ensures we have at least one event)
+	ruleName := "Genesis Hash Test " + testutil.MustDeterministicUUID(7103).String()[:8]
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 9000", "DENY")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, ruleID)
+	})
+
+	// Get the first event from database (by sequence, not by our test)
+	var eventID string
+	err := db.QueryRowContext(context.Background(),
+		`SELECT event_id FROM audit_events ORDER BY id ASC LIMIT 1`,
+	).Scan(&eventID)
+	require.NoError(t, err, "Should have at least one audit event after rule creation")
+
+	// Get event details via API
+	req, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events/"+eventID, nil)
 	req.Header.Set("X-API-Key", apiKey)
 
 	resp, err := testutil.HTTPClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var result struct {
-		AuditEvents []map[string]any `json:"auditEvents"`
-	}
-	json.NewDecoder(resp.Body).Decode(&result)
-
-	if len(result.AuditEvents) == 0 {
-		t.Skip("No audit events in database")
-	}
-
-	firstEvent := result.AuditEvents[0]
+	var firstEvent map[string]any
+	json.NewDecoder(resp.Body).Decode(&firstEvent)
 
 	// First event should have null or empty previousHash (genesis)
 	previousHash := firstEvent["previousHash"]
@@ -2547,6 +2557,19 @@ func TestAuditEvents_11_5_2_FirstEventHasGenesisHash(t *testing.T) {
 func TestAuditEvents_11_5_3_SubsequentEventsChainCorrectly(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
+
+	// Setup: Create 2 rules to generate at least 2 audit events
+	rule1Name := "Chain Test Rule 1 " + testutil.MustDeterministicUUID(7104).String()[:8]
+	rule1ID := testutil.CreateTestRuleWithExpression(t, rule1Name, "amount > 10000", "DENY")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, rule1ID)
+	})
+
+	rule2Name := "Chain Test Rule 2 " + testutil.MustDeterministicUUID(7105).String()[:8]
+	rule2ID := testutil.CreateTestRuleWithExpression(t, rule2Name, "amount < 100", "ALLOW")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, rule2ID)
+	})
 
 	// Get first 10 events in order
 	req, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?sortBy=createdAt&sortOrder=ASC&limit=10", nil)
@@ -2561,9 +2584,7 @@ func TestAuditEvents_11_5_3_SubsequentEventsChainCorrectly(t *testing.T) {
 	}
 	json.NewDecoder(resp.Body).Decode(&result)
 
-	if len(result.AuditEvents) < 2 {
-		t.Skip("Need at least 2 events to test chaining")
-	}
+	require.GreaterOrEqual(t, len(result.AuditEvents), 2, "Should have at least 2 audit events after creating 2 rules")
 
 	// Verify each event's previousHash matches previous event's hash
 	for i := 1; i < len(result.AuditEvents); i++ {
@@ -2589,15 +2610,15 @@ func TestAuditEvents_11_6_1_FiltersBySegmentId(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create validation with segmentId
-	segmentID := uuid.New().String()
+	segmentID := testutil.MustDeterministicUUID(7031).String()
 	validationReq := &testutil.ValidationRequest{
-		RequestID:            uuid.New().String(),
+		RequestID:            testutil.MustDeterministicUUID(7032).String(),
 		TransactionType:      "PIX",
 		Amount:               1000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
-			ID:     uuid.New().String(),
+			ID:     testutil.MustDeterministicUUID(7033).String(),
 			Type:   "checking",
 			Status: "active",
 		},
@@ -2658,15 +2679,15 @@ func TestAuditEvents_11_6_2_FiltersByPortfolioId(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create validation with portfolioId
-	portfolioID := uuid.New().String()
+	portfolioID := testutil.MustDeterministicUUID(7034).String()
 	validationReq := &testutil.ValidationRequest{
-		RequestID:            uuid.New().String(),
+		RequestID:            testutil.MustDeterministicUUID(7035).String(),
 		TransactionType:      "CARD",
 		Amount:               2000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
-			ID:     uuid.New().String(),
+			ID:     testutil.MustDeterministicUUID(7036).String(),
 			Type:   "checking",
 			Status: "active",
 		},
@@ -2727,16 +2748,16 @@ func TestAuditEvents_11_6_3_CombinesMultipleJSONBFilters(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create validation with multiple identifiers
-	accountID := uuid.New().String()
-	segmentID := uuid.New().String()
-	portfolioID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(7037).String()
+	segmentID := testutil.MustDeterministicUUID(7038).String()
+	portfolioID := testutil.MustDeterministicUUID(7039).String()
 
 	validationReq := &testutil.ValidationRequest{
-		RequestID:            uuid.New().String(),
+		RequestID:            testutil.MustDeterministicUUID(7040).String(),
 		TransactionType:      "PIX",
 		Amount:               5000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
 			Type:   "checking",

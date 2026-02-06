@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -62,9 +61,9 @@ func TestValidation_ErrorHandling_MissingRequestId(t *testing.T) {
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4601).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -104,13 +103,13 @@ func TestValidation_ErrorHandling_MissingAmount(t *testing.T) {
 
 	// EXECUTION: Send request WITHOUT amount
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4602).String(),
 		"transactionType":      "CARD",
 		// "amount" intentionally omitted (will be 0 in Go)
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4603).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -150,13 +149,13 @@ func TestValidation_ErrorHandling_MissingCurrency(t *testing.T) {
 
 	// EXECUTION: Send request WITHOUT currency
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4604).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		// "currency" intentionally omitted
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4605).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -196,13 +195,13 @@ func TestValidation_ErrorHandling_MissingTransactionType(t *testing.T) {
 
 	// EXECUTION: Send request WITHOUT transactionType
 	payload := map[string]any{
-		"requestId": uuid.New().String(),
+		"requestId": testutil.MustDeterministicUUID(4606).String(),
 		// "transactionType" intentionally omitted
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4607).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -242,13 +241,13 @@ func TestValidation_ErrorHandling_MissingTransactionTimestamp(t *testing.T) {
 
 	// EXECUTION: Send request WITHOUT transactionTimestamp
 	payload := map[string]any{
-		"requestId":       uuid.New().String(),
+		"requestId":       testutil.MustDeterministicUUID(4608).String(),
 		"transactionType": "CARD",
 		"amount":          10000,
 		"currency":        "BRL",
 		// "transactionTimestamp" intentionally omitted
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4609).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -288,13 +287,13 @@ func TestValidation_ErrorHandling_InvalidAmount_ZeroValue(t *testing.T) {
 
 	// EXECUTION: Send request with amount = 0
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4610).String(),
 		"transactionType":      "CARD",
 		"amount":               0, // Zero is invalid per API Design 6.10
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4611).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -334,13 +333,13 @@ func TestValidation_ErrorHandling_InvalidAmount_NegativeValue(t *testing.T) {
 
 	// EXECUTION: Send request with negative amount
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4612).String(),
 		"transactionType":      "CARD",
 		"amount":               -10000, // Negative is invalid
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4613).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -380,13 +379,13 @@ func TestValidation_ErrorHandling_InvalidAmount_StringValue(t *testing.T) {
 
 	// EXECUTION: Send request with amount as string (JSON type mismatch)
 	jsonPayload := `{
-		"requestId": "` + uuid.New().String() + `",
+		"requestId": "` + testutil.MustDeterministicUUID(4614).String() + `",
 		"transactionType": "CARD",
 		"amount": "10000",
 		"currency": "BRL",
-		"transactionTimestamp": "` + time.Now().Add(-1*time.Minute).Format(time.RFC3339) + `",
+		"transactionTimestamp": "` + testutil.FixedTime().Add(-1*time.Minute).Format(time.RFC3339) + `",
 		"account": {
-			"accountId": "` + uuid.New().String() + `",
+			"accountId": "` + testutil.MustDeterministicUUID(4615).String() + `",
 			"type": "checking",
 			"status": "active"
 		}
@@ -433,13 +432,13 @@ func TestValidation_ErrorHandling_InvalidCurrency_MixedCase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			payload := map[string]any{
-				"requestId":            uuid.New().String(),
+				"requestId":            testutil.MustDeterministicUUID(4616).String(),
 				"transactionType":      "CARD",
 				"amount":               10000,
 				"currency":             tc.currency, // Invalid case
-				"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
-					"accountId": uuid.New().String(),
+					"accountId": testutil.MustDeterministicUUID(4617).String(),
 					"type":      "checking",
 					"status":    "active",
 				},

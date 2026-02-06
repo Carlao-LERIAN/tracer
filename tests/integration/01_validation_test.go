@@ -37,7 +37,7 @@ func TestValidation_CompletePayload(t *testing.T) {
 		SubType:              "credit",
 		Amount:               150000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -94,7 +94,7 @@ func TestValidation_ReturnsAllowWithoutDenyRules(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -117,7 +117,7 @@ func TestValidation_ReturnsAllowWithoutDenyRules(t *testing.T) {
 // Test 1.1.3: Validation returns DENY when DENY rule matches
 func TestValidation_ReturnsDenyWhenRuleMatches(t *testing.T) {
 	// Create and activate DENY rule: "transactionType == 'CARD' && amount > 500000"
-	ruleName := "deny-high-value-card-" + uuid.New().String()[:8]
+	ruleName := "deny-high-value-card-" + testutil.MustDeterministicUUID(1001).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "transactionType == 'CARD' && amount > 500000", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
@@ -133,7 +133,7 @@ func TestValidation_ReturnsDenyWhenRuleMatches(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               600000, // Above 500000 threshold
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -156,7 +156,7 @@ func TestValidation_ReturnsDenyWhenRuleMatches(t *testing.T) {
 // Test 1.1.4: Validation returns REVIEW when REVIEW rule matches
 func TestValidation_ReturnsReviewWhenRuleMatches(t *testing.T) {
 	// Create and activate REVIEW rule: "amount > 100000 && amount <= 500000"
-	ruleName := "review-medium-value-" + uuid.New().String()[:8]
+	ruleName := "review-medium-value-" + testutil.MustDeterministicUUID(1002).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 100000 && amount <= 500000", "REVIEW")
 	testutil.ActivateRule(t, ruleID)
 
@@ -172,7 +172,7 @@ func TestValidation_ReturnsReviewWhenRuleMatches(t *testing.T) {
 		TransactionType:      "WIRE",
 		Amount:               200000, // Between 100000 and 500000
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -208,7 +208,7 @@ func TestValidation_ReturnsDenyWhenLimitExceeded(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               90000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -224,7 +224,7 @@ func TestValidation_ReturnsDenyWhenLimitExceeded(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               20000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -288,12 +288,12 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		accountID := testutil.MustDeterministicUUID(210).String()
 
 		// Create DENY rule
-		denyRuleName := "deny-precedence-test-" + uuid.New().String()[:8]
+		denyRuleName := "deny-precedence-test-" + testutil.MustDeterministicUUID(1003).String()[:8]
 		denyRuleID := testutil.CreateTestRuleWithExpression(t, denyRuleName, "transactionType == 'CARD' && amount > 10000", "DENY")
 		testutil.ActivateRule(t, denyRuleID)
 
 		// Create REVIEW rule
-		reviewRuleName := "review-precedence-test-" + uuid.New().String()[:8]
+		reviewRuleName := "review-precedence-test-" + testutil.MustDeterministicUUID(1004).String()[:8]
 		reviewRuleID := testutil.CreateTestRuleWithExpression(t, reviewRuleName, "transactionType == 'CARD' && amount > 5000", "REVIEW")
 		testutil.ActivateRule(t, reviewRuleID)
 
@@ -307,7 +307,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 			TransactionType:      "CARD",
 			Amount:               15000, // Matches both DENY and REVIEW rules
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -334,7 +334,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		activateTestLimit(t, limitID)
 
 		// Create REVIEW rule
-		reviewRuleName := "review-limit-precedence-" + uuid.New().String()[:8]
+		reviewRuleName := "review-limit-precedence-" + testutil.MustDeterministicUUID(1005).String()[:8]
 		reviewRuleID := testutil.CreateTestRuleWithExpression(t, reviewRuleName, "transactionType == 'PIX'", "REVIEW")
 		testutil.ActivateRule(t, reviewRuleID)
 
@@ -348,7 +348,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               10000, // Exceeds limit of 5000
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -370,7 +370,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		accountID := testutil.MustDeterministicUUID(230).String()
 
 		// Create only REVIEW rule
-		reviewRuleName := "review-only-" + uuid.New().String()[:8]
+		reviewRuleName := "review-only-" + testutil.MustDeterministicUUID(1006).String()[:8]
 		reviewRuleID := testutil.CreateTestRuleWithExpression(t, reviewRuleName, "transactionType == 'WIRE' && amount > 50000", "REVIEW")
 		testutil.ActivateRule(t, reviewRuleID)
 
@@ -383,7 +383,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 			TransactionType:      "WIRE",
 			Amount:               75000, // Matches REVIEW rule
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -406,7 +406,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		accountID := testutil.MustDeterministicUUID(400).String()
 
 		// Create only ALLOW rule
-		allowRuleName := "allow-only-test-" + uuid.New().String()[:8]
+		allowRuleName := "allow-only-test-" + testutil.MustDeterministicUUID(1007).String()[:8]
 		allowRuleID := testutil.CreateTestRuleWithExpression(t, allowRuleName, "transactionType == 'PIX'", "ALLOW")
 		testutil.ActivateRule(t, allowRuleID)
 
@@ -419,7 +419,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               5000,
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -453,7 +453,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 			TransactionType:      "CRYPTO", // Uncommon type unlikely to match any rules
 			Amount:               999,      // Uncommon amount
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -494,7 +494,7 @@ func TestValidation_DefaultDecisionWithoutRules(t *testing.T) {
 		TransactionType:      "CRYPTO", // Uncommon transaction type
 		Amount:               50000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -537,7 +537,7 @@ func createTestLimitWithAccountScope(t *testing.T, accountID string, maxAmount i
 		ID string `json:"limitId"`
 	}
 
-	uniqueName := "Test Limit " + uuid.New().String()[:8]
+	uniqueName := "Test Limit " + testutil.MustDeterministicUUID(1008).String()[:8]
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "DAILY",
@@ -647,7 +647,7 @@ func TestValidation_1_1_8_MultipleMatchingRules(t *testing.T) {
 		TransactionType:      "PIX", // matches rule1
 		Amount:               10000, // matches rule2
 		Currency:             "BRL", // matches rule3
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -688,7 +688,7 @@ func TestValidation_1_1_9_PayloadTooLarge(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -714,7 +714,7 @@ func TestValidation_1_1_9_PayloadTooLarge(t *testing.T) {
 func TestValidation_RequiredFieldsValidation(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(140).String()
 	requestID := testutil.MustDeterministicUUID(141).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	tests := []struct {
 		name            string
@@ -844,7 +844,7 @@ func TestValidation_InvalidTransactionType(t *testing.T) {
 		TransactionType:      "INVALID_TYPE",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -866,7 +866,7 @@ func TestValidation_InvalidTransactionType(t *testing.T) {
 // Test 1.1.12: Validation rejects invalid amount
 func TestValidation_InvalidAmount(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(160).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	// Test invalid amounts that should be rejected
 	invalidTests := []struct {
@@ -934,7 +934,7 @@ func TestValidation_InvalidAmount(t *testing.T) {
 // Test 1.1.13: Validation rejects invalid currency
 func TestValidation_InvalidCurrency(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(170).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	tests := []struct {
 		name     string
@@ -1039,7 +1039,7 @@ func TestValidation_RequiresAuthentication(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1061,7 +1061,7 @@ func TestValidation_OptionalMerchant(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1093,7 +1093,7 @@ func TestValidation_1_1_17_ScopesArray(t *testing.T) {
 		TransactionType:      "WIRE",
 		Amount:               25000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1139,7 +1139,7 @@ func TestValidation_1_1_18_CustomMetadata(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               15000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1198,7 +1198,7 @@ func TestValidation_1_1_19_RejectsMetadataOverLimit(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               15000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1235,7 +1235,7 @@ func TestValidation_1_1_20_RejectsLongMetadataKey(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               15000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1258,7 +1258,7 @@ func TestValidation_1_1_20_RejectsLongMetadataKey(t *testing.T) {
 // Test 1.1.21: Rejects metadata key with invalid characters
 func TestValidation_1_1_21_RejectsInvalidMetadataKeyChars(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(354).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	// Test various invalid key patterns (only alphanumeric and underscores allowed)
 	tests := []struct {
@@ -1370,7 +1370,7 @@ func TestValidation_1_1_22_RejectsInvalidRequestIdUUID(t *testing.T) {
 				TransactionType:      "PIX",
 				Amount:               10000,
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -1440,7 +1440,7 @@ func TestValidation_1_1_23_RejectsInvalidAccountIdUUID(t *testing.T) {
 				TransactionType:      "CARD",
 				Amount:               10000,
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: tc.accountID,
 				},
@@ -1492,7 +1492,7 @@ func TestValidation_1_1_24_RejectsInvalidSegmentIdUUID(t *testing.T) {
 				TransactionType:      "WIRE",
 				Amount:               15000,
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -1547,7 +1547,7 @@ func TestValidation_1_1_25_RejectsInvalidPortfolioIdUUID(t *testing.T) {
 				TransactionType:      "PIX",
 				Amount:               20000,
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -1602,7 +1602,7 @@ func TestValidation_1_1_26_RejectsInvalidMerchantIdUUID(t *testing.T) {
 				TransactionType:      "CARD",
 				Amount:               25000,
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -1640,7 +1640,7 @@ func TestValidation_1_1_27_Returns504OnProcessingTimeout(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1671,7 +1671,7 @@ func TestValidation_1_1_28_Returns503OnServiceUnavailable(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1705,7 +1705,7 @@ func TestValidation_1_1_29_RejectsDecimalAmount(t *testing.T) {
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"},
 		"scopes": [{"accountId": "%s"}]
-	}`, requestID, time.Now().UTC().Format(time.RFC3339), accountID, accountID)
+	}`, requestID, testutil.FixedTime().Format(time.RFC3339), accountID, accountID)
 
 	resp, body := testutil.CreateValidationRaw(t, []byte(jsonPayload))
 	defer resp.Body.Close()
@@ -1723,7 +1723,7 @@ func TestValidation_1_1_29_RejectsDecimalAmount(t *testing.T) {
 // Test 1.1.30: Validation rejects timestamp without timezone
 func TestValidation_1_1_30_RejectsTimestampWithoutTimezone(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1130).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	tests := []struct {
 		name      string
@@ -1794,7 +1794,7 @@ func TestValidation_1_1_31_InvalidAPIKeyFormat(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1834,7 +1834,7 @@ func TestValidation_1_1_31_InvalidAPIKeyFormat(t *testing.T) {
 // Test 1.1.32: Validation rejects invalid account.type value
 func TestValidation_1_1_32_RejectsInvalidAccountType(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1132).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	tests := []struct {
 		name        string
@@ -1910,7 +1910,7 @@ func TestValidation_1_1_32_RejectsInvalidAccountType(t *testing.T) {
 // Test 1.1.33: Validation rejects invalid account.status value
 func TestValidation_1_1_33_RejectsInvalidAccountStatus(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1133).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	tests := []struct {
 		name          string
@@ -1987,7 +1987,7 @@ func TestValidation_1_1_33_RejectsInvalidAccountStatus(t *testing.T) {
 func TestValidation_1_1_34_RejectsInvalidMerchantCategory(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1134).String()
 	merchantID := testutil.MustDeterministicUUID(11341).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	tests := []struct {
 		name     string
@@ -2067,7 +2067,7 @@ func TestValidation_1_1_34_RejectsInvalidMerchantCategory(t *testing.T) {
 func TestValidation_1_1_35_RejectsInvalidMerchantCountry(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1135).String()
 	merchantID := testutil.MustDeterministicUUID(11351).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	tests := []struct {
 		name     string
@@ -2208,7 +2208,7 @@ func TestValidation_1_1_36_TimestampClockSkewBoundary(t *testing.T) {
 // Test 1.1.37: Validation accepts all valid transactionType values
 func TestValidation_1_1_37_ValidTransactionTypes(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1137).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	tests := []struct {
 		name            string
@@ -2274,7 +2274,7 @@ func TestValidation_1_1_37_ValidTransactionTypes(t *testing.T) {
 // Test 1.1.38: Validation with subType field
 func TestValidation_1_1_38_SubTypeField(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1138).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	// Create a string longer than 50 characters
 	longSubType := "this_subtype_is_way_too_long_and_exceeds_the_50_character_limit_defined"
@@ -2339,7 +2339,7 @@ func TestValidation_1_1_38_SubTypeField(t *testing.T) {
 // Test 1.1.39: Validation rejects missing accountId in account context
 func TestValidation_1_1_39_RejectsMissingAccountId(t *testing.T) {
 	requestID := testutil.MustDeterministicUUID(1139).String()
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := testutil.FixedTime().Format(time.RFC3339)
 
 	// Send raw JSON with account context but no accountId
 	jsonPayload := fmt.Sprintf(`{
@@ -2373,7 +2373,7 @@ func TestValidation_1_1_39_RejectsMissingAccountId(t *testing.T) {
 // Type: Integration (Cross-endpoint: Rules + Validations)
 func TestValidation_1_1_55_DeactivatedRuleNotEvaluated(t *testing.T) {
 	// Preconditions: Create and activate DENY rule
-	ruleName := "deny-specific-amount-" + uuid.New().String()[:8]
+	ruleName := "deny-specific-amount-" + testutil.MustDeterministicUUID(1009).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount == 250000", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
@@ -2390,7 +2390,7 @@ func TestValidation_1_1_55_DeactivatedRuleNotEvaluated(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               250000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -2422,7 +2422,7 @@ func TestValidation_1_1_55_DeactivatedRuleNotEvaluated(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               250000, // Same amount as before
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -2459,7 +2459,7 @@ func TestValidation_1_2_1_RetrievesValidationByID(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               50000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -2549,7 +2549,7 @@ func TestValidation_1_2_4_RequiresAuthentication(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -2588,7 +2588,7 @@ func TestValidation_1_2_5_CompleteSnapshotPreserved(t *testing.T) {
 		SubType:              subType,
 		Amount:               75000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID:     accountID,
 			Type:   "checking", // Added for AccountContext verification
@@ -2663,7 +2663,7 @@ func TestValidation_1_2_6_CompleteResponseSnapshot(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               30000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -2735,7 +2735,7 @@ func TestValidation_1_2_7_CompleteDataWithSegmentPortfolio(t *testing.T) {
 		SubType:              "debit",
 		Amount:               85000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -2820,7 +2820,7 @@ func TestValidation_1_2_8_CompleteLimitUsagePreserved(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               consumeAmount,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -2896,7 +2896,7 @@ func TestValidation_1_2_9_CreatedAtIsISO8601(t *testing.T) {
 		TransactionType:      "WIRE",
 		Amount:               40000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -2961,7 +2961,7 @@ func TestValidation_1_3_1_ListsValidationsWithoutFilters(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               25000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -3054,7 +3054,7 @@ func TestValidation_1_3_3_FiltersByDecision(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(520).String()
 
 	// Create a DENY rule to ensure we get a DENY decision
-	ruleName := "deny-filter-test-" + uuid.New().String()[:8]
+	ruleName := "deny-filter-test-" + testutil.MustDeterministicUUID(1010).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "transactionType == 'CARD' && amount > 100000", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
@@ -3068,7 +3068,7 @@ func TestValidation_1_3_3_FiltersByDecision(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               150000, // Will trigger DENY rule
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -3112,7 +3112,7 @@ func TestValidation_1_3_4_FiltersByAccountID(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               20000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -3156,7 +3156,7 @@ func TestValidation_1_3_5_FiltersBySegmentID(t *testing.T) {
 		TransactionType:      "WIRE",
 		Amount:               45000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -3203,7 +3203,7 @@ func TestValidation_1_3_6_FiltersByPortfolioID(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               30000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -3249,7 +3249,7 @@ func TestValidation_1_3_7_FiltersByTransactionType(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               15000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -3286,7 +3286,7 @@ func TestValidation_1_3_8_FiltersByRuleID(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(570).String()
 
 	// Create a rule that will match
-	ruleName := "filter-rule-test-" + uuid.New().String()[:8]
+	ruleName := "filter-rule-test-" + testutil.MustDeterministicUUID(1011).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "transactionType == 'WIRE' && amount > 50000", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
@@ -3300,7 +3300,7 @@ func TestValidation_1_3_8_FiltersByRuleID(t *testing.T) {
 		TransactionType:      "WIRE",
 		Amount:               75000, // Will trigger the rule
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -3355,7 +3355,7 @@ func TestValidation_1_3_9_FiltersByExceededLimitId(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               20000, // Exceeds limit of 10000
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -3418,7 +3418,7 @@ func TestValidation_1_3_10_PaginationWorks(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               int64(10000 + i*1000),
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: baseAccountID,
 			},
@@ -3484,7 +3484,7 @@ func TestValidation_1_3_11_SortingWorks(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               int64(10000 + i*5000),
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -3523,7 +3523,7 @@ func TestValidation_1_3_12_CombinedFilters(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Create a DENY rule for CARD transactions with high amount
-	ruleName := "combined-filter-deny-" + uuid.New().String()[:8]
+	ruleName := "combined-filter-deny-" + testutil.MustDeterministicUUID(1012).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "transactionType == 'CARD' && amount > 80000", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
@@ -3811,7 +3811,7 @@ func TestValidation_1_3_13_SortingByProcessingTimeAsc(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               int64(10000 + i*5000),
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -3962,7 +3962,7 @@ func TestValidation_1_2_10_ValidationIdEchoedCorrectly(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               50000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -4011,7 +4011,7 @@ func TestValidation_1_2_11_ProcessingTimeMsNonNegative(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               35000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -4051,18 +4051,29 @@ func TestValidation_1_2_11_ProcessingTimeMsNonNegative(t *testing.T) {
 // Test 1.2.12: GET validation - returns correct decision enum values
 func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 	t.Run("ALLOW decision", func(t *testing.T) {
-		accountID := testutil.MustDeterministicUUID(484).String()
 		requestID := testutil.MustDeterministicUUID(485).String()
 
-		// Create validation that should return ALLOW (no rules blocking)
+		// Setup: Create an ALLOW rule for a unique account ID
+		// This ensures we get ALLOW decision regardless of other rules in DB
+		uniqueAccountID := testutil.MustDeterministicUUID(7111).String()
+		ruleName := "allow-decision-test-" + testutil.MustDeterministicUUID(1012).String()[:8]
+		ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, 
+			fmt.Sprintf("account.accountId == '%s' && amount < 5000", uniqueAccountID), "ALLOW")
+		testutil.ActivateRule(t, ruleID)
+		
+		t.Cleanup(func() {
+			testutil.CleanupRule(t, ruleID)
+		})
+
+		// Create validation that triggers the ALLOW rule
 		req := &testutil.ValidationRequest{
 			RequestID:            requestID,
 			TransactionType:      "PIX",
-			Amount:               1000, // Low amount, unlikely to trigger any rules
+			Amount:               1000,
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
-				ID: accountID,
+				ID: uniqueAccountID,
 			},
 		}
 
@@ -4074,11 +4085,8 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 		var createResult testutil.ValidationResponse
 		err := json.Unmarshal(body, &createResult)
 		require.NoError(t, err)
-
-		// Only proceed if we got ALLOW
-		if createResult.Decision != "ALLOW" {
-			t.Skip("Skipping ALLOW test - got different decision, likely due to existing rules")
-		}
+		
+		require.Equal(t, "ALLOW", createResult.Decision, "Should return ALLOW based on our test rule")
 
 		// GET and verify
 		getResp, getBody := testutil.GetValidation(t, createResult.ValidationID)
@@ -4098,7 +4106,7 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 		accountID := testutil.MustDeterministicUUID(486).String()
 
 		// Create DENY rule
-		ruleName := "deny-decision-test-" + uuid.New().String()[:8]
+		ruleName := "deny-decision-test-" + testutil.MustDeterministicUUID(1013).String()[:8]
 		ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "transactionType == 'CARD' && amount > 200000", "DENY")
 		testutil.ActivateRule(t, ruleID)
 
@@ -4112,7 +4120,7 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 			TransactionType:      "CARD",
 			Amount:               250000,
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -4146,7 +4154,7 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 		accountID := testutil.MustDeterministicUUID(488).String()
 
 		// Create REVIEW rule
-		ruleName := "review-decision-test-" + uuid.New().String()[:8]
+		ruleName := "review-decision-test-" + testutil.MustDeterministicUUID(1014).String()[:8]
 		ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "transactionType == 'WIRE' && amount > 150000", "REVIEW")
 		testutil.ActivateRule(t, ruleID)
 
@@ -4160,7 +4168,7 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 			TransactionType:      "WIRE",
 			Amount:               180000,
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -4196,7 +4204,7 @@ func TestValidation_1_3_14_CombinedFiltersAdvanced(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(730).String()
 
 	// Create a DENY rule for CARD transactions with high amount
-	ruleName := "combined-adv-filter-deny-" + uuid.New().String()[:8]
+	ruleName := "combined-adv-filter-deny-" + testutil.MustDeterministicUUID(1015).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "transactionType == 'CARD' && amount > 90000", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
@@ -4210,7 +4218,7 @@ func TestValidation_1_3_14_CombinedFiltersAdvanced(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               120000, // Will trigger DENY rule
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -4331,7 +4339,7 @@ func TestValidation_1_3_32_DefaultPaginationLimit(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               int64(1000 + i),
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -4372,7 +4380,7 @@ func TestValidation_1_3_33_SortingByCreatedAtAsc(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               int64(10000 + i*1000),
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -4531,7 +4539,7 @@ func TestValidation_1_3_40_CursorPaginationConsistency(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               int64(5000 + i*100),
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -4596,7 +4604,7 @@ func TestValidation_1_3_41_FilterByMatchedRuleId(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(896).String()
 
 	// Create a rule
-	ruleName := "matched-rule-filter-test-" + uuid.New().String()[:8]
+	ruleName := "matched-rule-filter-test-" + testutil.MustDeterministicUUID(1016).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "transactionType == 'CARD' && amount > 70000", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
@@ -4610,7 +4618,7 @@ func TestValidation_1_3_41_FilterByMatchedRuleId(t *testing.T) {
 		TransactionType:      "CARD",
 		Amount:               80000, // Will trigger the rule
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -4631,7 +4639,7 @@ func TestValidation_1_3_41_FilterByMatchedRuleId(t *testing.T) {
 		TransactionType:      "PIX", // Different type, won't match
 		Amount:               80000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -4690,7 +4698,7 @@ func TestValidation_1_3_42_AllSortBySortOrderCombinations(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               int64(10000 + i*5000),
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -4956,7 +4964,7 @@ func TestValidation_1_3_29_ValidationSummaryFields(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               55000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},

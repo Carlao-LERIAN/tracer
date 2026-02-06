@@ -13,9 +13,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
+"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -258,9 +257,9 @@ func TestValidation_MissingRequestID_ReturnsError(t *testing.T) {
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(2001).String(),
 		},
 	}
 
@@ -322,16 +321,16 @@ func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			payload := map[string]any{
-				"requestId":            uuid.New().String(),
+				"requestId":            testutil.MustDeterministicUUID(int64(2002 + i*2)).String(),
 				"transactionType":      tc.transactionType,
 				"amount":               10000,
 				"currency":             "BRL",
-				"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
-					"accountId": uuid.New().String(),
+					"accountId": testutil.MustDeterministicUUID(int64(2003 + i*2)).String(),
 				},
 			}
 
@@ -390,16 +389,16 @@ func TestValidation_AmountNonPositive_ReturnsError(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			payload := map[string]any{
-				"requestId":            uuid.New().String(),
+				"requestId":            testutil.MustDeterministicUUID(int64(2010 + i*2)).String(),
 				"transactionType":      "CARD",
 				"amount":               tc.amount,
 				"currency":             "BRL",
-				"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
-					"accountId": uuid.New().String(),
+					"accountId": testutil.MustDeterministicUUID(int64(2011 + i*2)).String(),
 				},
 			}
 
@@ -437,12 +436,12 @@ func TestValidation_MissingCurrency_ReturnsError(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(2016).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(2017).String(),
 		},
 	}
 
@@ -509,16 +508,16 @@ func TestValidation_InvalidCurrency_ReturnsError(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			payload := map[string]any{
-				"requestId":            uuid.New().String(),
+				"requestId":            testutil.MustDeterministicUUID(int64(2018 + i*2)).String(),
 				"transactionType":      "CARD",
 				"amount":               10000,
 				"currency":             tc.currency,
-				"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
-					"accountId": uuid.New().String(),
+					"accountId": testutil.MustDeterministicUUID(int64(2019 + i*2)).String(),
 				},
 			}
 
@@ -556,12 +555,12 @@ func TestValidation_MissingTimestamp_ReturnsError(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	payload := map[string]any{
-		"requestId":       uuid.New().String(),
+		"requestId":       testutil.MustDeterministicUUID(2028).String(),
 		"transactionType": "CARD",
 		"amount":          10000,
 		"currency":        "BRL",
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(2029).String(),
 		},
 	}
 
@@ -597,16 +596,17 @@ func TestValidation_FutureTimestamp_ReturnsError(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	// Use a timestamp 1 hour in the future (well beyond clock skew tolerance)
+	// NOTE: This test intentionally uses time.Now() to verify real-time future validation
 	futureTime := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(2030).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
 		"transactionTimestamp": futureTime,
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(2031).String(),
 		},
 	}
 
@@ -643,16 +643,17 @@ func TestValidation_FutureTimestamp_SmallClockSkew_IsAccepted(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	// Use a timestamp just 2 seconds in the future (within clock skew tolerance)
+	// NOTE: This test intentionally uses time.Now() to verify real-time clock skew tolerance
 	futureTime := time.Now().Add(2 * time.Second).Format(time.RFC3339)
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(2032).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
 		"transactionTimestamp": futureTime,
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(2033).String(),
 		},
 	}
 
@@ -690,11 +691,11 @@ func TestValidation_MissingAccount_ReturnsError(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(2034).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 	}
 
 	body, err := json.Marshal(payload)
@@ -729,11 +730,11 @@ func TestValidation_EmptyAccountObject_ReturnsError(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(2035).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account":              map[string]any{}, // Empty account object (missing accountId)
 	}
 
@@ -772,14 +773,14 @@ func TestValidation_SubTypeTooLong_ReturnsError(t *testing.T) {
 	longSubType := strings.Repeat("a", 51)
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(2036).String(),
 		"transactionType":      "CARD",
 		"subType":              longSubType,
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(2037).String(),
 		},
 	}
 
@@ -817,13 +818,13 @@ func TestValidation_WithoutAuth_Returns401(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(2038).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(2039).String(),
 		},
 	}
 
@@ -880,16 +881,16 @@ func TestValidation_InvalidUUIDFormat_ReturnsError(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			payload := map[string]any{
 				"requestId":            tc.requestID,
 				"transactionType":      "CARD",
 				"amount":               10000,
 				"currency":             "BRL",
-				"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
-					"accountId": uuid.New().String(),
+					"accountId": testutil.MustDeterministicUUID(int64(2040 + i)).String(),
 				},
 			}
 
@@ -952,16 +953,16 @@ func TestValidation_InvalidTimestampFormat_ReturnsError(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			payload := map[string]any{
-				"requestId":            uuid.New().String(),
+				"requestId":            testutil.MustDeterministicUUID(int64(2043 + i*2)).String(),
 				"transactionType":      "CARD",
 				"amount":               10000,
 				"currency":             "BRL",
 				"transactionTimestamp": tc.timestamp,
 				"account": map[string]any{
-					"accountId": uuid.New().String(),
+					"accountId": testutil.MustDeterministicUUID(int64(2044 + i*2)).String(),
 				},
 			}
 
@@ -1004,37 +1005,37 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 		{
 			name: "string_for_amount",
 			payload: map[string]any{
-				"requestId":            uuid.New().String(),
+				"requestId":            testutil.MustDeterministicUUID(2051).String(),
 				"transactionType":      "CARD",
 				"amount":               "10000", // String instead of integer
 				"currency":             "BRL",
-				"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
-					"accountId": uuid.New().String(),
+					"accountId": testutil.MustDeterministicUUID(2052).String(),
 				},
 			},
 		},
 		{
 			name: "array_for_account",
 			payload: map[string]any{
-				"requestId":            uuid.New().String(),
+				"requestId":            testutil.MustDeterministicUUID(2053).String(),
 				"transactionType":      "CARD",
 				"amount":               10000,
 				"currency":             "BRL",
-				"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
-				"account":              []string{uuid.New().String()}, // Array instead of object
+				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
+				"account":              []string{testutil.MustDeterministicUUID(2054).String()}, // Array instead of object
 			},
 		},
 		{
 			name: "number_for_transactionType",
 			payload: map[string]any{
-				"requestId":            uuid.New().String(),
+				"requestId":            testutil.MustDeterministicUUID(2055).String(),
 				"transactionType":      123, // Number instead of string
 				"amount":               10000,
 				"currency":             "BRL",
-				"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
-					"accountId": uuid.New().String(),
+					"accountId": testutil.MustDeterministicUUID(2056).String(),
 				},
 			},
 		},

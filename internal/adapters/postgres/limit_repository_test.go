@@ -108,6 +108,7 @@ func limitRow(t *testing.T, lmt *model.Limit) *sqlmock.Rows {
 }
 
 func TestLimitRepository_Create_ConnectionError(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
@@ -125,6 +126,7 @@ func TestLimitRepository_Create_ConnectionError(t *testing.T) {
 }
 
 func TestLimitRepository_Create(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	tests := []struct {
@@ -219,6 +221,7 @@ func TestLimitRepository_Create(t *testing.T) {
 }
 
 func TestLimitRepository_GetByID_ConnectionError(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
@@ -229,7 +232,7 @@ func TestLimitRepository_GetByID_ConnectionError(t *testing.T) {
 	repo := NewLimitRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	result, err := repo.GetByID(ctx, uuid.New())
+	result, err := repo.GetByID(ctx, testutil.MustDeterministicUUID(999))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -237,6 +240,7 @@ func TestLimitRepository_GetByID_ConnectionError(t *testing.T) {
 }
 
 func TestLimitRepository_GetByID(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	tests := []struct {
@@ -314,6 +318,7 @@ func TestLimitRepository_GetByID(t *testing.T) {
 }
 
 func TestLimitRepository_List_ConnectionError(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
@@ -333,6 +338,7 @@ func TestLimitRepository_List_ConnectionError(t *testing.T) {
 }
 
 func TestLimitRepository_List(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	tests := []struct {
@@ -443,6 +449,7 @@ func TestLimitRepository_List(t *testing.T) {
 }
 
 func TestLimitRepository_Update_ConnectionError(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
@@ -460,6 +467,7 @@ func TestLimitRepository_Update_ConnectionError(t *testing.T) {
 }
 
 func TestLimitRepository_Update(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	tests := []struct {
@@ -538,6 +546,7 @@ func TestLimitRepository_Update(t *testing.T) {
 }
 
 func TestLimitRepository_UpdateStatus_ConnectionError(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
@@ -548,13 +557,14 @@ func TestLimitRepository_UpdateStatus_ConnectionError(t *testing.T) {
 	repo := NewLimitRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	err := repo.UpdateStatus(ctx, uuid.New(), model.LimitStatusInactive, time.Now().UTC())
+	err := repo.UpdateStatus(ctx, testutil.MustDeterministicUUID(998), model.LimitStatusInactive, testutil.FixedTime())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
 }
 
 func TestLimitRepository_UpdateStatus(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	tests := []struct {
@@ -631,7 +641,7 @@ func TestLimitRepository_UpdateStatus(t *testing.T) {
 			tt.mockSetup(sqlMock)
 
 			ctx := context.Background()
-			err := repo.UpdateStatus(ctx, tt.limitID, tt.status, time.Now().UTC())
+			err := repo.UpdateStatus(ctx, tt.limitID, tt.status, testutil.FixedTime())
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -651,6 +661,7 @@ func TestLimitRepository_UpdateStatus(t *testing.T) {
 }
 
 func TestLimitRepository_List_InvalidCursor(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	tests := []struct {
@@ -694,6 +705,7 @@ func TestLimitRepository_List_InvalidCursor(t *testing.T) {
 }
 
 func TestLimitRepository_List_NilFilters(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	repo, sqlMock, cleanup := setupLimitRepositoryMockDB(t)
@@ -714,6 +726,7 @@ func TestLimitRepository_List_NilFilters(t *testing.T) {
 }
 
 func TestLimitRepository_List_ZeroLimit(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	repo, sqlMock, cleanup := setupLimitRepositoryMockDB(t)
@@ -735,6 +748,7 @@ func TestLimitRepository_List_ZeroLimit(t *testing.T) {
 }
 
 func TestLimitRepository_List_LimitBounds(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	repo, sqlMock, cleanup := setupLimitRepositoryMockDB(t)
@@ -756,6 +770,8 @@ func TestLimitRepository_List_LimitBounds(t *testing.T) {
 }
 
 func TestLimitRepository_normalizeListFilters(t *testing.T) {
+	t.Parallel()
+
 	repo := &LimitRepository{}
 
 	tests := []struct {
@@ -806,6 +822,8 @@ func TestLimitRepository_normalizeListFilters(t *testing.T) {
 }
 
 func TestLimitRepository_normalizeListFilters_PreservesOtherFields(t *testing.T) {
+	t.Parallel()
+
 	repo := &LimitRepository{}
 
 	status := model.LimitStatusActive
@@ -831,6 +849,8 @@ func TestLimitRepository_normalizeListFilters_PreservesOtherFields(t *testing.T)
 }
 
 func TestLimitRepository_validateAndNormalizeSort(t *testing.T) {
+	t.Parallel()
+
 	repo := &LimitRepository{}
 
 	tests := []struct {
@@ -930,6 +950,7 @@ func TestLimitRepository_validateAndNormalizeSort(t *testing.T) {
 }
 
 func TestLimitRepository_List_InvalidSortColumn(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	repo, _, cleanup := setupLimitRepositoryMockDB(t)
@@ -949,6 +970,7 @@ func TestLimitRepository_List_InvalidSortColumn(t *testing.T) {
 }
 
 func TestLimitRepository_applyCursorFilter_CursorValidation(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	tests := []struct {
@@ -1117,6 +1139,7 @@ func TestLimitRepository_applyCursorFilter_CursorValidation(t *testing.T) {
 }
 
 func TestLimitRepository_applyCursorFilter_SortOrderCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	// Test that cursor sortOrder comparison is case insensitive (request is uppercased)
@@ -1191,6 +1214,7 @@ func TestLimitRepository_applyCursorFilter_SortOrderCaseInsensitive(t *testing.T
 }
 
 func TestLimitRepository_applyCursorFilter_InvalidSortColumnInCursor(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	// This test specifically covers the case where:
@@ -1258,6 +1282,7 @@ func TestLimitRepository_applyCursorFilter_InvalidSortColumnInCursor(t *testing.
 }
 
 func TestLimitRepository_applyCursorFilter_EmptyCursor(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	repo, sqlMock, cleanup := setupLimitRepositoryMockDB(t)
@@ -1283,6 +1308,8 @@ func TestLimitRepository_applyCursorFilter_EmptyCursor(t *testing.T) {
 }
 
 func TestLimitRepository_buildNextCursor(t *testing.T) {
+	t.Parallel()
+
 	repo := &LimitRepository{}
 
 	tests := []struct {
@@ -1389,6 +1416,8 @@ func TestLimitRepository_buildNextCursor(t *testing.T) {
 }
 
 func TestLimitRepository_buildNextCursor_InvalidSortBy(t *testing.T) {
+	t.Parallel()
+
 	repo := &LimitRepository{}
 
 	tests := []struct {
@@ -1420,6 +1449,8 @@ func TestLimitRepository_buildNextCursor_InvalidSortBy(t *testing.T) {
 }
 
 func TestLimitRepository_buildNextCursor_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	repo := &LimitRepository{}
 
 	// Test that a cursor can be encoded and then decoded back for use in pagination
@@ -1449,6 +1480,8 @@ func TestLimitRepository_buildNextCursor_RoundTrip(t *testing.T) {
 }
 
 func TestGetSortValueFromLimit(t *testing.T) {
+	t.Parallel()
+
 	lmt := testLimit()
 
 	tests := []struct {
@@ -1497,6 +1530,8 @@ func TestGetSortValueFromLimit(t *testing.T) {
 }
 
 func TestGetSortValueFromLimit_DifferentAmounts(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		maxAmount int64
@@ -1536,6 +1571,7 @@ func TestGetSortValueFromLimit_DifferentAmounts(t *testing.T) {
 }
 
 func TestLimitRepository_List_Pagination_HasMore(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	repo, sqlMock, cleanup := setupLimitRepositoryMockDB(t)
@@ -1601,6 +1637,7 @@ func TestLimitRepository_List_Pagination_HasMore(t *testing.T) {
 }
 
 func TestLimitRepository_List_Pagination_NoMore(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	repo, sqlMock, cleanup := setupLimitRepositoryMockDB(t)
@@ -1651,6 +1688,7 @@ func TestLimitRepository_List_Pagination_NoMore(t *testing.T) {
 }
 
 func TestLimitRepository_List_Pagination_EmptyResult(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	repo, sqlMock, cleanup := setupLimitRepositoryMockDB(t)
@@ -1679,6 +1717,7 @@ func TestLimitRepository_List_Pagination_EmptyResult(t *testing.T) {
 }
 
 func TestLimitRepository_List_Pagination_SingleResult(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	repo, sqlMock, cleanup := setupLimitRepositoryMockDB(t)
@@ -1709,6 +1748,7 @@ func TestLimitRepository_List_Pagination_SingleResult(t *testing.T) {
 }
 
 func TestLimitRepository_List_Pagination_ExactlyAtLimit(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	// When we get exactly (limit+1) results, hasMore is true
@@ -1771,6 +1811,7 @@ func TestLimitRepository_List_Pagination_ExactlyAtLimit(t *testing.T) {
 }
 
 func TestLimitRepository_List_Pagination_CursorWithDifferentSortFields(t *testing.T) {
+	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	tests := []struct {

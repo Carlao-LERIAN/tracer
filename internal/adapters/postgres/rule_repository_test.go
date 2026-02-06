@@ -662,7 +662,7 @@ func TestRepository_UpdateStatus(t *testing.T) {
 			name:          "Success - updates status to active with activated_at timestamp",
 			ruleID:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			status:        model.RuleStatusActive,
-			activatedAt:   func() *time.Time { ts := time.Now().UTC(); return &ts }(),
+			activatedAt:   func() *time.Time { ts := testutil.FixedTime().UTC(); return &ts }(),
 			deactivatedAt: nil,
 			mockSetup: func(mock sqlmock.Sqlmock, id uuid.UUID, status model.RuleStatus) {
 				mock.ExpectExec(regexp.QuoteMeta(`UPDATE rules`)).
@@ -681,7 +681,7 @@ func TestRepository_UpdateStatus(t *testing.T) {
 			ruleID:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			status:        model.RuleStatusInactive,
 			activatedAt:   nil,
-			deactivatedAt: func() *time.Time { ts := time.Now().UTC(); return &ts }(),
+			deactivatedAt: func() *time.Time { ts := testutil.FixedTime().UTC(); return &ts }(),
 			mockSetup: func(mock sqlmock.Sqlmock, id uuid.UUID, status model.RuleStatus) {
 				mock.ExpectExec(regexp.QuoteMeta(`UPDATE rules`)).
 					WithArgs(
@@ -698,8 +698,8 @@ func TestRepository_UpdateStatus(t *testing.T) {
 			name:          "Success - updates status with both activated_at and deactivated_at timestamps",
 			ruleID:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			status:        model.RuleStatusInactive,
-			activatedAt:   func() *time.Time { ts := time.Now().UTC().Add(-24 * time.Hour); return &ts }(),
-			deactivatedAt: func() *time.Time { ts := time.Now().UTC(); return &ts }(),
+			activatedAt:   func() *time.Time { ts := testutil.FixedTime().UTC().Add(-24 * time.Hour); return &ts }(),
+			deactivatedAt: func() *time.Time { ts := testutil.FixedTime().UTC(); return &ts }(),
 			mockSetup: func(mock sqlmock.Sqlmock, id uuid.UUID, status model.RuleStatus) {
 				mock.ExpectExec(regexp.QuoteMeta(`UPDATE rules`)).
 					WithArgs(
@@ -744,7 +744,7 @@ func TestRepository_UpdateStatus(t *testing.T) {
 			tt.mockSetup(sqlMock, tt.ruleID, tt.status)
 
 			ctx := context.Background()
-			err := repo.UpdateStatus(ctx, tt.ruleID, tt.status, time.Now().UTC(), tt.activatedAt, tt.deactivatedAt)
+			err := repo.UpdateStatus(ctx, tt.ruleID, tt.status, testutil.FixedTime(), tt.activatedAt, tt.deactivatedAt)
 
 			if tt.wantErr {
 				require.Error(t, err)

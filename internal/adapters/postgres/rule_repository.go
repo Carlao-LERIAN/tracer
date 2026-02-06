@@ -7,7 +7,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -91,15 +90,15 @@ func (r *Repository) Create(ctx context.Context, rule *model.Rule) (*model.Rule,
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	scopesJSON, err := json.Marshal(rule.Scopes)
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to marshal scopes", err)
-		return nil, fmt.Errorf("failed to marshal scopes: %w", err)
+	// Convert domain entity to database model using FromEntity pattern
+	var dbModel RulePostgreSQLModel
+	if err := dbModel.FromEntity(rule); err != nil {
+		return nil, fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
 	query := sq.Insert(tableName).
 		Columns("id", "name", "description", "expression", "action", "scopes", "status", "created_at", "updated_at").
-		Values(rule.ID, rule.Name, rule.Description, rule.Expression, rule.Action, scopesJSON, rule.Status, rule.CreatedAt, rule.UpdatedAt).
+		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.Expression, dbModel.Action, dbModel.Scopes, dbModel.Status, dbModel.CreatedAt, dbModel.UpdatedAt).
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err := query.ToSql()
@@ -155,7 +154,7 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*model.Rule, er
 		"rule.id", id.String(),
 	).Info("Getting rule by ID")
 
-	rule, err := r.scanRule(db.QueryRowContext(ctx, sqlStr, args...))
+	rule, err := r.scanRule(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOtel.HandleSpanBusinessErrorEvent(&span, "Rule not found", constant.ErrRuleNotFound)
@@ -202,7 +201,7 @@ func (r *Repository) GetByName(ctx context.Context, name string) (*model.Rule, e
 		"rule.name", name,
 	).Info("Getting rule by name")
 
-	rule, err := r.scanRule(db.QueryRowContext(ctx, sqlStr, args...))
+	rule, err := r.scanRule(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOtel.HandleSpanBusinessErrorEvent(&span, "Rule not found", constant.ErrRuleNotFound)
@@ -264,7 +263,7 @@ func (r *Repository) ListByStatus(ctx context.Context, status *model.RuleStatus)
 	var rules []*model.Rule
 
 	for rows.Next() {
-		rule, err := r.scanRuleFromRows(rows)
+		rule, err := r.scanRuleFromRows(ctx, rows)
 		if err != nil {
 			libOtel.HandleSpanError(&span, "Failed to scan rule", err)
 			return nil, fmt.Errorf("failed to scan rule: %w", err)
@@ -316,21 +315,21 @@ func (r *Repository) Update(ctx context.Context, rule *model.Rule) (*model.Rule,
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	scopesJSON, err := json.Marshal(rule.Scopes)
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to marshal scopes", err)
-		return nil, fmt.Errorf("failed to marshal scopes: %w", err)
+	// Convert domain entity to database model using FromEntity pattern
+	var dbModel RulePostgreSQLModel
+	if err := dbModel.FromEntity(rule); err != nil {
+		return nil, fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
 	query := sq.Update(tableName).
-		Set("name", rule.Name).
-		Set("description", rule.Description).
-		Set("expression", rule.Expression).
-		Set("action", rule.Action).
-		Set("scopes", scopesJSON).
-		Set("status", rule.Status).
-		Set("updated_at", rule.UpdatedAt).
-		Where(sq.Eq{"id": rule.ID}).
+		Set("name", dbModel.Name).
+		Set("description", dbModel.Description).
+		Set("expression", dbModel.Expression).
+		Set("action", dbModel.Action).
+		Set("scopes", dbModel.Scopes).
+		Set("status", dbModel.Status).
+		Set("updated_at", dbModel.UpdatedAt).
+		Where(sq.Eq{"id": dbModel.ID}).
 		Where(sq.Eq{"deleted_at": nil}).
 		PlaceholderFormat(sq.Dollar)
 
@@ -509,7 +508,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 	rules := []model.Rule{}
 
 	for rows.Next() {
-		rule, err := r.scanRuleFromRows(rows)
+		rule, err := r.scanRuleFromRows(ctx, rows)
 		if err != nil {
 			libOtel.HandleSpanError(&span, "Failed to scan rule", err)
 			return nil, fmt.Errorf("failed to scan rule: %w", err)
@@ -738,7 +737,7 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 	var rules []*model.Rule
 
 	for rows.Next() {
-		rule, err := r.scanRuleFromRows(rows)
+		rule, err := r.scanRuleFromRows(ctx, rows)
 		if err != nil {
 			libOtel.HandleSpanError(&span, "Failed to scan rule", err)
 			return nil, fmt.Errorf("failed to scan rule: %w", err)
@@ -932,104 +931,88 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status mode
 	return nil
 }
 
-// scanRule scans a single row into a Rule struct.
-func (r *Repository) scanRule(row *sql.Row) (*model.Rule, error) {
-	var rule model.Rule
+// scanRule scans a single row into a Rule struct using ToEntity pattern.
+func (r *Repository) scanRule(ctx context.Context, row *sql.Row) (*model.Rule, error) {
+	var dbModel RulePostgreSQLModel
 
+	// Scan into a temporary variable for scopes JSON
 	var scopesJSON []byte
 
-	var activatedAt, deactivatedAt, deletedAt sql.NullTime
+	// Check for context cancellation before processing
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
+	}
 
 	err := row.Scan(
-		&rule.ID,
-		&rule.Name,
-		&rule.Description,
-		&rule.Expression,
-		&rule.Action,
+		&dbModel.ID,
+		&dbModel.Name,
+		&dbModel.Description,
+		&dbModel.Expression,
+		&dbModel.Action,
 		&scopesJSON,
-		&rule.Status,
-		&rule.CreatedAt,
-		&rule.UpdatedAt,
-		&activatedAt,
-		&deactivatedAt,
-		&deletedAt,
+		&dbModel.Status,
+		&dbModel.CreatedAt,
+		&dbModel.UpdatedAt,
+		&dbModel.ActivatedAt,
+		&dbModel.DeactivatedAt,
+		&dbModel.DeletedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := json.Unmarshal(scopesJSON, &rule.Scopes); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal scopes: %w", err)
+	// Set scopes as string for dbModel
+	dbModel.Scopes = string(scopesJSON)
+
+	// Convert database model to domain entity using ToEntity pattern
+	rule, err := dbModel.ToEntity()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to entity: %w", err)
 	}
 
-	// Ensure scopes is never nil (return empty array instead of null in JSON)
-	if rule.Scopes == nil {
-		rule.Scopes = []model.Scope{}
-	}
-
-	if activatedAt.Valid {
-		rule.ActivatedAt = &activatedAt.Time
-	}
-
-	if deactivatedAt.Valid {
-		rule.DeactivatedAt = &deactivatedAt.Time
-	}
-
-	if deletedAt.Valid {
-		rule.DeletedAt = &deletedAt.Time
-	}
-
-	return &rule, nil
+	return rule, nil
 }
 
-// scanRuleFromRows scans a row from sql.Rows into a Rule struct.
-func (r *Repository) scanRuleFromRows(rows *sql.Rows) (*model.Rule, error) {
-	var rule model.Rule
+// scanRuleFromRows scans a row from sql.Rows into a Rule struct using ToEntity pattern.
+func (r *Repository) scanRuleFromRows(ctx context.Context, rows *sql.Rows) (*model.Rule, error) {
+	var dbModel RulePostgreSQLModel
 
+	// Scan into a temporary variable for scopes JSON
 	var scopesJSON []byte
 
-	var activatedAt, deactivatedAt, deletedAt sql.NullTime
+	// Check for context cancellation before processing
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
+	}
 
 	err := rows.Scan(
-		&rule.ID,
-		&rule.Name,
-		&rule.Description,
-		&rule.Expression,
-		&rule.Action,
+		&dbModel.ID,
+		&dbModel.Name,
+		&dbModel.Description,
+		&dbModel.Expression,
+		&dbModel.Action,
 		&scopesJSON,
-		&rule.Status,
-		&rule.CreatedAt,
-		&rule.UpdatedAt,
-		&activatedAt,
-		&deactivatedAt,
-		&deletedAt,
+		&dbModel.Status,
+		&dbModel.CreatedAt,
+		&dbModel.UpdatedAt,
+		&dbModel.ActivatedAt,
+		&dbModel.DeactivatedAt,
+		&dbModel.DeletedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := json.Unmarshal(scopesJSON, &rule.Scopes); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal scopes: %w", err)
+	// Set scopes as string for dbModel
+	dbModel.Scopes = string(scopesJSON)
+
+	// Convert database model to domain entity using ToEntity pattern
+	rule, err := dbModel.ToEntity()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to entity: %w", err)
 	}
 
-	// Ensure scopes is never nil (return empty array instead of null in JSON)
-	if rule.Scopes == nil {
-		rule.Scopes = []model.Scope{}
-	}
-
-	if activatedAt.Valid {
-		rule.ActivatedAt = &activatedAt.Time
-	}
-
-	if deactivatedAt.Valid {
-		rule.DeactivatedAt = &deactivatedAt.Time
-	}
-
-	if deletedAt.Valid {
-		rule.DeletedAt = &deletedAt.Time
-	}
-
-	return &rule, nil
+	return rule, nil
 }
 
 // escapeLikePattern escapes special LIKE/ILIKE characters (%, _, \) in the input

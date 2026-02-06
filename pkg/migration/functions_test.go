@@ -11,7 +11,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"tracer/internal/testutil"
 )
 
 func TestParseMigrationFileName(t *testing.T) {
@@ -150,99 +154,400 @@ func TestLoadMigrations_IgnoresNonUpFiles(t *testing.T) {
 	}
 }
 
-func TestMigratorIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+func TestVersion_ReturnsCurrentVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		setupMock     func(mock sqlmock.Sqlmock)
+		wantVersion   int
+		wantDirty     bool
+		wantErr       bool
+		errContains   string
+	}{
+		{
+			name: "returns version and dirty state",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				// ensureMigrationsTable
+				mock.ExpectExec("CREATE TABLE IF NOT EXISTS").WillReturnResult(sqlmock.NewResult(0, 0))
+				// getCurrentVersion
+				mock.ExpectQuery("SELECT version, dirty FROM").
+					WillReturnRows(sqlmock.NewRows([]string{"version", "dirty"}).AddRow(5, false))
+			},
+			wantVersion: 5,
+			wantDirty:   false,
+			wantErr:     false,
+		},
+		{
+			name: "returns zero version when table is empty",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				// ensureMigrationsTable
+				mock.ExpectExec("CREATE TABLE IF NOT EXISTS").WillReturnResult(sqlmock.NewResult(0, 0))
+				// getCurrentVersion - no rows
+				mock.ExpectQuery("SELECT version, dirty FROM").
+					WillReturnError(sql.ErrNoRows)
+			},
+			wantVersion: 0,
+			wantDirty:   false,
+			wantErr:     false,
+		},
+		{
+			name: "returns dirty state",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				// ensureMigrationsTable
+				mock.ExpectExec("CREATE TABLE IF NOT EXISTS").WillReturnResult(sqlmock.NewResult(0, 0))
+				// getCurrentVersion
+				mock.ExpectQuery("SELECT version, dirty FROM").
+					WillReturnRows(sqlmock.NewRows([]string{"version", "dirty"}).AddRow(3, true))
+			},
+			wantVersion: 3,
+			wantDirty:   true,
+			wantErr:     false,
+		},
+		{
+			name: "error on table creation",
+			setupMock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectExec("CREATE TABLE IF NOT EXISTS").
+					WillReturnError(sql.ErrConnDone)
+			},
+			wantErr:     true,
+			errContains: "failed to ensure migrations table",
+		},
 	}
 
-	dbURL := os.Getenv("TEST_DATABASE_URL")
-	if dbURL == "" {
-		t.Skip("TEST_DATABASE_URL not set, skipping integration test")
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer db.Close()
 
-	db, err := sql.Open("pgx", dbURL)
-	if err != nil {
-		t.Fatalf("failed to open database: %v", err)
+			tc.setupMock(mock)
+
+			migrator := NewFunctionMigrator(db, "/test/path", nil)
+			version, dirty, err := migrator.Version(context.Background())
+
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantVersion, version)
+				assert.Equal(t, tc.wantDirty, dirty)
+			}
+
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
 	}
+}
+
+func TestUp_NonExistentDirectory(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
 	defer db.Close()
 
-	ctx := context.Background()
+	migrator := NewFunctionMigrator(db, "/non/existent/path", nil)
 
-	if err := db.PingContext(ctx); err != nil {
-		t.Fatalf("failed to ping database: %v", err)
-	}
+	err = migrator.Up(context.Background())
+	require.NoError(t, err, "Up should return nil when directory doesn't exist")
+	require.NoError(t, mock.ExpectationsWereMet(), "no database operations should occur")
+}
 
+func TestUp_Success(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create temp directory with migration files
 	tempDir := t.TempDir()
 
-	if err := os.WriteFile(
-		filepath.Join(tempDir, "000001_test_function.up.sql"),
-		[]byte("CREATE OR REPLACE FUNCTION test_func() RETURNS INTEGER AS $$ BEGIN RETURN 42; END; $$ LANGUAGE plpgsql;"),
+	err = os.WriteFile(
+		filepath.Join(tempDir, "000001_test_func.up.sql"),
+		[]byte("CREATE FUNCTION test_func() RETURNS void AS $$ BEGIN END; $$ LANGUAGE plpgsql;"),
 		0644,
-	); err != nil {
-		t.Fatalf("failed to write migration: %v", err)
-	}
+	)
+	require.NoError(t, err)
+
+	// Setup mock expectations
+	// 1. ensureMigrationsTable
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS").WillReturnResult(sqlmock.NewResult(0, 0))
+	// 2. acquireMigrationLock
+	mock.ExpectExec("SELECT pg_advisory_lock").WillReturnResult(sqlmock.NewResult(0, 0))
+	// 3. getCurrentVersion - no existing migrations
+	mock.ExpectQuery("SELECT version, dirty FROM").WillReturnError(sql.ErrNoRows)
+	// 4. Begin transaction for applyMigration
+	mock.ExpectBegin()
+	// 5. updateVersion (set dirty = true)
+	mock.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO").WithArgs(1, true).WillReturnResult(sqlmock.NewResult(1, 1))
+	// 6. Execute migration SQL
+	mock.ExpectExec("CREATE FUNCTION test_func").WillReturnResult(sqlmock.NewResult(0, 0))
+	// 7. updateVersion (set dirty = false)
+	mock.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO").WithArgs(1, false).WillReturnResult(sqlmock.NewResult(1, 1))
+	// 8. Commit transaction
+	mock.ExpectCommit()
+	// 9. releaseMigrationLock
+	mock.ExpectExec("SELECT pg_advisory_unlock").WillReturnResult(sqlmock.NewResult(0, 0))
 
 	migrator := NewFunctionMigrator(db, tempDir, nil)
 
-	defer func() {
-		_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS "+functionsMigrationsTable)
-		_, _ = db.ExecContext(ctx, "DROP FUNCTION IF EXISTS test_func()")
-	}()
+	err = migrator.Up(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
 
-	version, dirty, err := migrator.Version(ctx)
-	if err != nil {
-		t.Fatalf("Version() error = %v", err)
-	}
+func TestUp_SkipsAlreadyAppliedMigrations(t *testing.T) {
+	t.Parallel()
 
-	if version != 0 {
-		t.Errorf("initial version = %d, want 0", version)
-	}
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
 
-	if dirty {
-		t.Errorf("initial dirty = true, want false")
-	}
+	// Create temp directory with migration files
+	tempDir := t.TempDir()
 
-	if err := migrator.Up(ctx); err != nil {
-		t.Fatalf("Up() error = %v", err)
-	}
+	err = os.WriteFile(
+		filepath.Join(tempDir, "000001_first.up.sql"),
+		[]byte("SELECT 1;"),
+		0644,
+	)
+	require.NoError(t, err)
 
-	version, dirty, err = migrator.Version(ctx)
-	if err != nil {
-		t.Fatalf("Version() after up error = %v", err)
-	}
+	err = os.WriteFile(
+		filepath.Join(tempDir, "000002_second.up.sql"),
+		[]byte("SELECT 2;"),
+		0644,
+	)
+	require.NoError(t, err)
 
-	if version != 1 {
-		t.Errorf("version after up = %d, want 1", version)
-	}
+	// Setup mock - version already at 1, should only apply migration 2
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SELECT pg_advisory_lock").WillReturnResult(sqlmock.NewResult(0, 0))
+	// Return version 1 (migration 1 already applied)
+	mock.ExpectQuery("SELECT version, dirty FROM").
+		WillReturnRows(sqlmock.NewRows([]string{"version", "dirty"}).AddRow(1, false))
+	// Should only apply migration 2
+	mock.ExpectBegin()
+	mock.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO").WithArgs(2, true).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SELECT 2").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO").WithArgs(2, false).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec("SELECT pg_advisory_unlock").WillReturnResult(sqlmock.NewResult(0, 0))
 
-	if dirty {
-		t.Errorf("dirty after up = true, want false")
-	}
+	migrator := NewFunctionMigrator(db, tempDir, nil)
 
-	var result int
-	err = db.QueryRowContext(ctx, "SELECT test_func()").Scan(&result)
-	if err != nil {
-		t.Errorf("failed to call test function: %v", err)
-	}
+	err = migrator.Up(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
 
-	if result != 42 {
-		t.Errorf("test_func() = %d, want 42", result)
-	}
+func TestUp_DirtyStateError(t *testing.T) {
+	t.Parallel()
 
-	if err := migrator.Up(ctx); err != nil {
-		t.Fatalf("Second Up() error = %v", err)
-	}
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
 
-	version, dirty, err = migrator.Version(ctx)
-	if err != nil {
-		t.Fatalf("Version() after second up error = %v", err)
-	}
+	tempDir := t.TempDir()
 
-	if version != 1 {
-		t.Errorf("version after second up = %d, want 1 (idempotent)", version)
-	}
+	err = os.WriteFile(
+		filepath.Join(tempDir, "000001_test.up.sql"),
+		[]byte("SELECT 1;"),
+		0644,
+	)
+	require.NoError(t, err)
 
-	if dirty {
-		t.Errorf("dirty after second up = true, want false")
-	}
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SELECT pg_advisory_lock").WillReturnResult(sqlmock.NewResult(0, 0))
+	// Return dirty state
+	mock.ExpectQuery("SELECT version, dirty FROM").
+		WillReturnRows(sqlmock.NewRows([]string{"version", "dirty"}).AddRow(1, true))
+	// Should release lock even on error
+	mock.ExpectExec("SELECT pg_advisory_unlock").WillReturnResult(sqlmock.NewResult(0, 0))
+
+	migrator := NewFunctionMigrator(db, tempDir, nil)
+
+	err = migrator.Up(context.Background())
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrDirtyMigration)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUp_AcquireLockError(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	tempDir := t.TempDir()
+
+	err = os.WriteFile(
+		filepath.Join(tempDir, "000001_test.up.sql"),
+		[]byte("SELECT 1;"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SELECT pg_advisory_lock").WillReturnError(sql.ErrConnDone)
+
+	migrator := NewFunctionMigrator(db, tempDir, nil)
+
+	err = migrator.Up(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to acquire migration lock")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUp_MigrationSQLError(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	tempDir := t.TempDir()
+
+	err = os.WriteFile(
+		filepath.Join(tempDir, "000001_test.up.sql"),
+		[]byte("INVALID SQL SYNTAX"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SELECT pg_advisory_lock").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT version, dirty FROM").WillReturnError(sql.ErrNoRows)
+	mock.ExpectBegin()
+	mock.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO").WithArgs(1, true).WillReturnResult(sqlmock.NewResult(1, 1))
+	// SQL execution fails
+	mock.ExpectExec("INVALID SQL SYNTAX").WillReturnError(sql.ErrConnDone)
+	mock.ExpectRollback()
+	mock.ExpectExec("SELECT pg_advisory_unlock").WillReturnResult(sqlmock.NewResult(0, 0))
+
+	migrator := NewFunctionMigrator(db, tempDir, nil)
+
+	err = migrator.Up(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to apply migration")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestLoadMigrations_DuplicateVersion(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+
+	// Create two files with same version
+	err := os.WriteFile(
+		filepath.Join(tempDir, "000001_first.up.sql"),
+		[]byte("SELECT 1;"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	err = os.WriteFile(
+		filepath.Join(tempDir, "000001_second.up.sql"),
+		[]byte("SELECT 2;"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	migrator := NewFunctionMigrator(nil, tempDir, nil)
+
+	_, err = migrator.loadMigrations()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate migration version")
+}
+
+func TestLoadMigrations_LogsSkippedFiles(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+
+	// Create valid migration
+	err := os.WriteFile(
+		filepath.Join(tempDir, "000001_valid.up.sql"),
+		[]byte("SELECT 1;"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	// Create invalid migration (no underscore)
+	err = os.WriteFile(
+		filepath.Join(tempDir, "000002.up.sql"),
+		[]byte("SELECT 2;"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	logger := testutil.NewMockLogger()
+	migrator := NewFunctionMigrator(nil, tempDir, logger)
+
+	result, err := migrator.loadMigrations()
+	require.NoError(t, err)
+	assert.Len(t, result.Migrations, 1)
+	assert.Len(t, result.SkippedFiles, 1)
+	assert.Contains(t, result.SkippedFiles, "000002.up.sql")
+}
+
+func TestParseMigrationFileName_ZeroVersion(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := parseMigrationFileName("000000_zero_version.up.sql")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidMigrationFile)
+	assert.Contains(t, err.Error(), "version must be > 0")
+}
+
+func TestRunInTransaction_RollbackOnError(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectRollback()
+
+	migrator := NewFunctionMigrator(db, "/test", nil)
+
+	expectedErr := sql.ErrNoRows
+	err = migrator.runInTransaction(context.Background(), func(tx *sql.Tx) error {
+		return expectedErr
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, expectedErr)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRunInTransaction_CommitSuccess(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+
+	migrator := NewFunctionMigrator(db, "/test", nil)
+
+	err = migrator.runInTransaction(context.Background(), func(tx *sql.Tx) error {
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

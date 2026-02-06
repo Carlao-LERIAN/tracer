@@ -31,7 +31,7 @@ func TestAuditEventRecording_CreateRule(t *testing.T) {
 
 	mockCEL.EXPECT().Compile(gomock.Any(), gomock.Any()).Return(nil, nil)
 	mockRepo.EXPECT().GetByName(gomock.Any(), gomock.Any()).Return(nil, constant.ErrRuleNotFound)
-	mockRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(&model.Rule{ID: uuid.New()}, nil)
+	mockRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(&model.Rule{ID: testutil.MustDeterministicUUID(1)}, nil)
 
 	// VALIDATE: EventType, Action, Before/After
 	auditWriter.EXPECT().RecordRuleEvent(
@@ -60,7 +60,7 @@ func TestAuditEventRecording_ActivateRule(t *testing.T) {
 	mockCEL := NewMockExpressionCompiler(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(10)
 	mockRepo.EXPECT().GetByID(gomock.Any(), ruleID).Return(&model.Rule{
 		ID: ruleID, Expression: "true", Status: model.RuleStatusDraft,
 	}, nil)
@@ -93,7 +93,7 @@ func TestAuditEventRecording_DeactivateRule(t *testing.T) {
 	mockRepo := NewMockRuleRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(20)
 	mockRepo.EXPECT().GetByID(gomock.Any(), ruleID).Return(&model.Rule{
 		ID: ruleID, Status: model.RuleStatusActive,
 	}, nil)
@@ -125,7 +125,7 @@ func TestAuditEventRecording_UpdateRule(t *testing.T) {
 	mockCEL := NewMockExpressionCompiler(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(30)
 	mockRepo.EXPECT().GetByID(gomock.Any(), ruleID).Return(&model.Rule{
 		ID: ruleID, Name: "Old", Expression: "true",
 	}, nil)
@@ -157,7 +157,7 @@ func TestAuditEventRecording_DeleteRule(t *testing.T) {
 	mockRepo := NewMockRuleRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(40)
 	mockRepo.EXPECT().GetByID(gomock.Any(), ruleID).Return(&model.Rule{
 		ID: ruleID, Status: model.RuleStatusInactive,
 	}, nil)
@@ -208,7 +208,7 @@ func TestAuditEventRecording_CreateLimit(t *testing.T) {
 	require.NoError(t, err)
 	_, err = cmd.Execute(context.Background(), &CreateLimitInput{
 		Name: "Test", LimitType: model.LimitTypeDaily, MaxAmount: 100000,
-		Currency: "BRL", Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Currency: "BRL", Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(50))}},
 	})
 	require.NoError(t, err)
 }
@@ -219,7 +219,7 @@ func TestAuditEventRecording_ActivateLimit(t *testing.T) {
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(60)
 	mockRepo.EXPECT().GetByID(gomock.Any(), limitID).Return(&model.Limit{
 		ID: limitID, Status: model.LimitStatusInactive,
 	}, nil)
@@ -247,7 +247,7 @@ func TestAuditEventRecording_DeactivateLimit(t *testing.T) {
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(70)
 	mockRepo.EXPECT().GetByID(gomock.Any(), limitID).Return(&model.Limit{
 		ID: limitID, Status: model.LimitStatusActive,
 	}, nil)
@@ -275,7 +275,7 @@ func TestAuditEventRecording_UpdateLimit(t *testing.T) {
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(80)
 	mockRepo.EXPECT().GetByID(gomock.Any(), limitID).Return(&model.Limit{
 		ID: limitID, MaxAmount: 50000,
 	}, nil)
@@ -305,7 +305,7 @@ func TestAuditEventRecording_DeleteLimit(t *testing.T) {
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(90)
 	mockRepo.EXPECT().GetByID(gomock.Any(), limitID).Return(&model.Limit{
 		ID: limitID, Status: model.LimitStatusInactive,
 	}, nil)
@@ -338,12 +338,12 @@ func TestAuditEventRecording_ValidationEvent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	auditWriter := NewMockAuditWriter(ctrl)
 
-	validationID := uuid.New()
-	accountID := uuid.New()
+	validationID := testutil.MustDeterministicUUID(100)
+	accountID := testutil.MustDeterministicUUID(101)
 
 	// Mock request data
 	request := map[string]any{
-		"requestId":       uuid.New().String(),
+		"requestId":       testutil.MustDeterministicUUID(102).String(),
 		"transactionType": "PIX",
 		"amount":          int64(10000),
 		"currency":        "BRL",

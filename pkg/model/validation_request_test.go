@@ -8,22 +8,23 @@ import (
 	"testing"
 	"time"
 
+	"tracer/internal/testutil"
+	"tracer/pkg/constant"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"tracer/pkg/constant"
 )
 
 func TestValidationRequest_Validate(t *testing.T) {
 	validRequest := func() *ValidationRequest {
-		accountID := uuid.New()
+		accountID := testutil.MustDeterministicUUID(1)
 		return &ValidationRequest{
-			RequestID:       uuid.New(),
+			RequestID:       testutil.MustDeterministicUUID(2),
 			TransactionType: TransactionTypeCard,
 			Amount:          10000, // $100.00 in cents
 			Currency:        "USD",
-			TransactionTimestamp:       time.Now(),
+			TransactionTimestamp:       testutil.FixedTime(),
 			Account: AccountContext{
 				ID:     accountID,
 				Type:   "checking",
@@ -116,6 +117,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 			name: "future timestamp fails",
 			modify: func(r *ValidationRequest) {
 				// Set timestamp 2 minutes in the future (beyond 1 minute clock skew allowance)
+				// Note: Must use time.Now() as the validation logic compares against actual current time
 				r.TransactionTimestamp = time.Now().Add(2 * time.Minute)
 			},
 			expectedErr: constant.ErrValidationTimestampFuture,
@@ -124,6 +126,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 			name: "timestamp within clock skew tolerance passes",
 			modify: func(r *ValidationRequest) {
 				// Set timestamp 30 seconds in the future (within 1 minute clock skew allowance)
+				// Note: Must use time.Now() as the validation logic compares against actual current time
 				r.TransactionTimestamp = time.Now().Add(30 * time.Second)
 			},
 			expectedErr: nil,
@@ -152,14 +155,14 @@ func TestValidationRequest_Validate(t *testing.T) {
 		{
 			name: "valid segment passes",
 			modify: func(r *ValidationRequest) {
-				r.Segment = &SegmentContext{ID: uuid.New(), Name: "retail"}
+				r.Segment = &SegmentContext{ID: testutil.MustDeterministicUUID(3), Name: "retail"}
 			},
 			expectedErr: nil,
 		},
 		{
 			name: "valid portfolio passes",
 			modify: func(r *ValidationRequest) {
-				r.Portfolio = &PortfolioContext{ID: uuid.New(), Name: "premium"}
+				r.Portfolio = &PortfolioContext{ID: testutil.MustDeterministicUUID(4), Name: "premium"}
 			},
 			expectedErr: nil,
 		},
@@ -183,22 +186,22 @@ func TestValidationRequest_Validate(t *testing.T) {
 
 func TestValidationRequest_ToTransactionContext(t *testing.T) {
 	subType := "Credit"
-	segmentID := uuid.New()
-	portfolioID := uuid.New()
+	segmentID := testutil.MustDeterministicUUID(10)
+	portfolioID := testutil.MustDeterministicUUID(11)
 	req := &ValidationRequest{
-		RequestID:       uuid.New(),
+		RequestID:       testutil.MustDeterministicUUID(12),
 		TransactionType: TransactionTypeCard,
 		SubType:         &subType,
 		Amount:          50000,
 		Currency:        "BRL",
-		TransactionTimestamp:       time.Now(),
+		TransactionTimestamp:       testutil.FixedTime(),
 		Account: AccountContext{
-			ID:     uuid.New(),
+			ID:     testutil.MustDeterministicUUID(13),
 			Type:   "checking",
 			Status: "active",
 		},
 		Merchant: &MerchantContext{
-			ID:       uuid.New(),
+			ID:       testutil.MustDeterministicUUID(14),
 			Category: "RETAIL",
 			Country:  "BR",
 		},
@@ -224,14 +227,14 @@ func TestValidationRequest_ToTransactionContext(t *testing.T) {
 
 func TestValidationRequest_ToTransactionContext_NilOptionalFields(t *testing.T) {
 	req := &ValidationRequest{
-		RequestID:       uuid.New(),
+		RequestID:       testutil.MustDeterministicUUID(20),
 		TransactionType: TransactionTypePix,
 		SubType:         nil,
 		Amount:          10000,
 		Currency:        "BRL",
-		TransactionTimestamp:       time.Now(),
+		TransactionTimestamp:       testutil.FixedTime(),
 		Account: AccountContext{
-			ID: uuid.New(),
+			ID: testutil.MustDeterministicUUID(21),
 		},
 		Merchant:  nil,
 		Segment:   nil,
@@ -252,12 +255,12 @@ func TestValidationRequest_ToTransactionContext_NilOptionalFields(t *testing.T) 
 func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 	t.Run("converts required fields correctly", func(t *testing.T) {
 		subType := "Credit"
-		accountID := uuid.New()
-		segmentID := uuid.New()
-		portfolioID := uuid.New()
-		timestamp := time.Now()
+		accountID := testutil.MustDeterministicUUID(30)
+		segmentID := testutil.MustDeterministicUUID(31)
+		portfolioID := testutil.MustDeterministicUUID(32)
+		timestamp := testutil.FixedTime()
 		req := &ValidationRequest{
-			RequestID:       uuid.New(),
+			RequestID:       testutil.MustDeterministicUUID(33),
 			TransactionType: TransactionTypeCard,
 			SubType:         &subType,
 			Amount:          50000,
@@ -282,14 +285,14 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 	})
 
 	t.Run("handles nil segment and portfolio", func(t *testing.T) {
-		accountID := uuid.New()
+		accountID := testutil.MustDeterministicUUID(40)
 		req := &ValidationRequest{
-			RequestID:       uuid.New(),
+			RequestID:       testutil.MustDeterministicUUID(41),
 			TransactionType: TransactionTypePix,
 			SubType:         nil,
 			Amount:          10000,
 			Currency:        "BRL",
-			TransactionTimestamp:       time.Now(),
+			TransactionTimestamp:       testutil.FixedTime(),
 			Account: AccountContext{
 				ID: accountID,
 			},

@@ -19,6 +19,8 @@ import (
 
 // TestNewAdapter_Success tests successful adapter creation.
 func TestNewAdapter_Success(t *testing.T) {
+	t.Parallel()
+
 	logger := testutil.NewMockLogger()
 	cfg := AdapterConfig{
 		CostLimit:    5000,
@@ -34,6 +36,8 @@ func TestNewAdapter_Success(t *testing.T) {
 
 // TestNewAdapter_DefaultValues tests that zero values use defaults.
 func TestNewAdapter_DefaultValues(t *testing.T) {
+	t.Parallel()
+
 	logger := testutil.NewMockLogger()
 	cfg := AdapterConfig{} // Zero values
 
@@ -45,6 +49,8 @@ func TestNewAdapter_DefaultValues(t *testing.T) {
 
 // TestNewAdapter_NilLogger tests error for nil logger.
 func TestNewAdapter_NilLogger(t *testing.T) {
+	t.Parallel()
+
 	cfg := AdapterConfig{}
 
 	adapter, err := NewAdapter(cfg, nil)
@@ -56,6 +62,8 @@ func TestNewAdapter_NilLogger(t *testing.T) {
 
 // TestAdapter_Compile_Success tests successful compilation.
 func TestAdapter_Compile_Success(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -70,6 +78,8 @@ func TestAdapter_Compile_Success(t *testing.T) {
 
 // TestAdapter_Compile_CacheHit tests that cached expressions are returned.
 func TestAdapter_Compile_CacheHit(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 	expression := "amount > 100000"
@@ -92,6 +102,8 @@ func TestAdapter_Compile_CacheHit(t *testing.T) {
 
 // TestAdapter_Compile_SyntaxError tests syntax error handling.
 func TestAdapter_Compile_SyntaxError(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -104,6 +116,8 @@ func TestAdapter_Compile_SyntaxError(t *testing.T) {
 
 // TestAdapter_Compile_EmptyExpression tests empty expression error.
 func TestAdapter_Compile_EmptyExpression(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -116,6 +130,8 @@ func TestAdapter_Compile_EmptyExpression(t *testing.T) {
 
 // TestAdapter_Compile_TypeError tests non-boolean expression error.
 func TestAdapter_Compile_TypeError(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -129,6 +145,8 @@ func TestAdapter_Compile_TypeError(t *testing.T) {
 
 // TestAdapter_Evaluate_Success tests successful evaluation.
 func TestAdapter_Evaluate_Success(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -144,6 +162,8 @@ func TestAdapter_Evaluate_Success(t *testing.T) {
 
 // TestAdapter_Evaluate_False tests evaluation returning false.
 func TestAdapter_Evaluate_False(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -159,6 +179,8 @@ func TestAdapter_Evaluate_False(t *testing.T) {
 
 // TestAdapter_Evaluate_ComplexExpression tests complex expression evaluation.
 func TestAdapter_Evaluate_ComplexExpression(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -174,6 +196,8 @@ func TestAdapter_Evaluate_ComplexExpression(t *testing.T) {
 
 // TestAdapter_Evaluate_NilProgram tests error for nil program.
 func TestAdapter_Evaluate_NilProgram(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -186,6 +210,8 @@ func TestAdapter_Evaluate_NilProgram(t *testing.T) {
 
 // TestAdapter_Evaluate_NilRequest tests error for nil request.
 func TestAdapter_Evaluate_NilRequest(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -200,6 +226,8 @@ func TestAdapter_Evaluate_NilRequest(t *testing.T) {
 
 // TestAdapter_Invalidate tests cache invalidation.
 func TestAdapter_Invalidate(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -222,6 +250,8 @@ func TestAdapter_Invalidate(t *testing.T) {
 
 // TestAdapter_Stats tests cache statistics.
 func TestAdapter_Stats(t *testing.T) {
+	t.Parallel()
+
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
@@ -250,6 +280,8 @@ func TestAdapter_Stats(t *testing.T) {
 
 // TestAdapter_TracingSpans tests that spans are created.
 func TestAdapter_TracingSpans(t *testing.T) {
+	t.Parallel()
+
 	tt := testutil.SetupTestTracing(t)
 
 	ctx := context.Background()
@@ -284,5 +316,7 @@ func TestAdapter_TracingSpans(t *testing.T) {
 
 // TestAdapter_ImplementsInterface tests that Adapter implements ExpressionEngine.
 func TestAdapter_ImplementsInterface(t *testing.T) {
+	t.Parallel()
+
 	var _ ExpressionEngine = (*Adapter)(nil)
 }

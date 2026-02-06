@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,7 +40,7 @@ import (
 // TestValidation_Scope_AccountId verifies rules are filtered by accountId scope.
 // Test 4.2.1 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_AccountId(t *testing.T) {
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(4501).String()
 
 	// PRECONDITIONS: Create rule scoped to specific accountId
 	accountIDValue := accountID
@@ -71,7 +70,7 @@ func TestValidation_Scope_AccountId(t *testing.T) {
 	// EXECUTION 2: Send validation request with DIFFERENT accountId
 	payload2 := testutil.CreateBasicValidationPayload()
 	payload2["account"] = map[string]any{
-		"accountId": uuid.New().String(), // Different account
+		"accountId": testutil.MustDeterministicUUID(4502).String(), // Different account
 		"type":      "checking",
 		"status":    "active",
 	}
@@ -86,7 +85,7 @@ func TestValidation_Scope_AccountId(t *testing.T) {
 // TestValidation_Scope_SegmentId verifies rules are filtered by segmentId scope.
 // Test 4.2.2 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_SegmentId(t *testing.T) {
-	segmentID := uuid.New().String()
+	segmentID := testutil.MustDeterministicUUID(4503).String()
 
 	// PRECONDITIONS: Create rule scoped to specific segmentId
 	segmentIDValue := segmentID
@@ -115,7 +114,7 @@ func TestValidation_Scope_SegmentId(t *testing.T) {
 	// EXECUTION 2: Send validation request with DIFFERENT segmentId
 	payload2 := testutil.CreateBasicValidationPayload()
 	payload2["segment"] = map[string]any{
-		"segmentId": uuid.New().String(), // Different segment
+		"segmentId": testutil.MustDeterministicUUID(4504).String(), // Different segment
 		"name":      "standard",
 	}
 
@@ -130,7 +129,7 @@ func TestValidation_Scope_SegmentId(t *testing.T) {
 // Test 4.2.3 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_PortfolioId(t *testing.T) {
 
-	portfolioID := uuid.New().String()
+	portfolioID := testutil.MustDeterministicUUID(4505).String()
 
 	// PRECONDITIONS: Create rule scoped to specific portfolioId
 	portfolioIDValue := portfolioID
@@ -159,7 +158,7 @@ func TestValidation_Scope_PortfolioId(t *testing.T) {
 	// EXECUTION 2: Send validation request with DIFFERENT portfolioId
 	payload2 := testutil.CreateBasicValidationPayload()
 	payload2["portfolio"] = map[string]any{
-		"portfolioId": uuid.New().String(), // Different portfolio
+		"portfolioId": testutil.MustDeterministicUUID(4506).String(), // Different portfolio
 		"name":        "retail",
 	}
 
@@ -174,7 +173,7 @@ func TestValidation_Scope_PortfolioId(t *testing.T) {
 // Test 4.2.4 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_MerchantId(t *testing.T) {
 
-	merchantID := uuid.New().String()
+	merchantID := testutil.MustDeterministicUUID(4507).String()
 
 	// PRECONDITIONS: Create rule scoped to specific merchantId
 	merchantIDValue := merchantID
@@ -203,7 +202,7 @@ func TestValidation_Scope_MerchantId(t *testing.T) {
 	// EXECUTION 2: Send validation request with DIFFERENT merchantId
 	payload2 := testutil.CreateBasicValidationPayload()
 	payload2["merchant"] = map[string]any{
-		"merchantId": uuid.New().String(), // Different merchant
+		"merchantId": testutil.MustDeterministicUUID(4508).String(), // Different merchant
 		"category":   "5812",
 	}
 
@@ -293,7 +292,7 @@ func TestValidation_Scope_SubType(t *testing.T) {
 // Test 4.2.7 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_MultipleScopeFields(t *testing.T) {
 
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(4509).String()
 
 	// PRECONDITIONS: Create rule with scope containing both accountId AND transactionType
 	accountIDValue := accountID
@@ -332,7 +331,7 @@ func TestValidation_Scope_MultipleScopeFields(t *testing.T) {
 		},
 		{
 			name:              "type_matches_account_differs",
-			accountID:         uuid.New().String(),
+			accountID:         testutil.MustDeterministicUUID(4510).String(),
 			transactionType:   "CARD",
 			shouldBeEvaluated: false,
 			description:       "transactionType matches but accountId differs (AND logic)",
@@ -366,8 +365,8 @@ func TestValidation_Scope_MultipleScopeFields(t *testing.T) {
 // Test 4.2.8 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_MultipleScopes(t *testing.T) {
 
-	accountID1 := uuid.New().String()
-	accountID2 := uuid.New().String()
+	accountID1 := testutil.MustDeterministicUUID(4511).String()
+	accountID2 := testutil.MustDeterministicUUID(4512).String()
 
 	// PRECONDITIONS: Create rule with 3 scopes (OR logic)
 	accountID1Value := accountID1
@@ -408,14 +407,14 @@ func TestValidation_Scope_MultipleScopes(t *testing.T) {
 		},
 		{
 			name:              "matches_third_scope",
-			accountID:         uuid.New().String(),
+			accountID:         testutil.MustDeterministicUUID(4513).String(),
 			transactionType:   "PIX",
 			shouldBeEvaluated: true,
 			description:       "Matches third scope (transactionType PIX)",
 		},
 		{
 			name:              "matches_none",
-			accountID:         uuid.New().String(),
+			accountID:         testutil.MustDeterministicUUID(4514).String(),
 			transactionType:   "CARD",
 			shouldBeEvaluated: false,
 			description:       "Matches no scope",
@@ -465,13 +464,13 @@ func TestValidation_Scope_EmptyScopes(t *testing.T) {
 	}{
 		{
 			name:            "scenario_1_card_account1",
-			accountID:       uuid.New().String(),
+			accountID:       testutil.MustDeterministicUUID(4515).String(),
 			transactionType: "CARD",
 			description:     "CARD transaction with accountId 1",
 		},
 		{
 			name:            "scenario_2_pix_account2",
-			accountID:       uuid.New().String(),
+			accountID:       testutil.MustDeterministicUUID(4516).String(),
 			transactionType: "PIX",
 			description:     "PIX transaction with accountId 2",
 		},

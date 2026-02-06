@@ -9,11 +9,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
@@ -32,7 +32,7 @@ func TestDeleteRule_Success_FromInactive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	rule := &model.Rule{
 		ID:         ruleID,
@@ -85,7 +85,7 @@ func TestDeleteRule_Success_FromDraft(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	rule := &model.Rule{
 		ID:         ruleID,
@@ -138,7 +138,7 @@ func TestDeleteRule_RuleNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockRepo := NewMockRuleRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
@@ -163,7 +163,7 @@ func TestDeleteRule_AlreadyDeleted_Idempotent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	rule := &model.Rule{
 		ID:         ruleID,
@@ -206,7 +206,7 @@ func TestDeleteRule_InvalidTransition(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			ctx := context.Background()
-			ruleID := uuid.New()
+			ruleID := testutil.MustDeterministicUUID(1)
 
 			rule := &model.Rule{
 				ID:         ruleID,
@@ -253,7 +253,7 @@ func TestDeleteRule_GetByIDError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockRepo := NewMockRuleRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
@@ -278,7 +278,7 @@ func TestDeleteRule_DeleteError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	rule := &model.Rule{
 		ID:         ruleID,

@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"tracer/internal/testutil"
+	testutil_integration "tracer/internal/testutil_integration"
 )
 
 // TestMain sets up the integration test environment using testcontainers.
@@ -23,5 +23,5 @@ func TestMain(m *testing.M) {
 	}
 
 	// Default: use testcontainers
-	os.Exit(testutil.SetupTestSuite(m))
+	os.Exit(testutil_integration.SetupTestSuite(m))
 }

@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -147,7 +146,7 @@ func createValidRuleForSetAction(t *testing.T) *Rule {
 		"Test Rule",
 		"amount > 1000",
 		DecisionDeny,
-		[]Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 		nil,
 		testutil.FixedTime(),
 	)

@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -33,8 +32,8 @@ func TestNewUpdateLimitCommand(t *testing.T) {
 }
 
 func TestUpdateLimitCommand_Execute(t *testing.T) {
-	limitID := uuid.New()
-	now := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(1)
+	now := testutil.FixedTime().UTC()
 
 	// newExistingLimit creates a fresh limit instance per test to avoid mutation side effects.
 	// Each test gets its own copy, preventing test interdependencies.
@@ -45,7 +44,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			LimitType: model.LimitTypeDaily,
 			MaxAmount: 100000,
 			Currency:  "USD",
-			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 			Status:    model.LimitStatusActive,
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -111,7 +110,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			name:    "Success - update scopes",
 			limitID: limitID,
 			input: &UpdateLimitInput{
-				Scopes: &[]model.Scope{{PortfolioID: testutil.UUIDPtr(uuid.New())}},
+				Scopes: &[]model.Scope{{PortfolioID: testutil.UUIDPtr(testutil.MustDeterministicUUID(10))}},
 			},
 			setupMock: func(m *MockLimitRepository) {
 				m.EXPECT().GetByID(gomock.Any(), limitID).Return(newExistingLimit(), nil)
@@ -153,7 +152,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 		},
 		{
 			name:    "Failure - limit not found",
-			limitID: uuid.New(),
+			limitID: testutil.MustDeterministicUUID(20),
 			input: &UpdateLimitInput{
 				Name: testutil.StringPtr("New Name"),
 			},
@@ -254,7 +253,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 					LimitType: model.LimitTypeDaily,
 					MaxAmount: 100000,
 					Currency:  "USD",
-					Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+					Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(30))}},
 					Status:    model.LimitStatusDeleted,
 					CreatedAt: now,
 					UpdatedAt: now,

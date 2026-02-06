@@ -7,7 +7,8 @@ package model
 import (
 	"testing"
 
-	"github.com/google/uuid"
+	"tracer/internal/testutil"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +19,7 @@ func TestAccountContext_ToMap_NilReceiver(t *testing.T) {
 }
 
 func TestAccountContext_ToMap_Success(t *testing.T) {
-	id := uuid.New()
+	id := testutil.MustDeterministicUUID(1)
 	acc := &AccountContext{
 		ID:     id,
 		Type:   "checking",
@@ -38,7 +39,7 @@ func TestMerchantContext_ToMap_NilReceiver(t *testing.T) {
 }
 
 func TestMerchantContext_ToMap_Success(t *testing.T) {
-	id := uuid.New()
+	id := testutil.MustDeterministicUUID(2)
 	m := &MerchantContext{
 		ID:       id,
 		Name:     "Test Merchant",
@@ -58,7 +59,7 @@ func TestSegmentContext_ToMap_NilReceiver(t *testing.T) {
 }
 
 func TestSegmentContext_ToMap_Success(t *testing.T) {
-	id := uuid.New()
+	id := testutil.MustDeterministicUUID(3)
 	s := &SegmentContext{
 		ID:   id,
 		Name: "Premium",
@@ -76,7 +77,7 @@ func TestPortfolioContext_ToMap_NilReceiver(t *testing.T) {
 }
 
 func TestPortfolioContext_ToMap_Success(t *testing.T) {
-	id := uuid.New()
+	id := testutil.MustDeterministicUUID(4)
 	p := &PortfolioContext{
 		ID:   id,
 		Name: "Growth",

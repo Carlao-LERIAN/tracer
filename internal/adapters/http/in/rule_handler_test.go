@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -20,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
@@ -48,13 +48,13 @@ func TestHandler_CreateRule(t *testing.T) {
 				mockService.EXPECT().
 					CreateRule(gomock.Any(), gomock.Any()).
 					Return(&model.Rule{
-						ID:         uuid.New(),
+						ID:         testutil.MustDeterministicUUID(1),
 						Name:       "Test Rule",
 						Expression: "amount > 1000",
 						Action:     model.DecisionDeny,
 						Status:     model.RuleStatusDraft,
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
+						CreatedAt:  testutil.FixedTime(),
+						UpdatedAt:  testutil.FixedTime(),
 					}, nil)
 				return mockService
 			},
@@ -80,14 +80,14 @@ func TestHandler_CreateRule(t *testing.T) {
 				mockService.EXPECT().
 					CreateRule(gomock.Any(), gomock.Any()).
 					Return(&model.Rule{
-						ID:         uuid.New(),
+						ID:         testutil.MustDeterministicUUID(2),
 						Name:       "Global Rule",
 						Expression: "amount > 5000",
 						Action:     model.DecisionReview,
 						Status:     model.RuleStatusDraft,
 						Scopes:     []model.Scope{},
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
+						CreatedAt:  testutil.FixedTime(),
+						UpdatedAt:  testutil.FixedTime(),
 					}, nil)
 				return mockService
 			},
@@ -273,7 +273,7 @@ func TestToServiceInput(t *testing.T) {
 }
 
 func TestHandler_UpdateRule(t *testing.T) {
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(10)
 
 	tests := []struct {
 		name           string
@@ -300,8 +300,8 @@ func TestHandler_UpdateRule(t *testing.T) {
 						Expression: "amount > 1000",
 						Action:     model.DecisionDeny,
 						Status:     model.RuleStatusDraft,
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
+						CreatedAt:  testutil.FixedTime(),
+						UpdatedAt:  testutil.FixedTime(),
 					}, nil)
 				return mockService
 			},
@@ -329,8 +329,8 @@ func TestHandler_UpdateRule(t *testing.T) {
 						Expression: "amount > 5000",
 						Action:     model.DecisionDeny,
 						Status:     model.RuleStatusDraft,
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
+						CreatedAt:  testutil.FixedTime(),
+						UpdatedAt:  testutil.FixedTime(),
 					}, nil)
 				return mockService
 			},
@@ -532,7 +532,7 @@ func TestToUpdateServiceInput_NilScopes(t *testing.T) {
 }
 
 func TestHandler_GetRule(t *testing.T) {
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(20)
 
 	tests := []struct {
 		name           string
@@ -554,8 +554,8 @@ func TestHandler_GetRule(t *testing.T) {
 						Expression: "amount > 1000",
 						Action:     model.DecisionDeny,
 						Status:     model.RuleStatusActive,
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
+						CreatedAt:  testutil.FixedTime(),
+						UpdatedAt:  testutil.FixedTime(),
 					}, nil)
 				return mockService
 			},
@@ -643,22 +643,22 @@ func TestHandler_GetRule(t *testing.T) {
 func TestHandler_ListRules(t *testing.T) {
 	rules := []model.Rule{
 		{
-			ID:         uuid.New(),
+			ID:         testutil.MustDeterministicUUID(30),
 			Name:       "rule 1",
 			Expression: "amount > 1000",
 			Action:     model.DecisionDeny,
 			Status:     model.RuleStatusActive,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			CreatedAt:  testutil.FixedTime(),
+			UpdatedAt:  testutil.FixedTime(),
 		},
 		{
-			ID:         uuid.New(),
+			ID:         testutil.MustDeterministicUUID(31),
 			Name:       "rule 2",
 			Expression: "amount > 5000",
 			Action:     model.DecisionReview,
 			Status:     model.RuleStatusActive,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			CreatedAt:  testutil.FixedTime(),
+			UpdatedAt:  testutil.FixedTime(),
 		},
 	}
 

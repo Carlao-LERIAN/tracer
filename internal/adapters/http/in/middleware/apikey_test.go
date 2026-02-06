@@ -27,6 +27,8 @@ type errorResponse struct {
 }
 
 func TestAPIKeyAuth(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		config         APIKeyConfig
@@ -149,6 +151,8 @@ func TestAPIKeyAuth(t *testing.T) {
 // how much of the key matches. While we can't perfectly test constant-time
 // behavior in unit tests, we can verify the implementation uses the correct approach.
 func TestAPIKeyAuth_ConstantTimeComparison(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		config   APIKeyConfig
@@ -216,6 +220,8 @@ func TestAPIKeyAuth_ConstantTimeComparison(t *testing.T) {
 // TestAPIKeyAuth_SameErrorMessage ensures the same error is returned for both
 // missing and invalid keys to prevent enumeration attacks.
 func TestAPIKeyAuth_SameErrorMessage(t *testing.T) {
+	t.Parallel()
+
 	config := APIKeyConfig{
 		Key:     "secret-key",
 		Enabled: true,
@@ -264,6 +270,8 @@ func TestAPIKeyAuth_SameErrorMessage(t *testing.T) {
 // =============================================================================
 
 func TestAPIKeyAuthWithLogger_MissingKey_LogsWarning(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	mockLogger := testutil.NewMockLogger()
 	config := APIKeyConfig{
@@ -301,6 +309,8 @@ func TestAPIKeyAuthWithLogger_MissingKey_LogsWarning(t *testing.T) {
 }
 
 func TestAPIKeyAuthWithLogger_InvalidKey_LogsWarning(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	mockLogger := testutil.NewMockLogger()
 	config := APIKeyConfig{
@@ -338,6 +348,8 @@ func TestAPIKeyAuthWithLogger_InvalidKey_LogsWarning(t *testing.T) {
 }
 
 func TestAPIKeyAuthWithLogger_ValidKey_LogsDebug(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	mockLogger := testutil.NewMockLogger()
 	config := APIKeyConfig{
@@ -373,19 +385,10 @@ func TestAPIKeyAuthWithLogger_ValidKey_LogsDebug(t *testing.T) {
 }
 
 func TestAPIKeyAuthWithLogger_NeverLogsAPIKeyValue(t *testing.T) {
+	t.Parallel()
+
 	// Arrange - use a distinctive API key to search for
 	secretKey := "SUPER_SECRET_KEY_12345_DO_NOT_LOG"
-	mockLogger := testutil.NewMockLogger()
-	config := APIKeyConfig{
-		Key:     secretKey,
-		Enabled: true,
-	}
-
-	app := fiber.New()
-	app.Use(APIKeyAuthWithLogger(config, mockLogger))
-	app.Get("/v1/validations", func(c *fiber.Ctx) error {
-		return c.SendString("success")
-	})
 
 	// Test cases: missing, invalid, and valid keys
 	testCases := []struct {
@@ -399,8 +402,20 @@ func TestAPIKeyAuthWithLogger_NeverLogsAPIKeyValue(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Reset mock
-			mockLogger.Calls = []testutil.LogCall{}
+			t.Parallel()
+
+			// Create fresh mock and app for each subtest to avoid data races
+			mockLogger := testutil.NewMockLogger()
+			config := APIKeyConfig{
+				Key:     secretKey,
+				Enabled: true,
+			}
+
+			app := fiber.New()
+			app.Use(APIKeyAuthWithLogger(config, mockLogger))
+			app.Get("/v1/validations", func(c *fiber.Ctx) error {
+				return c.SendString("success")
+			})
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/validations", nil)
 			if tc.apiKey != "" {
@@ -440,6 +455,8 @@ func TestAPIKeyAuthWithLogger_NeverLogsAPIKeyValue(t *testing.T) {
 }
 
 func TestAPIKeyAuthWithLogger_DisabledAuth_NoLogging(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	mockLogger := testutil.NewMockLogger()
 	config := APIKeyConfig{
@@ -521,6 +538,8 @@ func (c *mockCounterBuilder) Add(_ context.Context, value int64) {
 
 // TestAPIKeyAuthWithMetrics_FunctionExists verifies the function signature exists.
 func TestAPIKeyAuthWithMetrics_FunctionExists(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "test-key",
@@ -539,6 +558,8 @@ func TestAPIKeyAuthWithMetrics_FunctionExists(t *testing.T) {
 
 // TestAPIKeyAuthWithMetrics_MissingKey_Returns401 verifies auth behavior with missing key.
 func TestAPIKeyAuthWithMetrics_MissingKey_Returns401(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",
@@ -566,6 +587,8 @@ func TestAPIKeyAuthWithMetrics_MissingKey_Returns401(t *testing.T) {
 
 // TestAPIKeyAuthWithMetrics_InvalidKey_Returns401 verifies auth behavior with invalid key.
 func TestAPIKeyAuthWithMetrics_InvalidKey_Returns401(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",
@@ -592,6 +615,8 @@ func TestAPIKeyAuthWithMetrics_InvalidKey_Returns401(t *testing.T) {
 
 // TestAPIKeyAuthWithMetrics_ValidKey_Returns200 verifies auth passes with valid key.
 func TestAPIKeyAuthWithMetrics_ValidKey_Returns200(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",
@@ -623,6 +648,8 @@ func TestAPIKeyAuthWithMetrics_ValidKey_Returns200(t *testing.T) {
 
 // TestAPIKeyAuthWithMetrics_DisabledAuth_Passes verifies disabled auth passes all requests.
 func TestAPIKeyAuthWithMetrics_DisabledAuth_Passes(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",
@@ -649,6 +676,8 @@ func TestAPIKeyAuthWithMetrics_DisabledAuth_Passes(t *testing.T) {
 
 // TestAPIKeyAuthWithMetrics_MissingKey_LogsWarning verifies logging behavior.
 func TestAPIKeyAuthWithMetrics_MissingKey_LogsWarning(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",
@@ -680,6 +709,8 @@ func TestAPIKeyAuthWithMetrics_MissingKey_LogsWarning(t *testing.T) {
 
 // TestAPIKeyAuthWithMetrics_InvalidKey_LogsWarning verifies logging behavior.
 func TestAPIKeyAuthWithMetrics_InvalidKey_LogsWarning(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",
@@ -712,6 +743,8 @@ func TestAPIKeyAuthWithMetrics_InvalidKey_LogsWarning(t *testing.T) {
 
 // TestAPIKeyAuthWithMetrics_UsesValidateAPIKeyFunction verifies reuse of validateAPIKey.
 func TestAPIKeyAuthWithMetrics_UsesValidateAPIKeyFunction(t *testing.T) {
+	t.Parallel()
+
 	// This test verifies that the middleware properly uses the validateAPIKey function
 	// by testing edge cases that validateAPIKey handles
 	tests := []struct {
@@ -780,6 +813,8 @@ func TestAPIKeyAuthWithMetrics_UsesValidateAPIKeyFunction(t *testing.T) {
 
 // TestMetricAuthFailures_Definition verifies the metric is properly defined.
 func TestMetricAuthFailures_Definition(t *testing.T) {
+	t.Parallel()
+
 	// This test will fail until metrics.go is created with MetricAuthFailures
 	assert.Equal(t, "tracer_auth_failures_total", MetricAuthFailures.Name,
 		"Metric name should follow TRD Section 9.3 convention with tracer_ prefix")
@@ -794,6 +829,8 @@ func TestMetricAuthFailures_Definition(t *testing.T) {
 // =============================================================================
 
 func TestAPIKeyAuthWithMetrics_MissingKey_IncrementsMetric(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",
@@ -824,6 +861,8 @@ func TestAPIKeyAuthWithMetrics_MissingKey_IncrementsMetric(t *testing.T) {
 }
 
 func TestAPIKeyAuthWithMetrics_InvalidKey_IncrementsMetric(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",
@@ -854,6 +893,8 @@ func TestAPIKeyAuthWithMetrics_InvalidKey_IncrementsMetric(t *testing.T) {
 }
 
 func TestAPIKeyAuthWithMetrics_ValidKey_NoMetricIncrement(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",
@@ -880,6 +921,8 @@ func TestAPIKeyAuthWithMetrics_ValidKey_NoMetricIncrement(t *testing.T) {
 }
 
 func TestAPIKeyAuthWithMetrics_DisabledAuth_NoMetricIncrement(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	config := APIKeyConfig{
 		Key:     "valid-secret-key",

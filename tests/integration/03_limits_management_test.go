@@ -616,7 +616,7 @@ func TestLimits_ActivateLimit_NotFound(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	nonExistentID := uuid.New().String()
+	nonExistentID := testutil.MustDeterministicUUID(3001).String()
 
 	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+nonExistentID+"/activate", nil)
 	require.NoError(t, err)
@@ -634,7 +634,7 @@ func TestLimits_DeactivateLimit_NotFound(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	nonExistentID := uuid.New().String()
+	nonExistentID := testutil.MustDeterministicUUID(3002).String()
 
 	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+nonExistentID+"/deactivate", nil)
 	require.NoError(t, err)
@@ -652,7 +652,7 @@ func TestLimits_DeleteLimit_NotFound(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	nonExistentID := uuid.New().String()
+	nonExistentID := testutil.MustDeterministicUUID(3003).String()
 
 	req, err := http.NewRequest("DELETE", baseURL+"/v1/limits/"+nonExistentID, nil)
 	require.NoError(t, err)
@@ -674,7 +674,7 @@ func TestLimits_CreateLimit_Success(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	uniqueName := "Integration Test Limit " + uuid.New().String()[:8]
+	uniqueName := "Integration Test Limit " + testutil.MustDeterministicUUID(3004).String()[:8]
 	description := "Test limit created by integration test"
 	reqBody := createLimitRequest{
 		Name:        uniqueName,
@@ -849,7 +849,7 @@ func TestLimits_GetLimit_NotFound(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	nonExistentID := uuid.New().String()
+	nonExistentID := testutil.MustDeterministicUUID(3005).String()
 
 	req, err := http.NewRequest("GET", baseURL+"/v1/limits/"+nonExistentID, nil)
 	require.NoError(t, err)
@@ -981,7 +981,7 @@ func TestLimits_UpdateLimit_Success(t *testing.T) {
 	})
 
 	// Update the limit
-	newName := "Updated Limit Name " + uuid.New().String()[:8]
+	newName := "Updated Limit Name " + testutil.MustDeterministicUUID(3008).String()[:8]
 	newAmount := int64(200000)
 	updateBody := updateLimitRequest{
 		Name:      &newName,
@@ -1018,7 +1018,7 @@ func TestLimits_UpdateLimit_NotFound(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	nonExistentID := uuid.New().String()
+	nonExistentID := testutil.MustDeterministicUUID(3006).String()
 	newName := "Updated Name"
 	updateBody := updateLimitRequest{
 		Name: &newName,
@@ -1379,7 +1379,7 @@ func TestLimits_FullLifecycle(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// 1. Create a limit
-	uniqueName := "Lifecycle Test Limit " + uuid.New().String()[:8]
+	uniqueName := "Lifecycle Test Limit " + testutil.MustDeterministicUUID(3009).String()[:8]
 	description := "Testing full lifecycle"
 	reqBody := createLimitRequest{
 		Name:        uniqueName,
@@ -1518,7 +1518,7 @@ func createTestLimit(t *testing.T) string {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	uniqueName := "Test Limit " + uuid.New().String()[:8]
+	uniqueName := "Test Limit " + testutil.MustDeterministicUUID(3010).String()[:8]
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "DAILY",
@@ -1620,14 +1620,14 @@ func TestLimits_CreateLimit_Monthly_ResetAtCalculated(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	uniqueName := "Monthly Limit Test " + uuid.New().String()[:8]
+	uniqueName := "Monthly Limit Test " + testutil.MustDeterministicUUID(3011).String()[:8]
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "MONTHLY",
 		MaxAmount: 10000000,
 		Currency:  "BRL",
 		Scopes: []limitScopeInput{
-			{SegmentID: testutil.Ptr(uuid.New().String())},
+			{SegmentID: testutil.Ptr(testutil.MustDeterministicUUID(3012).String())},
 		},
 	}
 
@@ -1683,7 +1683,7 @@ func TestLimits_CreateLimit_PerTransaction_ResetAtNull(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	uniqueName := "Per Transaction Limit Test " + uuid.New().String()[:8]
+	uniqueName := "Per Transaction Limit Test " + testutil.MustDeterministicUUID(3013).String()[:8]
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
@@ -1732,8 +1732,8 @@ func TestLimits_CreateLimit_MultipleScopesArray(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	uniqueName := "Multi Scope Limit Test " + uuid.New().String()[:8]
-	accountID := uuid.New().String()
+	uniqueName := "Multi Scope Limit Test " + testutil.MustDeterministicUUID(3014).String()[:8]
+	accountID := testutil.MustDeterministicUUID(3015).String()
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "DAILY",
@@ -1903,7 +1903,7 @@ func TestLimits_UpdateLimit_UpdatesScopes(t *testing.T) {
 	})
 
 	// Update scopes
-	newAccountID := uuid.New().String()
+	newAccountID := testutil.MustDeterministicUUID(3016).String()
 	newScopes := []limitScopeInput{
 		{AccountID: &newAccountID},
 	}
@@ -2249,7 +2249,7 @@ func TestLimits_GetUsage_NotFound(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	nonExistentID := uuid.New().String()
+	nonExistentID := testutil.MustDeterministicUUID(3007).String()
 
 	req, err := http.NewRequest("GET", baseURL+"/v1/limits/"+nonExistentID+"/usage", nil)
 	require.NoError(t, err)
@@ -2269,7 +2269,7 @@ func TestLimits_GetUsage_PerTransaction(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create a PER_TRANSACTION limit
-	uniqueName := "Per Transaction Usage Test " + uuid.New().String()[:8]
+	uniqueName := "Per Transaction Usage Test " + testutil.MustDeterministicUUID(3017).String()[:8]
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
@@ -2491,7 +2491,7 @@ func TestLimits_DeleteLimit_ExcludedFromList(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create a limit with unique name
-	uniqueName := "Deleted Limit Test " + uuid.New().String()[:8]
+	uniqueName := "Deleted Limit Test " + testutil.MustDeterministicUUID(3018).String()[:8]
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "DAILY",
@@ -2642,7 +2642,7 @@ func TestLimits_CreateLimit_ValidationError_DescriptionWithXSS(t *testing.T) {
 
 	xssDescription := "<img src=x onerror=alert('xss')>"
 	reqBody := createLimitRequest{
-		Name:        "XSS Test Limit " + uuid.New().String()[:8],
+		Name:        "XSS Test Limit " + testutil.MustDeterministicUUID(3019).String()[:8],
 		Description: &xssDescription,
 		LimitType:   "DAILY",
 		MaxAmount:   100000,
@@ -2704,7 +2704,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidScopeUUID(t *testing.T) {
 
 	invalidUUID := "not-a-valid-uuid"
 	reqBody := createLimitRequest{
-		Name:      "Invalid Scope UUID Test " + uuid.New().String()[:8],
+		Name:      "Invalid Scope UUID Test " + testutil.MustDeterministicUUID(3020).String()[:8],
 		LimitType: "DAILY",
 		MaxAmount: 100000,
 		Currency:  "USD",
@@ -2736,7 +2736,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidTransactionTypeInScope(t *tes
 	baseURL := testutil.GetBaseURL()
 
 	reqBody := createLimitRequest{
-		Name:      "Invalid Transaction Type Test " + uuid.New().String()[:8],
+		Name:      "Invalid Transaction Type Test " + testutil.MustDeterministicUUID(3021).String()[:8],
 		LimitType: "DAILY",
 		MaxAmount: 100000,
 		Currency:  "USD",
@@ -2819,7 +2819,7 @@ func TestLimits_CreateLimit_ValidationError_ZeroMaxAmount(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	reqBody := createLimitRequest{
-		Name:      "Zero Amount Limit " + uuid.New().String()[:8],
+		Name:      "Zero Amount Limit " + testutil.MustDeterministicUUID(3022).String()[:8],
 		LimitType: "DAILY",
 		MaxAmount: 0, // Zero should fail (must be positive)
 		Currency:  "USD",
@@ -2851,7 +2851,7 @@ func TestLimits_CreateLimit_ValidationError_EmptyCurrency(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	reqBody := createLimitRequest{
-		Name:      "Empty Currency Limit " + uuid.New().String()[:8],
+		Name:      "Empty Currency Limit " + testutil.MustDeterministicUUID(3023).String()[:8],
 		LimitType: "DAILY",
 		MaxAmount: 100000,
 		Currency:  "", // Empty should fail
@@ -2885,12 +2885,12 @@ func TestLimits_CreateLimit_ValidationError_TooManyScopes(t *testing.T) {
 	// Create 101 scopes (max is 100)
 	scopes := make([]limitScopeInput, 101)
 	for i := 0; i < 101; i++ {
-		accountID := uuid.New().String()
+		accountID := testutil.MustDeterministicUUID(int64(30000 + i)).String()
 		scopes[i] = limitScopeInput{AccountID: &accountID}
 	}
 
 	reqBody := createLimitRequest{
-		Name:      "Too Many Scopes Limit " + uuid.New().String()[:8],
+		Name:      "Too Many Scopes Limit " + testutil.MustDeterministicUUID(3024).String()[:8],
 		LimitType: "DAILY",
 		MaxAmount: 100000,
 		Currency:  "USD",
@@ -2922,12 +2922,12 @@ func TestLimits_CreateLimit_Success_ExactlyMaxScopes(t *testing.T) {
 	// Create exactly 100 scopes (max allowed)
 	scopes := make([]limitScopeInput, 100)
 	for i := 0; i < 100; i++ {
-		accountID := uuid.New().String()
+		accountID := testutil.MustDeterministicUUID(int64(30200 + i)).String()
 		scopes[i] = limitScopeInput{AccountID: &accountID}
 	}
 
 	reqBody := createLimitRequest{
-		Name:      "Max Scopes Limit " + uuid.New().String()[:8],
+		Name:      "Max Scopes Limit " + testutil.MustDeterministicUUID(3025).String()[:8],
 		LimitType: "DAILY",
 		MaxAmount: 100000,
 		Currency:  "USD",
@@ -3265,7 +3265,7 @@ func TestLimits_CreateLimit_Boundary_DescriptionExactly1000Chars(t *testing.T) {
 	// Description with exactly 1000 chars (boundary value)
 	exactDesc := strings.Repeat("a", 1000)
 	reqBody := createLimitRequest{
-		Name:        "Boundary Test Limit " + uuid.New().String()[:8],
+		Name:        "Boundary Test Limit " + testutil.MustDeterministicUUID(3026).String()[:8],
 		Description: &exactDesc,
 		LimitType:   "DAILY",
 		MaxAmount:   100000,
@@ -3315,9 +3315,9 @@ func TestLimits_CreateLimit_ResponseFields_Complete(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	uniqueName := "Response Fields Test " + uuid.New().String()[:8]
+	uniqueName := "Response Fields Test " + testutil.MustDeterministicUUID(3027).String()[:8]
 	description := "Test description for response fields"
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(3028).String()
 	reqBody := createLimitRequest{
 		Name:        uniqueName,
 		Description: &description,
@@ -3425,7 +3425,7 @@ func TestLimits_UpdateLimit_ResponseFields_UpdatedAtChanged(t *testing.T) {
 	originalUpdatedAt := originalLimit.UpdatedAt
 
 	// Update the limit (no sleep needed - we use >= comparison for timestamps)
-	newName := "Updated Name " + uuid.New().String()[:8]
+	newName := "Updated Name " + testutil.MustDeterministicUUID(3029).String()[:8]
 	updateBody := updateLimitRequest{
 		Name: &newName,
 	}
@@ -3473,9 +3473,9 @@ func TestLimits_GetLimit_ResponseFields_Complete(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
 	// Create a limit with all fields
-	uniqueName := "Get Response Test " + uuid.New().String()[:8]
+	uniqueName := "Get Response Test " + testutil.MustDeterministicUUID(3030).String()[:8]
 	description := "Test description for get response"
-	accountID := uuid.New().String()
+	accountID := testutil.MustDeterministicUUID(3031).String()
 	reqBody := createLimitRequest{
 		Name:        uniqueName,
 		Description: &description,

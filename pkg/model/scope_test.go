@@ -153,28 +153,28 @@ func TestScope_IsEmpty(t *testing.T) {
 		{
 			name: "Success - scope with SegmentID is not empty",
 			scope: Scope{
-				SegmentID: testutil.UUIDPtr(uuid.New()),
+				SegmentID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1)),
 			},
 			expected: false,
 		},
 		{
 			name: "Success - scope with PortfolioID is not empty",
 			scope: Scope{
-				PortfolioID: testutil.UUIDPtr(uuid.New()),
+				PortfolioID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2)),
 			},
 			expected: false,
 		},
 		{
 			name: "Success - scope with AccountID is not empty",
 			scope: Scope{
-				AccountID: testutil.UUIDPtr(uuid.New()),
+				AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(3)),
 			},
 			expected: false,
 		},
 		{
 			name: "Success - scope with MerchantID is not empty",
 			scope: Scope{
-				MerchantID: testutil.UUIDPtr(uuid.New()),
+				MerchantID: testutil.UUIDPtr(testutil.MustDeterministicUUID(4)),
 			},
 			expected: false,
 		},
@@ -195,7 +195,7 @@ func TestScope_IsEmpty(t *testing.T) {
 		{
 			name: "Success - scope with multiple fields is not empty",
 			scope: Scope{
-				AccountID:       testutil.UUIDPtr(uuid.New()),
+				AccountID:       testutil.UUIDPtr(testutil.MustDeterministicUUID(5)),
 				TransactionType: testutil.Ptr(TransactionTypePix),
 				SubType:         testutil.StringPtr("INSTANT"),
 			},
@@ -204,10 +204,10 @@ func TestScope_IsEmpty(t *testing.T) {
 		{
 			name: "Success - scope with all fields is not empty",
 			scope: Scope{
-				SegmentID:       testutil.UUIDPtr(uuid.New()),
-				PortfolioID:     testutil.UUIDPtr(uuid.New()),
-				AccountID:       testutil.UUIDPtr(uuid.New()),
-				MerchantID:      testutil.UUIDPtr(uuid.New()),
+				SegmentID:       testutil.UUIDPtr(testutil.MustDeterministicUUID(6)),
+				PortfolioID:     testutil.UUIDPtr(testutil.MustDeterministicUUID(7)),
+				AccountID:       testutil.UUIDPtr(testutil.MustDeterministicUUID(8)),
+				MerchantID:      testutil.UUIDPtr(testutil.MustDeterministicUUID(9)),
 				TransactionType: testutil.Ptr(TransactionTypeWire),
 				SubType:         testutil.StringPtr("INTERNATIONAL"),
 			},

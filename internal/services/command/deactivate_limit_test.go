@@ -37,8 +37,8 @@ func TestDeactivateLimitCommand_Execute_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
-	testStartTime := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(1)
+	testStartTime := testutil.FixedTime()
 
 	activeLimit := &model.Limit{
 		ID:        limitID,
@@ -46,7 +46,7 @@ func TestDeactivateLimitCommand_Execute_Success(t *testing.T) {
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: 100000,
 		Currency:  "USD",
-		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 		Status:    model.LimitStatusActive,
 		CreatedAt: testStartTime.Add(-time.Hour), // Created an hour ago
 		UpdatedAt: testStartTime.Add(-time.Hour), // Last updated an hour ago
@@ -108,8 +108,8 @@ func TestDeactivateLimitCommand_Execute_AlreadyInactive_Idempotent(t *testing.T)
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
-	now := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(10)
+	now := testutil.FixedTime()
 
 	inactiveLimit := &model.Limit{
 		ID:        limitID,
@@ -117,7 +117,7 @@ func TestDeactivateLimitCommand_Execute_AlreadyInactive_Idempotent(t *testing.T)
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: 100000,
 		Currency:  "USD",
-		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11))}},
 		Status:    model.LimitStatusInactive,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -149,7 +149,7 @@ func TestDeactivateLimitCommand_Execute_LimitNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(20)
 
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
@@ -175,8 +175,8 @@ func TestDeactivateLimitCommand_Execute_InvalidTransition_FromDeleted(t *testing
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
-	now := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(30)
+	now := testutil.FixedTime()
 
 	deletedLimit := &model.Limit{
 		ID:        limitID,
@@ -184,7 +184,7 @@ func TestDeactivateLimitCommand_Execute_InvalidTransition_FromDeleted(t *testing
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: 100000,
 		Currency:  "USD",
-		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(31))}},
 		Status:    model.LimitStatusDeleted,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -214,7 +214,7 @@ func TestDeactivateLimitCommand_Execute_GetByIDError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(40)
 
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
@@ -242,8 +242,8 @@ func TestDeactivateLimitCommand_Execute_UpdateStatusError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
-	now := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(50)
+	now := testutil.FixedTime()
 
 	activeLimit := &model.Limit{
 		ID:        limitID,
@@ -251,7 +251,7 @@ func TestDeactivateLimitCommand_Execute_UpdateStatusError(t *testing.T) {
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: 100000,
 		Currency:  "USD",
-		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(51))}},
 		Status:    model.LimitStatusActive,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -317,7 +317,7 @@ func TestDeactivateLimitCommand_Execute_ContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	cmd := NewDeactivateLimitCommand(mockRepo, auditWriter)
-	result, err := cmd.Execute(ctx, uuid.New())
+	result, err := cmd.Execute(ctx, testutil.MustDeterministicUUID(60))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)

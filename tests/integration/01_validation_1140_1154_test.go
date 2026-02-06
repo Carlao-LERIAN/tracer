@@ -17,7 +17,6 @@ import (
 
 	"tracer/internal/testutil"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -233,7 +232,7 @@ func TestValidation_1_1_42_ScopeMatchingRulesSegment(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1022).String()
 
 	// Create and activate DENY rule with segment scope
-	ruleName := "deny-segment-scope-" + uuid.New().String()[:8]
+	ruleName := "deny-segment-scope-" + testutil.MustDeterministicUUID(1201).String()[:8]
 	ruleID := testutil.CreateRuleWithScope(t, ruleName, "amount > 0", "DENY", []testutil.ScopeInput{
 		{SegmentID: &matchingSegmentID},
 	})
@@ -308,7 +307,7 @@ func TestValidation_1_1_43_ScopeMatchingRulesPortfolio(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1032).String()
 
 	// Create and activate REVIEW rule with portfolio scope
-	ruleName := "review-portfolio-scope-" + uuid.New().String()[:8]
+	ruleName := "review-portfolio-scope-" + testutil.MustDeterministicUUID(1202).String()[:8]
 	ruleID := testutil.CreateRuleWithScope(t, ruleName, "transactionType == 'WIRE'", "REVIEW", []testutil.ScopeInput{
 		{PortfolioID: &matchingPortfolioID},
 	})
@@ -382,7 +381,7 @@ func TestValidation_1_1_44_ScopeMatchingRulesTransactionType(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1040).String()
 
 	// Create and activate DENY rule with transactionType=CRYPTO scope
-	ruleName := "deny-crypto-scope-" + uuid.New().String()[:8]
+	ruleName := "deny-crypto-scope-" + testutil.MustDeterministicUUID(1203).String()[:8]
 	ruleID := testutil.CreateRuleWithScope(t, ruleName, "amount > 0", "DENY", []testutil.ScopeInput{
 		{TransactionType: &cryptoType},
 	})
@@ -449,7 +448,7 @@ func TestValidation_1_1_45_DenyRulePrecedenceOverLimitExceeded(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1050).String()
 
 	// Create and activate DENY rule
-	ruleName := "deny-high-value-precedence-" + uuid.New().String()[:8]
+	ruleName := "deny-high-value-precedence-" + testutil.MustDeterministicUUID(1204).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 50000", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
@@ -519,7 +518,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	testutil.ActivateLimit(t, limitID)
 
 	// Create and activate DENY rule for CARD transactions
-	ruleName := "deny-all-card-usage-test-" + uuid.New().String()[:8]
+	ruleName := "deny-all-card-usage-test-" + testutil.MustDeterministicUUID(1205).String()[:8]
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "transactionType == 'CARD'", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
@@ -890,17 +889,17 @@ func TestValidation_1_1_54_AllRuleActionsMatching(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1140).String()
 
 	// Create DENY rule
-	denyRuleName := "deny-all-actions-test-" + uuid.New().String()[:8]
+	denyRuleName := "deny-all-actions-test-" + testutil.MustDeterministicUUID(1206).String()[:8]
 	denyRuleID := testutil.CreateTestRuleWithExpression(t, denyRuleName, "amount > 10000", "DENY")
 	testutil.ActivateRule(t, denyRuleID)
 
 	// Create REVIEW rule
-	reviewRuleName := "review-all-actions-test-" + uuid.New().String()[:8]
+	reviewRuleName := "review-all-actions-test-" + testutil.MustDeterministicUUID(1207).String()[:8]
 	reviewRuleID := testutil.CreateTestRuleWithExpression(t, reviewRuleName, "amount > 5000", "REVIEW")
 	testutil.ActivateRule(t, reviewRuleID)
 
 	// Create ALLOW rule
-	allowRuleName := "allow-all-actions-test-" + uuid.New().String()[:8]
+	allowRuleName := "allow-all-actions-test-" + testutil.MustDeterministicUUID(1208).String()[:8]
 	allowRuleID := testutil.CreateTestRuleWithExpression(t, allowRuleName, "amount > 0", "ALLOW")
 	testutil.ActivateRule(t, allowRuleID)
 

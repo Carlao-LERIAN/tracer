@@ -16,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"tracer/internal/services/query/mocks"
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
@@ -25,30 +26,30 @@ import (
 func newTestTransactionValidation(id uuid.UUID) *model.TransactionValidation {
 	return &model.TransactionValidation{
 		ID:                   id,
-		RequestID:            uuid.New(),
+		RequestID:            testutil.MustDeterministicUUID(100),
 		TransactionType:      model.TransactionTypeCard,
 		Amount:               10000,
 		Currency:             "USD",
-		TransactionTimestamp: time.Now().Add(-time.Hour),
+		TransactionTimestamp: testutil.FixedTime().Add(-time.Hour),
 		Account: model.AccountContext{
-			ID:     uuid.New(),
+			ID:     testutil.MustDeterministicUUID(101),
 			Type:   "checking",
 			Status: "active",
 		},
 		EvaluationResult: model.EvaluationResult{
 			Decision:         model.DecisionAllow,
 			MatchedRuleIDs:   []uuid.UUID{},
-			EvaluatedRuleIDs: []uuid.UUID{uuid.New()},
+			EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(102)},
 			Reason:           "All checks passed",
 		},
 		LimitUsageDetails: []model.LimitUsageDetail{},
 		ProcessingTimeMs:  42,
-		CreatedAt:         time.Now().Add(-time.Hour),
+		CreatedAt:         testutil.FixedTime().Add(-time.Hour),
 	}
 }
 
 func TestGetTransactionValidationQuery_Execute(t *testing.T) {
-	tvID := uuid.New()
+	tvID := testutil.MustDeterministicUUID(10)
 
 	tests := []struct {
 		name      string
@@ -194,7 +195,7 @@ func TestGetTransactionValidationQuery_Execute_ContextCancellation(t *testing.T)
 			mockRepo := tt.mockSetup(ctrl)
 			query := NewGetTransactionValidationQuery(mockRepo)
 
-			result, err := query.Execute(ctx, uuid.New())
+			result, err := query.Execute(ctx, testutil.MustDeterministicUUID(999))
 
 			if tt.wantErr {
 				require.Error(t, err)

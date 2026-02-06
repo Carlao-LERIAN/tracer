@@ -325,7 +325,7 @@ func TestAuditEventRepository_GetByID_ConnectionError(t *testing.T) {
 	repo := NewAuditEventRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	result, err := repo.GetByID(ctx, uuid.New())
+	result, err := repo.GetByID(ctx, testutil.MustDeterministicUUID(999))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -747,7 +747,7 @@ func TestAuditEventRepository_VerifyHashChain_ConnectionError(t *testing.T) {
 	repo := NewAuditEventRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	result, err := repo.VerifyHashChain(ctx, uuid.New())
+	result, err := repo.VerifyHashChain(ctx, testutil.MustDeterministicUUID(998))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -965,9 +965,9 @@ func TestAuditEventRepository_scanEvent_JSONUnmarshalError(t *testing.T) {
 			int64(1),
 			"hash123",
 			"prevhash",
-			uuid.New(),
+			testutil.MustDeterministicUUID(997),
 			"TRANSACTION_VALIDATED",
-			time.Now(),
+			testutil.FixedTime(),
 			"VALIDATE",
 			"ALLOW",
 			"txn-123",

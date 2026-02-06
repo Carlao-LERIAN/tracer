@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -60,13 +59,13 @@ func TestValidation_Metadata_MaxEntries_BoundaryValid(t *testing.T) {
 	}
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4301).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4302).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -114,13 +113,13 @@ func TestValidation_Metadata_ExceedsMaxEntries(t *testing.T) {
 	}
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4303).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4304).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -190,16 +189,16 @@ func TestValidation_Metadata_KeyWithInvalidCharacters(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			payload := map[string]any{
-				"requestId":            uuid.New().String(),
+				"requestId":            testutil.MustDeterministicUUID(int64(4305 + i*2)).String(),
 				"transactionType":      "CARD",
 				"amount":               10000,
 				"currency":             "BRL",
-				"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
-					"accountId": uuid.New().String(),
+					"accountId": testutil.MustDeterministicUUID(int64(4306 + i*2)).String(),
 					"type":      "checking",
 					"status":    "active",
 				},
@@ -247,13 +246,13 @@ func TestValidation_Metadata_KeyExceedsMaxLength(t *testing.T) {
 	longKey := strings.Repeat("a", 65)
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4315).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4316).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -297,13 +296,13 @@ func TestValidation_Metadata_KeyAtMaxLength_BoundaryValid(t *testing.T) {
 	key64chars := strings.Repeat("a", 64)
 
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4317).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4318).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -346,13 +345,13 @@ func TestValidation_Metadata_DifferentValueTypes(t *testing.T) {
 
 	// EXECUTION: Send request with metadata containing various JSON types
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4319).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4320).String(),
 			"type":      "checking",
 			"status":    "active",
 		},

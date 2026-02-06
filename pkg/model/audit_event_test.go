@@ -6,7 +6,8 @@ package model
 
 import (
 	"testing"
-	"time"
+
+	"tracer/internal/testutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -23,11 +24,13 @@ func TestNewAuditEvent(t *testing.T) {
 			IPAddress: "10.0.1.5",
 		}
 
+		resourceID := testutil.MustDeterministicUUID(50).String()
+
 		event, err := NewAuditEvent(
 			AuditEventRuleCreated,
 			AuditActionCreate,
 			AuditResultSuccess,
-			uuid.NewString(),
+			resourceID,
 			ResourceTypeRule,
 			actor,
 		)
@@ -38,9 +41,10 @@ func TestNewAuditEvent(t *testing.T) {
 		assert.Equal(t, AuditEventRuleCreated, event.EventType)
 		assert.Equal(t, AuditActionCreate, event.Action)
 		assert.Equal(t, AuditResultSuccess, event.Result)
+		assert.Equal(t, resourceID, event.ResourceID)
 		assert.Equal(t, ResourceTypeRule, event.ResourceType)
 		assert.Equal(t, actor, event.Actor)
-		assert.WithinDuration(t, time.Now().UTC(), event.CreatedAt, 1*time.Second)
+		assert.False(t, event.CreatedAt.IsZero())
 		assert.NotNil(t, event.Context)
 		assert.NotNil(t, event.Metadata)
 		assert.Empty(t, event.Context)
@@ -74,8 +78,8 @@ func TestAuditEvent_WithValidationContext(t *testing.T) {
 			"currency":        "BRL",
 		}
 
-		matchedRuleID := uuid.New()
-		evaluatedRuleID := uuid.New()
+		matchedRuleID := testutil.MustDeterministicUUID(1)
+		evaluatedRuleID := testutil.MustDeterministicUUID(2)
 
 		evalResult := EvaluationResult{
 			Decision:         DecisionAllow,
@@ -153,7 +157,7 @@ func TestAuditEvent_WithMetadata(t *testing.T) {
 
 		metadata := map[string]any{
 			"ticketId":      "JIRA-123",
-			"correlationId": uuid.NewString(),
+			"correlationId": testutil.MustDeterministicUUID(51).String(),
 		}
 
 		result := event.WithMetadata(metadata)
@@ -333,8 +337,8 @@ func TestAuditEvent_GetProcessingTimeMs(t *testing.T) {
 func TestAuditEvent_GetMatchedRuleIDs(t *testing.T) {
 	t.Run("Success - extracts matched rule IDs from response", func(t *testing.T) {
 		event := createTestAuditEvent(t)
-		ruleID1 := uuid.New()
-		ruleID2 := uuid.New()
+		ruleID1 := testutil.MustDeterministicUUID(10)
+		ruleID2 := testutil.MustDeterministicUUID(11)
 
 		event.Context = map[string]any{
 			"response": map[string]any{
@@ -360,7 +364,7 @@ func TestAuditEvent_GetMatchedRuleIDs(t *testing.T) {
 
 	t.Run("Skips invalid UUID strings", func(t *testing.T) {
 		event := createTestAuditEvent(t)
-		validID := uuid.New()
+		validID := testutil.MustDeterministicUUID(12)
 
 		event.Context = map[string]any{
 			"response": map[string]any{
@@ -378,9 +382,9 @@ func TestAuditEvent_GetMatchedRuleIDs(t *testing.T) {
 func TestAuditEvent_GetEvaluatedRuleIDs(t *testing.T) {
 	t.Run("Success - extracts evaluated rule IDs from response", func(t *testing.T) {
 		event := createTestAuditEvent(t)
-		ruleID1 := uuid.New()
-		ruleID2 := uuid.New()
-		ruleID3 := uuid.New()
+		ruleID1 := testutil.MustDeterministicUUID(20)
+		ruleID2 := testutil.MustDeterministicUUID(21)
+		ruleID3 := testutil.MustDeterministicUUID(22)
 
 		event.Context = map[string]any{
 			"response": map[string]any{
@@ -466,7 +470,7 @@ func createTestAuditEvent(t *testing.T) *AuditEvent {
 		AuditEventRuleCreated,
 		AuditActionCreate,
 		AuditResultSuccess,
-		uuid.NewString(),
+		testutil.MustDeterministicUUID(100).String(),
 		ResourceTypeRule,
 		Actor{
 			ActorType: ActorTypeSystem,

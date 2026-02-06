@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -54,7 +53,7 @@ func TestActivateRule_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	inputRule := &model.Rule{
 		ID:         ruleID,
@@ -115,7 +114,7 @@ func TestActivateRule_RuleNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockRepo := NewMockRuleRepository(ctrl)
 	mockExprCompiler := NewMockExpressionCompiler(ctrl)
@@ -141,7 +140,7 @@ func TestActivateRule_AlreadyActive_Idempotent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	inputRule := &model.Rule{
 		ID:         ruleID,
@@ -177,7 +176,7 @@ func TestActivateRule_InvalidTransition(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	inputRule := &model.Rule{
 		ID:         ruleID,
@@ -216,7 +215,7 @@ func TestActivateRule_EmptyExpression(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	inputRule := &model.Rule{
 		ID:         ruleID,
@@ -249,7 +248,7 @@ func TestActivateRule_ExpressionCompilationFailed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	inputRule := &model.Rule{
 		ID:         ruleID,
@@ -285,7 +284,7 @@ func TestActivateRule_GetByIDError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	mockRepo := NewMockRuleRepository(ctrl)
 	mockExprCompiler := NewMockExpressionCompiler(ctrl)
@@ -311,7 +310,7 @@ func TestActivateRule_UpdateStatusError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 
 	inputRule := &model.Rule{
 		ID:         ruleID,

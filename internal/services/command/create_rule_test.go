@@ -61,7 +61,7 @@ func TestCreateRuleCommand_Execute(t *testing.T) {
 				Expression:  "amount > 1000000",
 				Action:      model.DecisionDeny,
 				Scopes: []model.Scope{
-					{AccountID: testutil.UUIDPtr(uuid.New())},
+					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))},
 				},
 			},
 			mockSetup: func(ctrl *gomock.Controller) (*MockRuleRepository, *MockExpressionCompiler) {

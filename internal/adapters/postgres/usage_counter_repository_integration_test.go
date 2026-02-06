@@ -59,10 +59,6 @@ func cleanupTestLimit(t *testing.T, db *sql.DB, limitID uuid.UUID) {
 //
 // If SELECT FOR UPDATE is working correctly, no updates should be lost due to race conditions.
 func TestUsageCounterRepository_IncrementAtomic_Concurrent_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	// Setup test tracing (required for lib-commons context extraction)
 	testutil.SetupTestTracing(t)
 
@@ -149,10 +145,6 @@ func TestUsageCounterRepository_IncrementAtomic_Concurrent_Integration(t *testin
 //
 // This verifies the retry logic in GetOrCreateForUpdate handles concurrent inserts.
 func TestUsageCounterRepository_GetOrCreateForUpdate_Concurrent_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)
@@ -239,10 +231,6 @@ func TestUsageCounterRepository_GetOrCreateForUpdate_Concurrent_Integration(t *t
 // TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration tests that
 // concurrent DecrementAtomic calls do not under-decrement when using conditional UPDATE.
 func TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)
@@ -319,10 +307,6 @@ func TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration(t *testin
 // TestUsageCounterRepository_MixedOperations_Concurrent_Integration tests concurrent
 // increment and decrement operations to verify atomicity under mixed workloads.
 func TestUsageCounterRepository_MixedOperations_Concurrent_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	testutil.SetupTestTracing(t)
 
 	db := testutil.SetupIntegrationDB(t)

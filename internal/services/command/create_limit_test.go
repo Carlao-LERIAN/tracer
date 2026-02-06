@@ -41,7 +41,7 @@ func TestNewCreateLimitCommand_NilRepository(t *testing.T) {
 
 func TestCreateLimitCommand_Execute(t *testing.T) {
 	validScope := model.Scope{
-		AccountID: testutil.UUIDPtr(uuid.New()),
+		AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1)),
 	}
 
 	tests := []struct {
@@ -120,8 +120,8 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 				MaxAmount: 50000,
 				Currency:  "USD",
 				Scopes: []model.Scope{
-					{AccountID: testutil.UUIDPtr(uuid.New())},
-					{PortfolioID: testutil.UUIDPtr(uuid.New())},
+					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(10))},
+					{PortfolioID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11))},
 				},
 			},
 			setupMock: func(m *MockLimitRepository) {
@@ -445,7 +445,7 @@ func TestCreateLimitCommand_Execute_ContextCancellation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	validScope := model.Scope{
-		AccountID: testutil.UUIDPtr(uuid.New()),
+		AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1)),
 	}
 
 	input := &CreateLimitInput{

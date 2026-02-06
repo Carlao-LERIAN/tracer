@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -53,13 +52,13 @@ func TestValidation_CEL_TransactionType(t *testing.T) {
 
 	// EXECUTION: Send validation request
 	payload := map[string]any{
-		"requestId":            uuid.New().String(),
+		"requestId":            testutil.MustDeterministicUUID(4201).String(),
 		"transactionType":      "CARD",
 		"amount":               10000,
 		"currency":             "BRL",
-		"transactionTimestamp": time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
-			"accountId": uuid.New().String(),
+			"accountId": testutil.MustDeterministicUUID(4202).String(),
 			"type":      "checking",
 			"status":    "active",
 		},
@@ -214,7 +213,7 @@ func TestValidation_CEL_Currency(t *testing.T) {
 // Reference: API Design 6.12 SegmentContext
 // Note: CEL implementation uses bracket notation and size() for optional fields
 func TestValidation_CEL_SegmentContext_NameField(t *testing.T) {
-	segmentID := uuid.New().String()
+	segmentID := testutil.MustDeterministicUUID(4203).String()
 
 	// PRECONDITIONS: Create rule with segment["name"] check
 	ruleID := testutil.CreateTestRuleWithExpression(t,
@@ -242,7 +241,7 @@ func TestValidation_CEL_SegmentContext_NameField(t *testing.T) {
 // TestValidation_CEL_SegmentContext_BracketNotation verifies CEL can access segment with bracket notation.
 // Test 4.1.5b from roteiro 04-rules-evaluation.md
 func TestValidation_CEL_SegmentContext_BracketNotation(t *testing.T) {
-	segmentID := uuid.New().String()
+	segmentID := testutil.MustDeterministicUUID(4204).String()
 
 	// PRECONDITIONS: Create rule with segment["segmentId"] check
 	ruleID := testutil.CreateTestRuleWithExpression(t,
@@ -282,7 +281,7 @@ func TestValidation_CEL_MerchantContext_Optional(t *testing.T) {
 	// EXECUTION: Send validation request WITH merchant context
 	payload := testutil.CreateBasicValidationPayload()
 	payload["merchant"] = map[string]any{
-		"merchantId": uuid.New().String(),
+		"merchantId": testutil.MustDeterministicUUID(4205).String(),
 		"category":   "5411",
 		"country":    "BR",
 	}
@@ -320,7 +319,7 @@ func TestValidation_CEL_AccountContext(t *testing.T) {
 	// EXECUTION: Send validation request
 	payload := testutil.CreateBasicValidationPayload()
 	payload["account"] = map[string]any{
-		"accountId": uuid.New().String(),
+		"accountId": testutil.MustDeterministicUUID(4206).String(),
 		"type":      "checking",
 		"status":    "active",
 	}
@@ -381,11 +380,11 @@ func TestValidation_CEL_ComplexCombinedExpression(t *testing.T) {
 	payload["amount"] = 75000
 	payload["currency"] = "BRL"
 	payload["segment"] = map[string]any{
-		"segmentId": uuid.New().String(),
+		"segmentId": testutil.MustDeterministicUUID(4207).String(),
 		"name":      "premium",
 	}
 	payload["account"] = map[string]any{
-		"accountId": uuid.New().String(),
+		"accountId": testutil.MustDeterministicUUID(4208).String(),
 		"type":      "checking",
 		"status":    "active",
 	}
@@ -403,11 +402,11 @@ func TestValidation_CEL_ComplexCombinedExpression(t *testing.T) {
 	payload2["amount"] = 30000 // Below 50000 threshold
 	payload2["currency"] = "BRL"
 	payload2["segment"] = map[string]any{
-		"segmentId": uuid.New().String(),
+		"segmentId": testutil.MustDeterministicUUID(4209).String(),
 		"name":      "premium",
 	}
 	payload2["account"] = map[string]any{
-		"accountId": uuid.New().String(),
+		"accountId": testutil.MustDeterministicUUID(4210).String(),
 		"type":      "checking",
 		"status":    "active",
 	}

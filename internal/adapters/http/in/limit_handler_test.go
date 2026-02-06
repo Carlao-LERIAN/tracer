@@ -50,14 +50,14 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 				mockService.EXPECT().
 					CreateLimit(gomock.Any(), gomock.Any()).
 					Return(&model.Limit{
-						ID:        uuid.New(),
+						ID:        testutil.MustDeterministicUUID(1),
 						Name:      "Daily Limit",
 						LimitType: model.LimitTypeDaily,
 						MaxAmount: 100000,
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
+						CreatedAt: testutil.FixedTime(),
+						UpdatedAt: testutil.FixedTime(),
 					}, nil)
 
 				return mockService
@@ -252,7 +252,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 }
 
 func TestLimitHandler_GetLimit(t *testing.T) {
-	validID := uuid.New()
+	validID := testutil.MustDeterministicUUID(10)
 
 	tests := []struct {
 		name           string
@@ -275,8 +275,8 @@ func TestLimitHandler_GetLimit(t *testing.T) {
 						MaxAmount: 100000,
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
+						CreatedAt: testutil.FixedTime(),
+						UpdatedAt: testutil.FixedTime(),
 					}, nil)
 
 				return mockService
@@ -383,7 +383,7 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 					Return(&model.ListLimitsResult{
 						Limits: []model.Limit{
 							{
-								ID:        uuid.New(),
+								ID:        testutil.MustDeterministicUUID(20),
 								Name:      "Active Limit",
 								LimitType: model.LimitTypeDaily,
 								Status:    model.LimitStatusActive,
@@ -413,7 +413,7 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 					Return(&model.ListLimitsResult{
 						Limits: []model.Limit{
 							{
-								ID:        uuid.New(),
+								ID:        testutil.MustDeterministicUUID(21),
 								Name:      "Draft Limit",
 								LimitType: model.LimitTypeDaily,
 								Status:    model.LimitStatusDraft,
@@ -489,7 +489,7 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 }
 
 func TestLimitHandler_UpdateLimit(t *testing.T) {
-	validID := uuid.New()
+	validID := testutil.MustDeterministicUUID(30)
 
 	tests := []struct {
 		name           string
@@ -516,8 +516,8 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 						MaxAmount: 100000,
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
+						CreatedAt: testutil.FixedTime(),
+						UpdatedAt: testutil.FixedTime(),
 					}, nil)
 
 				return mockService
@@ -547,8 +547,8 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 						MaxAmount: 200000,
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
+						CreatedAt: testutil.FixedTime(),
+						UpdatedAt: testutil.FixedTime(),
 					}, nil)
 
 				return mockService
@@ -662,7 +662,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 }
 
 func TestLimitHandler_ActivateLimit(t *testing.T) {
-	validID := uuid.New()
+	validID := testutil.MustDeterministicUUID(40)
 
 	tests := []struct {
 		name           string
@@ -745,7 +745,7 @@ func TestLimitHandler_ActivateLimit(t *testing.T) {
 }
 
 func TestLimitHandler_DeactivateLimit(t *testing.T) {
-	validID := uuid.New()
+	validID := testutil.MustDeterministicUUID(50)
 
 	tests := []struct {
 		name           string
@@ -815,7 +815,7 @@ func TestLimitHandler_DeactivateLimit(t *testing.T) {
 }
 
 func TestLimitHandler_DeleteLimit(t *testing.T) {
-	validID := uuid.New()
+	validID := testutil.MustDeterministicUUID(60)
 
 	tests := []struct {
 		name           string
@@ -970,8 +970,8 @@ func TestToListLimitsFilter(t *testing.T) {
 func TestToListLimitsResponse(t *testing.T) {
 	result := &model.ListLimitsResult{
 		Limits: []model.Limit{
-			{ID: uuid.New(), Name: "Limit 1"},
-			{ID: uuid.New(), Name: "Limit 2"},
+			{ID: testutil.MustDeterministicUUID(70), Name: "Limit 1"},
+			{ID: testutil.MustDeterministicUUID(71), Name: "Limit 2"},
 		},
 		NextCursor: "next123",
 		HasMore:    true,
@@ -999,7 +999,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 				MaxAmount: 100000,
 				Currency:  "BRL",
 				Scopes: []model.Scope{
-					{AccountID: func() *uuid.UUID { id := uuid.New(); return &id }()},
+					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(80))},
 				},
 			},
 			expectError: false,
@@ -1026,7 +1026,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 				MaxAmount: 100000,
 				Currency:  "BRL",
 				Scopes: []model.Scope{
-					{AccountID: func() *uuid.UUID { id := uuid.New(); return &id }()},
+					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(81))},
 				},
 			},
 			expectError: true,
@@ -1304,7 +1304,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 				MaxAmount: 100000,
 				Currency:  "BRL",
 				Scopes: []model.Scope{
-					{AccountID: func() *uuid.UUID { id := uuid.New(); return &id }()}, // Valid scope at index 0
+					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(90))}, // Valid scope at index 0
 					{}, // Empty scope at index 1
 				},
 			},
@@ -1320,7 +1320,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{
-						AccountID: func() *uuid.UUID { id := uuid.New(); return &id }(),
+						AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(100)),
 						SubType:   func() *string { s := string(make([]byte, 100)); return &s }(),
 					},
 				},
@@ -1346,7 +1346,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 }
 
 func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
-	validID := uuid.New()
+	validID := testutil.MustDeterministicUUID(110)
 
 	tests := []struct {
 		name           string
@@ -1370,7 +1370,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"limitType": "DAILY",
 					"maxAmount": 100000,
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": uuid.New().String()}},
+					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1392,7 +1392,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"limitType": "DAILY",
 					"maxAmount": 100000,
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": uuid.New().String()}},
+					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1414,7 +1414,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"limitType": "DAILY",
 					"maxAmount": 100000,
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": uuid.New().String()}},
+					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1436,7 +1436,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"limitType": "DAILY",
 					"maxAmount": 100000,
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": uuid.New().String()}},
+					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1458,7 +1458,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"limitType": "DAILY",
 					"maxAmount": 100000,
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": uuid.New().String()}},
+					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1480,7 +1480,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"limitType": "DAILY",
 					"maxAmount": 100000,
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": uuid.New().String()}},
+					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1502,7 +1502,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"limitType": "DAILY",
 					"maxAmount": 100000,
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": uuid.New().String()}},
+					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1524,7 +1524,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"limitType": "DAILY",
 					"maxAmount": 100000,
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": uuid.New().String()}},
+					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1620,9 +1620,9 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 }
 
 func TestLimitHandler_GetLimitUsage(t *testing.T) {
-	validID := uuid.New()
+	validID := testutil.MustDeterministicUUID(130)
 	// Use a fixed time for deterministic tests
-	resetAt := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
+	resetAt := testutil.FixedTime().Add(24 * time.Hour)
 
 	tests := []struct {
 		name           string

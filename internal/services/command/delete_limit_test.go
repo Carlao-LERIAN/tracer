@@ -37,8 +37,8 @@ func TestDeleteLimitCommand_Execute_InvalidTransition_FromActive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
-	now := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(1)
+	now := testutil.FixedTime()
 
 	activeLimit := &model.Limit{
 		ID:        limitID,
@@ -46,7 +46,7 @@ func TestDeleteLimitCommand_Execute_InvalidTransition_FromActive(t *testing.T) {
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: 100000,
 		Currency:  "USD",
-		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 		Status:    model.LimitStatusActive,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -81,8 +81,8 @@ func TestDeleteLimitCommand_Execute_Success_FromInactive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
-	now := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(10)
+	now := testutil.FixedTime()
 
 	inactiveLimit := &model.Limit{
 		ID:        limitID,
@@ -90,7 +90,7 @@ func TestDeleteLimitCommand_Execute_Success_FromInactive(t *testing.T) {
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: 100000,
 		Currency:  "USD",
-		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11))}},
 		Status:    model.LimitStatusInactive,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -132,8 +132,8 @@ func TestDeleteLimitCommand_Execute_AlreadyDeleted_Idempotent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
-	now := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(20)
+	now := testutil.FixedTime()
 
 	deletedLimit := &model.Limit{
 		ID:        limitID,
@@ -141,7 +141,7 @@ func TestDeleteLimitCommand_Execute_AlreadyDeleted_Idempotent(t *testing.T) {
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: 100000,
 		Currency:  "USD",
-		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(21))}},
 		Status:    model.LimitStatusDeleted,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -170,7 +170,7 @@ func TestDeleteLimitCommand_Execute_LimitNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(30)
 
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
@@ -195,7 +195,7 @@ func TestDeleteLimitCommand_Execute_GetByIDError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(40)
 
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
@@ -222,8 +222,8 @@ func TestDeleteLimitCommand_Execute_UpdateStatusError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
-	limitID := uuid.New()
-	now := time.Now().UTC()
+	limitID := testutil.MustDeterministicUUID(50)
+	now := testutil.FixedTime()
 
 	// Use INACTIVE status since ACTIVE → DELETED is not allowed
 	inactiveLimit := &model.Limit{
@@ -232,7 +232,7 @@ func TestDeleteLimitCommand_Execute_UpdateStatusError(t *testing.T) {
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: 100000,
 		Currency:  "USD",
-		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(uuid.New())}},
+		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(51))}},
 		Status:    model.LimitStatusInactive,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -296,7 +296,7 @@ func TestDeleteLimitCommand_Execute_ContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
-	err := cmd.Execute(ctx, uuid.New())
+	err := cmd.Execute(ctx, testutil.MustDeterministicUUID(60))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)

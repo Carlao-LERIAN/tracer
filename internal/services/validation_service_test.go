@@ -1186,3 +1186,321 @@ func TestValidate_AuditPersistFailure_LogsError(t *testing.T) {
 		t.Fatal("Timed out waiting for audit error to be processed")
 	}
 }
+
+// TestValidate_WithSegmentAndPortfolio verifies that segment and portfolio context
+// are correctly included in the audit event for SOX/GLBA compliance.
+func TestValidate_WithSegmentAndPortfolio(t *testing.T) {
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	segmentID := testutil.MustDeterministicUUID(3)
+	portfolioID := testutil.MustDeterministicUUID(4)
+	ruleID := testutil.MustDeterministicUUID(10)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               10000,
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account: model.AccountContext{
+			ID:     accountID,
+			Type:   "checking",
+			Status: "active",
+		},
+		Segment: &model.SegmentContext{
+			ID:       segmentID,
+			Name:     "Premium",
+			Metadata: map[string]any{"tier": "gold"},
+		},
+		Portfolio: &model.PortfolioContext{
+			ID:       portfolioID,
+			Name:     "Investment Portfolio",
+			Metadata: map[string]any{"type": "investment"},
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	persistDone := make(chan struct{})
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+
+	// AuditWriter mock - expects RecordValidationEvent call with segment and portfolio
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+	auditWriter.EXPECT().RecordValidationEvent(
+		gomock.Any(),
+		gomock.Any(),
+		gomock.Any(), // Request snapshot should contain segment and portfolio
+		gomock.Any(),
+		gomock.Any(),
+		gomock.Any(),
+	).DoAndReturn(func(_ context.Context, _ uuid.UUID, snapshot map[string]any, _ model.EvaluationResult, _ model.ValidationResponseContext, _ string) error {
+		// Verify segment is present
+		segmentData, ok := snapshot["segment"].(map[string]any)
+		assert.True(t, ok, "Segment should be in snapshot")
+		assert.Equal(t, segmentID.String(), segmentData["segmentId"])
+		assert.Equal(t, "Premium", segmentData["name"])
+
+		// Verify portfolio is present
+		portfolioData, ok := snapshot["portfolio"].(map[string]any)
+		assert.True(t, ok, "Portfolio should be in snapshot")
+		assert.Equal(t, portfolioID.String(), portfolioData["portfolioId"])
+		assert.Equal(t, "Investment Portfolio", portfolioData["name"])
+
+		// Verify account contains segmentId and portfolioId
+		accountData, ok := snapshot["account"].(map[string]any)
+		assert.True(t, ok, "Account should be in snapshot")
+		assert.Equal(t, segmentID.String(), accountData["segmentId"])
+		assert.Equal(t, portfolioID.String(), accountData["portfolioId"])
+
+		return nil
+	}).Times(1)
+
+	// Rule evaluation returns ALLOW
+	evalResult, err := model.NewEvaluationResult(
+		model.DecisionAllow,
+		[]uuid.UUID{ruleID},
+		[]uuid.UUID{ruleID},
+		"Transaction allowed",
+	)
+	require.NoError(t, err)
+	ruleEval.EXPECT().
+		Execute(gomock.Any(), gomock.Any()).
+		Return(evalResult, nil)
+
+	// Limit check passes
+	limitOutput := &model.CheckLimitsOutput{
+		Allowed:           true,
+		LimitUsageDetails: []model.LimitUsageDetail{},
+		ExceededLimitIDs:  []uuid.UUID{},
+	}
+	limitCheck.EXPECT().
+		CheckLimits(gomock.Any(), gomock.Any()).
+		Return(limitOutput, nil)
+
+	// Transaction validation persisted successfully
+	transactionValidationRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, tv *model.TransactionValidation) error {
+			// Verify segment and portfolio are persisted
+			assert.NotNil(t, tv.Segment)
+			assert.Equal(t, segmentID, tv.Segment.ID)
+			assert.NotNil(t, tv.Portfolio)
+			assert.Equal(t, portfolioID, tv.Portfolio.ID)
+			close(persistDone)
+			return nil
+		})
+
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	require.NoError(t, err)
+
+	// Act
+	result, err := service.Validate(context.Background(), request)
+
+	// Wait for persistence to complete
+	select {
+	case <-persistDone:
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timed out waiting for persistence to complete")
+	}
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, model.DecisionAllow, result.Decision)
+}
+
+// TestValidate_NilRequest verifies that Validate returns an error when called with nil request.
+func TestValidate_NilRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+
+	// No mock expectations - function should return early
+
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	require.NoError(t, err)
+
+	// Act
+	result, err := service.Validate(context.Background(), nil)
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validation request cannot be nil")
+	assert.Nil(t, result)
+}
+
+// TestValidate_RuleEvaluatorReturnsNil verifies that Validate handles nil evaluation result.
+func TestValidate_RuleEvaluatorReturnsNil(t *testing.T) {
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               10000,
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+
+	// Rule evaluation returns nil result (but no error)
+	ruleEval.EXPECT().
+		Execute(gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	// No limit check or audit expected - should fail early
+
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	require.NoError(t, err)
+
+	// Act
+	result, err := service.Validate(context.Background(), request)
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "rule evaluation returned nil result")
+	assert.Nil(t, result)
+}
+
+// TestValidate_LimitCheckerReturnsNil verifies that Validate handles nil limit check result.
+func TestValidate_LimitCheckerReturnsNil(t *testing.T) {
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	ruleID := testutil.MustDeterministicUUID(10)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               10000,
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+
+	// Rule evaluation returns ALLOW
+	evalResult, err := model.NewEvaluationResult(
+		model.DecisionAllow,
+		[]uuid.UUID{ruleID},
+		[]uuid.UUID{ruleID},
+		"Transaction allowed",
+	)
+	require.NoError(t, err)
+	ruleEval.EXPECT().
+		Execute(gomock.Any(), gomock.Any()).
+		Return(evalResult, nil)
+
+	// Limit check returns nil result (but no error)
+	limitCheck.EXPECT().
+		CheckLimits(gomock.Any(), gomock.Any()).
+		Return(nil, nil)
+
+	// No audit expected - should fail early
+
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	require.NoError(t, err)
+
+	// Act
+	result, err := service.Validate(context.Background(), request)
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "limit check returned nil result")
+	assert.Nil(t, result)
+}
+
+// TestValidate_AuditEventWriterFailure verifies audit writer errors are logged but don't fail validation.
+func TestValidate_AuditEventWriterFailure(t *testing.T) {
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	ruleID := testutil.MustDeterministicUUID(10)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               10000,
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+	persistDone := make(chan struct{})
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+
+	// AuditWriter returns error
+	auditWriter.EXPECT().RecordValidationEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(errors.New("audit writer failure")).Times(1)
+
+	// Rule evaluation returns ALLOW
+	evalResult, err := model.NewEvaluationResult(
+		model.DecisionAllow,
+		[]uuid.UUID{ruleID},
+		[]uuid.UUID{ruleID},
+		"Transaction allowed",
+	)
+	require.NoError(t, err)
+	ruleEval.EXPECT().
+		Execute(gomock.Any(), gomock.Any()).
+		Return(evalResult, nil)
+
+	// Limit check passes
+	limitOutput := &model.CheckLimitsOutput{
+		Allowed:           true,
+		LimitUsageDetails: []model.LimitUsageDetail{},
+		ExceededLimitIDs:  []uuid.UUID{},
+	}
+	limitCheck.EXPECT().
+		CheckLimits(gomock.Any(), gomock.Any()).
+		Return(limitOutput, nil)
+
+	// Transaction validation persisted successfully
+	transactionValidationRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ *model.TransactionValidation) error {
+			close(persistDone)
+			return nil
+		})
+
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	require.NoError(t, err)
+
+	// Act
+	result, err := service.Validate(context.Background(), request)
+
+	// Wait for persistence to complete
+	select {
+	case <-persistDone:
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timed out waiting for persistence to complete")
+	}
+
+	// Assert: Validation succeeds despite audit writer failure (best-effort audit)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, model.DecisionAllow, result.Decision)
+}

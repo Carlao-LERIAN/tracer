@@ -41,3 +41,82 @@ func TestMockClock_Now(t *testing.T) {
 
 	assert.Equal(t, fixedTime, got)
 }
+
+func TestRealClock_NewTicker(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration time.Duration
+	}{
+		{
+			name:     "creates ticker with 10ms interval",
+			duration: 10 * time.Millisecond,
+		},
+		{
+			name:     "creates ticker with 100ms interval",
+			duration: 100 * time.Millisecond,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := New()
+
+			tickerChan, stopFunc := c.NewTicker(tc.duration)
+
+			// Assert channel is returned
+			assert.NotNil(t, tickerChan, "ticker channel should not be nil")
+			assert.NotNil(t, stopFunc, "stop function should not be nil")
+
+			// Ensure stop function can be called (cleanup)
+			stopFunc()
+		})
+	}
+}
+
+func TestRealClock_NewTicker_ReceivesTick(t *testing.T) {
+	c := New()
+
+	// Use short interval for fast test
+	tickerChan, stopFunc := c.NewTicker(5 * time.Millisecond)
+	defer stopFunc()
+
+	select {
+	case tick := <-tickerChan:
+		// Assert tick time is not zero
+		assert.False(t, tick.IsZero(), "tick time should not be zero")
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("expected to receive at least one tick")
+	}
+}
+
+func TestRealClock_NewTicker_StopPreventsMoreTicks(t *testing.T) {
+	c := New()
+
+	tickerChan, stopFunc := c.NewTicker(5 * time.Millisecond)
+
+	// Stop the ticker immediately
+	stopFunc()
+
+	// Wait a bit and verify no more ticks arrive
+	// (channel read should timeout)
+	select {
+	case <-tickerChan:
+		// It's acceptable to receive one tick if it was already queued
+		// But subsequent reads should timeout
+	case <-time.After(20 * time.Millisecond):
+		// Expected: no tick received after stop
+	}
+
+	// Verify no subsequent ticks arrive after the first possible queued tick
+	select {
+	case <-tickerChan:
+		t.Fatal("received unexpected tick after stop; ticker should have stopped completely")
+	case <-time.After(20 * time.Millisecond):
+		// Expected: no additional ticks after stop
+	}
+}
+
+func TestRealClock_ImplementsClockInterface(t *testing.T) {
+	// Compile-time check that RealClock implements Clock
+	var _ Clock = RealClock{}
+}

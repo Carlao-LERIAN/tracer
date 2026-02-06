@@ -16,6 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"tracer/internal/services/query/mocks"
+	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
@@ -23,14 +24,14 @@ import (
 // newTestTransactionValidationList creates a fresh list of TransactionValidation instances for test isolation.
 // Each call returns new structs to prevent cross-test contamination.
 func newTestTransactionValidationList() []*model.TransactionValidation {
-	now := time.Now().UTC()
+	now := testutil.FixedTime().UTC()
 	return []*model.TransactionValidation{
 		{
-			ID: uuid.New(),
+			ID: testutil.MustDeterministicUUID(1),
 			EvaluationResult: model.EvaluationResult{
 				Decision:         model.DecisionAllow,
 				MatchedRuleIDs:   []uuid.UUID{},
-				EvaluatedRuleIDs: []uuid.UUID{uuid.New()},
+				EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(2)},
 				Reason:           "All checks passed",
 			},
 			LimitUsageDetails: []model.LimitUsageDetail{},
@@ -38,11 +39,11 @@ func newTestTransactionValidationList() []*model.TransactionValidation {
 			CreatedAt:         now.Add(-time.Hour),
 		},
 		{
-			ID: uuid.New(),
+			ID: testutil.MustDeterministicUUID(3),
 			EvaluationResult: model.EvaluationResult{
 				Decision:         model.DecisionDeny,
-				MatchedRuleIDs:   []uuid.UUID{uuid.New()},
-				EvaluatedRuleIDs: []uuid.UUID{uuid.New()},
+				MatchedRuleIDs:   []uuid.UUID{testutil.MustDeterministicUUID(4)},
+				EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(5)},
 				Reason:           "Blocked by rule",
 			},
 			LimitUsageDetails: []model.LimitUsageDetail{},
@@ -267,6 +268,41 @@ func TestListTransactionValidationsQuery_Execute(t *testing.T) {
 					tt.validate(t, result)
 				}
 			}
+		})
+	}
+}
+
+func TestFormatTimeOrNotSet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    time.Time
+		expected string
+	}{
+		{
+			name:     "zero time returns 'not set'",
+			input:    time.Time{},
+			expected: "not set",
+		},
+		{
+			name:     "non-zero time returns RFC3339 format",
+			input:    time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
+			expected: "2025-01-15T10:30:00Z",
+		},
+		{
+			name:     "time with offset returns RFC3339 format",
+			input:    time.Date(2025, 6, 15, 14, 30, 0, 0, time.FixedZone("UTC-5", -5*60*60)),
+			expected: "2025-06-15T14:30:00-05:00",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := formatTimeOrNotSet(tc.input)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }

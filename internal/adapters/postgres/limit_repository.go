@@ -7,7 +7,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -86,15 +85,16 @@ func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	scopesJSON, err := json.Marshal(lmt.Scopes)
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to marshal scopes", err)
-		return fmt.Errorf("failed to marshal scopes: %w", err)
+	// Convert entity to database model using ToEntity/FromEntity pattern
+	var dbModel LimitPostgreSQLModel
+	if err := dbModel.FromEntity(lmt); err != nil {
+		libOtel.HandleSpanError(&span, "Failed to convert entity to database model", err)
+		return fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
 	query := sq.Insert(r.tableName).
 		Columns("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "created_at", "updated_at").
-		Values(lmt.ID, lmt.Name, lmt.Description, lmt.LimitType, lmt.MaxAmount, lmt.Currency, scopesJSON, lmt.Status, lmt.ResetAt, lmt.CreatedAt, lmt.UpdatedAt).
+		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.LimitType, dbModel.MaxAmount, dbModel.Currency, dbModel.Scopes, dbModel.Status, dbModel.ResetAt, dbModel.CreatedAt, dbModel.UpdatedAt).
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err := query.ToSql()
@@ -150,7 +150,7 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 		"limit.id", limitID.String(),
 	).Info("Getting limit by ID")
 
-	lmt, err := r.scanLimit(db.QueryRowContext(ctx, sqlStr, args...))
+	lmt, err := r.scanLimit(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOtel.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
@@ -246,7 +246,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 	var limits []model.Limit
 
 	for rows.Next() {
-		lmt, err := r.scanLimitFromRows(rows)
+		lmt, err := r.scanLimitFromRows(ctx, rows)
 		if err != nil {
 			libOtel.HandleSpanError(&span, "Failed to scan limit", err)
 			return nil, fmt.Errorf("failed to scan limit: %w", err)
@@ -311,20 +311,21 @@ func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	scopesJSON, err := json.Marshal(lmt.Scopes)
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to marshal scopes", err)
-		return fmt.Errorf("failed to marshal scopes: %w", err)
+	// Convert entity to database model using ToEntity/FromEntity pattern
+	var dbModel LimitPostgreSQLModel
+	if err := dbModel.FromEntity(lmt); err != nil {
+		libOtel.HandleSpanError(&span, "Failed to convert entity to database model", err)
+		return fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
 	query := sq.Update(r.tableName).
-		Set("name", lmt.Name).
-		Set("description", lmt.Description).
-		Set("max_amount", lmt.MaxAmount).
-		Set("scopes", scopesJSON).
-		Set("status", lmt.Status).
-		Set("updated_at", lmt.UpdatedAt).
-		Where(sq.Eq{"id": lmt.ID}).
+		Set("name", dbModel.Name).
+		Set("description", dbModel.Description).
+		Set("max_amount", dbModel.MaxAmount).
+		Set("scopes", dbModel.Scopes).
+		Set("status", dbModel.Status).
+		Set("updated_at", dbModel.UpdatedAt).
+		Where(sq.Eq{"id": dbModel.ID}).
 		Where(sq.Eq{"deleted_at": nil}).
 		PlaceholderFormat(sq.Dollar)
 
@@ -659,110 +660,114 @@ func getSortValueFromLimit(lmt *model.Limit, sortBy string) string {
 	}
 }
 
-// scanLimit scans a single row into a Limit model.
-func (r *LimitRepository) scanLimit(row *sql.Row) (*model.Limit, error) {
+// scanLimit scans a single row into a Limit model using the ToEntity/FromEntity pattern.
+func (r *LimitRepository) scanLimit(ctx context.Context, row *sql.Row) (*model.Limit, error) {
 	var (
-		lmt         model.Limit
-		limitType   string
-		status      string
-		description sql.NullString
-		resetAt     sql.NullTime
-		deletedAt   sql.NullTime
-		scopesJSON  []byte
+		dbModel    LimitPostgreSQLModel
+		scopesJSON []byte
 	)
+
+	// Check for context cancellation before processing
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
+	}
 
 	err := row.Scan(
-		&lmt.ID,
-		&lmt.Name,
-		&description,
-		&limitType,
-		&lmt.MaxAmount,
-		&lmt.Currency,
+		&dbModel.ID,
+		&dbModel.Name,
+		&dbModel.Description,
+		&dbModel.LimitType,
+		&dbModel.MaxAmount,
+		&dbModel.Currency,
 		&scopesJSON,
-		&status,
-		&resetAt,
-		&lmt.CreatedAt,
-		&lmt.UpdatedAt,
-		&deletedAt,
+		&dbModel.Status,
+		&dbModel.ResetAt,
+		&dbModel.CreatedAt,
+		&dbModel.UpdatedAt,
+		&dbModel.DeletedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return r.rowToLimit(&lmt, limitType, status, description, resetAt, deletedAt, scopesJSON)
-}
+	// Convert scopesJSON to string for the model
+	dbModel.Scopes = string(scopesJSON)
 
-// scanLimitFromRows scans a row from Rows into a Limit model.
-func (r *LimitRepository) scanLimitFromRows(rows *sql.Rows) (*model.Limit, error) {
-	var (
-		lmt         model.Limit
-		limitType   string
-		status      string
-		description sql.NullString
-		resetAt     sql.NullTime
-		deletedAt   sql.NullTime
-		scopesJSON  []byte
-	)
-
-	err := rows.Scan(
-		&lmt.ID,
-		&lmt.Name,
-		&description,
-		&limitType,
-		&lmt.MaxAmount,
-		&lmt.Currency,
-		&scopesJSON,
-		&status,
-		&resetAt,
-		&lmt.CreatedAt,
-		&lmt.UpdatedAt,
-		&deletedAt,
-	)
+	// Convert database model to domain entity
+	lmt, err := dbModel.ToEntity()
 	if err != nil {
+		return nil, fmt.Errorf("failed to convert to entity: %w", err)
+	}
+
+	// Validate scopes after deserialization
+	// This ensures data integrity even if database contains invalid data
+	if err := r.validateScopes(lmt.Scopes); err != nil {
 		return nil, err
-	}
-
-	return r.rowToLimit(&lmt, limitType, status, description, resetAt, deletedAt, scopesJSON)
-}
-
-// rowToLimit converts scanned row values to a Limit model.
-func (r *LimitRepository) rowToLimit(
-	lmt *model.Limit,
-	limitType string,
-	status string,
-	description sql.NullString,
-	resetAt sql.NullTime,
-	deletedAt sql.NullTime,
-	scopesJSON []byte,
-) (*model.Limit, error) {
-	lmt.LimitType = model.LimitType(limitType)
-	lmt.Status = model.LimitStatus(status)
-
-	if description.Valid {
-		lmt.Description = &description.String
-	}
-
-	if resetAt.Valid {
-		lmt.ResetAt = &resetAt.Time
-	}
-
-	if deletedAt.Valid {
-		lmt.DeletedAt = &deletedAt.Time
-	}
-
-	if len(scopesJSON) > 0 {
-		if err := json.Unmarshal(scopesJSON, &lmt.Scopes); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal scopes: %w", err)
-		}
-
-		// Validate scopes after deserialization
-		// This ensures data integrity even if database contains invalid data
-		for i, scope := range lmt.Scopes {
-			if scope.TransactionType != nil && !scope.TransactionType.IsValid() {
-				return nil, fmt.Errorf("scope at index %d: invalid transactionType", i)
-			}
-		}
 	}
 
 	return lmt, nil
+}
+
+// scanLimitFromRows scans a row from Rows into a Limit model using the ToEntity/FromEntity pattern.
+func (r *LimitRepository) scanLimitFromRows(ctx context.Context, rows *sql.Rows) (*model.Limit, error) {
+	var (
+		dbModel    LimitPostgreSQLModel
+		scopesJSON []byte
+	)
+
+	// Check for context cancellation before processing
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled: %w", err)
+	}
+
+	err := rows.Scan(
+		&dbModel.ID,
+		&dbModel.Name,
+		&dbModel.Description,
+		&dbModel.LimitType,
+		&dbModel.MaxAmount,
+		&dbModel.Currency,
+		&scopesJSON,
+		&dbModel.Status,
+		&dbModel.ResetAt,
+		&dbModel.CreatedAt,
+		&dbModel.UpdatedAt,
+		&dbModel.DeletedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert scopesJSON to string for the model
+	dbModel.Scopes = string(scopesJSON)
+
+	// Convert database model to domain entity
+	lmt, err := dbModel.ToEntity()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to entity: %w", err)
+	}
+
+	// Validate scopes after deserialization
+	// This ensures data integrity even if database contains invalid data
+	if err := r.validateScopes(lmt.Scopes); err != nil {
+		return nil, err
+	}
+
+	return lmt, nil
+}
+
+// validateScopes validates scopes after deserialization from the database.
+// This ensures data integrity even if database contains invalid data.
+// Validates all enum fields in each scope.
+func (r *LimitRepository) validateScopes(scopes []model.Scope) error {
+	for i, scope := range scopes {
+		// Validate TransactionType enum
+		if scope.TransactionType != nil && !scope.TransactionType.IsValid() {
+			return fmt.Errorf("scope at index %d: invalid transactionType", i)
+		}
+		// Note: Scope currently only has TransactionType enum field
+		// Add additional enum validations here as new enum fields are added to model.Scope
+	}
+
+	return nil
 }

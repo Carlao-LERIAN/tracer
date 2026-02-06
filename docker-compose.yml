@@ -1,6 +1,6 @@
 services:
   tracer:
-    image: tracer:latest
+    image: tracer:${VERSION:-dev}
     container_name: tracer
     restart: always
     build:
@@ -15,10 +15,10 @@ services:
     depends_on:
       tracer-postgres:
         condition: service_healthy
-    # Note: healthcheck uses curl which requires Dockerfile.dev (Alpine-based) for local dev
+    # Note: healthcheck uses wget which is included in Alpine base image
     # Production (Kubernetes) uses liveness/readiness probes instead
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SERVER_PORT}/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${SERVER_PORT}/health"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -23,7 +23,7 @@ import (
 
 
 func TestUpdateRuleCommand_Execute(t *testing.T) {
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 	// Use fixed times for deterministic tests
 	baseTime := time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)
 	existingRule := &model.Rule{
@@ -401,7 +401,7 @@ func TestUpdateRuleCommand_Execute_AppliesChangesCorrectly(t *testing.T) {
 	auditWriter := NewMockAuditWriter(ctrl)
 	cmd := NewUpdateRuleCommand(mockRepo, mockCEL, testutil.NewDefaultMockClock(), auditWriter)
 
-	ruleID := uuid.New()
+	ruleID := testutil.MustDeterministicUUID(1)
 	// Use a fixed time that is before the mock clock time (2024-01-15 10:30:00 UTC)
 	originalUpdatedAt := time.Date(2024, 1, 15, 9, 30, 0, 0, time.UTC)
 	existingRule := &model.Rule{

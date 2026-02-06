@@ -16,7 +16,6 @@ import (
 
 	"tracer/internal/testutil"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,7 +75,7 @@ func TestLimitsVerification_5_1_1_FindsApplicableLimitsByScope(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               30000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID1,
 		},
@@ -127,7 +126,7 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               40000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -144,7 +143,7 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               30000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -193,7 +192,7 @@ func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t
 		TransactionType:      "PIX",
 		Amount:               80000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -209,7 +208,7 @@ func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t
 		TransactionType:      "PIX",
 		Amount:               30000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -260,7 +259,7 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 		TransactionType:      "PIX",
 		Amount:               70000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -276,7 +275,7 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 		TransactionType:      "PIX",
 		Amount:               30000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -324,7 +323,7 @@ func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing
 		TransactionType:      "PIX",
 		Amount:               50000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -340,7 +339,7 @@ func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing
 		TransactionType:      "PIX",
 		Amount:               30000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -395,7 +394,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               30000,
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID1,
 			},
@@ -448,7 +447,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               120000, // Exceeds DAILY limit of 100000
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
 				ID: accountID2,
 			},
@@ -509,7 +508,7 @@ func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.
 				TransactionType:      transactionType,
 				Amount:               tc.amount,
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -570,7 +569,7 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               20000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -636,7 +635,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 		TransactionType:      "PIX",
 		Amount:               50000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -648,7 +647,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 
 	// Create DENY rule that will match CARD transactions with high amounts
 	// Use valid transaction type and a specific expression
-	ruleName := "deny-high-card-" + uuid.New().String()[:8]
+	ruleName := "deny-high-card-" + testutil.MustDeterministicUUID(5001).String()[:8]
 	expression := "transactionType == 'CARD' && amount > 15000"
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, expression, "DENY")
 	testutil.ActivateRule(t, ruleID)
@@ -663,7 +662,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 		TransactionType:      "CARD",
 		Amount:               20000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -727,7 +726,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               30000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -739,7 +738,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 
 	// Create REVIEW rule for WIRE transactions with medium amounts
 	// Use valid transaction type
-	ruleName := "review-wire-medium-" + uuid.New().String()[:8]
+	ruleName := "review-wire-medium-" + testutil.MustDeterministicUUID(5002).String()[:8]
 	expression := "transactionType == 'WIRE' && amount > 10000"
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, expression, "REVIEW")
 	testutil.ActivateRule(t, ruleID)
@@ -754,7 +753,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 		TransactionType:      "WIRE",
 		Amount:               20000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -830,7 +829,7 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 				TransactionType:      "PIX",
 				Amount:               amountPerTx,
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -933,7 +932,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               90000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -964,7 +963,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 				TransactionType:      "PIX",
 				Amount:               amountPerTx,
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -1106,7 +1105,7 @@ func TestLimitsVerification_DailyLimitPeriodFormat(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1153,7 +1152,7 @@ func TestLimitsVerification_MonthlyLimitPeriodFormat(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               10000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1208,7 +1207,7 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               50000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1250,7 +1249,7 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               20000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1341,7 +1340,7 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               80000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1437,7 +1436,7 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               450000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -1543,7 +1542,7 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               30000,
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
