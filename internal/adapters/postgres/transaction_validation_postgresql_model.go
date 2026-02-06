@@ -140,8 +140,17 @@ func (m *TransactionValidationPostgreSQLModel) ToEntity() (*model.TransactionVal
 	}
 
 	// Parse UUID arrays from PostgreSQL format
-	validation.MatchedRuleIDs = parseUUIDArrayString(m.MatchedRuleIds)
-	validation.EvaluatedRuleIDs = parseUUIDArrayString(m.EvaluatedRuleIds)
+	matchedRuleIDs, err := parseUUIDArrayString(m.MatchedRuleIds)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse matched_rule_ids: %w", err)
+	}
+	validation.MatchedRuleIDs = matchedRuleIDs
+
+	evaluatedRuleIDs, err := parseUUIDArrayString(m.EvaluatedRuleIds)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse evaluated_rule_ids: %w", err)
+	}
+	validation.EvaluatedRuleIDs = evaluatedRuleIDs
 
 	return validation, nil
 }
@@ -248,10 +257,10 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 
 // parseUUIDArrayString parses a PostgreSQL UUID array string format to []uuid.UUID.
 // Format: "{uuid1,uuid2,...}" or empty string for empty array.
-// Invalid UUIDs are skipped silently.
-func parseUUIDArrayString(arrayStr string) []uuid.UUID {
+// Returns error if any UUID is invalid (fail-fast approach).
+func parseUUIDArrayString(arrayStr string) ([]uuid.UUID, error) {
 	if arrayStr == "" || arrayStr == "{}" {
-		return []uuid.UUID{}
+		return []uuid.UUID{}, nil
 	}
 
 	// Remove curly braces
@@ -261,7 +270,7 @@ func parseUUIDArrayString(arrayStr string) []uuid.UUID {
 	}
 
 	if trimmed == "" {
-		return []uuid.UUID{}
+		return []uuid.UUID{}, nil
 	}
 
 	// Split by comma and parse UUIDs
@@ -270,12 +279,13 @@ func parseUUIDArrayString(arrayStr string) []uuid.UUID {
 
 	for _, part := range parts {
 		id, err := uuid.Parse(part)
-		if err == nil {
-			result = append(result, id)
+		if err != nil {
+			return nil, fmt.Errorf("invalid UUID %q in array: %w", part, err)
 		}
+		result = append(result, id)
 	}
 
-	return result
+	return result, nil
 }
 
 // splitUUIDArray splits a comma-separated UUID string.

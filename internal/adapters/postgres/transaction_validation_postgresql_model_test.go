@@ -885,35 +885,6 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				assert.Equal(t, model.DecisionReview, result.Decision)
 			},
 		},
-		{
-			name: "handles invalid UUIDs in arrays gracefully",
-			dbModel: TransactionValidationPostgreSQLModel{
-				ID:                   testutil.MustDeterministicUUID(43).String(),
-				RequestID:            testutil.MustDeterministicUUID(44).String(),
-				TransactionType:      "CARD",
-				Amount:               10000,
-				Currency:             "BRL",
-				TransactionTimestamp: txTimestamp,
-				Account:              `{"accountId":"` + testAccountID.String() + `","type":"checking","status":"active"}`,
-				Metadata:             "{}",
-				Decision:             "ALLOW",
-				Reason:               "OK",
-				MatchedRuleIds:       "{invalid-uuid," + testutil.MustDeterministicUUID(45).String() + "}",
-				EvaluatedRuleIds:     "{" + testutil.MustDeterministicUUID(46).String() + ",not-a-uuid}",
-				LimitUsageDetails:    "[]",
-				ProcessingTimeMs:     10,
-				CreatedAt:            fixedTime,
-			},
-			validate: func(t *testing.T, result *model.TransactionValidation) {
-				t.Helper()
-				require.NotNil(t, result)
-				// Invalid UUIDs should be skipped, only valid ones should be present
-				assert.Len(t, result.MatchedRuleIDs, 1, "Should have only 1 valid matched rule ID")
-				assert.Equal(t, testutil.MustDeterministicUUID(45), result.MatchedRuleIDs[0])
-				assert.Len(t, result.EvaluatedRuleIDs, 1, "Should have only 1 valid evaluated rule ID")
-				assert.Equal(t, testutil.MustDeterministicUUID(46), result.EvaluatedRuleIDs[0])
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -934,46 +905,70 @@ func TestParseUUIDArrayString(t *testing.T) {
 	testUUID1 := testutil.MustDeterministicUUID(50)
 	testUUID2 := testutil.MustDeterministicUUID(51)
 
-	tests := []struct {
-		name     string
-		input    string
-		expected []uuid.UUID
-	}{
-		{
-			name:     "empty string returns empty slice",
-			input:    "",
-			expected: []uuid.UUID{},
-		},
-		{
-			name:     "empty braces returns empty slice",
-			input:    "{}",
-			expected: []uuid.UUID{},
-		},
-		{
-			name:     "single UUID",
-			input:    "{" + testUUID1.String() + "}",
-			expected: []uuid.UUID{testUUID1},
-		},
-		{
-			name:     "multiple UUIDs",
-			input:    "{" + testUUID1.String() + "," + testUUID2.String() + "}",
-			expected: []uuid.UUID{testUUID1, testUUID2},
-		},
-		{
-			name:     "invalid UUID is skipped",
-			input:    "{invalid-uuid," + testUUID1.String() + "}",
-			expected: []uuid.UUID{testUUID1},
-		},
-	}
+	t.Run("valid inputs", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			input    string
+			expected []uuid.UUID
+		}{
+			{
+				name:     "empty string returns empty slice",
+				input:    "",
+				expected: []uuid.UUID{},
+			},
+			{
+				name:     "empty braces returns empty slice",
+				input:    "{}",
+				expected: []uuid.UUID{},
+			},
+			{
+				name:     "single UUID",
+				input:    "{" + testUUID1.String() + "}",
+				expected: []uuid.UUID{testUUID1},
+			},
+			{
+				name:     "multiple UUIDs",
+				input:    "{" + testUUID1.String() + "," + testUUID2.String() + "}",
+				expected: []uuid.UUID{testUUID1, testUUID2},
+			},
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-			result := parseUUIDArrayString(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
+				result, err := parseUUIDArrayString(tt.input)
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("invalid inputs return errors", func(t *testing.T) {
+		tests := []struct {
+			name  string
+			input string
+		}{
+			{
+				name:  "invalid UUID returns error",
+				input: "{invalid-uuid}",
+			},
+			{
+				name:  "partially invalid UUIDs return error",
+				input: "{invalid-uuid," + testUUID1.String() + "}",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := parseUUIDArrayString(tt.input)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "invalid UUID")
+			})
+		}
+	})
 }
 
 func TestFormatUUIDArrayString(t *testing.T) {
@@ -1015,6 +1010,70 @@ func TestFormatUUIDArrayString(t *testing.T) {
 
 			result := formatUUIDArrayString(tt.input)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestTransactionValidationPostgreSQLModel_ToEntity_InvalidUUIDs tests error handling for invalid UUIDs.
+func TestTransactionValidationPostgreSQLModel_ToEntity_InvalidUUIDs(t *testing.T) {
+	t.Parallel()
+
+	testID := testutil.MustDeterministicUUID(1)
+	testRequestID := testutil.MustDeterministicUUID(2)
+	fixedTime := testutil.FixedTime()
+
+	tests := []struct {
+		name             string
+		matchedRuleIds   string
+		evaluatedRuleIds string
+		expectedError    string
+	}{
+		{
+			name:             "invalid UUID in matched_rule_ids",
+			matchedRuleIds:   "{not-a-uuid}",
+			evaluatedRuleIds: "{}",
+			expectedError:    "failed to parse matched_rule_ids",
+		},
+		{
+			name:             "invalid UUID in evaluated_rule_ids",
+			matchedRuleIds:   "{}",
+			evaluatedRuleIds: "{invalid-uuid}",
+			expectedError:    "failed to parse evaluated_rule_ids",
+		},
+		{
+			name:             "partially invalid UUIDs in matched_rule_ids",
+			matchedRuleIds:   "{" + testID.String() + ",not-valid}",
+			evaluatedRuleIds: "{}",
+			expectedError:    "failed to parse matched_rule_ids",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dbModel := TransactionValidationPostgreSQLModel{
+				ID:                   testID.String(),
+				RequestID:            testRequestID.String(),
+				TransactionType:      "CARD",
+				Amount:               10000,
+				Currency:             "BRL",
+				TransactionTimestamp: fixedTime,
+				Account:              `{"id":"` + testID.String() + `","type":"checking"}`,
+				Metadata:             "{}",
+				Decision:             "APPROVED",
+				Reason:               "no_limits_breached",
+				MatchedRuleIds:       tt.matchedRuleIds,
+				EvaluatedRuleIds:     tt.evaluatedRuleIds,
+				LimitUsageDetails:    "[]",
+				ProcessingTimeMs:     150,
+				CreatedAt:            fixedTime,
+			}
+
+			_, err := dbModel.ToEntity()
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.expectedError)
 		})
 	}
 }
