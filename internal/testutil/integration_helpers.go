@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -997,9 +998,8 @@ var basicPayloadCounter int64 = 90000
 // Helper for tests that need a minimal valid payload to customize.
 // Uses deterministic UUIDs based on an incrementing counter for reproducible tests.
 func CreateBasicValidationPayload() map[string]any {
-	// Increment counter by 2 since we need 2 UUIDs per call
-	currentBase := basicPayloadCounter
-	basicPayloadCounter += 2
+	// Increment counter by 2 since we need 2 UUIDs per call (thread-safe)
+	currentBase := atomic.AddInt64(&basicPayloadCounter, 2) - 2
 
 	return map[string]any{
 		"requestId":            MustDeterministicUUID(currentBase).String(),
