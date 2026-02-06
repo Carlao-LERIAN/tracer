@@ -53,8 +53,15 @@ type TransactionValidationPostgreSQLModel struct {
 // All JSONB fields use fail-fast approach to catch data corruption early.
 func (m *TransactionValidationPostgreSQLModel) ToEntity() (*model.TransactionValidation, error) {
 	// Parse UUIDs from strings
-	id, _ := uuid.Parse(m.ID)
-	requestID, _ := uuid.Parse(m.RequestID)
+	id, err := uuid.Parse(m.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid TransactionValidation ID %q: %w", m.ID, err)
+	}
+	
+	requestID, err := uuid.Parse(m.RequestID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RequestID %q: %w", m.RequestID, err)
+	}
 
 	// Build entity with basic fields
 	validation := &model.TransactionValidation{

@@ -45,7 +45,10 @@ type LimitPostgreSQLModel struct {
 // Returns an error if JSON unmarshaling fails (e.g., corrupted data in database).
 func (m *LimitPostgreSQLModel) ToEntity() (*model.Limit, error) {
 	// Parse UUID from string
-	id, _ := uuid.Parse(m.ID)
+	id, err := uuid.Parse(m.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Limit ID %q: %w", m.ID, err)
+	}
 
 	// Convert nullable description to pointer
 	var description *string

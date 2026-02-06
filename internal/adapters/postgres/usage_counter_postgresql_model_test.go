@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -263,14 +262,31 @@ func TestUsageCounterPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 	fixedTime := testutil.FixedTime()
 
 	tests := []struct {
-		name     string
-		dbModel  UsageCounterPostgreSQLModel
-		validate func(t *testing.T, result *model.UsageCounter)
+		name        string
+		dbModel     UsageCounterPostgreSQLModel
+		validate    func(t *testing.T, result *model.UsageCounter)
+		expectError bool
 	}{
 		{
-			name: "handles invalid UUID gracefully",
+			name: "returns error for invalid ID UUID",
 			dbModel: UsageCounterPostgreSQLModel{
 				ID:            "invalid-uuid",
+				LimitID:       testutil.MustDeterministicUUID(1).String(),
+				ScopeKey:      "acct:test",
+				PeriodKey:     "2025-01",
+				CurrentUsage:  100,
+				LastUpdatedAt: fixedTime,
+			},
+			validate: func(t *testing.T, result *model.UsageCounter) {
+				t.Helper()
+				// Should fail - tested via expectError in table driver
+			},
+			expectError: true,
+		},
+		{
+			name: "returns error for invalid LimitID UUID",
+			dbModel: UsageCounterPostgreSQLModel{
+				ID:            testutil.MustDeterministicUUID(1).String(),
 				LimitID:       "also-invalid",
 				ScopeKey:      "acct:test",
 				PeriodKey:     "2025-01",
@@ -279,16 +295,9 @@ func TestUsageCounterPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			},
 			validate: func(t *testing.T, result *model.UsageCounter) {
 				t.Helper()
-				require.NotNil(t, result)
-				// Invalid UUIDs should parse to uuid.Nil
-				assert.Equal(t, uuid.Nil, result.ID, "Invalid ID should become uuid.Nil")
-				assert.Equal(t, uuid.Nil, result.LimitID, "Invalid LimitID should become uuid.Nil")
-				// Other fields should be preserved
-				assert.Equal(t, "acct:test", result.ScopeKey)
-				assert.Equal(t, "2025-01", result.PeriodKey)
-				assert.Equal(t, int64(100), result.CurrentUsage)
-				assert.Equal(t, fixedTime, result.LastUpdatedAt)
+				// Should fail - tested via expectError in table driver
 			},
+			expectError: true,
 		},
 		{
 			name: "handles empty scope key",
@@ -379,8 +388,14 @@ func TestUsageCounterPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			t.Parallel()
 
 			result, err := tt.dbModel.ToEntity()
-			require.NoError(t, err, "ToEntity should not return error for edge cases")
-			tt.validate(t, result)
+
+			if tt.expectError {
+				require.Error(t, err, "ToEntity should return error")
+				require.Nil(t, result, "Result should be nil when error occurs")
+			} else {
+				require.NoError(t, err, "ToEntity should not return error for edge cases")
+				tt.validate(t, result)
+			}
 		})
 	}
 }

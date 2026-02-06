@@ -5,6 +5,7 @@
 package postgres
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,8 +34,15 @@ type UsageCounterPostgreSQLModel struct {
 // although UsageCounter has no JSON fields that could fail to unmarshal.
 func (m *UsageCounterPostgreSQLModel) ToEntity() (*model.UsageCounter, error) {
 	// Parse UUIDs from strings
-	id, _ := uuid.Parse(m.ID)
-	limitID, _ := uuid.Parse(m.LimitID)
+	id, err := uuid.Parse(m.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid UsageCounter ID %q: %w", m.ID, err)
+	}
+	
+	limitID, err := uuid.Parse(m.LimitID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid LimitID %q: %w", m.LimitID, err)
+	}
 
 	return &model.UsageCounter{
 		ID:            id,
