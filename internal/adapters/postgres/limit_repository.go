@@ -87,7 +87,9 @@ func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
 
 	// Convert entity to database model using ToEntity/FromEntity pattern
 	var dbModel LimitPostgreSQLModel
-	dbModel.FromEntity(lmt)
+	if err := dbModel.FromEntity(lmt); err != nil {
+		return fmt.Errorf("failed to convert entity to database model: %w", err)
+	}
 
 	query := sq.Insert(r.tableName).
 		Columns("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "created_at", "updated_at").
@@ -310,7 +312,9 @@ func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
 
 	// Convert entity to database model using ToEntity/FromEntity pattern
 	var dbModel LimitPostgreSQLModel
-	dbModel.FromEntity(lmt)
+	if err := dbModel.FromEntity(lmt); err != nil {
+		return fmt.Errorf("failed to convert entity to database model: %w", err)
+	}
 
 	query := sq.Update(r.tableName).
 		Set("name", dbModel.Name).

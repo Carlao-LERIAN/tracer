@@ -107,7 +107,8 @@ func (m *RulePostgreSQLModel) ToEntity() (*model.Rule, error) {
 // - Marshaling scopes to JSON
 // - Converting pointers to sql.Null* types
 // - Converting typed constants to strings
-func (m *RulePostgreSQLModel) FromEntity(entity *model.Rule) {
+// Returns an error if JSON marshaling fails.
+func (m *RulePostgreSQLModel) FromEntity(entity *model.Rule) error {
 	m.ID = entity.ID.String()
 	m.Name = entity.Name
 	m.Expression = entity.Expression
@@ -131,12 +132,10 @@ func (m *RulePostgreSQLModel) FromEntity(entity *model.Rule) {
 
 	scopesJSON, err := json.Marshal(scopes)
 	if err != nil {
-		// This should never fail for model.Scope as it contains only basic types
-		// Default to empty JSON array to prevent database errors
-		m.Scopes = "[]"
-	} else {
-		m.Scopes = string(scopesJSON)
+		return fmt.Errorf("failed to marshal scopes: %w", err)
 	}
+
+	m.Scopes = string(scopesJSON)
 
 	// Convert pointer timestamps to sql.NullTime
 	if entity.ActivatedAt != nil {
@@ -156,4 +155,6 @@ func (m *RulePostgreSQLModel) FromEntity(entity *model.Rule) {
 	} else {
 		m.DeletedAt = sql.NullTime{Valid: false}
 	}
+
+	return nil
 }

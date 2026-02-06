@@ -57,7 +57,7 @@ func (m *TransactionValidationPostgreSQLModel) ToEntity() (*model.TransactionVal
 	if err != nil {
 		return nil, fmt.Errorf("invalid TransactionValidation ID %q: %w", m.ID, err)
 	}
-	
+
 	requestID, err := uuid.Parse(m.RequestID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid RequestID %q: %w", m.RequestID, err)
@@ -152,7 +152,8 @@ func (m *TransactionValidationPostgreSQLModel) ToEntity() (*model.TransactionVal
 // - Marshaling domain types to JSONB
 // - Converting UUID slices to string arrays
 // - Converting typed constants to strings
-func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.TransactionValidation) {
+// Returns an error if JSON marshaling fails.
+func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.TransactionValidation) error {
 	m.ID = entity.ID.String()
 	m.RequestID = entity.RequestID.String()
 	m.TransactionType = string(entity.TransactionType)
@@ -168,18 +169,20 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 	// Marshal account to JSONB
 	accountJSON, err := json.Marshal(entity.Account)
 	if err != nil {
-		m.Account = "{}"
-	} else {
-		m.Account = string(accountJSON)
+		return fmt.Errorf("failed to marshal account: %w", err)
 	}
+
+	m.Account = string(accountJSON)
 
 	// Marshal optional segment to JSONB
 	if entity.Segment != nil {
 		segmentJSON, err := json.Marshal(entity.Segment)
-		if err == nil {
-			segmentStr := string(segmentJSON)
-			m.Segment = &segmentStr
+		if err != nil {
+			return fmt.Errorf("failed to marshal segment: %w", err)
 		}
+
+		segmentStr := string(segmentJSON)
+		m.Segment = &segmentStr
 	} else {
 		m.Segment = nil
 	}
@@ -187,10 +190,12 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 	// Marshal optional portfolio to JSONB
 	if entity.Portfolio != nil {
 		portfolioJSON, err := json.Marshal(entity.Portfolio)
-		if err == nil {
-			portfolioStr := string(portfolioJSON)
-			m.Portfolio = &portfolioStr
+		if err != nil {
+			return fmt.Errorf("failed to marshal portfolio: %w", err)
 		}
+
+		portfolioStr := string(portfolioJSON)
+		m.Portfolio = &portfolioStr
 	} else {
 		m.Portfolio = nil
 	}
@@ -198,10 +203,12 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 	// Marshal optional merchant to JSONB
 	if entity.Merchant != nil {
 		merchantJSON, err := json.Marshal(entity.Merchant)
-		if err == nil {
-			merchantStr := string(merchantJSON)
-			m.Merchant = &merchantStr
+		if err != nil {
+			return fmt.Errorf("failed to marshal merchant: %w", err)
 		}
+
+		merchantStr := string(merchantJSON)
+		m.Merchant = &merchantStr
 	} else {
 		m.Merchant = nil
 	}
@@ -213,10 +220,10 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 	} else {
 		metadataJSON, err := json.Marshal(metadata)
 		if err != nil {
-			m.Metadata = "{}"
-		} else {
-			m.Metadata = string(metadataJSON)
+			return fmt.Errorf("failed to marshal metadata: %w", err)
 		}
+
+		m.Metadata = string(metadataJSON)
 	}
 
 	// Marshal limit usage details to JSONB, defaulting to empty array for nil
@@ -227,14 +234,16 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 
 	limitUsageDetailsJSON, err := json.Marshal(limitUsageDetails)
 	if err != nil {
-		m.LimitUsageDetails = "[]"
-	} else {
-		m.LimitUsageDetails = string(limitUsageDetailsJSON)
+		return fmt.Errorf("failed to marshal limit usage details: %w", err)
 	}
+
+	m.LimitUsageDetails = string(limitUsageDetailsJSON)
 
 	// Convert UUID slices to PostgreSQL array format
 	m.MatchedRuleIds = formatUUIDArrayString(entity.MatchedRuleIDs)
 	m.EvaluatedRuleIds = formatUUIDArrayString(entity.EvaluatedRuleIDs)
+
+	return nil
 }
 
 // parseUUIDArrayString parses a PostgreSQL UUID array string format to []uuid.UUID.

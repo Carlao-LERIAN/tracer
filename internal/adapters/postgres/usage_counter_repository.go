@@ -178,7 +178,9 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 	// Convert entity to database model using ToEntity/FromEntity pattern
 	var dbModel UsageCounterPostgreSQLModel
-	dbModel.FromEntity(newCounter)
+	if err := dbModel.FromEntity(newCounter); err != nil {
+		return nil, fmt.Errorf("failed to convert entity to database model: %w", err)
+	}
 
 	insertQuery := sq.Insert(r.tableName).
 		Columns("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").

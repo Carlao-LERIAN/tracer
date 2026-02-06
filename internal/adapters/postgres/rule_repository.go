@@ -92,7 +92,9 @@ func (r *Repository) Create(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	// Convert domain entity to database model using FromEntity pattern
 	var dbModel RulePostgreSQLModel
-	dbModel.FromEntity(rule)
+	if err := dbModel.FromEntity(rule); err != nil {
+		return nil, fmt.Errorf("failed to convert entity to database model: %w", err)
+	}
 
 	query := sq.Insert(tableName).
 		Columns("id", "name", "description", "expression", "action", "scopes", "status", "created_at", "updated_at").
@@ -315,7 +317,9 @@ func (r *Repository) Update(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	// Convert domain entity to database model using FromEntity pattern
 	var dbModel RulePostgreSQLModel
-	dbModel.FromEntity(rule)
+	if err := dbModel.FromEntity(rule); err != nil {
+		return nil, fmt.Errorf("failed to convert entity to database model: %w", err)
+	}
 
 	query := sq.Update(tableName).
 		Set("name", dbModel.Name).

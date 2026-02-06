@@ -38,7 +38,7 @@ func (m *UsageCounterPostgreSQLModel) ToEntity() (*model.UsageCounter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid UsageCounter ID %q: %w", m.ID, err)
 	}
-	
+
 	limitID, err := uuid.Parse(m.LimitID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid LimitID %q: %w", m.LimitID, err)
@@ -57,11 +57,14 @@ func (m *UsageCounterPostgreSQLModel) ToEntity() (*model.UsageCounter, error) {
 // FromEntity converts a domain entity to a database model.
 // This method handles:
 // - Converting UUIDs to strings
-func (m *UsageCounterPostgreSQLModel) FromEntity(entity *model.UsageCounter) {
+// Returns nil (no marshaling can fail for UsageCounter).
+func (m *UsageCounterPostgreSQLModel) FromEntity(entity *model.UsageCounter) error {
 	m.ID = entity.ID.String()
 	m.LimitID = entity.LimitID.String()
 	m.ScopeKey = entity.ScopeKey
 	m.PeriodKey = entity.PeriodKey
 	m.CurrentUsage = entity.CurrentUsage
 	m.LastUpdatedAt = entity.LastUpdatedAt
+
+	return nil
 }

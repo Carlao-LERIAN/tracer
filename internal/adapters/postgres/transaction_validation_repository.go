@@ -98,7 +98,9 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 
 	// Convert domain entity to database model using FromEntity pattern
 	var dbModel TransactionValidationPostgreSQLModel
-	dbModel.FromEntity(validation)
+	if err := dbModel.FromEntity(validation); err != nil {
+		return fmt.Errorf("failed to convert entity to database model: %w", err)
+	}
 
 	// Convert UUID array strings to StringArray for PostgreSQL UUID[] type
 	matchedRuleIDs := uuidSliceToStringArray(validation.MatchedRuleIDs)
