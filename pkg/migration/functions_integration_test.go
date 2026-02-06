@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"tracer/internal/testutil"
 )
@@ -56,17 +58,9 @@ func TestMigratorIntegration(t *testing.T) {
 	}()
 
 	version, dirty, err := migrator.Version(ctx)
-	if err != nil {
-		t.Fatalf("Version() error = %v", err)
-	}
-
-	if version != 0 {
-		t.Errorf("initial version = %d, want 0", version)
-	}
-
-	if dirty {
-		t.Errorf("initial dirty = true, want false")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 0, version, "initial version")
+	assert.False(t, dirty, "initial dirty")
 
 	if err := migrator.Up(ctx); err != nil {
 		t.Fatalf("Up() error = %v", err)

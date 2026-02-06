@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -324,8 +325,8 @@ func TestAuditEventHandler_ListAuditEvents_MultiPagePagination(t *testing.T) {
 				assert.Empty(t, filters.Cursor, "first page should have empty cursor")
 				return &model.ListAuditEventsResult{
 					AuditEvents: []*model.AuditEvent{
-						{EventID: event1ID, EventType: model.AuditEventRuleCreated, Action: model.AuditActionCreate, Result: model.AuditResultSuccess, ResourceID: "res-1", ResourceType: model.ResourceTypeRule, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-1", Name: "User 1"}},
-						{EventID: event2ID, EventType: model.AuditEventLimitActivated, Action: model.AuditActionActivate, Result: model.AuditResultSuccess, ResourceID: "res-2", ResourceType: model.ResourceTypeLimit, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-2", Name: "User 2"}},
+						{EventID: event1ID, EventType: model.AuditEventRuleCreated, Action: model.AuditActionCreate, Result: model.AuditResultSuccess, ResourceID: "res-1", ResourceType: model.ResourceTypeRule, CreatedAt: testutil.FixedTime().Add(-5 * time.Hour), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-1", Name: "User 1"}},
+						{EventID: event2ID, EventType: model.AuditEventLimitActivated, Action: model.AuditActionActivate, Result: model.AuditResultSuccess, ResourceID: "res-2", ResourceType: model.ResourceTypeLimit, CreatedAt: testutil.FixedTime().Add(-4 * time.Hour), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-2", Name: "User 2"}},
 					},
 					HasMore:    true,
 					NextCursor: "cursor-page-2",
@@ -335,8 +336,8 @@ func TestAuditEventHandler_ListAuditEvents_MultiPagePagination(t *testing.T) {
 				assert.Equal(t, "cursor-page-2", filters.Cursor, "second page should have cursor from page 1")
 				return &model.ListAuditEventsResult{
 					AuditEvents: []*model.AuditEvent{
-						{EventID: event3ID, EventType: model.AuditEventRuleActivated, Action: model.AuditActionActivate, Result: model.AuditResultSuccess, ResourceID: "res-3", ResourceType: model.ResourceTypeRule, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-3", Name: "User 3"}},
-						{EventID: event4ID, EventType: model.AuditEventLimitDeactivated, Action: model.AuditActionDeactivate, Result: model.AuditResultSuccess, ResourceID: "res-4", ResourceType: model.ResourceTypeLimit, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-4", Name: "User 4"}},
+						{EventID: event3ID, EventType: model.AuditEventRuleActivated, Action: model.AuditActionActivate, Result: model.AuditResultSuccess, ResourceID: "res-3", ResourceType: model.ResourceTypeRule, CreatedAt: testutil.FixedTime().Add(-3 * time.Hour), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-3", Name: "User 3"}},
+						{EventID: event4ID, EventType: model.AuditEventLimitDeactivated, Action: model.AuditActionDeactivate, Result: model.AuditResultSuccess, ResourceID: "res-4", ResourceType: model.ResourceTypeLimit, CreatedAt: testutil.FixedTime().Add(-2 * time.Hour), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-4", Name: "User 4"}},
 					},
 					HasMore:    true,
 					NextCursor: "cursor-page-3",
@@ -346,7 +347,7 @@ func TestAuditEventHandler_ListAuditEvents_MultiPagePagination(t *testing.T) {
 				assert.Equal(t, "cursor-page-3", filters.Cursor, "third page should have cursor from page 2")
 				return &model.ListAuditEventsResult{
 					AuditEvents: []*model.AuditEvent{
-						{EventID: event5ID, EventType: model.AuditEventRuleDeleted, Action: model.AuditActionDelete, Result: model.AuditResultSuccess, ResourceID: "res-5", ResourceType: model.ResourceTypeRule, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-5", Name: "User 5"}},
+						{EventID: event5ID, EventType: model.AuditEventRuleDeleted, Action: model.AuditActionDelete, Result: model.AuditResultSuccess, ResourceID: "res-5", ResourceType: model.ResourceTypeRule, CreatedAt: testutil.FixedTime().Add(-1 * time.Hour), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-5", Name: "User 5"}},
 						{EventID: event6ID, EventType: model.AuditEventLimitUpdated, Action: model.AuditActionUpdate, Result: model.AuditResultSuccess, ResourceID: "res-6", ResourceType: model.ResourceTypeLimit, CreatedAt: testutil.FixedTime(), Actor: model.Actor{ActorType: model.ActorTypeUser, ID: "user-6", Name: "User 6"}},
 					},
 					HasMore:    false,

@@ -116,14 +116,6 @@ func TestRealClock_NewTicker_StopPreventsMoreTicks(t *testing.T) {
 	}
 }
 
-func TestNew_ReturnsClockInterface(t *testing.T) {
-	c := New()
-
-	// Verify type assertion works (verifies interface implementation)
-	_, ok := c.(Clock)
-	assert.True(t, ok, "New() should return a Clock interface implementation")
-}
-
 func TestRealClock_ImplementsClockInterface(t *testing.T) {
 	// Compile-time check that RealClock implements Clock
 	var _ Clock = RealClock{}
