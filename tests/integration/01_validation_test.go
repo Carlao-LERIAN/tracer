@@ -4051,18 +4051,29 @@ func TestValidation_1_2_11_ProcessingTimeMsNonNegative(t *testing.T) {
 // Test 1.2.12: GET validation - returns correct decision enum values
 func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 	t.Run("ALLOW decision", func(t *testing.T) {
-		accountID := testutil.MustDeterministicUUID(484).String()
 		requestID := testutil.MustDeterministicUUID(485).String()
 
-		// Create validation that should return ALLOW (no rules blocking)
+		// Setup: Create an ALLOW rule for a unique account ID
+		// This ensures we get ALLOW decision regardless of other rules in DB
+		uniqueAccountID := testutil.MustDeterministicUUID(7111).String()
+		ruleName := "allow-decision-test-" + testutil.MustDeterministicUUID(1012).String()[:8]
+		ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, 
+			fmt.Sprintf("account.accountId == '%s' && amount < 5000", uniqueAccountID), "ALLOW")
+		testutil.ActivateRule(t, ruleID)
+		
+		t.Cleanup(func() {
+			testutil.CleanupRule(t, ruleID)
+		})
+
+		// Create validation that triggers the ALLOW rule
 		req := &testutil.ValidationRequest{
 			RequestID:            requestID,
 			TransactionType:      "PIX",
-			Amount:               1000, // Low amount, unlikely to trigger any rules
+			Amount:               1000,
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
-				ID: accountID,
+				ID: uniqueAccountID,
 			},
 		}
 
@@ -4074,11 +4085,8 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 		var createResult testutil.ValidationResponse
 		err := json.Unmarshal(body, &createResult)
 		require.NoError(t, err)
-
-		// Only proceed if we got ALLOW
-		if createResult.Decision != "ALLOW" {
-			t.Skip("Skipping ALLOW test - got different decision, likely due to existing rules")
-		}
+		
+		require.Equal(t, "ALLOW", createResult.Decision, "Should return ALLOW based on our test rule")
 
 		// GET and verify
 		getResp, getBody := testutil.GetValidation(t, createResult.ValidationID)
