@@ -19,6 +19,9 @@ import (
 var (
 	originalProviderOnce sync.Once
 	originalProvider     trace.TracerProvider
+	// globalProviderMu serializes tests that mutate the global tracer provider.
+	// Acquired in SetupTestTracing, released in Cleanup.
+	globalProviderMu sync.Mutex
 )
 
 // SpanStub is a type alias for tracetest.SpanStub for convenience.
@@ -36,10 +39,12 @@ type TestTracer struct {
 // SetupTestTracing creates a test tracer and sets it as the global provider.
 // The previous global provider is automatically restored when the test completes.
 // Uses t.Cleanup() to ensure proper teardown even if the test fails.
-// Thread-safe: uses sync.Once to save the original provider before any test modifies it,
-// preventing parallel tests from saving each other's providers in the restore chain.
+// Thread-safe: acquires globalProviderMu to serialize tests that mutate the global
+// tracer provider, preventing parallel tests from clobbering each other's providers.
 func SetupTestTracing(t *testing.T) *TestTracer {
 	t.Helper()
+
+	globalProviderMu.Lock()
 
 	originalProviderOnce.Do(func() {
 		originalProvider = otel.GetTracerProvider()
@@ -63,11 +68,14 @@ func SetupTestTracing(t *testing.T) *TestTracer {
 	return tt
 }
 
-// Cleanup restores the previous provider and shuts down the test provider.
+// Cleanup restores the previous provider, shuts down the test provider,
+// and releases the global provider mutex so the next test can proceed.
 // This is called automatically via t.Cleanup(), but can be called manually if needed.
 func (tt *TestTracer) Cleanup() {
 	otel.SetTracerProvider(tt.previousProvider)
 	_ = tt.Provider.Shutdown(context.Background())
+
+	globalProviderMu.Unlock()
 }
 
 // GetSpans returns all captured spans.
