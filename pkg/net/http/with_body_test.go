@@ -490,28 +490,50 @@ func TestParseMetadata(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		input          *TestStructWithMetadata
-		originalMap    map[string]any
-		expectMetadata bool
+		name             string
+		input            *TestStructWithMetadata
+		originalMap      map[string]any
+		expectedMetadata map[string]any
 	}{
 		{
 			name:  "metadata not in original - creates empty map",
 			input: &TestStructWithMetadata{Name: "test"},
 			originalMap: map[string]any{
 				"name": "test",
-				// no "metadata" key
 			},
-			expectMetadata: true,
+			expectedMetadata: map[string]any{},
 		},
 		{
-			name:  "metadata in original - keeps as-is",
-			input: &TestStructWithMetadata{Name: "test", Metadata: map[string]any{"key": "value"}},
+			name: "metadata in original - keeps as-is",
+			input: &TestStructWithMetadata{
+				Name:     "test",
+				Metadata: map[string]any{"key": "value"},
+			},
 			originalMap: map[string]any{
 				"name":     "test",
 				"metadata": map[string]any{"key": "value"},
 			},
-			expectMetadata: true,
+			expectedMetadata: map[string]any{"key": "value"},
+		},
+		{
+			name: "metadata already present in struct - overwrites with empty map",
+			input: &TestStructWithMetadata{
+				Name:     "test",
+				Metadata: map[string]any{"existing": "data"},
+			},
+			originalMap: map[string]any{
+				"name": "test",
+			},
+			expectedMetadata: map[string]any{},
+		},
+		{
+			name:  "nil metadata in original - keeps current value",
+			input: &TestStructWithMetadata{Name: "test"},
+			originalMap: map[string]any{
+				"name":     "test",
+				"metadata": nil,
+			},
+			expectedMetadata: nil,
 		},
 	}
 
@@ -519,12 +541,11 @@ func TestParseMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			parseMetadata(tt.input, tt.originalMap)
 
-			if tt.expectMetadata {
+			if tt.expectedMetadata == nil {
+				assert.Nil(t, tt.input.Metadata, "Metadata should be nil")
+			} else {
 				require.NotNil(t, tt.input.Metadata, "Metadata should not be nil")
-				// Verify metadata contents match expected
-				if tt.name == "metadata in original - keeps as-is" {
-					assert.Equal(t, map[string]any{"key": "value"}, tt.input.Metadata, "Metadata contents should match original")
-				}
+				assert.Equal(t, tt.expectedMetadata, tt.input.Metadata, "Metadata contents should match expected")
 			}
 		})
 	}
