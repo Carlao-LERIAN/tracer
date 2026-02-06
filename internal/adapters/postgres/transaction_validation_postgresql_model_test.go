@@ -644,13 +644,14 @@ func TestTransactionValidationPostgreSQLModel_RoundTrip(t *testing.T) {
 
 	// entity -> dbModel
 	var dbModel TransactionValidationPostgreSQLModel
-	dbModel.FromEntity(original)
+	err := dbModel.FromEntity(original)
+	require.NoError(t, err, "FromEntity should not return error in round-trip")
 
 	// dbModel -> entity
-	result, err := dbModel.ToEntity()
+	result, toErr := dbModel.ToEntity()
 
 	// Assert equality
-	require.NoError(t, err, "ToEntity should not return error")
+	require.NoError(t, toErr, "ToEntity should not return error")
 	require.NotNil(t, result, "ToEntity should not return nil")
 	assert.Equal(t, original.ID, result.ID, "Round-trip ID mismatch")
 	assert.Equal(t, original.RequestID, result.RequestID, "Round-trip RequestID mismatch")
