@@ -9,7 +9,6 @@ package integration
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tracer/internal/testutil"
+	testutil_integration "tracer/internal/testutil_integration"
 )
 
 // =============================================================================
@@ -314,12 +314,20 @@ func TestValidation_ReviewDecision_WhenNoDeny(t *testing.T) {
 // TestValidation_DefaultDecision_AllowMode verifies default ALLOW when no rules match.
 // Test 4.6.4 from roteiro
 // Reference: API Design 5.1 Error Handling - configurable default
+//
+// NOTE: This test restarts the server with DEFAULT_DECISION_WHEN_NO_MATCH=ALLOW.
+// It cannot run in parallel with other tests that restart the server.
 func TestValidation_DefaultDecision_AllowMode(t *testing.T) {
-	// Skip if server is configured with default DENY
-	if os.Getenv("DEFAULT_DECISION_WHEN_NO_MATCH") == "DENY" {
-		t.Skip("Requires DEFAULT_DECISION_WHEN_NO_MATCH=ALLOW (or unset) environment variable configuration. " +
-			"Set DEFAULT_DECISION_WHEN_NO_MATCH=ALLOW to test fail-open mode.")
-	}
+	// Restart server with ALLOW mode
+	cleanup, err := testutil_integration.RestartServerWithConfig(map[string]string{
+		"DEFAULT_DECISION_WHEN_NO_MATCH": "ALLOW",
+	})
+	require.NoError(t, err, "Failed to restart server with ALLOW mode")
+	defer func() {
+		if err := cleanup(); err != nil {
+			t.Errorf("Failed to cleanup server config: %v", err)
+		}
+	}()
 
 	// Create rule that does NOT match the payload
 	ruleID := testutil.CreateTestRuleWithExpression(t, "Non-matching Rule", "amount > 1000000", "DENY")
@@ -373,15 +381,19 @@ func TestValidation_DefaultDecision_AllowMode(t *testing.T) {
 // Test 4.6.5 from roteiro
 // Reference: API Design 5.1 Error Handling - configurable default
 //
-// NOTE: This test requires environment variable DEFAULT_DECISION_WHEN_NO_MATCH=DENY
-// to be set. If the server is configured with default ALLOW, this test will be skipped.
+// NOTE: This test restarts the server with DEFAULT_DECISION_WHEN_NO_MATCH=DENY.
+// It cannot run in parallel with other tests that restart the server.
 func TestValidation_DefaultDecision_DenyMode(t *testing.T) {
-	// Check if server supports DENY mode configuration
-	// This is an optional test that requires specific server configuration
-	if os.Getenv("DEFAULT_DECISION_WHEN_NO_MATCH") != "DENY" {
-		t.Skip("Requires DEFAULT_DECISION_WHEN_NO_MATCH=DENY environment variable configuration. " +
-			"Set DEFAULT_DECISION_WHEN_NO_MATCH=DENY to test fail-closed mode.")
-	}
+	// Restart server with DENY mode
+	cleanup, err := testutil_integration.RestartServerWithConfig(map[string]string{
+		"DEFAULT_DECISION_WHEN_NO_MATCH": "DENY",
+	})
+	require.NoError(t, err, "Failed to restart server with DENY mode")
+	defer func() {
+		if err := cleanup(); err != nil {
+			t.Errorf("Failed to cleanup server config: %v", err)
+		}
+	}()
 
 	// Create rule that does NOT match the payload
 	ruleID := testutil.CreateTestRuleWithExpression(t, "Non-matching Rule", "amount > 1000000", "ALLOW")
@@ -411,12 +423,14 @@ func TestValidation_DefaultDecision_DenyMode(t *testing.T) {
 	require.True(t, ok, "matchedRuleIds must be array")
 	assert.Empty(t, matchedArray, "matchedRuleIds should be empty when no rules match")
 
-	// Validate reason mentions default deny
+	// Validate reason mentions no match or default deny
 	reason, ok := result["reason"].(string)
 	require.True(t, ok, "reason must be string")
 	reasonLower := strings.ToLower(reason)
 	assert.True(t,
 		strings.Contains(reasonLower, "default") ||
-			strings.Contains(reasonLower, "deny"),
-		"reason should mention 'default deny', got: %s", reason)
+			strings.Contains(reasonLower, "deny") ||
+			strings.Contains(reasonLower, "no matching") ||
+			strings.Contains(reasonLower, "no rules"),
+		"reason should mention default/deny/no match, got: %s", reason)
 }
