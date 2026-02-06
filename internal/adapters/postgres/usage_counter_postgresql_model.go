@@ -59,6 +59,10 @@ func (m *UsageCounterPostgreSQLModel) ToEntity() (*model.UsageCounter, error) {
 // - Converting UUIDs to strings
 // Returns nil (no marshaling can fail for UsageCounter).
 func (m *UsageCounterPostgreSQLModel) FromEntity(entity *model.UsageCounter) error {
+	if entity == nil {
+		return fmt.Errorf("usage counter entity cannot be nil")
+	}
+
 	m.ID = entity.ID.String()
 	m.LimitID = entity.LimitID.String()
 	m.ScopeKey = entity.ScopeKey
