@@ -329,6 +329,26 @@ func TestValidateMetadataNestedValues(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "nested map should fail",
+			input: TestStructWithMetadata{
+				Metadata: map[string]any{
+					"key1":   "value1",
+					"nested": map[string]any{"inner": "value"},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "nested slice should fail",
+			input: TestStructWithMetadata{
+				Metadata: map[string]any{
+					"key1":  "value1",
+					"array": []string{"item1", "item2"},
+				},
+			},
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {
