@@ -106,6 +106,14 @@ func TestRealClock_NewTicker_StopPreventsMoreTicks(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 		// Expected: no tick received after stop
 	}
+
+	// Verify no subsequent ticks arrive after the first possible queued tick
+	select {
+	case <-tickerChan:
+		t.Fatal("received unexpected tick after stop; ticker should have stopped completely")
+	case <-time.After(20 * time.Millisecond):
+		// Expected: no additional ticks after stop
+	}
 }
 
 func TestNew_ReturnsClockInterface(t *testing.T) {
