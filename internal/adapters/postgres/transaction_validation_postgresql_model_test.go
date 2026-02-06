@@ -1063,7 +1063,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_InvalidUUIDs(t *testing.T
 				TransactionTimestamp: fixedTime,
 				Account:              `{"id":"` + testID.String() + `","type":"checking"}`,
 				Metadata:             "{}",
-				Decision:             "APPROVED",
+				Decision:             "ALLOW",
 				Reason:               "no_limits_breached",
 				MatchedRuleIds:       tt.matchedRuleIds,
 				EvaluatedRuleIds:     tt.evaluatedRuleIds,
