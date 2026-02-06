@@ -29,7 +29,7 @@ func TestListRulesQuery_Execute(t *testing.T) {
 			UpdatedAt:  testutil.FixedTime(),
 		},
 		{
-			ID:         testutil.MustDeterministicUUID(1),
+			ID:         testutil.MustDeterministicUUID(2),
 			Name:       "rule 2",
 			Expression: "amount > 5000",
 			Action:     model.DecisionReview,
