@@ -1827,7 +1827,7 @@ func TestBuildTransactionScope(t *testing.T) {
 				SubType:              &subType,
 				Amount:               10000,
 				Currency:             "USD",
-				TransactionTimestamp: time.Now(),
+				TransactionTimestamp: testutil.FixedTime(),
 			},
 			validate: func(t *testing.T, scope *model.Scope) {
 				require.NotNil(t, scope)
@@ -1844,7 +1844,7 @@ func TestBuildTransactionScope(t *testing.T) {
 				AccountID:            accountID,
 				Amount:               5000,
 				Currency:             "USD",
-				TransactionTimestamp: time.Now(),
+				TransactionTimestamp: testutil.FixedTime(),
 			},
 			validate: func(t *testing.T, scope *model.Scope) {
 				require.NotNil(t, scope)

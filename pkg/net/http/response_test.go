@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -179,11 +180,11 @@ func TestBadRequestWithMessage(t *testing.T) {
 			name:            "very long message to test size handling",
 			code:            "TRC-1001",
 			title:           "Validation Error",
-			message:         string(make([]byte, 1000)),
+			message:         strings.Repeat("a", 1000),
 			expectedStatus:  http.StatusBadRequest,
 			expectedCode:    "TRC-1001",
 			expectedTitle:   "Validation Error",
-			expectedMessage: string(make([]byte, 1000)),
+			expectedMessage: strings.Repeat("a", 1000),
 		},
 	}
 

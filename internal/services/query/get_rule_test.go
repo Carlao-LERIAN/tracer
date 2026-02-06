@@ -22,7 +22,7 @@ import (
 
 func TestGetRuleQuery_Execute(t *testing.T) {
 	ruleID := testutil.MustDeterministicUUID(1)
-	testAccountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
+	testAccountID := testutil.MustDeterministicUUID(2)
 	existingRule := &model.Rule{
 		ID:         ruleID,
 		Name:       "test rule",

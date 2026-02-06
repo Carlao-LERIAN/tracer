@@ -217,7 +217,7 @@ func TestRuleEvaluator_ScopeMismatch(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(2)
 	differentAccountID := testutil.MustDeterministicUUID(3)
 	requestID := testutil.MustDeterministicUUID(4)
-	now := time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)
+	now := testutil.FixedTime()
 
 	// Rule with specific account scope
 	ruleWithScope := &model.Rule{
@@ -266,7 +266,7 @@ func TestRuleEvaluator_ScopeMatch(t *testing.T) {
 	ruleID := testutil.MustDeterministicUUID(1)
 	accountID := testutil.MustDeterministicUUID(2)
 	requestID := testutil.MustDeterministicUUID(4)
-	now := time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)
+	now := testutil.FixedTime()
 
 	// Rule with specific account scope
 	ruleWithScope := &model.Rule{
