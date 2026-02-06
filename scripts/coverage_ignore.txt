@@ -1,5 +1,0 @@
-tracer/api
-tracer/cmd/app
-tracer/pkg/constant
-tracer/internal/bootstrap
-tracer/internal/testutil

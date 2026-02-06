@@ -51,11 +51,8 @@ help:
 	@echo "  make test-integration            - Run integration tests with testcontainers (RUN=<test>, CHAOS=1)"
 	@echo "  make test-all                    - Run all tests (unit + integration)"
 	@echo "  make test-bench                  - Run benchmark tests (BENCH=pattern, BENCH_PKG=./path)"
-	@echo "  make test-fuzz                   - Run native Go fuzz tests (FUZZ=target, FUZZTIME=duration)"
-	@echo "  make test-chaos-system           - Run chaos tests with full Docker stack"
 	@echo ""
 	@echo "$(BOLD)Coverage Commands:$(NC)"
-	@echo "  make cover                       - Run tests with coverage summary"
 	@echo "  make coverage-unit               - Run unit tests with coverage report (PKG=./path, uses .ignorecoverunit)"
 	@echo "  make coverage-integration        - Run integration tests with coverage report (PKG=./path)"
 	@echo "  make coverage                    - Run all coverage targets (unit + integration)"
@@ -173,29 +170,6 @@ build:
 	@mkdir -p $(BIN_DIR)
 	@CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BIN_DIR)/$(SERVICE_NAME) ./cmd/app
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Build completed successfully - binary at $(BIN_DIR)/$(SERVICE_NAME)$(GREEN) ✔️$(NC)"
-
-#-------------------------------------------------------
-# Legacy Coverage Commands (for backward compatibility)
-#-------------------------------------------------------
-
-.PHONY: cover
-cover:
-	$(call title1,"Generating test coverage report")
-	@echo "$(YELLOW)Note: PostgreSQL repository tests are excluded from coverage metrics.$(NC)"
-	@echo "$(YELLOW)See coverage report for details on why and what is being tested.$(NC)"
-	@if ! command -v go >/dev/null 2>&1; then \
-		echo "$(RED)Error: go is not installed$(NC)"; \
-		exit 1; \
-	fi
-	@TEST_REPORTS_DIR=$(TEST_REPORTS_DIR) sh ./scripts/coverage.sh
-	@echo "$(GREEN)Coverage report generated at $(TEST_REPORTS_DIR)/coverage.html$(NC)"
-	@echo ""
-	@echo "$(CYAN)Coverage Summary:$(NC)"
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@go tool cover -func=$(TEST_REPORTS_DIR)/coverage.out | grep total | awk '{print "Total coverage: " $$3}'
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@echo "$(YELLOW)Open $(TEST_REPORTS_DIR)/coverage.html in your browser to view detailed coverage report$(NC)"
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Coverage report generated successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Test Coverage Commands

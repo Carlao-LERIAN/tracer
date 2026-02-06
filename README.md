@@ -417,10 +417,8 @@ make test-unit          # Run unit tests only
 make test-integration   # Run integration tests (with testcontainers)
 make test-all           # Run all tests (unit + integration)
 make test-bench         # Run benchmark tests
-make test-fuzz          # Run fuzz tests
 
 # Coverage
-make cover              # Generate coverage report (HTML + summary)
 make coverage-unit      # Unit test coverage (uses .ignorecoverunit)
 make coverage-integration # Integration test coverage
 make coverage           # All coverage targets
@@ -667,10 +665,6 @@ make test-all
 
 # Specific package
 go test -v ./internal/services/command/...
-
-# With coverage (generates HTML automatically)
-make cover
-open ./reports/coverage.html
 
 # Unit test coverage with filtering
 make coverage-unit

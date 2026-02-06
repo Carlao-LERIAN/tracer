@@ -15,4 +15,4 @@ bootstrap.go
 /api/
 
 # Testutil
-internal/testutil
+/internal/testutil

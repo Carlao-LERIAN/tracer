@@ -4,12 +4,6 @@
 TEST_TRACER_URL ?= http://localhost:8080
 TEST_HEALTH_WAIT ?= 60
 
-# Native fuzz test controls
-# FUZZ: specific fuzz target name (e.g., FuzzValidateSpanID)
-# FUZZTIME: duration per fuzz target (default: 10s)
-FUZZ ?=
-FUZZTIME ?= 10s
-
 # Integration test filter
 # RUN: specific test name pattern (e.g., TestIntegration_PostgresRepo_Create)
 # PKG: specific package to test (e.g., ./internal/...)
@@ -59,7 +53,8 @@ endif
 
 define wait_for_services
 	echo "Waiting for services to become healthy..."
-	bash -c 'for i in $$(seq 1 $(TEST_HEALTH_WAIT)); do \
+	bash -c 'trap "pkill -P $$; exit 1" INT TERM; \
+	for i in $$(seq 1 $(TEST_HEALTH_WAIT)); do \
 	  if curl -fsS $(TEST_TRACER_URL)/health >/dev/null 2>&1; then \
 	    echo "Services are up"; exit 0; \
 	  fi; \
@@ -186,73 +181,6 @@ coverage-unit:
 	  echo "----------------------------------------"; \
 	fi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Coverage report generated$(GREEN) ✔️$(NC)"
-
-# System-level chaos tests (full stack with docker-compose)
-# Starts the complete backend stack, runs chaos tests, then tears down.
-.PHONY: test-chaos-system
-test-chaos-system:
-	$(call title1,"Running system-level chaos tests")
-	@if ! command -v docker >/dev/null 2>&1; then \
-		echo "$(RED)Error: docker is not installed$(NC)"; \
-		exit 1; \
-	fi
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/chaos; \
-	trap '$(MAKE) -s down >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up; \
-	$(MAKE) -s wait-for-services; \
-	if [ -n "$(GOTESTSUM)" ]; then \
-	  TRACER_URL=$(TEST_TRACER_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
-	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	      echo "Retrying chaos tests once..."; \
-	      TRACER_URL=$(TEST_TRACER_URL) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
-	    else \
-	      exit 1; \
-	    fi; \
-	  }; \
-	else \
-	  TRACER_URL=$(TEST_TRACER_URL) go test -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
-	fi
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Chaos tests completed$(GREEN) ✔️$(NC)"
-
-# Native Go fuzz tests (coverage-guided mutation testing).
-# Usage:
-#   make test-fuzz                                    # Run all Fuzz* targets for 10s each
-#   make test-fuzz FUZZTIME=30s                       # Run all Fuzz* targets for 30s each
-#   make test-fuzz FUZZ=FuzzValidateSpanID            # Run specific target
-#   make test-fuzz FUZZ=FuzzValidateSpanID FUZZTIME=60s
-.PHONY: test-fuzz
-test-fuzz:
-	$(call title1,"Running Go native fuzz tests")
-	@if ! command -v go >/dev/null 2>&1; then \
-		echo "$(RED)Error: go is not installed$(NC)"; \
-		exit 1; \
-	fi
-	@set -e; mkdir -p $(TEST_REPORTS_DIR)/fuzz; \
-	if [ -n "$(FUZZ)" ]; then \
-	  echo "Running fuzz target: $(FUZZ) for $(FUZZTIME)"; \
-	  pkg=$$(grep -r "func $(FUZZ)" --include='*_test.go' -l ./internal ./pkg 2>/dev/null | head -1 | xargs dirname); \
-	  if [ -z "$$pkg" ]; then \
-	    echo "Error: Fuzz target '$(FUZZ)' not found"; exit 1; \
-	  fi; \
-	  go test -v -fuzz=$(FUZZ) -run='^$$' -fuzztime=$(FUZZTIME) $(GO_TEST_LDFLAGS) $$pkg; \
-	else \
-	  echo "Discovering all Fuzz* targets..."; \
-	  targets=$$(grep -r "^func Fuzz" --include='*_test.go' -h ./internal ./pkg 2>/dev/null | sed 's/func \(Fuzz[^(]*\).*/\1/' | sort -u); \
-	  if [ -z "$$targets" ]; then \
-	    echo "No Fuzz* targets found"; exit 0; \
-	  fi; \
-	  echo "Found targets: $$targets"; \
-	  echo "Running each for $(FUZZTIME)..."; \
-	  echo ""; \
-	  for target in $$targets; do \
-	    pkg=$$(grep -r "func $$target" --include='*_test.go' -l ./internal ./pkg 2>/dev/null | head -1 | xargs dirname); \
-	    echo "━━━ $$target ($$pkg) ━━━"; \
-	    go test -v -fuzz=$$target -run='^$$' -fuzztime=$(FUZZTIME) $(GO_TEST_LDFLAGS) $$pkg || true; \
-	    echo ""; \
-	  done; \
-	  echo "Fuzz testing complete. Check testdata/fuzz/ for corpus."; \
-	fi
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Fuzz tests completed$(GREEN) ✔️$(NC)"
 
 # Benchmark tests
 # Run performance benchmarks for critical code paths.

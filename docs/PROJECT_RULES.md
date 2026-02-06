@@ -2615,11 +2615,8 @@ make test-unit           # Run unit tests only
 make test-integration    # Run integration tests (with testcontainers)
 make test-all            # Run all tests (unit + integration)
 make test-bench          # Run benchmark tests
-make test-fuzz           # Run fuzz tests
-make test-chaos-system   # Run chaos tests with full Docker stack
 
 # Coverage Commands
-make cover               # Generate coverage report (HTML + summary in ./reports/)
 make coverage-unit       # Unit test coverage (uses .ignorecoverunit)
 make coverage-integration # Integration test coverage
 make coverage            # All coverage targets
