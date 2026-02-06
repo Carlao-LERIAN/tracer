@@ -1917,7 +1917,7 @@ func TestScopeMatchesLimit(t *testing.T) {
 			expected:    true,
 		},
 		{
-			name:        "multiple limit scopes - none match",
+			name:        "limit scope requires segment but transaction missing segment",
 			limitScopes: []model.Scope{{AccountID: &accountID1, SegmentID: &segmentID}},
 			txScope:     &model.Scope{AccountID: &accountID1}, // Missing segment
 			expected:    false,
