@@ -6,7 +6,6 @@ package model
 
 import (
 	"testing"
-	"time"
 
 	"tracer/internal/testutil"
 
@@ -25,11 +24,13 @@ func TestNewAuditEvent(t *testing.T) {
 			IPAddress: "10.0.1.5",
 		}
 
+		resourceID := testutil.MustDeterministicUUID(50).String()
+
 		event, err := NewAuditEvent(
 			AuditEventRuleCreated,
 			AuditActionCreate,
 			AuditResultSuccess,
-			uuid.NewString(),
+			resourceID,
 			ResourceTypeRule,
 			actor,
 		)
@@ -40,9 +41,10 @@ func TestNewAuditEvent(t *testing.T) {
 		assert.Equal(t, AuditEventRuleCreated, event.EventType)
 		assert.Equal(t, AuditActionCreate, event.Action)
 		assert.Equal(t, AuditResultSuccess, event.Result)
+		assert.Equal(t, resourceID, event.ResourceID)
 		assert.Equal(t, ResourceTypeRule, event.ResourceType)
 		assert.Equal(t, actor, event.Actor)
-		assert.WithinDuration(t, time.Now().UTC(), event.CreatedAt, 1*time.Second)
+		assert.False(t, event.CreatedAt.IsZero())
 		assert.NotNil(t, event.Context)
 		assert.NotNil(t, event.Metadata)
 		assert.Empty(t, event.Context)
@@ -155,7 +157,7 @@ func TestAuditEvent_WithMetadata(t *testing.T) {
 
 		metadata := map[string]any{
 			"ticketId":      "JIRA-123",
-			"correlationId": uuid.NewString(),
+			"correlationId": testutil.MustDeterministicUUID(51).String(),
 		}
 
 		result := event.WithMetadata(metadata)

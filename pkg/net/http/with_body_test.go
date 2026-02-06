@@ -191,8 +191,11 @@ func TestGetValidator(t *testing.T) {
 	})
 
 	t.Run("returns same instance on multiple calls", func(t *testing.T) {
-		v1, _, _ := getValidator()
-		v2, _, _ := getValidator()
+		v1, _, err1 := getValidator()
+		require.NoError(t, err1)
+
+		v2, _, err2 := getValidator()
+		require.NoError(t, err2)
 
 		assert.Same(t, v1, v2)
 	})
@@ -274,11 +277,11 @@ func TestNewOfType(t *testing.T) {
 		source := &TestStruct{Field: "original"}
 		result, err := newOfType(source)
 
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
+		require.NoError(t, err)
+		require.NotNil(t, result)
 
 		resultStruct, ok := result.(*TestStruct)
-		assert.True(t, ok)
+		require.True(t, ok, "expected result to be *TestStruct")
 		assert.Equal(t, "", resultStruct.Field) // New instance should have zero values
 	})
 
