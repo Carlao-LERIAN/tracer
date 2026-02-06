@@ -41,8 +41,12 @@ func TestNewTransactionValidationService_NilDependencies(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+	
 	validGetQuery := query.NewGetTransactionValidationQuery(mockRepo)
+	require.NotNil(t, validGetQuery, "NewGetTransactionValidationQuery should not return nil in test setup")
+	
 	validListQuery := query.NewListTransactionValidationsQuery(mockRepo)
+	require.NotNil(t, validListQuery, "NewListTransactionValidationsQuery should not return nil in test setup")
 
 	tests := []struct {
 		name        string
