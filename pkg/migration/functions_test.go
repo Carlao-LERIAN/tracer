@@ -155,6 +155,8 @@ func TestLoadMigrations_IgnoresNonUpFiles(t *testing.T) {
 }
 
 func TestVersion_ReturnsCurrentVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		setupMock     func(mock sqlmock.Sqlmock)
@@ -241,7 +243,9 @@ func TestVersion_ReturnsCurrentVersion(t *testing.T) {
 }
 
 func TestUp_NonExistentDirectory(t *testing.T) {
-	db, _, err := sqlmock.New()
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -249,9 +253,12 @@ func TestUp_NonExistentDirectory(t *testing.T) {
 
 	err = migrator.Up(context.Background())
 	require.NoError(t, err, "Up should return nil when directory doesn't exist")
+	require.NoError(t, mock.ExpectationsWereMet(), "no database operations should occur")
 }
 
 func TestUp_Success(t *testing.T) {
+	t.Parallel()
+
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -296,6 +303,8 @@ func TestUp_Success(t *testing.T) {
 }
 
 func TestUp_SkipsAlreadyAppliedMigrations(t *testing.T) {
+	t.Parallel()
+
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -341,6 +350,8 @@ func TestUp_SkipsAlreadyAppliedMigrations(t *testing.T) {
 }
 
 func TestUp_DirtyStateError(t *testing.T) {
+	t.Parallel()
+
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -371,6 +382,8 @@ func TestUp_DirtyStateError(t *testing.T) {
 }
 
 func TestUp_AcquireLockError(t *testing.T) {
+	t.Parallel()
+
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -396,6 +409,8 @@ func TestUp_AcquireLockError(t *testing.T) {
 }
 
 func TestUp_MigrationSQLError(t *testing.T) {
+	t.Parallel()
+
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -429,6 +444,8 @@ func TestUp_MigrationSQLError(t *testing.T) {
 }
 
 func TestLoadMigrations_DuplicateVersion(t *testing.T) {
+	t.Parallel()
+
 	tempDir := t.TempDir()
 
 	// Create two files with same version
@@ -454,6 +471,8 @@ func TestLoadMigrations_DuplicateVersion(t *testing.T) {
 }
 
 func TestLoadMigrations_LogsSkippedFiles(t *testing.T) {
+	t.Parallel()
+
 	tempDir := t.TempDir()
 
 	// Create valid migration
@@ -483,6 +502,8 @@ func TestLoadMigrations_LogsSkippedFiles(t *testing.T) {
 }
 
 func TestParseMigrationFileName_ZeroVersion(t *testing.T) {
+	t.Parallel()
+
 	_, _, err := parseMigrationFileName("000000_zero_version.up.sql")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidMigrationFile)
@@ -490,6 +511,8 @@ func TestParseMigrationFileName_ZeroVersion(t *testing.T) {
 }
 
 func TestRunInTransaction_RollbackOnError(t *testing.T) {
+	t.Parallel()
+
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -510,6 +533,8 @@ func TestRunInTransaction_RollbackOnError(t *testing.T) {
 }
 
 func TestRunInTransaction_CommitSuccess(t *testing.T) {
+	t.Parallel()
+
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()

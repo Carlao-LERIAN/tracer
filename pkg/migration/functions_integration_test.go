@@ -28,7 +28,6 @@ func TestMigratorIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
-	defer db.Close()
 
 	ctx := context.Background()
 
@@ -61,6 +60,8 @@ func TestMigratorIntegration(t *testing.T) {
 
 		_, cleanupErr = db.ExecContext(ctx, "DROP FUNCTION IF EXISTS test_func()")
 		assert.NoError(t, cleanupErr, "cleanup: failed to drop test function")
+
+		_ = db.Close()
 	})
 
 	version, dirty, err := migrator.Version(ctx)
