@@ -265,7 +265,7 @@ func TestRuleEvaluator_ScopeMatch(t *testing.T) {
 
 	ruleID := testutil.MustDeterministicUUID(1)
 	accountID := testutil.MustDeterministicUUID(2)
-	requestID := testutil.MustDeterministicUUID(4)
+	requestID := testutil.MustDeterministicUUID(3)
 	now := testutil.FixedTime()
 
 	// Rule with specific account scope

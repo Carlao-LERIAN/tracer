@@ -360,7 +360,8 @@ func TestRulePostgreSQLModel_RoundTrip(t *testing.T) {
 
 	// entity -> dbModel
 	var dbModel RulePostgreSQLModel
-	dbModel.FromEntity(original)
+	err := dbModel.FromEntity(original)
+	require.NoError(t, err, "FromEntity should not return error")
 
 	// dbModel -> entity
 	result, err := dbModel.ToEntity()
@@ -442,7 +443,7 @@ func TestRulePostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			},
 		},
 		{
-			name: "handles all decision types",
+			name: "handles ALLOW decision type",
 			dbModel: RulePostgreSQLModel{
 				ID:         testutil.MustDeterministicUUID(32).String(),
 				Name:       "Allow Rule",
@@ -458,6 +459,44 @@ func TestRulePostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, model.DecisionAllow, result.Action)
+			},
+		},
+		{
+			name: "handles DENY decision type",
+			dbModel: RulePostgreSQLModel{
+				ID:         testutil.MustDeterministicUUID(35).String(),
+				Name:       "Deny Rule",
+				Expression: "true",
+				Action:     "DENY",
+				Scopes:     "[]",
+				Status:     "ACTIVE",
+				CreatedAt:  fixedTime,
+				UpdatedAt:  fixedTime,
+			},
+			validate: func(t *testing.T, result *model.Rule, err error) {
+				t.Helper()
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, model.DecisionDeny, result.Action)
+			},
+		},
+		{
+			name: "handles REVIEW decision type",
+			dbModel: RulePostgreSQLModel{
+				ID:         testutil.MustDeterministicUUID(36).String(),
+				Name:       "Review Rule",
+				Expression: "true",
+				Action:     "REVIEW",
+				Scopes:     "[]",
+				Status:     "ACTIVE",
+				CreatedAt:  fixedTime,
+				UpdatedAt:  fixedTime,
+			},
+			validate: func(t *testing.T, result *model.Rule, err error) {
+				t.Helper()
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, model.DecisionReview, result.Action)
 			},
 		},
 		{
@@ -508,4 +547,15 @@ func TestRulePostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			tt.validate(t, result, err)
 		})
 	}
+}
+
+func TestRulePostgreSQLModel_FromEntity_NilEntity(t *testing.T) {
+	t.Parallel()
+
+	var dbModel RulePostgreSQLModel
+
+	err := dbModel.FromEntity(nil)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot be nil")
 }

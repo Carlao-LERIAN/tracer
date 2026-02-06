@@ -48,7 +48,7 @@ func TestMigratorIntegration(t *testing.T) {
 	if err := os.WriteFile(
 		filepath.Join(tempDir, "000001_test_function.up.sql"),
 		[]byte("CREATE OR REPLACE FUNCTION test_func() RETURNS INTEGER AS $$ BEGIN RETURN 42; END; $$ LANGUAGE plpgsql;"),
-		0644,
+		0o644,
 	); err != nil {
 		t.Fatalf("failed to write migration: %v", err)
 	}
@@ -68,47 +68,22 @@ func TestMigratorIntegration(t *testing.T) {
 	assert.Equal(t, 0, version, "initial version")
 	assert.False(t, dirty, "initial dirty")
 
-	if err := migrator.Up(ctx); err != nil {
-		t.Fatalf("Up() error = %v", err)
-	}
+	require.NoError(t, migrator.Up(ctx), "Up()")
 
 	version, dirty, err = migrator.Version(ctx)
-	if err != nil {
-		t.Fatalf("Version() after up error = %v", err)
-	}
-
-	if version != 1 {
-		t.Errorf("version after up = %d, want 1", version)
-	}
-
-	if dirty {
-		t.Errorf("dirty after up = true, want false")
-	}
+	require.NoError(t, err, "Version() after up")
+	assert.Equal(t, 1, version, "version after up")
+	assert.False(t, dirty, "dirty after up")
 
 	var result int
 	err = db.QueryRowContext(ctx, "SELECT test_func()").Scan(&result)
-	if err != nil {
-		t.Errorf("failed to call test function: %v", err)
-	}
+	require.NoError(t, err, "failed to call test function")
+	assert.Equal(t, 42, result, "test_func() result")
 
-	if result != 42 {
-		t.Errorf("test_func() = %d, want 42", result)
-	}
-
-	if err := migrator.Up(ctx); err != nil {
-		t.Fatalf("Second Up() error = %v", err)
-	}
+	require.NoError(t, migrator.Up(ctx), "second Up() (idempotent)")
 
 	version, dirty, err = migrator.Version(ctx)
-	if err != nil {
-		t.Fatalf("Version() after second up error = %v", err)
-	}
-
-	if version != 1 {
-		t.Errorf("version after second up = %d, want 1 (idempotent)", version)
-	}
-
-	if dirty {
-		t.Errorf("dirty after second up = true, want false")
-	}
+	require.NoError(t, err, "Version() after second up")
+	assert.Equal(t, 1, version, "version after second up (idempotent)")
+	assert.False(t, dirty, "dirty after second up")
 }

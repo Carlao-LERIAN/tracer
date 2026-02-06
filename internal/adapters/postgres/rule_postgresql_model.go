@@ -109,6 +109,10 @@ func (m *RulePostgreSQLModel) ToEntity() (*model.Rule, error) {
 // - Converting typed constants to strings
 // Returns an error if JSON marshaling fails.
 func (m *RulePostgreSQLModel) FromEntity(entity *model.Rule) error {
+	if entity == nil {
+		return fmt.Errorf("rule entity cannot be nil")
+	}
+
 	m.ID = entity.ID.String()
 	m.Name = entity.Name
 	m.Expression = entity.Expression
