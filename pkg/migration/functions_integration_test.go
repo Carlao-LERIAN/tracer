@@ -14,13 +14,13 @@ import (
 	"testing"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"tracer/internal/testutil"
 )
 
 func TestMigratorIntegration(t *testing.T) {
-	dbURL := os.Getenv("TEST_DATABASE_URL")
-	if dbURL == "" {
-		t.Skip("TEST_DATABASE_URL not set, skipping integration test")
-	}
+	// Use the testcontainers database URL (automatically configured by test suite)
+	dbURL := testutil.GetTestDSN()
 
 	db, err := sql.Open("pgx", dbURL)
 	if err != nil {
@@ -33,6 +33,10 @@ func TestMigratorIntegration(t *testing.T) {
 	if err := db.PingContext(ctx); err != nil {
 		t.Fatalf("failed to ping database: %v", err)
 	}
+
+	// Cleanup any previous test state (functions_migrations table may exist from previous runs)
+	_, _ = db.ExecContext(ctx, "DROP TABLE IF EXISTS "+functionsMigrationsTable)
+	_, _ = db.ExecContext(ctx, "DROP FUNCTION IF EXISTS test_func()")
 
 	tempDir := t.TempDir()
 
