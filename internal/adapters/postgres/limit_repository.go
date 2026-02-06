@@ -756,11 +756,15 @@ func (r *LimitRepository) scanLimitFromRows(ctx context.Context, rows *sql.Rows)
 
 // validateScopes validates scopes after deserialization from the database.
 // This ensures data integrity even if database contains invalid data.
+// Validates all enum fields in each scope.
 func (r *LimitRepository) validateScopes(scopes []model.Scope) error {
 	for i, scope := range scopes {
+		// Validate TransactionType enum
 		if scope.TransactionType != nil && !scope.TransactionType.IsValid() {
 			return fmt.Errorf("scope at index %d: invalid transactionType", i)
 		}
+		// Note: Scope currently only has TransactionType enum field
+		// Add additional enum validations here as new enum fields are added to model.Scope
 	}
 
 	return nil

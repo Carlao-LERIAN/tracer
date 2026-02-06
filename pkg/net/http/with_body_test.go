@@ -437,9 +437,14 @@ func TestValidateMetadataValueMaxLength(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("string value exceeds limit", func(t *testing.T) {
+	t.Run("string value exactly at limit (10 chars)", func(t *testing.T) {
+		err := v.Struct(TestStructString{Value: "1234567890"})
+		assert.NoError(t, err, "10 characters should be valid")
+	})
+
+	t.Run("string value exceeds limit (11 chars)", func(t *testing.T) {
 		err := v.Struct(TestStructString{Value: "12345678901"})
-		assert.Error(t, err)
+		assert.Error(t, err, "11 characters should fail")
 	})
 
 	t.Run("int value within limit", func(t *testing.T) {
@@ -447,9 +452,29 @@ func TestValidateMetadataValueMaxLength(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("int value at boundary (10 digits)", func(t *testing.T) {
+		err := v.Struct(TestStructInt{Value: 1234567890})
+		assert.NoError(t, err, "10-digit number should be valid")
+	})
+
+	t.Run("int value exceeds boundary (11 digits)", func(t *testing.T) {
+		err := v.Struct(TestStructInt{Value: 12345678901})
+		assert.Error(t, err, "11-digit number should fail")
+	})
+
 	t.Run("float value within limit", func(t *testing.T) {
 		err := v.Struct(TestStructFloat{Value: 1.23})
 		assert.NoError(t, err)
+	})
+
+	t.Run("float value at boundary (10 chars)", func(t *testing.T) {
+		err := v.Struct(TestStructFloat{Value: 12345.6789}) // "12345.6789" = 10 chars
+		assert.NoError(t, err, "float with 10 char representation should be valid")
+	})
+
+	t.Run("float value exceeds boundary", func(t *testing.T) {
+		err := v.Struct(TestStructFloat{Value: 1234567890.1}) // Will be formatted as "1.23456789e+09" or similar (>10 chars)
+		assert.Error(t, err, "float with 11+ char representation should fail")
 	})
 
 	t.Run("bool value within limit", func(t *testing.T) {
