@@ -88,6 +88,7 @@ func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
 	// Convert entity to database model using ToEntity/FromEntity pattern
 	var dbModel LimitPostgreSQLModel
 	if err := dbModel.FromEntity(lmt); err != nil {
+		libOtel.HandleSpanError(&span, "Failed to convert entity to database model", err)
 		return fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
@@ -313,6 +314,7 @@ func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
 	// Convert entity to database model using ToEntity/FromEntity pattern
 	var dbModel LimitPostgreSQLModel
 	if err := dbModel.FromEntity(lmt); err != nil {
+		libOtel.HandleSpanError(&span, "Failed to convert entity to database model", err)
 		return fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
