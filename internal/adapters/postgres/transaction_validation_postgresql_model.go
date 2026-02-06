@@ -144,12 +144,14 @@ func (m *TransactionValidationPostgreSQLModel) ToEntity() (*model.TransactionVal
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse matched_rule_ids: %w", err)
 	}
+
 	validation.MatchedRuleIDs = matchedRuleIDs
 
 	evaluatedRuleIDs, err := parseUUIDArrayString(m.EvaluatedRuleIds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse evaluated_rule_ids: %w", err)
 	}
+
 	validation.EvaluatedRuleIDs = evaluatedRuleIDs
 
 	return validation, nil
@@ -282,6 +284,7 @@ func parseUUIDArrayString(arrayStr string) ([]uuid.UUID, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid UUID %q in array: %w", part, err)
 		}
+
 		result = append(result, id)
 	}
 
