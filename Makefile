@@ -9,6 +9,9 @@ POSTGRES_SERVICE ?= tracer-postgres
 # Ensure artifacts directory exists
 $(shell mkdir -p $(ARTIFACTS_DIR))
 
+# Test reports directory (used by mk/tests.mk)
+TEST_REPORTS_DIR ?= ./reports
+
 # Define the root directory of the project
 ROOT_DIR := $(shell pwd)
 DOCKER_CMD := $(shell \
@@ -23,6 +26,10 @@ DOCKER_CMD := $(shell \
 include $(ROOT_DIR)/pkg/shell/makefile_colors.mk
 include $(ROOT_DIR)/pkg/shell/makefile_utils.mk
 
+# Include test suite commands
+MK_DIR := $(abspath mk)
+include $(MK_DIR)/tests.mk
+
 #-------------------------------------------------------
 # Core Commands
 #-------------------------------------------------------
@@ -36,18 +43,30 @@ help:
 	@echo "  make help                        - Display this help message"
 	@echo "  make build                       - Build the binary to .bin/tracer"
 	@echo "  make test                        - Run all tests"
-	@echo "  make test-unit                   - Run unit tests only"
-	@echo "  make test-integration            - Run integration tests (requires running service)"
 	@echo "  make clean                       - Clean build artifacts"
 	@echo "  make run                         - Run the application with .env config"
+	@echo ""
+	@echo "$(BOLD)Test Suite Aliases:$(NC)"
+	@echo "  make test-unit                   - Run Go unit tests"
+	@echo "  make test-integration            - Run integration tests with testcontainers (RUN=<test>, CHAOS=1)"
+	@echo "  make test-all                    - Run all tests (unit + integration)"
+	@echo "  make test-bench                  - Run benchmark tests (BENCH=pattern, BENCH_PKG=./path)"
+	@echo "  make test-fuzz                   - Run native Go fuzz tests (FUZZ=target, FUZZTIME=duration)"
+	@echo "  make test-chaos-system           - Run chaos tests with full Docker stack"
+	@echo ""
+	@echo "$(BOLD)Coverage Commands:$(NC)"
 	@echo "  make cover                       - Run tests with coverage summary"
-	@echo "  make cover-html                  - Generate HTML test coverage report"
+	@echo "  make coverage-unit               - Run unit tests with coverage report (PKG=./path, uses .ignorecoverunit)"
+	@echo "  make coverage-integration        - Run integration tests with coverage report (PKG=./path)"
+	@echo "  make coverage                    - Run all coverage targets (unit + integration)"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint                        - Run linting tools"
 	@echo "  make format                      - Format code with go fmt"
 	@echo "  make generate                    - Generate code (mocks, etc.)"
 	@echo "  make tidy                        - Update and clean dependencies"
+	@echo "  make sec                         - Run security checks (gosec + govulncheck)"
+	@echo "  make sec SARIF=1                 - Run security checks with SARIF output"
 	@echo ""
 	@echo "$(BOLD)Docker Commands:$(NC)"
 	@echo "  make up                          - Start services with Docker Compose"
@@ -69,10 +88,20 @@ help:
 	@echo "  make seed                        - Load development seed data"
 	@echo "  make seed-down                   - Remove development seed data"
 	@echo ""
-	@echo "$(BOLD)Plugin-Specific Commands:$(NC)"
+	@echo "$(BOLD)Tracer-Specific Commands:$(NC)"
 	@echo "  make generate-docs               - Generate Swagger API documentation"
 	@echo "  make verify-api-docs             - Verify API documentation coverage"
 	@echo "  make validate-api-docs           - Validate API documentation"
+	@echo ""
+	@echo "$(BOLD)Test Tooling:$(NC)"
+	@echo "  make tools                       - Install test tools (gotestsum)"
+	@echo "  make wait-for-services           - Wait for backend services to be healthy"
+	@echo ""
+	@echo "$(BOLD)Test Parameters (env vars for test-* targets):$(NC)"
+	@echo "  TEST_TRACER_URL               - default: http://localhost:8080"
+	@echo "  TEST_HEALTH_WAIT              - default: 60"
+	@echo "  LOW_RESOURCE                  - 0|1 (default: 0) - reduces parallelism for CI"
+	@echo "  RETRY_ON_FAIL                 - 0|1 (default: 0)"
 	@echo ""
 	@echo "$(BOLD)Developer Helper Commands:$(NC)"
 	@echo "  make dev-setup                   - Set up development environment"
@@ -146,54 +175,27 @@ build:
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Build completed successfully - binary at $(BIN_DIR)/$(SERVICE_NAME)$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
-# Test Commands
+# Legacy Coverage Commands (for backward compatibility)
 #-------------------------------------------------------
-
-.PHONY: test
-test:
-	$(call title1,"Running tests")
-	@go test -v ./...
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: test-unit
-test-unit:
-	$(call title1,"Running unit tests")
-	@go test -v ./... -count=1
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Unit tests completed successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: test-integration
-test-integration:
-	$(call title1,"Running integration tests")
-	@echo "$(CYAN)Note: Tests use testcontainers (auto-starts PostgreSQL and app server)$(NC)"
-	@echo "$(CYAN)      Set DISABLE_TESTCONTAINERS=true to use external server instead$(NC)"
-	@go test -tags=integration -v ./...
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Integration tests completed successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: cover
 cover:
-	$(call title1,"Running tests with coverage")
-	@PACKAGES=$$(go list ./... | grep -v -f ./scripts/coverage_ignore.txt); \
-	go test -coverprofile=$(ARTIFACTS_DIR)/coverage.out $$PACKAGES
+	$(call title1,"Generating test coverage report")
+	@echo "$(YELLOW)Note: PostgreSQL repository tests are excluded from coverage metrics.$(NC)"
+	@echo "$(YELLOW)See coverage report for details on why and what is being tested.$(NC)"
+	@if ! command -v go >/dev/null 2>&1; then \
+		echo "$(RED)Error: go is not installed$(NC)"; \
+		exit 1; \
+	fi
+	@TEST_REPORTS_DIR=$(TEST_REPORTS_DIR) sh ./scripts/coverage.sh
+	@echo "$(GREEN)Coverage report generated at $(TEST_REPORTS_DIR)/coverage.html$(NC)"
 	@echo ""
 	@echo "$(CYAN)Coverage Summary:$(NC)"
 	@echo "$(CYAN)----------------------------------------$(NC)"
-	@go tool cover -func=$(ARTIFACTS_DIR)/coverage.out | grep total | awk '{print "Total coverage: " $$3}'
+	@go tool cover -func=$(TEST_REPORTS_DIR)/coverage.out | grep total | awk '{print "Total coverage: " $$3}'
 	@echo "$(CYAN)----------------------------------------$(NC)"
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Coverage report generated at $(ARTIFACTS_DIR)/coverage.out$(GREEN) ✔️$(NC)"
-
-.PHONY: cover-html
-cover-html:
-	$(call title1,"Generating HTML test coverage report")
-	@PACKAGES=$$(go list ./... | grep -v -f ./scripts/coverage_ignore.txt); \
-	go test -coverprofile=$(ARTIFACTS_DIR)/coverage.out $$PACKAGES
-	@go tool cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
-	@echo "$(GREEN)Coverage report generated at $(ARTIFACTS_DIR)/coverage.html$(NC)"
-	@echo ""
-	@echo "$(CYAN)Coverage Summary:$(NC)"
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@go tool cover -func=$(ARTIFACTS_DIR)/coverage.out | grep total | awk '{print "Total coverage: " $$3}'
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@echo "$(YELLOW)Open $(ARTIFACTS_DIR)/coverage.html in your browser to view detailed coverage report$(NC)"
+	@echo "$(YELLOW)Open $(TEST_REPORTS_DIR)/coverage.html in your browser to view detailed coverage report$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Coverage report generated successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Test Coverage Commands
@@ -272,20 +274,48 @@ tidy:
 # Security Commands
 #-------------------------------------------------------
 
-.PHONY: sec
-sec:
-	$(call title1,"Running security checks using gosec")
+# SARIF output for GitHub Security tab integration (optional)
+# Usage: make sec SARIF=1
+SARIF ?= 0
+
+.PHONY: sec-gosec
+sec-gosec:
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing gosec...$(NC)"; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	fi
-	@if find . -name "*.go" -type f | grep -q .; then \
-		echo "$(CYAN)Running security checks...$(NC)"; \
-		gosec -quiet ./...; \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"; \
+	@if find ./internal ./pkg ./cmd -name "*.go" -type f 2>/dev/null | grep -q .; then \
+		echo "$(CYAN)Running gosec on internal/, pkg/, and cmd/ folders...$(NC)"; \
+		if [ "$(SARIF)" = "1" ]; then \
+			echo "$(YELLOW)Generating SARIF output: gosec-report.sarif$(NC)"; \
+			gosec -fmt sarif -out gosec-report.sarif ./internal/... ./pkg/... ./cmd/...; \
+			echo "$(GREEN)$(BOLD)[ok]$(NC) SARIF report generated: gosec-report.sarif$(GREEN) ✔️$(NC)"; \
+		else \
+			gosec ./internal/... ./pkg/... ./cmd/...; \
+		fi; \
 	else \
-		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \
+		echo "$(YELLOW)No Go files found, skipping gosec$(NC)"; \
 	fi
+
+.PHONY: sec-govulncheck
+sec-govulncheck:
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing govulncheck...$(NC)"; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	fi
+	@if find ./internal ./pkg ./cmd -name "*.go" -type f 2>/dev/null | grep -q .; then \
+		echo "$(CYAN)Running govulncheck on internal/, pkg/, and cmd/ folders...$(NC)"; \
+		govulncheck ./internal/... ./pkg/... ./cmd/...; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping govulncheck$(NC)"; \
+	fi
+
+.PHONY: sec
+sec:
+	$(call title1,"Running security checks")
+	@$(MAKE) sec-gosec SARIF=$(SARIF)
+	@$(MAKE) sec-govulncheck
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Clean Commands

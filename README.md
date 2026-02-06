@@ -412,9 +412,18 @@ make build              # Compile binary to ./bin/tracer
 make clean              # Remove build artifacts
 
 # Testing
-make test               # Run all tests with race detection
-make test-integration   # Run all integration tests (with TestContainer)
-make cover-html         # Generate HTML coverage report (opens browser)
+make test               # Run all tests
+make test-unit          # Run unit tests only
+make test-integration   # Run integration tests (with testcontainers)
+make test-all           # Run all tests (unit + integration)
+make test-bench         # Run benchmark tests
+make test-fuzz          # Run fuzz tests
+
+# Coverage
+make cover              # Generate coverage report (HTML + summary)
+make coverage-unit      # Unit test coverage (uses .ignorecoverunit)
+make coverage-integration # Integration test coverage
+make coverage           # All coverage targets
 
 # Code Quality
 make lint               # Run golangci-lint (requires install)
@@ -647,15 +656,25 @@ X-API-Key: your-api-key
 # All tests with race detection
 make test
 
+# Unit tests only
+make test-unit
+
 # Integration tests
 make test-integration
+
+# All tests
+make test-all
 
 # Specific package
 go test -v ./internal/services/command/...
 
-# With coverage
-make cover-html
-open coverage.html
+# With coverage (generates HTML automatically)
+make cover
+open ./reports/coverage.html
+
+# Unit test coverage with filtering
+make coverage-unit
+open ./reports/unit_coverage.out
 
 # Parallel execution (faster)
 go test -race -count=1 -p 4 ./...
