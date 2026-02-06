@@ -389,17 +389,6 @@ func TestAPIKeyAuthWithLogger_NeverLogsAPIKeyValue(t *testing.T) {
 
 	// Arrange - use a distinctive API key to search for
 	secretKey := "SUPER_SECRET_KEY_12345_DO_NOT_LOG"
-	mockLogger := testutil.NewMockLogger()
-	config := APIKeyConfig{
-		Key:     secretKey,
-		Enabled: true,
-	}
-
-	app := fiber.New()
-	app.Use(APIKeyAuthWithLogger(config, mockLogger))
-	app.Get("/v1/validations", func(c *fiber.Ctx) error {
-		return c.SendString("success")
-	})
 
 	// Test cases: missing, invalid, and valid keys
 	testCases := []struct {
@@ -413,8 +402,20 @@ func TestAPIKeyAuthWithLogger_NeverLogsAPIKeyValue(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Reset mock
-			mockLogger.Calls = []testutil.LogCall{}
+			t.Parallel()
+
+			// Create fresh mock and app for each subtest to avoid data races
+			mockLogger := testutil.NewMockLogger()
+			config := APIKeyConfig{
+				Key:     secretKey,
+				Enabled: true,
+			}
+
+			app := fiber.New()
+			app.Use(APIKeyAuthWithLogger(config, mockLogger))
+			app.Get("/v1/validations", func(c *fiber.Ctx) error {
+				return c.SendString("success")
+			})
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/validations", nil)
 			if tc.apiKey != "" {
