@@ -459,6 +459,44 @@ func TestRulePostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				assert.Equal(t, model.DecisionAllow, result.Action)
 			},
 		},
+		{
+			name: "returns error for invalid scopes JSON",
+			dbModel: RulePostgreSQLModel{
+				ID:         testutil.MustDeterministicUUID(33).String(),
+				Name:       "Invalid Scopes",
+				Expression: "true",
+				Action:     "ALLOW",
+				Scopes:     "not-valid-json",
+				Status:     "DRAFT",
+				CreatedAt:  fixedTime,
+				UpdatedAt:  fixedTime,
+			},
+			validate: func(t *testing.T, result *model.Rule, err error) {
+				t.Helper()
+				require.Error(t, err, "should return error for invalid JSON")
+				require.Nil(t, result, "result should be nil on error")
+				assert.Contains(t, err.Error(), "failed to unmarshal scopes")
+			},
+		},
+		{
+			name: "returns error for invalid UUID in ID",
+			dbModel: RulePostgreSQLModel{
+				ID:         "not-a-valid-uuid",
+				Name:       "Invalid ID",
+				Expression: "true",
+				Action:     "ALLOW",
+				Scopes:     "[]",
+				Status:     "DRAFT",
+				CreatedAt:  fixedTime,
+				UpdatedAt:  fixedTime,
+			},
+			validate: func(t *testing.T, result *model.Rule, err error) {
+				t.Helper()
+				require.Error(t, err, "should return error for invalid UUID")
+				require.Nil(t, result, "result should be nil on error")
+				assert.Contains(t, err.Error(), "invalid Rule ID")
+			},
+		},
 	}
 
 	for _, tt := range tests {

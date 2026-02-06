@@ -483,6 +483,46 @@ func TestLimitPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				assert.Equal(t, model.LimitStatusInactive, result.Status)
 			},
 		},
+		{
+			name: "returns error for invalid scopes JSON",
+			dbModel: LimitPostgreSQLModel{
+				ID:          testutil.MustDeterministicUUID(33).String(),
+				Name:        "Invalid Scopes",
+				LimitType:   "DAILY",
+				MaxAmount:   10000,
+				Currency:    "BRL",
+				Scopes:      "not-valid-json",
+				Status:      "DRAFT",
+				CreatedAt:   fixedTime,
+				UpdatedAt:   fixedTime,
+			},
+			validate: func(t *testing.T, result *model.Limit, err error) {
+				t.Helper()
+				require.Error(t, err, "should return error for invalid JSON")
+				require.Nil(t, result, "result should be nil on error")
+				assert.Contains(t, err.Error(), "failed to unmarshal scopes")
+			},
+		},
+		{
+			name: "returns error for invalid UUID in ID",
+			dbModel: LimitPostgreSQLModel{
+				ID:        "not-a-valid-uuid",
+				Name:      "Invalid ID",
+				LimitType: "DAILY",
+				MaxAmount: 10000,
+				Currency:  "BRL",
+				Scopes:    "[]",
+				Status:    "DRAFT",
+				CreatedAt: fixedTime,
+				UpdatedAt: fixedTime,
+			},
+			validate: func(t *testing.T, result *model.Limit, err error) {
+				t.Helper()
+				require.Error(t, err, "should return error for invalid UUID")
+				require.Nil(t, result, "result should be nil on error")
+				assert.Contains(t, err.Error(), "invalid Limit ID")
+			},
+		},
 	}
 
 	for _, tt := range tests {
