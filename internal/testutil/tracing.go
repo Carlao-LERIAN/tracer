@@ -7,12 +7,18 @@ package testutil
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
+)
+
+var (
+	originalProviderOnce sync.Once
+	originalProvider     trace.TracerProvider
 )
 
 // SpanStub is a type alias for tracetest.SpanStub for convenience.
@@ -30,20 +36,24 @@ type TestTracer struct {
 // SetupTestTracing creates a test tracer and sets it as the global provider.
 // The previous global provider is automatically restored when the test completes.
 // Uses t.Cleanup() to ensure proper teardown even if the test fails.
+// Thread-safe: uses sync.Once to save the original provider before any test modifies it,
+// preventing parallel tests from saving each other's providers in the restore chain.
 func SetupTestTracing(t *testing.T) *TestTracer {
 	t.Helper()
 
+	originalProviderOnce.Do(func() {
+		originalProvider = otel.GetTracerProvider()
+	})
+
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
-
-	previousProvider := otel.GetTracerProvider()
 
 	otel.SetTracerProvider(tp)
 
 	tt := &TestTracer{
 		Exporter:         exporter,
 		Provider:         tp,
-		previousProvider: previousProvider,
+		previousProvider: originalProvider,
 	}
 
 	t.Cleanup(func() {
