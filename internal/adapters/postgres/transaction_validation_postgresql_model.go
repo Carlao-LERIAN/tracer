@@ -161,43 +161,20 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 
 	m.Account = string(accountJSON)
 
-	// Marshal optional segment to JSONB
-	if entity.Segment != nil {
-		segmentJSON, err := json.Marshal(entity.Segment)
-		if err != nil {
-			return fmt.Errorf("failed to marshal segment: %w", err)
-		}
-
-		segmentStr := string(segmentJSON)
-		m.Segment = &segmentStr
-	} else {
-		m.Segment = nil
+	// Marshal optional JSONB fields
+	m.Segment, err = marshalOptionalJSON(entity.Segment, "segment")
+	if err != nil {
+		return err
 	}
 
-	// Marshal optional portfolio to JSONB
-	if entity.Portfolio != nil {
-		portfolioJSON, err := json.Marshal(entity.Portfolio)
-		if err != nil {
-			return fmt.Errorf("failed to marshal portfolio: %w", err)
-		}
-
-		portfolioStr := string(portfolioJSON)
-		m.Portfolio = &portfolioStr
-	} else {
-		m.Portfolio = nil
+	m.Portfolio, err = marshalOptionalJSON(entity.Portfolio, "portfolio")
+	if err != nil {
+		return err
 	}
 
-	// Marshal optional merchant to JSONB
-	if entity.Merchant != nil {
-		merchantJSON, err := json.Marshal(entity.Merchant)
-		if err != nil {
-			return fmt.Errorf("failed to marshal merchant: %w", err)
-		}
-
-		merchantStr := string(merchantJSON)
-		m.Merchant = &merchantStr
-	} else {
-		m.Merchant = nil
+	m.Merchant, err = marshalOptionalJSON(entity.Merchant, "merchant")
+	if err != nil {
+		return err
 	}
 
 	// Marshal metadata to JSONB, defaulting to empty object for nil
@@ -250,6 +227,23 @@ func unmarshalJSONField(data string, dest any, fieldName string, skipValues ...s
 	}
 
 	return nil
+}
+
+// marshalOptionalJSON marshals an optional (pointer) value to a JSONB string pointer.
+// Returns nil without error if value is nil.
+func marshalOptionalJSON[T any](value *T, fieldName string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal %s: %w", fieldName, err)
+	}
+
+	s := string(data)
+
+	return &s, nil
 }
 
 // unmarshalOptionalJSON unmarshals an optional (nullable) JSONB field to a typed pointer.
