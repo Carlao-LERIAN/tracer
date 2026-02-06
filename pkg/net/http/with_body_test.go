@@ -589,19 +589,75 @@ func TestFieldsRequired(t *testing.T) {
 }
 
 func TestCompareSlices_NestedMaps(t *testing.T) {
-	original := []any{
-		map[string]any{"id": "1", "extra": "field"},
-		map[string]any{"id": "2"},
-	}
-	marshaled := []any{
-		map[string]any{"id": "1"},
-		map[string]any{"id": "2"},
+	tests := []struct {
+		name            string
+		original        []any
+		marshaled       []any
+		expectedDiffLen int
+		validateDiff    func(t *testing.T, diff []any)
+	}{
+		{
+			name: "extra field in first item",
+			original: []any{
+				map[string]any{"id": "1", "extra": "field"},
+				map[string]any{"id": "2"},
+			},
+			marshaled: []any{
+				map[string]any{"id": "1"},
+				map[string]any{"id": "2"},
+			},
+			expectedDiffLen: 1,
+			validateDiff: func(t *testing.T, diff []any) {
+				diffMap, ok := diff[0].(map[string]any)
+				require.True(t, ok, "difference should be a map")
+				assert.Equal(t, map[string]any{"extra": "field"}, diffMap)
+			},
+		},
+		{
+			name: "multiple extra fields",
+			original: []any{
+				map[string]any{"id": "1", "extra1": "field1", "extra2": "field2"},
+			},
+			marshaled: []any{
+				map[string]any{"id": "1"},
+			},
+			expectedDiffLen: 1,
+			validateDiff: func(t *testing.T, diff []any) {
+				diffMap, ok := diff[0].(map[string]any)
+				require.True(t, ok, "difference should be a map")
+				assert.Contains(t, diffMap, "extra1")
+				assert.Contains(t, diffMap, "extra2")
+				assert.Equal(t, "field1", diffMap["extra1"])
+				assert.Equal(t, "field2", diffMap["extra2"])
+			},
+		},
+		{
+			name: "no differences - all items match",
+			original: []any{
+				map[string]any{"id": "1"},
+				map[string]any{"id": "2"},
+			},
+			marshaled: []any{
+				map[string]any{"id": "1"},
+				map[string]any{"id": "2"},
+			},
+			expectedDiffLen: 0,
+			validateDiff: func(t *testing.T, diff []any) {
+				// No additional validation needed for empty diff
+			},
+		},
 	}
 
-	result := compareSlices(original, marshaled)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := compareSlices(tt.original, tt.marshaled)
 
-	// Should detect the "extra" field in first item
-	assert.NotEmpty(t, result)
+			assert.Len(t, result, tt.expectedDiffLen)
+			if tt.expectedDiffLen > 0 {
+				tt.validateDiff(t, result)
+			}
+		})
+	}
 }
 
 func TestFindUnknownFields_TypeMismatch(t *testing.T) {
