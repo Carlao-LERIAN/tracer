@@ -898,12 +898,15 @@ func formatStringArrayToPostgres(strs []string) string {
 	}
 
 	result := "{"
+
 	for i, s := range strs {
 		if i > 0 {
 			result += ","
 		}
+
 		result += s
 	}
+
 	result += "}"
 
 	return result
