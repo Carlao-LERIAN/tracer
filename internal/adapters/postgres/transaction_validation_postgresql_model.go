@@ -234,7 +234,7 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 }
 
 // unmarshalJSONField unmarshals a JSONB string into dest, skipping empty strings and any provided skip values.
-func unmarshalJSONField(data string, dest interface{}, fieldName string, skipValues ...string) error {
+func unmarshalJSONField(data string, dest any, fieldName string, skipValues ...string) error {
 	if data == "" {
 		return nil
 	}
@@ -327,22 +327,12 @@ func splitUUIDArray(s string) []string {
 
 // formatUUIDArrayString formats a []uuid.UUID to PostgreSQL array string format.
 // Format: "{uuid1,uuid2,...}" for non-empty arrays, "{}" for empty/nil arrays.
+// Delegates to formatStringArrayToPostgres to avoid duplicating the formatting logic.
 func formatUUIDArrayString(uuids []uuid.UUID) string {
-	if len(uuids) == 0 {
-		return "{}"
-	}
-
-	result := "{"
-
+	strs := make([]string, len(uuids))
 	for i, id := range uuids {
-		if i > 0 {
-			result += ","
-		}
-
-		result += id.String()
+		strs[i] = id.String()
 	}
 
-	result += "}"
-
-	return result
+	return formatStringArrayToPostgres(strs)
 }
