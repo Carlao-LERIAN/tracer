@@ -495,7 +495,11 @@ func TestParseMetadata(t *testing.T) {
 			parseMetadata(tt.input, tt.originalMap)
 
 			if tt.expectMetadata {
-				assert.NotNil(t, tt.input.Metadata)
+				require.NotNil(t, tt.input.Metadata, "Metadata should not be nil")
+				// Verify metadata contents match expected
+				if tt.name == "metadata in original - keeps as-is" {
+					assert.Equal(t, map[string]any{"key": "value"}, tt.input.Metadata, "Metadata contents should match original")
+				}
 			}
 		})
 	}
@@ -506,9 +510,17 @@ func TestParseMetadata_NonStruct(t *testing.T) {
 	originalMap := map[string]any{"key": "value"}
 
 	// Should not panic
-	parseMetadata("string input", originalMap)
-	parseMetadata(nil, originalMap)
-	parseMetadata(123, originalMap)
+	assert.NotPanics(t, func() {
+		parseMetadata("string input", originalMap)
+	}, "parseMetadata should not panic for string input")
+
+	assert.NotPanics(t, func() {
+		parseMetadata(nil, originalMap)
+	}, "parseMetadata should not panic for nil input")
+
+	assert.NotPanics(t, func() {
+		parseMetadata(123, originalMap)
+	}, "parseMetadata should not panic for integer input")
 }
 
 func TestFieldsRequired(t *testing.T) {

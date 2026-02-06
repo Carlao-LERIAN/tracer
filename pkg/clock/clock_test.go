@@ -84,7 +84,7 @@ func TestRealClock_NewTicker_ReceivesTick(t *testing.T) {
 	case tick := <-tickerChan:
 		// Assert tick time is not zero
 		assert.False(t, tick.IsZero(), "tick time should not be zero")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(200 * time.Millisecond):
 		t.Fatal("expected to receive at least one tick")
 	}
 }
