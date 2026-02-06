@@ -83,58 +83,34 @@ func (m *TransactionValidationPostgreSQLModel) ToEntity() (*model.TransactionVal
 		CreatedAt:         m.CreatedAt,
 	}
 
-	// Unmarshal account JSONB (required field)
-	if m.Account != "" {
-		if err := json.Unmarshal([]byte(m.Account), &validation.Account); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal account: %w", err)
-		}
+	// Unmarshal JSONB fields
+	if err := unmarshalJSONField(m.Account, &validation.Account, "account"); err != nil {
+		return nil, err
 	}
 
-	// Unmarshal optional segment JSONB
-	if m.Segment != nil && *m.Segment != "" {
-		var segment model.SegmentContext
-		if err := json.Unmarshal([]byte(*m.Segment), &segment); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal segment: %w", err)
-		}
-
-		validation.Segment = &segment
+	validation.Segment, err = unmarshalOptionalJSON[model.SegmentContext](m.Segment, "segment")
+	if err != nil {
+		return nil, err
 	}
 
-	// Unmarshal optional portfolio JSONB
-	if m.Portfolio != nil && *m.Portfolio != "" {
-		var portfolio model.PortfolioContext
-		if err := json.Unmarshal([]byte(*m.Portfolio), &portfolio); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal portfolio: %w", err)
-		}
-
-		validation.Portfolio = &portfolio
+	validation.Portfolio, err = unmarshalOptionalJSON[model.PortfolioContext](m.Portfolio, "portfolio")
+	if err != nil {
+		return nil, err
 	}
 
-	// Unmarshal optional merchant JSONB
-	if m.Merchant != nil && *m.Merchant != "" {
-		var merchant model.MerchantContext
-		if err := json.Unmarshal([]byte(*m.Merchant), &merchant); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal merchant: %w", err)
-		}
-
-		validation.Merchant = &merchant
+	validation.Merchant, err = unmarshalOptionalJSON[model.MerchantContext](m.Merchant, "merchant")
+	if err != nil {
+		return nil, err
 	}
 
-	// Unmarshal metadata JSONB
-	if m.Metadata != "" && m.Metadata != "{}" {
-		if err := json.Unmarshal([]byte(m.Metadata), &validation.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-		}
+	if err := unmarshalJSONField(m.Metadata, &validation.Metadata, "metadata", "{}"); err != nil {
+		return nil, err
 	}
 
-	// Unmarshal limit usage details JSONB
-	if m.LimitUsageDetails != "" && m.LimitUsageDetails != "[]" {
-		if err := json.Unmarshal([]byte(m.LimitUsageDetails), &validation.LimitUsageDetails); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal limit_usage_details: %w", err)
-		}
+	if err := unmarshalJSONField(m.LimitUsageDetails, &validation.LimitUsageDetails, "limit_usage_details", "[]"); err != nil {
+		return nil, err
 	}
 
-	// Ensure LimitUsageDetails is never nil (return empty slice instead of null in JSON)
 	if validation.LimitUsageDetails == nil {
 		validation.LimitUsageDetails = []model.LimitUsageDetail{}
 	}
@@ -255,6 +231,40 @@ func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.Transact
 	m.EvaluatedRuleIds = formatUUIDArrayString(entity.EvaluatedRuleIDs)
 
 	return nil
+}
+
+// unmarshalJSONField unmarshals a JSONB string into dest, skipping empty strings and any provided skip values.
+func unmarshalJSONField(data string, dest interface{}, fieldName string, skipValues ...string) error {
+	if data == "" {
+		return nil
+	}
+
+	for _, sv := range skipValues {
+		if data == sv {
+			return nil
+		}
+	}
+
+	if err := json.Unmarshal([]byte(data), dest); err != nil {
+		return fmt.Errorf("failed to unmarshal %s: %w", fieldName, err)
+	}
+
+	return nil
+}
+
+// unmarshalOptionalJSON unmarshals an optional (nullable) JSONB field to a typed pointer.
+// Returns nil without error if the source is nil or empty.
+func unmarshalOptionalJSON[T any](data *string, fieldName string) (*T, error) {
+	if data == nil || *data == "" {
+		return nil, nil
+	}
+
+	var result T
+	if err := json.Unmarshal([]byte(*data), &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal %s: %w", fieldName, err)
+	}
+
+	return &result, nil
 }
 
 // parseUUIDArrayString parses a PostgreSQL UUID array string format to []uuid.UUID.
