@@ -136,7 +136,7 @@ func TestBadRequestWithMessage(t *testing.T) {
 		expectedMessage string
 	}{
 		{
-			name:            "Success - returns 400 with structured error",
+			name:            "returns 400 with structured error",
 			code:            "TRC-1001",
 			title:           "Validation Error",
 			message:         "Field 'name' is required",
@@ -146,7 +146,7 @@ func TestBadRequestWithMessage(t *testing.T) {
 			expectedMessage: "Field 'name' is required",
 		},
 		{
-			name:            "Success - returns 400 with empty values",
+			name:            "returns 400 with empty values",
 			code:            "",
 			title:           "",
 			message:         "",
@@ -154,6 +154,36 @@ func TestBadRequestWithMessage(t *testing.T) {
 			expectedCode:    "",
 			expectedTitle:   "",
 			expectedMessage: "",
+		},
+		{
+			name:            "message with special HTML characters",
+			code:            "TRC-1001",
+			title:           "Validation Error",
+			message:         "<script>alert('xss')</script>",
+			expectedStatus:  http.StatusBadRequest,
+			expectedCode:    "TRC-1001",
+			expectedTitle:   "Validation Error",
+			expectedMessage: "<script>alert('xss')</script>",
+		},
+		{
+			name:            "message with Unicode/internationalized characters",
+			code:            "TRC-1001",
+			title:           "Validation Error",
+			message:         "Erro: transação inválida! 中文 العربية",
+			expectedStatus:  http.StatusBadRequest,
+			expectedCode:    "TRC-1001",
+			expectedTitle:   "Validation Error",
+			expectedMessage: "Erro: transação inválida! 中文 العربية",
+		},
+		{
+			name:            "very long message to test size handling",
+			code:            "TRC-1001",
+			title:           "Validation Error",
+			message:         string(make([]byte, 1000)),
+			expectedStatus:  http.StatusBadRequest,
+			expectedCode:    "TRC-1001",
+			expectedTitle:   "Validation Error",
+			expectedMessage: string(make([]byte, 1000)),
 		},
 	}
 

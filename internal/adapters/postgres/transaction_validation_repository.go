@@ -890,25 +890,28 @@ func uuidSliceToStringArray(uuids []uuid.UUID) StringArray {
 	return result
 }
 
-// formatUUIDArrayFromStringArray converts a StringArray to PostgreSQL UUID array string format.
-// Used by scanValidation and scanValidationFromRows to prepare data for ToEntity conversion.
-// Format: "{uuid1,uuid2,...}" or "{}" for empty arrays.
-func formatUUIDArrayFromStringArray(strs StringArray) string {
+// formatStringArrayToPostgres formats a slice of strings to PostgreSQL array format "{item1,item2,...}".
+// This is a common helper to avoid duplication between formatUUIDArrayString and formatUUIDArrayFromStringArray.
+func formatStringArrayToPostgres(strs []string) string {
 	if len(strs) == 0 {
 		return "{}"
 	}
 
 	result := "{"
-
 	for i, s := range strs {
 		if i > 0 {
 			result += ","
 		}
-
 		result += s
 	}
-
 	result += "}"
 
 	return result
+}
+
+// formatUUIDArrayFromStringArray converts a StringArray to PostgreSQL UUID array string format.
+// Used by scanValidation and scanValidationFromRows to prepare data for ToEntity conversion.
+// Format: "{uuid1,uuid2,...}" or "{}" for empty arrays.
+func formatUUIDArrayFromStringArray(strs StringArray) string {
+	return formatStringArrayToPostgres([]string(strs))
 }
