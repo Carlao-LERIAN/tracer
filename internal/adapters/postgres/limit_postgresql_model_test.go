@@ -487,7 +487,7 @@ func TestLimitPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 		{
 			name: "returns error for invalid scopes JSON",
 			dbModel: LimitPostgreSQLModel{
-				ID:          testutil.MustDeterministicUUID(33).String(),
+				ID:          testutil.MustDeterministicUUID(34).String(),
 				Name:        "Invalid Scopes",
 				LimitType:   "DAILY",
 				MaxAmount:   10000,

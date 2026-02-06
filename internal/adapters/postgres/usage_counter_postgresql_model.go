@@ -57,7 +57,7 @@ func (m *UsageCounterPostgreSQLModel) ToEntity() (*model.UsageCounter, error) {
 // FromEntity converts a domain entity to a database model.
 // This method handles:
 // - Converting UUIDs to strings
-// Returns nil (no marshaling can fail for UsageCounter).
+// Returns an error if the entity is nil.
 func (m *UsageCounterPostgreSQLModel) FromEntity(entity *model.UsageCounter) error {
 	if entity == nil {
 		return fmt.Errorf("usage counter entity cannot be nil")

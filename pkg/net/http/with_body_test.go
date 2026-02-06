@@ -673,7 +673,7 @@ func TestCompareSlices_NestedMaps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := compareSlices(tt.original, tt.marshaled)
 
-			assert.Len(t, result, tt.expectedDiffLen)
+			require.Len(t, result, tt.expectedDiffLen)
 			if tt.expectedDiffLen > 0 {
 				tt.validateDiff(t, result)
 			}

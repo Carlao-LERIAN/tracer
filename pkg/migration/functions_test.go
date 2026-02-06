@@ -526,5 +526,3 @@ func TestRunInTransaction_CommitSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
-
-
