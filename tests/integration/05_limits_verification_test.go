@@ -1265,40 +1265,40 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 		t.Log("Fault injection triggered 503 - verifying rollback behavior")
 
 		// Poll for rollback completion (avoid flaky fixed sleeps)
-		checkUsage := func() decimal.Decimal {
+		checkUsage := func() (decimal.Decimal, bool) {
 			usageReq2, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
 			if err != nil {
-				return decimal.RequireFromString("-1")
+				return decimal.Zero, false
 			}
 			usageReq2.Header.Set("X-API-Key", apiKey)
 
 			usageResp2, err := testutil.HTTPClient.Do(usageReq2)
 			if err != nil {
-				return decimal.RequireFromString("-1")
+				return decimal.Zero, false
 			}
 			defer usageResp2.Body.Close()
 
 			usageBody2, err := io.ReadAll(usageResp2.Body)
 			if err != nil {
-				return decimal.RequireFromString("-1")
+				return decimal.Zero, false
 			}
 
 			if usageResp2.StatusCode == http.StatusOK {
 				var usageResponse2 getLimitUsageResponse
 				if err := json.Unmarshal(usageBody2, &usageResponse2); err != nil {
-					return decimal.RequireFromString("-1")
+					return decimal.Zero, false
 				}
 				if len(usageResponse2.Counters) > 0 {
-					return usageResponse2.Counters[0].CurrentUsage
+					return usageResponse2.Counters[0].CurrentUsage, true
 				}
 			}
-			return decimal.RequireFromString("-1")
+			return decimal.Zero, false
 		}
 
 		// Verify usage remains at initialUsage after rollback
 		require.Eventually(t, func() bool {
-			currentUsage := checkUsage()
-			return currentUsage.Equal(initialUsage) || currentUsage.Equal(decimal.RequireFromString("-1")) // -1 means no counters returned
+			usage, ok := checkUsage()
+			return !ok || usage.Equal(initialUsage) // no counters yet, or rollback complete
 		}, 2*time.Second, 100*time.Millisecond, "Usage should be rolled back to %s after failure", initialUsage)
 	} else {
 		// Fault injection not triggered - document expected behavior
