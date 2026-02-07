@@ -3748,9 +3748,9 @@ func TestValidation_1_3_23_RejectsInvalidSortOrder(t *testing.T) {
 		"Invalid sortOrder should return 400 Bad Request")
 }
 
-// Test 1.3.24: Rejects limit > 10
+// Test 1.3.24: Rejects limit > 1000
 func TestValidation_1_3_24_RejectsLimitOver1000(t *testing.T) {
-	// Query with limit > 10
+	// Query with limit > 1000
 	listResp, _ := testutil.ListValidations(t, "limit=1001")
 	defer listResp.Body.Close()
 
