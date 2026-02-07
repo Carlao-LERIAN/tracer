@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -60,7 +61,7 @@ func TestAuditEvents_11_1_1_RetrievesAuditEventByID(t *testing.T) {
 	ruleName := "audit-test-rule-" + testutil.MustDeterministicUUID(7001).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
-		Expression: "amount > 1000",
+		Expression: "amount > 10",
 		Action:     "DENY",
 	}
 	ruleBody, err := json.Marshal(ruleReq)
@@ -426,7 +427,7 @@ func TestAuditEvents_11_2_7_FiltersByAccountId(t *testing.T) {
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(7005).String(),
 		TransactionType:      "PIX",
-		Amount:               50000,
+		Amount:               decimal.RequireFromString("500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -482,7 +483,7 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 	pixReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(7006).String(),
 		TransactionType:      "PIX",
-		Amount:               1000,
+		Amount:               decimal.RequireFromString("10"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -498,7 +499,7 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 	cardReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(7008).String(),
 		TransactionType:      "CARD",
-		Amount:               2000,
+		Amount:               decimal.RequireFromString("20"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -547,7 +548,7 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 	// Create and activate a rule with ALLOW action
 	// (ALLOW rules are included in matchedRuleIds even when other rules might DENY)
 	ruleName := "matched-rule-" + testutil.MustDeterministicUUID(7010).String()[:8]
-	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 500", "ALLOW")
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 5", "ALLOW")
 	defer testutil.CleanupRule(t, ruleID)
 
 	testutil.ActivateRule(t, ruleID)
@@ -558,7 +559,7 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(7011).String(),
 		TransactionType:      "PIX",
-		Amount:               1000, // > 500, will match rule
+		Amount:               decimal.RequireFromString("10"), // > 500, will match rule
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -1014,7 +1015,7 @@ func TestAuditEvents_11_3_3_VerifiesSingleEvent(t *testing.T) {
 
 	// Setup: Create a rule to generate an audit event
 	ruleName := "Verify Single Event Test " + testutil.MustDeterministicUUID(7102).String()[:8]
-	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 5000", "DENY")
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 50", "DENY")
 	t.Cleanup(func() {
 		testutil.CleanupRule(t, ruleID)
 	})
@@ -1105,7 +1106,7 @@ func TestAuditEvents_11_4_1_GeneratesAuditForRuleCreation(t *testing.T) {
 	ruleName := "audit-gen-test-" + testutil.MustDeterministicUUID(7014).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
-		Expression: "amount > 1000",
+		Expression: "amount > 10",
 		Action:     "DENY",
 	}
 	body, err := json.Marshal(ruleReq)
@@ -1158,7 +1159,7 @@ func TestAuditEvents_11_4_1_GeneratesAuditForRuleCreation(t *testing.T) {
 	context := event["context"].(map[string]any)
 	after := context["after"].(map[string]any)
 	assert.Equal(t, ruleName, after["name"])
-	assert.Equal(t, "amount > 1000", after["expression"])
+	assert.Equal(t, "amount > 10", after["expression"])
 
 	// Verify before is null for CREATE
 	assert.Nil(t, context["before"])
@@ -1246,7 +1247,7 @@ func TestAuditEvents_11_4_3_GeneratesAuditForRuleUpdate(t *testing.T) {
 	ruleName := "update-audit-" + testutil.MustDeterministicUUID(7016).String()[:8]
 	ruleReq := testutil.RuleRequest{
 		Name:       ruleName,
-		Expression: "amount > 1000",
+		Expression: "amount > 10",
 		Action:     "DENY",
 	}
 	body, err := json.Marshal(ruleReq)
@@ -1422,7 +1423,7 @@ func TestAuditEvents_11_4_5_GeneratesAuditForTransactionValidation(t *testing.T)
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "PIX",
-		Amount:               50000,
+		Amount:               decimal.RequireFromString("500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -1467,7 +1468,7 @@ func TestAuditEvents_11_4_5_GeneratesAuditForTransactionValidation(t *testing.T)
 
 	// Validate request data
 	assert.Equal(t, "PIX", request["transactionType"])
-	assert.Equal(t, float64(50000), request["amount"])
+	assert.Equal(t, "500", request["amount"])
 	assert.Equal(t, "BRL", request["currency"])
 
 	account := request["account"].(map[string]any)
@@ -1555,7 +1556,7 @@ func TestAuditEvents_11_4_7_GeneratesAuditForLimitCreation(t *testing.T) {
 
 	// Precondition: Create a limit to generate LIMIT_CREATED audit event
 	accountID := testutil.MustDeterministicUUID(7021).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	defer testutil.CleanupLimit(t, limitID)
 
 	// Wait briefly for audit event to be created
@@ -1593,7 +1594,7 @@ func TestAuditEvents_11_4_7_GeneratesAuditForLimitCreation(t *testing.T) {
 	context := event["context"].(map[string]any)
 	after := context["after"].(map[string]any)
 	assert.Equal(t, "DAILY", after["limitType"])
-	assert.Equal(t, float64(100000), after["maxAmount"])
+	assert.Equal(t, "1000", after["maxAmount"])
 	assert.Equal(t, "BRL", after["currency"])
 	assert.Equal(t, "DRAFT", after["status"])
 
@@ -1608,7 +1609,7 @@ func TestAuditEvents_11_4_8_GeneratesAuditForLimitActivation(t *testing.T) {
 
 	// Create limit in DRAFT
 	accountID := testutil.MustDeterministicUUID(7022).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	defer testutil.CleanupLimit(t, limitID)
 
 	// Activate limit
@@ -1655,7 +1656,7 @@ func TestAuditEvents_11_4_9_GeneratesAuditForLimitUpdate(t *testing.T) {
 
 	// Create limit
 	accountID := testutil.MustDeterministicUUID(7023).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	defer testutil.CleanupLimit(t, limitID)
 
 	time.Sleep(100 * time.Millisecond)
@@ -1720,7 +1721,7 @@ func TestAuditEvents_11_4_10_GeneratesAuditForLimitDeactivation(t *testing.T) {
 
 	// Create and activate limit
 	accountID := testutil.MustDeterministicUUID(7024).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	defer testutil.CleanupLimit(t, limitID)
 
 	testutil.ActivateLimit(t, limitID)
@@ -1779,7 +1780,7 @@ func TestAuditEvents_11_4_11_GeneratesAuditForLimitDelete(t *testing.T) {
 
 	// Create limit in DRAFT status
 	accountID := testutil.MustDeterministicUUID(7025).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 
 	// Delete limit directly from DRAFT (DRAFT → DELETED is allowed)
 	// Valid transitions: DRAFT → ACTIVE/DELETED, ACTIVE → INACTIVE, INACTIVE → ACTIVE/DRAFT/DELETED
@@ -1905,7 +1906,7 @@ func TestAuditEvents_11_9_3_PageSizeExceedsMaximum(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	// Request with limit=5000 (exceeds max of 1000)
+	// Request with limit=50 (exceeds max of 10)
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?limit=5000", nil)
 	require.NoError(t, err)
 	req.Header.Set("X-API-Key", apiKey)
@@ -2165,7 +2166,7 @@ func TestAuditEvents_11_10_2_ValidationTriggersAuditEvent(t *testing.T) {
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "PIX",
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -2239,7 +2240,7 @@ func TestAuditEvents_11_10_2_ValidationTriggersAuditEvent(t *testing.T) {
 	// Request data should match
 	assert.Equal(t, requestID, request["requestId"], "requestId should match")
 	assert.Equal(t, "PIX", request["transactionType"], "transactionType should match")
-	assert.Equal(t, float64(10000), request["amount"], "amount should match")
+	assert.Equal(t, "100", request["amount"], "amount should match")
 
 	account, ok := request["account"].(map[string]any)
 	require.True(t, ok, "request must have account")
@@ -2262,7 +2263,7 @@ func TestAuditEvents_11_10_3_CompleteLimitLifecycleIsAudited(t *testing.T) {
 
 	// 1. Create limit
 	accountID := testutil.MustDeterministicUUID(7029).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 
 	// 2. Activate limit
 	testutil.ActivateLimit(t, limitID)
@@ -2522,7 +2523,7 @@ func TestAuditEvents_11_5_2_FirstEventHasGenesisHash(t *testing.T) {
 
 	// Setup: Create a rule to generate an audit event (ensures we have at least one event)
 	ruleName := "Genesis Hash Test " + testutil.MustDeterministicUUID(7103).String()[:8]
-	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 9000", "DENY")
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 90", "DENY")
 	t.Cleanup(func() {
 		testutil.CleanupRule(t, ruleID)
 	})
@@ -2560,13 +2561,13 @@ func TestAuditEvents_11_5_3_SubsequentEventsChainCorrectly(t *testing.T) {
 
 	// Setup: Create 2 rules to generate at least 2 audit events
 	rule1Name := "Chain Test Rule 1 " + testutil.MustDeterministicUUID(7104).String()[:8]
-	rule1ID := testutil.CreateTestRuleWithExpression(t, rule1Name, "amount > 10000", "DENY")
+	rule1ID := testutil.CreateTestRuleWithExpression(t, rule1Name, "amount > 100", "DENY")
 	t.Cleanup(func() {
 		testutil.CleanupRule(t, rule1ID)
 	})
 
 	rule2Name := "Chain Test Rule 2 " + testutil.MustDeterministicUUID(7105).String()[:8]
-	rule2ID := testutil.CreateTestRuleWithExpression(t, rule2Name, "amount < 100", "ALLOW")
+	rule2ID := testutil.CreateTestRuleWithExpression(t, rule2Name, "amount < 1", "ALLOW")
 	t.Cleanup(func() {
 		testutil.CleanupRule(t, rule2ID)
 	})
@@ -2614,7 +2615,7 @@ func TestAuditEvents_11_6_1_FiltersBySegmentId(t *testing.T) {
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(7032).String(),
 		TransactionType:      "PIX",
-		Amount:               1000,
+		Amount:               decimal.RequireFromString("10"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -2683,7 +2684,7 @@ func TestAuditEvents_11_6_2_FiltersByPortfolioId(t *testing.T) {
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(7035).String(),
 		TransactionType:      "CARD",
-		Amount:               2000,
+		Amount:               decimal.RequireFromString("20"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -2755,7 +2756,7 @@ func TestAuditEvents_11_6_3_CombinesMultipleJSONBFilters(t *testing.T) {
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(7040).String(),
 		TransactionType:      "PIX",
-		Amount:               5000,
+		Amount:               decimal.RequireFromString("50"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{

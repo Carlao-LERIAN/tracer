@@ -69,7 +69,7 @@ func TestValidation_AccountContext_AllFields(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4101).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -131,7 +131,7 @@ func TestValidation_AccountContext_MinimalFields(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4104).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -180,7 +180,7 @@ func TestValidation_ContextObjects_MissingAccount_ReturnsError(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4105).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		// account field intentionally omitted
@@ -231,7 +231,7 @@ func TestValidation_SegmentContext_Structure(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4106).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -297,7 +297,7 @@ func TestValidation_SegmentContext_CELFieldAccess(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4110).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -361,7 +361,7 @@ func TestValidation_PortfolioContext_Structure(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4112).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -427,7 +427,7 @@ func TestValidation_PortfolioContext_CELFieldAccess(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4116).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -491,7 +491,7 @@ func TestValidation_MerchantContext_CompleteStructure(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4118).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -547,7 +547,7 @@ func TestValidation_AccountContext_MissingAccountId(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4121).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{

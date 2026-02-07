@@ -6,6 +6,8 @@ package model
 
 import (
 	"testing"
+
+	"github.com/shopspring/decimal"
 	"time"
 
 	"tracer/internal/testutil"
@@ -31,7 +33,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeCard,
 				SubType:         testutil.StringPtr("debit"),
-				Amount:          100000,
+				Amount:          decimal.RequireFromString("1000"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 10, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -53,7 +55,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 				// Top-level fields
 				assert.Equal(t, "CARD", result["transactionType"])
 				assert.Equal(t, "debit", result["subType"])
-				assert.Equal(t, int64(100000), result["amount"])
+				assert.Equal(t, float64(1000), result["amount"])
 				assert.Equal(t, "USD", result["currency"])
 				assert.Equal(t, time.Date(2030, 12, 24, 10, 0, 0, 0, time.UTC), result["transactionTimestamp"])
 
@@ -94,7 +96,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 			name: "minimal context without optional fields",
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeWire,
-				Amount:          50000,
+				Amount:          decimal.RequireFromString("500"),
 				Currency:        "EUR",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 11, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -105,7 +107,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 			validate: func(t *testing.T, result map[string]any) {
 				// Required fields
 				assert.Equal(t, "WIRE", result["transactionType"])
-				assert.Equal(t, int64(50000), result["amount"])
+				assert.Equal(t, float64(500), result["amount"])
 				assert.Equal(t, "EUR", result["currency"])
 
 				// Account nested map
@@ -124,7 +126,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 			name: "zero amount is preserved",
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeCard,
-				Amount:          0,
+				Amount:          decimal.RequireFromString("0"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -133,14 +135,14 @@ func TestTransactionContext_ToMap(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result map[string]any) {
-				assert.Equal(t, int64(0), result["amount"])
+				assert.Equal(t, float64(0), result["amount"])
 			},
 		},
 		{
 			name: "negative amount is preserved",
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeCard,
-				Amount:          -50000,
+				Amount:          decimal.RequireFromString("-500"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -149,14 +151,14 @@ func TestTransactionContext_ToMap(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result map[string]any) {
-				assert.Equal(t, int64(-50000), result["amount"])
+				assert.Equal(t, float64(-500), result["amount"])
 			},
 		},
 		{
 			name: "empty currency string is preserved",
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeCard,
-				Amount:          10000,
+				Amount:          decimal.RequireFromString("100"),
 				Currency:        "",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -172,7 +174,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 			name: "empty account type and status are preserved",
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeCard,
-				Amount:          10000,
+				Amount:          decimal.RequireFromString("100"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -192,7 +194,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 			name: "nil segment yields nil",
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeCard,
-				Amount:          10000,
+				Amount:          decimal.RequireFromString("100"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -209,7 +211,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 			name: "nil portfolio yields nil",
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeCard,
-				Amount:          10000,
+				Amount:          decimal.RequireFromString("100"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -226,7 +228,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 			name: "empty metadata map is preserved as empty",
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeCard,
-				Amount:          10000,
+				Amount:          decimal.RequireFromString("100"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -245,7 +247,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 			name: "nil metadata yields empty map",
 			ctx: &TransactionContext{
 				TransactionType: TransactionTypeCard,
-				Amount:          10000,
+				Amount:          decimal.RequireFromString("100"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
@@ -267,7 +269,7 @@ func TestTransactionContext_ToMap(t *testing.T) {
 				// TransactionType zero-value is empty string
 				assert.Equal(t, "", result["transactionType"])
 				// Amount zero-value is 0
-				assert.Equal(t, int64(0), result["amount"])
+				assert.Equal(t, float64(0), result["amount"])
 				// Currency zero-value is empty string
 				assert.Equal(t, "", result["currency"])
 				// Timestamp zero-value is zero time

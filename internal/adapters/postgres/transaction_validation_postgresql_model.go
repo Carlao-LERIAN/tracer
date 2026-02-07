@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg/model"
 )
@@ -22,12 +23,12 @@ import (
 // - UUID arrays as string for PostgreSQL UUID[] type (matched_rule_ids, evaluated_rule_ids)
 // - Nullable fields using pointers for optional JSONB columns
 type TransactionValidationPostgreSQLModel struct {
-	ID                   string    `db:"id"`
-	RequestID            string    `db:"request_id"`
-	TransactionType      string    `db:"transaction_type"`
-	SubType              *string   `db:"sub_type"`
-	Amount               int64     `db:"amount"`
-	Currency             string    `db:"currency"`
+	ID                   string          `db:"id"`
+	RequestID            string          `db:"request_id"`
+	TransactionType      string          `db:"transaction_type"`
+	SubType              *string         `db:"sub_type"`
+	Amount               decimal.Decimal `db:"amount"`
+	Currency             string          `db:"currency"`
 	TransactionTimestamp time.Time `db:"transaction_timestamp"`
 	Account              string    `db:"account"`   // JSONB
 	Segment              *string   `db:"segment"`   // JSONB (nullable)

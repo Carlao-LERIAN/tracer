@@ -12,6 +12,7 @@ import (
 	"tracer/internal/testutil"
 	"tracer/pkg/model"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
@@ -27,7 +28,7 @@ func TestCompile_Success(t *testing.T) {
 	}{
 		{
 			name:        "Success - simple amount comparison",
-			expression:  "amount > 10000",
+			expression:  "amount > 100",
 			description: "Compiles simple numeric comparison expression",
 		},
 		{
@@ -37,7 +38,7 @@ func TestCompile_Success(t *testing.T) {
 		},
 		{
 			name:        "Success - complex multi-condition expression",
-			expression:  `transactionType == "CARD" && amount > 10000 && account.status == "active"`,
+			expression:  `transactionType == "CARD" && amount > 100 && account.status == "active"`,
 			description: "Compiles complex expression with multiple conditions",
 		},
 		{
@@ -49,6 +50,61 @@ func TestCompile_Success(t *testing.T) {
 			name:        "Success - expression with metadata access",
 			expression:  `"channel" in metadata`,
 			description: "Compiles expression accessing metadata map",
+		},
+		{
+			name:        "Success - decimal amount literal",
+			expression:  "amount > 12.34",
+			description: "Compiles expression with decimal literal for amount comparison",
+		},
+		{
+			name:        "Success - amount equality with integer literal",
+			expression:  "amount == 1500",
+			description: "DynType amount supports equality with int literals",
+		},
+		{
+			name:        "Success - amount equality with double literal",
+			expression:  "amount == 1500.0",
+			description: "DynType amount supports equality with double literals",
+		},
+		{
+			name:        "Success - amount inequality with integer literal",
+			expression:  "amount != 1000",
+			description: "DynType amount supports inequality with int literals",
+		},
+		{
+			name:        "Success - amount inequality with double literal",
+			expression:  "amount != 999.99",
+			description: "DynType amount supports inequality with double literals",
+		},
+		{
+			name:        "Success - amount greater or equal with integer literal",
+			expression:  "amount >= 1500",
+			description: "Compiles greater-or-equal with int literal",
+		},
+		{
+			name:        "Success - amount greater or equal with double literal",
+			expression:  "amount >= 1499.99",
+			description: "Compiles greater-or-equal with double literal",
+		},
+		{
+			name:        "Success - amount less than with integer literal",
+			expression:  "amount < 2000",
+			description: "Compiles less-than with int literal",
+		},
+		{
+			name:        "Success - amount less than with double literal",
+			expression:  "amount < 2000.50",
+			description: "Compiles less-than with double literal",
+		},
+		{
+			name:        "Success - amount less or equal with integer literal",
+			expression:  "amount <= 1500",
+			description: "Compiles less-or-equal with int literal",
+		},
+		{
+			name:        "Success - amount less or equal with double literal",
+			expression:  "amount <= 1500.99",
+			description: "Compiles less-or-equal with double literal",
 		},
 	}
 
@@ -98,7 +154,7 @@ func TestCompile_InvalidExpression(t *testing.T) {
 		},
 		{
 			name:           "Error - type mismatch",
-			expression:     `amount == "string"`,
+			expression:     `transactionTimestamp == "string"`,
 			expectedErrMsg: "TRC-0084",
 			description:    "Should fail on type mismatch (int vs string)",
 		},
@@ -135,7 +191,7 @@ func TestCompile_CreatesSpan(t *testing.T) {
 	}{
 		{
 			name:             "Success - span created for compilation",
-			expression:       "amount > 10000",
+			expression:       "amount > 100",
 			expectedSpanName: "adapter.cel.compile",
 			description:      "Compile should create a span with correct name",
 		},
@@ -180,18 +236,18 @@ func TestCompile_SpanAttributes(t *testing.T) {
 	}{
 		{
 			name:       "Success - span has expression_hash attribute",
-			expression: "amount > 10000",
+			expression: "amount > 100",
 			expectedAttrs: map[string]any{
-				"compile_input.expression_hash":   HashExpression("amount > 10000"),
-				"compile_input.expression_length": len("amount > 10000"),
+				"compile_input.expression_hash":   HashExpression("amount > 100"),
+				"compile_input.expression_length": len("amount > 100"),
 			},
 			description: "Span should have expression_hash and expression_length attributes",
 		},
 		{
 			name:       "Success - long expression has correct length",
-			expression: `transactionType == "CARD" && amount > 10000 && account.status == "active" && currency == "USD"`,
+			expression: `transactionType == "CARD" && amount > 100 && account.status == "active" && currency == "USD"`,
 			expectedAttrs: map[string]any{
-				"compile_input.expression_length": len(`transactionType == "CARD" && amount > 10000 && account.status == "active" && currency == "USD"`),
+				"compile_input.expression_length": len(`transactionType == "CARD" && amount > 100 && account.status == "active" && currency == "USD"`),
 			},
 			description: "Span should have correct expression_length for longer expressions",
 		},
@@ -309,13 +365,13 @@ func TestCompile_TypeValidation(t *testing.T) {
 	}{
 		{
 			name:        "Success - boolean expression accepted",
-			expression:  "amount > 10000",
+			expression:  "amount > 100",
 			expectError: false,
 			description: "Expression returning bool should compile",
 		},
 		{
 			name:        "Success - complex boolean expression accepted",
-			expression:  `transactionType == "CARD" && amount > 10000`,
+			expression:  `transactionType == "CARD" && amount > 100`,
 			expectError: false,
 			description: "Complex boolean expression should compile",
 		},
@@ -326,16 +382,16 @@ func TestCompile_TypeValidation(t *testing.T) {
 			description: "Expression returning string should fail",
 		},
 		{
-			name:        "Error - integer expression rejected",
+			name:        "Error - dyn expression rejected",
 			expression:  "amount",
 			expectError: true,
-			description: "Expression returning int should fail",
+			description: "Expression returning dyn should fail",
 		},
 		{
 			name:        "Error - arithmetic expression rejected",
 			expression:  "amount + 100",
 			expectError: true,
-			description: "Arithmetic expression should fail (returns int)",
+			description: "Arithmetic expression should fail (returns dyn)",
 		},
 	}
 
@@ -418,7 +474,7 @@ func TestAdapter_CostLimitApplied(t *testing.T) {
 
 	// Compile a simple expression - should succeed
 	ctx := context.Background()
-	result, err := adapter.Compile(ctx, "amount > 10000")
+	result, err := adapter.Compile(ctx, "amount > 100")
 
 	require.NoError(t, err, "Compile should not return error for simple expression")
 	assert.NotNil(t, result, "CompiledProgram should not be nil")
@@ -436,21 +492,21 @@ func TestCompile_CostValidation(t *testing.T) {
 		{
 			name:        "Success - simple expression within limit",
 			costLimit:   1000,
-			expression:  "amount > 10000",
+			expression:  "amount > 100",
 			expectError: false,
 			description: "Simple expression should be within cost limit",
 		},
 		{
 			name:        "Success - moderate expression within limit",
 			costLimit:   5000,
-			expression:  `transactionType == "CARD" && amount > 10000 && currency == "USD"`,
+			expression:  `transactionType == "CARD" && amount > 100 && currency == "USD"`,
 			expectError: false,
 			description: "Moderate expression should be within cost limit",
 		},
 		{
 			name:        "Error - expression exceeds very low cost limit",
 			costLimit:   1,
-			expression:  `transactionType in ["CARD", "PIX", "WIRE"] && amount > 1000`,
+			expression:  `transactionType in ["CARD", "PIX", "WIRE"] && amount > 10`,
 			expectError: true,
 			description: "Expression should exceed very low cost limit. " +
 				"Note: costLimit=1 relies on CEL assigning cost > 1 to this expression. " +
@@ -494,10 +550,10 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 	}{
 		{
 			name:       "Success - simple expression executes without runtime cost error",
-			expression: "amount > 10000",
+			expression: "amount > 100",
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
-				Amount:          50000,
+				Amount:          decimal.RequireFromString("500"),
 				Currency:        "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
@@ -506,10 +562,10 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 		},
 		{
 			name:       "Success - moderate expression executes without runtime cost error",
-			expression: `transactionType == "CARD" && amount > 10000 && currency == "USD"`,
+			expression: `transactionType == "CARD" && amount > 100 && currency == "USD"`,
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
-				Amount:          50000,
+				Amount:          decimal.RequireFromString("500"),
 				Currency:        "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
@@ -521,7 +577,7 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 			expression: `transactionType in ["CARD", "PIX", "WIRE", "ACH", "SEPA"]`,
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
-				Amount:          50000,
+				Amount:          decimal.RequireFromString("500"),
 				Currency:        "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
@@ -533,7 +589,7 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 			expression: `account.status == "active" && account.type == "checking"`,
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
-				Amount:          50000,
+				Amount:          decimal.RequireFromString("500"),
 				Currency:        "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
@@ -542,10 +598,10 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 		},
 		{
 			name:       "Success - expression evaluates to false without runtime cost error",
-			expression: "amount > 100000",
+			expression: "amount > 1000",
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
-				Amount:          50000,
+				Amount:          decimal.RequireFromString("500"),
 				Currency:        "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
@@ -554,15 +610,27 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 		},
 		{
 			name:       "Success - complex expression evaluates to false without runtime cost error",
-			expression: `transactionType == "PIX" && amount > 10000`,
+			expression: `transactionType == "PIX" && amount > 100`,
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
-				Amount:          50000,
+				Amount:          decimal.RequireFromString("500"),
 				Currency:        "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
 			expected:    false,
 			description: "Complex expression evaluating to false should complete without runtime cost error",
+		},
+		{
+			name:       "Success - fractional amount comparison without runtime cost error",
+			expression: "amount > 499.99",
+			request: &model.ValidationRequest{
+				TransactionType: "CARD",
+				Amount:          decimal.RequireFromString("500.50"),
+				Currency:        "USD",
+				Account:         model.AccountContext{Type: "checking", Status: "active"},
+			},
+			expected:    true,
+			description: "Fractional amount comparison should execute without runtime cost error",
 		},
 	}
 
@@ -603,7 +671,7 @@ func TestCompile_CostValidationIsCompileTimeOnly(t *testing.T) {
 		ctx := context.Background()
 
 		// This expression should exceed the very low cost limit at COMPILE time
-		expr := `transactionType in ["CARD", "PIX", "WIRE"] && amount > 1000`
+		expr := `transactionType in ["CARD", "PIX", "WIRE"] && amount > 10`
 		_, err = adapter.Compile(ctx, expr)
 
 		// Verify: cost exceeded error happens at COMPILE time, not runtime
@@ -629,7 +697,7 @@ func TestCompile_CostValidationIsCompileTimeOnly(t *testing.T) {
 		// Create request
 		req := &model.ValidationRequest{
 			TransactionType: "CARD",
-			Amount:          500,
+			Amount:          decimal.RequireFromString("500"),
 			Currency:        "USD",
 		}
 

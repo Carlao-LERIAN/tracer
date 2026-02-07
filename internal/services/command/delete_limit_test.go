@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/shopspring/decimal"
+
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
@@ -44,7 +46,7 @@ func TestDeleteLimitCommand_Execute_InvalidTransition_FromActive(t *testing.T) {
 		ID:        limitID,
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 		Status:    model.LimitStatusActive,
@@ -88,7 +90,7 @@ func TestDeleteLimitCommand_Execute_Success_FromInactive(t *testing.T) {
 		ID:        limitID,
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11))}},
 		Status:    model.LimitStatusInactive,
@@ -139,7 +141,7 @@ func TestDeleteLimitCommand_Execute_AlreadyDeleted_Idempotent(t *testing.T) {
 		ID:        limitID,
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(21))}},
 		Status:    model.LimitStatusDeleted,
@@ -230,7 +232,7 @@ func TestDeleteLimitCommand_Execute_UpdateStatusError(t *testing.T) {
 		ID:        limitID,
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(51))}},
 		Status:    model.LimitStatusInactive,

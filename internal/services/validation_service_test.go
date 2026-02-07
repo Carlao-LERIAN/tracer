@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -34,7 +35,7 @@ func TestValidateTransaction(t *testing.T) {
 	baseRequest := &model.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
-		Amount:               10000, // $100.00
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
@@ -120,10 +121,10 @@ func TestValidateTransaction(t *testing.T) {
 					LimitUsageDetails: []model.LimitUsageDetail{
 						{
 							LimitID:      limitID,
-							LimitAmount:  5000,
+							LimitAmount:  decimal.RequireFromString("50"),
 							Scope:        "account:" + limitID.String(),
 							Period:       model.LimitTypeDaily,
-							CurrentUsage: 6000,
+							CurrentUsage: decimal.RequireFromString("60"),
 							Exceeded:     true,
 						},
 					},
@@ -223,10 +224,10 @@ func TestValidateTransaction(t *testing.T) {
 					LimitUsageDetails: []model.LimitUsageDetail{
 						{
 							LimitID:      limitID,
-							LimitAmount:  5000,
+							LimitAmount:  decimal.RequireFromString("50"),
 							Scope:        "account:" + limitID.String(),
 							Period:       model.LimitTypeDaily,
-							CurrentUsage: 6000,
+							CurrentUsage: decimal.RequireFromString("60"),
 							Exceeded:     true,
 						},
 					},
@@ -279,10 +280,10 @@ func TestValidateTransaction(t *testing.T) {
 					LimitUsageDetails: []model.LimitUsageDetail{
 						{
 							LimitID:      limitID,
-							LimitAmount:  50000,
+							LimitAmount:  decimal.RequireFromString("500"),
 							Scope:        "account:" + limitID.String(),
 							Period:       model.LimitTypeDaily,
-							CurrentUsage: 10000,
+							CurrentUsage: decimal.RequireFromString("100"),
 							Exceeded:     false,
 						},
 					},
@@ -503,7 +504,7 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
 		SubType:              &subType,
-		Amount:               25000, // $250.00
+		Amount:               decimal.RequireFromString("250"), // $250.00
 		Currency:             "BRL",
 		TransactionTimestamp: fixedTime,
 		Account: model.AccountContext{
@@ -550,10 +551,10 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 		LimitUsageDetails: []model.LimitUsageDetail{
 			{
 				LimitID:      limitID,
-				LimitAmount:  100000, // $1000.00
+				LimitAmount:  decimal.RequireFromString("1000"), // $1000.00
 				Scope:        "account:" + limitID.String(),
 				Period:       model.LimitTypeDaily,
-				CurrentUsage: 25000,
+				CurrentUsage: decimal.RequireFromString("250"),
 				Exceeded:     false,
 			},
 		},
@@ -594,7 +595,7 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 	assert.Equal(t, requestID, capturedTV.RequestID)
 	assert.Equal(t, model.TransactionTypeCard, capturedTV.TransactionType)
 	assert.Equal(t, &subType, capturedTV.SubType)
-	assert.Equal(t, int64(25000), capturedTV.Amount)
+	assert.Equal(t, decimal.RequireFromString("250").String(), capturedTV.Amount.String())
 	assert.Equal(t, "BRL", capturedTV.Currency)
 	assert.Equal(t, fixedTime, capturedTV.TransactionTimestamp)
 
@@ -625,9 +626,9 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 	// Limit usage details
 	require.Len(t, capturedTV.LimitUsageDetails, 1)
 	assert.Equal(t, limitID, capturedTV.LimitUsageDetails[0].LimitID)
-	assert.Equal(t, int64(100000), capturedTV.LimitUsageDetails[0].LimitAmount)
+	assert.Equal(t, decimal.RequireFromString("1000").String(), capturedTV.LimitUsageDetails[0].LimitAmount.String())
 	assert.Equal(t, model.LimitTypeDaily, capturedTV.LimitUsageDetails[0].Period)
-	assert.Equal(t, int64(25000), capturedTV.LimitUsageDetails[0].CurrentUsage)
+	assert.Equal(t, decimal.RequireFromString("250").String(), capturedTV.LimitUsageDetails[0].CurrentUsage.String())
 	assert.False(t, capturedTV.LimitUsageDetails[0].Exceeded)
 }
 
@@ -719,7 +720,7 @@ func TestValidateTransactionValidation(t *testing.T) {
 			ID:                   validID,
 			RequestID:            requestID,
 			TransactionType:      model.TransactionTypeCard,
-			Amount:               10000,
+			Amount:               decimal.RequireFromString("100"),
 			Currency:             "USD",
 			TransactionTimestamp: fixedTime,
 			Account:              model.AccountContext{ID: accountID, Type: "checking", Status: "active"},
@@ -783,7 +784,7 @@ func TestValidateTransactionValidation(t *testing.T) {
 			name: "zero amount",
 			tv: func() *model.TransactionValidation {
 				v := validTV()
-				v.Amount = 0
+				v.Amount = decimal.RequireFromString("0")
 				return v
 			}(),
 			wantError: true,
@@ -793,7 +794,7 @@ func TestValidateTransactionValidation(t *testing.T) {
 			name: "negative amount",
 			tv: func() *model.TransactionValidation {
 				v := validTV()
-				v.Amount = -100
+				v.Amount = decimal.RequireFromString("-1")
 				return v
 			}(),
 			wantError: true,
@@ -863,7 +864,7 @@ func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 			ID:                   validID,
 			RequestID:            requestID,
 			TransactionType:      model.TransactionTypeCard,
-			Amount:               10000,
+			Amount:               decimal.RequireFromString("100"),
 			Currency:             "USD",
 			TransactionTimestamp: fixedTime,
 			Account:              model.AccountContext{ID: accountID, Type: "checking", Status: "active"},
@@ -902,7 +903,7 @@ func TestValidateTransactionValidation_AllRequiredRequestFields(t *testing.T) {
 		{
 			name: "Amount must be positive",
 			modify: func(tv *model.TransactionValidation) {
-				tv.Amount = 0
+				tv.Amount = decimal.RequireFromString("0")
 			},
 			errSubstr: "invalid amount",
 		},
@@ -969,7 +970,7 @@ func TestValidateTransactionValidation_AllRequiredResponseFields(t *testing.T) {
 			ID:                   validID,
 			RequestID:            requestID,
 			TransactionType:      model.TransactionTypeCard,
-			Amount:               10000,
+			Amount:               decimal.RequireFromString("100"),
 			Currency:             "USD",
 			TransactionTimestamp: fixedTime,
 			Account:              model.AccountContext{ID: accountID, Type: "checking", Status: "active"},
@@ -1023,7 +1024,7 @@ func TestValidateTransactionValidation_AllValidDecisions(t *testing.T) {
 				ID:                   validID,
 				RequestID:            requestID,
 				TransactionType:      model.TransactionTypeCard,
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "USD",
 				TransactionTimestamp: fixedTime,
 				Account:              model.AccountContext{ID: accountID, Type: "checking", Status: "active"},
@@ -1049,7 +1050,7 @@ func TestValidate_TransactionValidationPersistenceSuccess(t *testing.T) {
 	request := &model.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
@@ -1121,7 +1122,7 @@ func TestValidate_AuditPersistFailure_LogsError(t *testing.T) {
 	request := &model.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
@@ -1200,7 +1201,7 @@ func TestValidate_WithSegmentAndPortfolio(t *testing.T) {
 	request := &model.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "USD",
 		TransactionTimestamp: fixedTime,
 		Account: model.AccountContext{
@@ -1343,7 +1344,7 @@ func TestValidate_RuleEvaluatorReturnsNil(t *testing.T) {
 	request := &model.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
@@ -1385,7 +1386,7 @@ func TestValidate_LimitCheckerReturnsNil(t *testing.T) {
 	request := &model.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},
@@ -1439,7 +1440,7 @@ func TestValidate_AuditEventWriterFailure(t *testing.T) {
 	request := &model.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      model.TransactionTypeCard,
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "USD",
 		TransactionTimestamp: fixedTime,
 		Account:              model.AccountContext{ID: accountID},

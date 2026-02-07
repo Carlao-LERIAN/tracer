@@ -81,7 +81,7 @@ func createTestAuditEvent(t *testing.T) *model.AuditEvent {
 					"portfolioId": "port-001",
 				},
 				"transactionType": "PIX",
-				"amount":          10000,
+				"amount":          100,
 			},
 			"response": map[string]any{
 				"decision":         "ALLOW",

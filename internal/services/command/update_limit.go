@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -36,10 +37,10 @@ import (
 //
 // Note: LimitType and Currency are immutable and cannot be updated.
 type UpdateLimitInput struct {
-	Name        *string        `json:"name,omitempty"`
-	Description *string        `json:"description,omitempty"`
-	MaxAmount   *int64         `json:"maxAmount,omitempty"`
-	Scopes      *[]model.Scope `json:"scopes,omitempty"`
+	Name        *string          `json:"name,omitempty"`
+	Description *string          `json:"description,omitempty"`
+	MaxAmount   *decimal.Decimal `json:"maxAmount,omitempty"`
+	Scopes      *[]model.Scope   `json:"scopes,omitempty"`
 }
 
 // UpdateLimitCommand handles limit updates.

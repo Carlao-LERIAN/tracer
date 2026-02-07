@@ -11,6 +11,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg/constant"
 	"tracer/pkg/contextutil"
@@ -35,7 +36,7 @@ type CreateLimitInput struct {
 	Name        string
 	Description *string
 	LimitType   model.LimitType
-	MaxAmount   int64
+	MaxAmount   decimal.Decimal
 	Currency    string
 	Scopes      []model.Scope
 }

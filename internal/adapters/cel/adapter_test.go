@@ -11,6 +11,7 @@ import (
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,12 +68,12 @@ func TestAdapter_Compile_Success(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
-	program, err := adapter.Compile(ctx, "amount > 100000")
+	program, err := adapter.Compile(ctx, "amount > 1000")
 
 	require.NoError(t, err)
 	assert.NotNil(t, program)
 	assert.NotEmpty(t, program.ExpressionHash)
-	assert.Equal(t, "amount > 100000", program.SourceExpression)
+	assert.Equal(t, "amount > 1000", program.SourceExpression)
 	assert.NotNil(t, program.Program)
 }
 
@@ -82,7 +83,7 @@ func TestAdapter_Compile_CacheHit(t *testing.T) {
 
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
-	expression := "amount > 100000"
+	expression := "amount > 1000"
 
 	// First compilation
 	program1, err := adapter.Compile(ctx, expression)
@@ -150,14 +151,14 @@ func TestAdapter_Evaluate_Success(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
-	program, err := adapter.Compile(ctx, "amount > 100000")
+	program, err := adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
 	req := newTestRequest()
 	result, err := adapter.Evaluate(ctx, program, req)
 
 	require.NoError(t, err)
-	assert.True(t, result, "150000 > 100000 should be true")
+	assert.True(t, result, "1500 > 1000 should be true")
 }
 
 // TestAdapter_Evaluate_False tests evaluation returning false.
@@ -167,14 +168,14 @@ func TestAdapter_Evaluate_False(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
-	program, err := adapter.Compile(ctx, "amount > 200000")
+	program, err := adapter.Compile(ctx, "amount > 2000")
 	require.NoError(t, err)
 
 	req := newTestRequest()
 	result, err := adapter.Evaluate(ctx, program, req)
 
 	require.NoError(t, err)
-	assert.False(t, result, "150000 > 200000 should be false")
+	assert.False(t, result, "1500 > 2000 should be false")
 }
 
 // TestAdapter_Evaluate_ComplexExpression tests complex expression evaluation.
@@ -184,7 +185,7 @@ func TestAdapter_Evaluate_ComplexExpression(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
-	program, err := adapter.Compile(ctx, `transactionType == "PIX" && amount > 100000 && account["status"] == "active"`)
+	program, err := adapter.Compile(ctx, `transactionType == "PIX" && amount > 1000 && account["status"] == "active"`)
 	require.NoError(t, err)
 
 	req := newTestRequest()
@@ -215,7 +216,7 @@ func TestAdapter_Evaluate_NilRequest(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
-	program, err := adapter.Compile(ctx, "amount > 100000")
+	program, err := adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
 	result, err := adapter.Evaluate(ctx, program, nil)
@@ -232,7 +233,7 @@ func TestAdapter_Invalidate(t *testing.T) {
 	ctx := context.Background()
 
 	// Compile and cache
-	program, err := adapter.Compile(ctx, "amount > 100000")
+	program, err := adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
 	// Verify in cache
@@ -262,7 +263,7 @@ func TestAdapter_Stats(t *testing.T) {
 	assert.Equal(t, int64(0), stats.Misses)
 
 	// Compile (cache miss)
-	_, err := adapter.Compile(ctx, "amount > 100000")
+	_, err := adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
 	stats = adapter.Stats()
@@ -270,7 +271,7 @@ func TestAdapter_Stats(t *testing.T) {
 	assert.Equal(t, int64(1), stats.Misses) // First compilation is a miss
 
 	// Compile same (cache hit)
-	_, err = adapter.Compile(ctx, "amount > 100000")
+	_, err = adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
 	stats = adapter.Stats()
@@ -289,7 +290,7 @@ func TestAdapter_TracingSpans(t *testing.T) {
 	// Create adapter and perform operations
 	adapter := newTestAdapter(t)
 
-	program, err := adapter.Compile(ctx, "amount > 100000")
+	program, err := adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
 	_, err = adapter.Evaluate(ctx, program, newTestRequest())
@@ -312,6 +313,93 @@ func TestAdapter_TracingSpans(t *testing.T) {
 
 	assert.True(t, compileSpan, "Should have adapter.cel.compile span")
 	assert.True(t, evalSpan, "Should have adapter.cel.evaluate span")
+}
+
+// TestAdapter_Evaluate_FractionalAmount tests evaluation with fractional decimal amounts.
+func TestAdapter_Evaluate_FractionalAmount(t *testing.T) {
+	t.Parallel()
+
+	adapter := newTestAdapter(t)
+	ctx := context.Background()
+
+	program, err := adapter.Compile(ctx, "amount > 12.34")
+	require.NoError(t, err)
+
+	req := newTestRequest()
+	req.Amount = decimal.RequireFromString("15.50")
+	result, err := adapter.Evaluate(ctx, program, req)
+
+	require.NoError(t, err)
+	assert.True(t, result, "15.50 > 12.34 should be true")
+}
+
+// TestAdapter_Evaluate_AmountEquality tests equality operators with int and double literals.
+// DynType allows cross-type equality (amount == intLiteral) that DoubleType did not support.
+func TestAdapter_Evaluate_AmountEquality(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		expression string
+		amount     decimal.Decimal
+		expected   bool
+	}{
+		{
+			name:       "equals int literal - true",
+			expression: "amount == 1500",
+			amount:     decimal.RequireFromString("1500"),
+			expected:   true,
+		},
+		{
+			name:       "equals int literal - false",
+			expression: "amount == 1500",
+			amount:     decimal.RequireFromString("999.99"),
+			expected:   false,
+		},
+		{
+			name:       "equals double literal - true",
+			expression: "amount == 1500.0",
+			amount:     decimal.RequireFromString("1500"),
+			expected:   true,
+		},
+		{
+			name:       "not equals int literal - true",
+			expression: "amount != 1000",
+			amount:     decimal.RequireFromString("1500"),
+			expected:   true,
+		},
+		{
+			name:       "not equals int literal - false",
+			expression: "amount != 1500",
+			amount:     decimal.RequireFromString("1500"),
+			expected:   false,
+		},
+		{
+			name:       "equals fractional double - true",
+			expression: "amount == 99.99",
+			amount:     decimal.RequireFromString("99.99"),
+			expected:   true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			adapter := newTestAdapter(t)
+			ctx := context.Background()
+
+			program, err := adapter.Compile(ctx, tc.expression)
+			require.NoError(t, err)
+
+			req := newTestRequest()
+			req.Amount = tc.amount
+			result, err := adapter.Evaluate(ctx, program, req)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
 }
 
 // TestAdapter_ImplementsInterface tests that Adapter implements ExpressionEngine.

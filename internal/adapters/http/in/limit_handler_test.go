@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/shopspring/decimal"
+
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
@@ -53,7 +55,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 						ID:        testutil.MustDeterministicUUID(1),
 						Name:      "Daily Limit",
 						LimitType: model.LimitTypeDaily,
-						MaxAmount: 100000,
+						MaxAmount: decimal.RequireFromString("1000"),
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
@@ -76,7 +78,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			name: "error - missing required field name",
 			requestBody: map[string]interface{}{
 				"limitType": "DAILY",
-				"maxAmount": 100000,
+				"maxAmount": 1000,
 				"currency":  "BRL",
 				"scopes": []map[string]interface{}{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
@@ -94,7 +96,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			name: "error - missing required field limitType",
 			requestBody: map[string]interface{}{
 				"name":      "Test Limit",
-				"maxAmount": 100000,
+				"maxAmount": 1000,
 				"currency":  "BRL",
 				"scopes": []map[string]interface{}{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
@@ -113,7 +115,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			requestBody: map[string]interface{}{
 				"name":      "Test Limit",
 				"limitType": "INVALID",
-				"maxAmount": 100000,
+				"maxAmount": 1000,
 				"currency":  "BRL",
 				"scopes": []map[string]interface{}{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
@@ -132,7 +134,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			requestBody: map[string]interface{}{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 100000,
+				"maxAmount": 1000,
 				"currency":  "BR",
 				"scopes": []map[string]interface{}{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
@@ -170,7 +172,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			requestBody: map[string]interface{}{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 100000,
+				"maxAmount": 1000,
 				"currency":  "BRL",
 				"scopes":    []map[string]interface{}{},
 			},
@@ -187,7 +189,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			requestBody: map[string]interface{}{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 100000,
+				"maxAmount": 1000,
 				"currency":  "BRL",
 				"scopes": []map[string]interface{}{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
@@ -272,7 +274,7 @@ func TestLimitHandler_GetLimit(t *testing.T) {
 						ID:        validID,
 						Name:      "Daily Limit",
 						LimitType: model.LimitTypeDaily,
-						MaxAmount: 100000,
+						MaxAmount: decimal.RequireFromString("1000"),
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
@@ -513,7 +515,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 						ID:        validID,
 						Name:      "Updated Limit Name",
 						LimitType: model.LimitTypeDaily,
-						MaxAmount: 100000,
+						MaxAmount: decimal.RequireFromString("1000"),
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
@@ -534,7 +536,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 			name:    "success - updates maxAmount",
 			limitID: validID.String(),
 			requestBody: map[string]interface{}{
-				"maxAmount": 200000,
+				"maxAmount": 2000,
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				mockService := NewMockLimitService(ctrl)
@@ -544,7 +546,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 						ID:        validID,
 						Name:      "Test Limit",
 						LimitType: model.LimitTypeDaily,
-						MaxAmount: 200000,
+						MaxAmount: decimal.RequireFromString("2000"),
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
@@ -558,7 +560,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 				var response map[string]interface{}
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
-				assert.Equal(t, float64(200000), response["maxAmount"])
+				assert.Equal(t, "2000", response["maxAmount"])
 			},
 		},
 		{
@@ -902,7 +904,7 @@ func TestToCreateLimitServiceInput(t *testing.T) {
 		Name:        "Test Limit",
 		Description: &desc,
 		LimitType:   model.LimitTypeDaily,
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "BRL",
 		Scopes: []model.Scope{
 			{
@@ -926,7 +928,7 @@ func TestToCreateLimitServiceInput(t *testing.T) {
 
 func TestToUpdateLimitServiceInput(t *testing.T) {
 	name := "Updated Name"
-	amount := int64(200000)
+	amount := decimal.RequireFromString("2000")
 	accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 
 	input := &UpdateLimitInput{
@@ -996,7 +998,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(80))},
@@ -1009,7 +1011,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{}, // Empty scope
@@ -1023,7 +1025,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      string(make([]byte, 300)),
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(81))},
@@ -1065,7 +1067,7 @@ func TestUpdateLimitInput_Validate(t *testing.T) {
 		{
 			name: "valid partial update - amount only",
 			input: UpdateLimitInput{
-				MaxAmount: func() *int64 { a := int64(200000); return &a }(),
+				MaxAmount: func() *decimal.Decimal { a := decimal.RequireFromString("2000"); return &a }(),
 			},
 			expectError: false,
 		},
@@ -1241,7 +1243,7 @@ func TestUpdateLimitInput_IsEmpty(t *testing.T) {
 		{
 			name: "input with maxAmount",
 			input: UpdateLimitInput{
-				MaxAmount: func() *int64 { a := int64(100); return &a }(),
+				MaxAmount: func() *decimal.Decimal { a := decimal.RequireFromString("1"); return &a }(),
 			},
 			expected: false,
 		},
@@ -1282,7 +1284,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{
@@ -1301,7 +1303,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(90))}, // Valid scope at index 0
@@ -1316,7 +1318,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{
@@ -1368,7 +1370,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 				body, _ := json.Marshal(map[string]interface{}{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": 1000,
 					"currency":  "BRL",
 					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
@@ -1390,7 +1392,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 				body, _ := json.Marshal(map[string]interface{}{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": 1000,
 					"currency":  "BRL",
 					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
@@ -1412,7 +1414,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 				body, _ := json.Marshal(map[string]interface{}{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": 1000,
 					"currency":  "BRL",
 					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
@@ -1434,7 +1436,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 				body, _ := json.Marshal(map[string]interface{}{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": 1000,
 					"currency":  "BRL",
 					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
@@ -1456,7 +1458,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 				body, _ := json.Marshal(map[string]interface{}{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": 1000,
 					"currency":  "BRL",
 					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
@@ -1478,7 +1480,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 				body, _ := json.Marshal(map[string]interface{}{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": 1000,
 					"currency":  "BRL",
 					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
@@ -1500,7 +1502,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 				body, _ := json.Marshal(map[string]interface{}{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": 1000,
 					"currency":  "BRL",
 					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
@@ -1522,7 +1524,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 				body, _ := json.Marshal(map[string]interface{}{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": 1000,
 					"currency":  "BRL",
 					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
@@ -1638,8 +1640,8 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			setupMock: func(m *MockLimitService) {
 				snapshot := &model.UsageSnapshot{
 					LimitID:            validID,
-					CurrentUsage:       50000,
-					LimitAmount:        100000,
+					CurrentUsage:       decimal.RequireFromString("500"),
+					LimitAmount:        decimal.RequireFromString("1000"),
 					UtilizationPercent: 50.0,
 					NearLimit:          false,
 					ResetAt:            &resetAt,
@@ -1656,8 +1658,8 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 
 				// Verify snapshot fields
 				assert.Equal(t, validID.String(), response["limitId"])
-				assert.Equal(t, float64(50000), response["currentUsage"])
-				assert.Equal(t, float64(100000), response["limitAmount"])
+				assert.Equal(t, "500", response["currentUsage"])
+				assert.Equal(t, "1000", response["limitAmount"])
 				assert.Equal(t, 50.0, response["utilizationPercent"])
 				assert.Equal(t, false, response["nearLimit"])
 				assert.NotNil(t, response["resetAt"])
@@ -1669,8 +1671,8 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			setupMock: func(m *MockLimitService) {
 				snapshot := &model.UsageSnapshot{
 					LimitID:            validID,
-					CurrentUsage:       85000,
-					LimitAmount:        100000,
+					CurrentUsage:       decimal.RequireFromString("850"),
+					LimitAmount:        decimal.RequireFromString("1000"),
 					UtilizationPercent: 85.0,
 					NearLimit:          true,
 					ResetAt:            &resetAt,
@@ -1687,7 +1689,7 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 
 				// Verify nearLimit is true when >80%
 				assert.Equal(t, validID.String(), response["limitId"])
-				assert.Equal(t, float64(85000), response["currentUsage"])
+				assert.Equal(t, "850", response["currentUsage"])
 				assert.Equal(t, 85.0, response["utilizationPercent"])
 				assert.Equal(t, true, response["nearLimit"])
 			},
@@ -1698,8 +1700,8 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			setupMock: func(m *MockLimitService) {
 				snapshot := &model.UsageSnapshot{
 					LimitID:            validID,
-					CurrentUsage:       0,
-					LimitAmount:        100000,
+					CurrentUsage:       decimal.RequireFromString("0"),
+					LimitAmount:        decimal.RequireFromString("1000"),
 					UtilizationPercent: 0.0,
 					NearLimit:          false,
 					ResetAt:            nil, // PER_TRANSACTION has no reset
@@ -1716,7 +1718,7 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 
 				// Verify PER_TRANSACTION: zero usage and no resetAt
 				assert.Equal(t, validID.String(), response["limitId"])
-				assert.Equal(t, float64(0), response["currentUsage"])
+				assert.Equal(t, "0", response["currentUsage"])
 				assert.Equal(t, 0.0, response["utilizationPercent"])
 				assert.Equal(t, false, response["nearLimit"])
 				_, hasResetAt := response["resetAt"]

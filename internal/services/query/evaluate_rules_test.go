@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -86,21 +87,21 @@ func TestEvaluateRulesQuery_Execute(t *testing.T) {
 	denyRule := &model.Rule{
 		ID:         denyRuleID,
 		Name:       "Deny High Value",
-		Expression: "amount > 10000",
+		Expression: "amount > 100",
 		Action:     model.DecisionDeny,
 		Scopes:     []model.Scope{},
 	}
 	allowRule := &model.Rule{
 		ID:         allowRuleID,
 		Name:       "Allow Low Value",
-		Expression: "amount <= 10000",
+		Expression: "amount <= 100",
 		Action:     model.DecisionAllow,
 		Scopes:     []model.Scope{},
 	}
 	reviewRule := &model.Rule{
 		ID:         reviewRuleID,
 		Name:       "Review Medium Value",
-		Expression: "amount > 5000",
+		Expression: "amount > 50",
 		Action:     model.DecisionReview,
 		Scopes:     []model.Scope{},
 	}
@@ -108,7 +109,7 @@ func TestEvaluateRulesQuery_Execute(t *testing.T) {
 	testReq := &model.ValidationRequest{
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          15000,
+		Amount:          decimal.RequireFromString("150"),
 		Currency:        "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 	}
@@ -367,7 +368,7 @@ func TestEvaluateRulesQuery_Execute_ContextCancellation(t *testing.T) {
 	testReq := &model.ValidationRequest{
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          1000,
+		Amount:          decimal.RequireFromString("10"),
 		Currency:        "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 	}

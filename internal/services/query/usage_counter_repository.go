@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg/model"
 )
@@ -32,13 +33,12 @@ type UsageCounterRepository interface {
 
 	// IncrementAtomic atomically increments the usage counter.
 	// Must be called within the same transaction as GetOrCreateForUpdate.
-	// Returns constant.ErrUsageCounterOverflow if increment would cause overflow.
-	IncrementAtomic(ctx context.Context, counterID uuid.UUID, amount int64) error
+	IncrementAtomic(ctx context.Context, counterID uuid.UUID, amount decimal.Decimal) error
 
 	// DecrementAtomic atomically decrements the usage counter for rollback operations.
 	// Must be called within the same transaction as GetOrCreateForUpdate.
 	// Returns constant.ErrUsageCounterCurrentUsageNegative if decrement would result in negative usage.
-	DecrementAtomic(ctx context.Context, counterID uuid.UUID, amount int64) error
+	DecrementAtomic(ctx context.Context, counterID uuid.UUID, amount decimal.Decimal) error
 
 	// GetByLimitID retrieves all usage counters for a specific limit.
 	// Used for the GET /limits/{id}/usage endpoint.
@@ -49,7 +49,7 @@ type UsageCounterRepository interface {
 	// Used for checking multiple limits efficiently without N+1 queries.
 	// scopeKey and periodKey are used to filter relevant counters.
 	// Returns a map of limitID -> currentUsage. Missing entries mean usage is 0.
-	GetUsageForLimits(ctx context.Context, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]int64, error)
+	GetUsageForLimits(ctx context.Context, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]decimal.Decimal, error)
 
 	// DeleteExpiredCounters removes usage counters that haven't been updated since the specified time.
 	// This is used for cleanup of old period counters that are no longer relevant.

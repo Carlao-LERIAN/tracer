@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,10 +58,10 @@ func TestValidation_CompleteEvaluation_AllActiveRules(t *testing.T) {
 		expression string
 	}{
 		{"Rule 1", `transactionType == "CARD"`},
-		{"Rule 2", "amount > 1000"},
+		{"Rule 2", "amount > 10"},
 		{"Rule 3", `currency == "BRL"`},
 		{"Rule 4", `account["status"] == "active"`},
-		{"Rule 5", "amount < 1000000"},
+		{"Rule 5", "amount < 10000"},
 	}
 
 	ruleIDs := make([]string, len(rules))
@@ -75,7 +76,7 @@ func TestValidation_CompleteEvaluation_AllActiveRules(t *testing.T) {
 	// EXECUTION: Send validation request that matches all rules with scoped account
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 10000
+	payload["amount"] = 100
 	payload["currency"] = "BRL"
 	payload["account"] = map[string]any{
 		"accountId": testAccountID,
@@ -117,7 +118,7 @@ func TestValidation_CompleteEvaluation_CollectsMatchingWithDenyPrecedence(t *tes
 	// PRECONDITIONS: Create 3 ALLOW rules that match
 	allowRules := []string{
 		testutil.CreateRuleWithScope(t, "ALLOW Rule 1", `transactionType == "CARD"`, "ALLOW", []testutil.ScopeInput{accountScope}),
-		testutil.CreateRuleWithScope(t, "ALLOW Rule 2", "amount > 5000", "ALLOW", []testutil.ScopeInput{accountScope}),
+		testutil.CreateRuleWithScope(t, "ALLOW Rule 2", "amount > 50", "ALLOW", []testutil.ScopeInput{accountScope}),
 		testutil.CreateRuleWithScope(t, "ALLOW Rule 3", `currency == "BRL"`, "ALLOW", []testutil.ScopeInput{accountScope}),
 	}
 	for _, ruleID := range allowRules {
@@ -127,18 +128,18 @@ func TestValidation_CompleteEvaluation_CollectsMatchingWithDenyPrecedence(t *tes
 	}
 
 	// Create 1 DENY rule that matches
-	denyRule := testutil.CreateRuleWithScope(t, "DENY Rule", "amount > 50000", "DENY", []testutil.ScopeInput{accountScope})
+	denyRule := testutil.CreateRuleWithScope(t, "DENY Rule", "amount > 500", "DENY", []testutil.ScopeInput{accountScope})
 	testutil.ActivateRule(t, denyRule)
 	t.Cleanup(func() { testutil.CleanupRule(t, denyRule) })
 
 	// Create 1 ALLOW rule that does NOT match
-	noMatchRule := testutil.CreateRuleWithScope(t, "No Match Rule", "amount > 1000000", "ALLOW", []testutil.ScopeInput{accountScope})
+	noMatchRule := testutil.CreateRuleWithScope(t, "No Match Rule", "amount > 10000", "ALLOW", []testutil.ScopeInput{accountScope})
 	testutil.ActivateRule(t, noMatchRule)
 	t.Cleanup(func() { testutil.CleanupRule(t, noMatchRule) })
 
 	// EXECUTION: Send validation request with scoped account
 	payload := testutil.CreateBasicValidationPayload()
-	payload["amount"] = 100000 // Matches 3 ALLOW + 1 DENY, but not the "amount > 1000000" rule
+	payload["amount"] = 1000 // Matches 3 ALLOW + 1 DENY, but not the "amount > 10000" rule
 	payload["account"] = map[string]any{
 		"accountId": testAccountID,
 		"type":      "checking",
@@ -222,7 +223,7 @@ func TestValidation_CompleteEvaluation_CollectsEvaluatedRules(t *testing.T) {
 		"status":    "active",
 	}
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 10000
+	payload["amount"] = 100
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
 	require.Equal(t, http.StatusOK, status)
@@ -249,7 +250,7 @@ func TestValidation_CompleteEvaluation_DraftRulesNotEvaluated(t *testing.T) {
 	testutil.ActivateRule(t, activeRule1)
 	t.Cleanup(func() { testutil.CleanupRule(t, activeRule1) })
 
-	activeRule2 := testutil.CreateTestRuleWithExpression(t, "Active Rule 2", "amount > 1000", "ALLOW")
+	activeRule2 := testutil.CreateTestRuleWithExpression(t, "Active Rule 2", "amount > 10", "ALLOW")
 	testutil.ActivateRule(t, activeRule2)
 	t.Cleanup(func() { testutil.CleanupRule(t, activeRule2) })
 
@@ -261,7 +262,7 @@ func TestValidation_CompleteEvaluation_DraftRulesNotEvaluated(t *testing.T) {
 	// EXECUTION: Send validation request
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 10000
+	payload["amount"] = 100
 	payload["currency"] = "BRL" // Would match DRAFT rule if it were active
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
@@ -289,7 +290,7 @@ func TestValidation_CompleteEvaluation_InactiveRulesNotEvaluated(t *testing.T) {
 	testutil.ActivateRule(t, activeRule1)
 	t.Cleanup(func() { testutil.CleanupRule(t, activeRule1) })
 
-	activeRule2 := testutil.CreateTestRuleWithExpression(t, "Active Rule 2", "amount > 1000", "ALLOW")
+	activeRule2 := testutil.CreateTestRuleWithExpression(t, "Active Rule 2", "amount > 10", "ALLOW")
 	testutil.ActivateRule(t, activeRule2)
 	t.Cleanup(func() { testutil.CleanupRule(t, activeRule2) })
 
@@ -302,7 +303,7 @@ func TestValidation_CompleteEvaluation_InactiveRulesNotEvaluated(t *testing.T) {
 	// EXECUTION: Send validation request
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 10000
+	payload["amount"] = 100
 	payload["currency"] = "BRL" // Would match INACTIVE rule if it were active
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
@@ -330,7 +331,7 @@ func TestValidation_CompleteEvaluation_DeletedRulesNotEvaluated(t *testing.T) {
 	testutil.ActivateRule(t, activeRule1)
 	t.Cleanup(func() { testutil.CleanupRule(t, activeRule1) })
 
-	activeRule2 := testutil.CreateTestRuleWithExpression(t, "Active Rule 2", "amount > 1000", "ALLOW")
+	activeRule2 := testutil.CreateTestRuleWithExpression(t, "Active Rule 2", "amount > 10", "ALLOW")
 	testutil.ActivateRule(t, activeRule2)
 	t.Cleanup(func() { testutil.CleanupRule(t, activeRule2) })
 
@@ -342,7 +343,7 @@ func TestValidation_CompleteEvaluation_DeletedRulesNotEvaluated(t *testing.T) {
 	// EXECUTION: Send validation request
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 10000
+	payload["amount"] = 100
 	payload["currency"] = "BRL" // Would match DELETED rule if it existed
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
@@ -445,16 +446,16 @@ func TestValidation_ResponseStructure_ProcessingTimeMsAlwaysPresent(t *testing.T
 // Reference: API Design 4.1.1 ValidationResponse
 func TestValidation_ResponseStructure_ReasonField_AllDecisions(t *testing.T) {
 	// PRECONDITIONS: Create rules for different decisions
-	allowRuleID := testutil.CreateTestRuleWithExpression(t, "Allow Rule", "amount < 100000", "ALLOW")
+	allowRuleID := testutil.CreateTestRuleWithExpression(t, "Allow Rule", "amount < 1000", "ALLOW")
 	testutil.ActivateRule(t, allowRuleID)
 	t.Cleanup(func() { testutil.CleanupRule(t, allowRuleID) })
 
-	denyRuleID := testutil.CreateTestRuleWithExpression(t, "Deny Rule", "amount > 500000", "DENY")
+	denyRuleID := testutil.CreateTestRuleWithExpression(t, "Deny Rule", "amount > 5000", "DENY")
 	testutil.ActivateRule(t, denyRuleID)
 	t.Cleanup(func() { testutil.CleanupRule(t, denyRuleID) })
 
 	reviewRuleID := testutil.CreateTestRuleWithExpression(t, "Review Rule",
-		"amount > 100000 && amount <= 500000", "REVIEW")
+		"amount > 1000 && amount <= 5000", "REVIEW")
 	testutil.ActivateRule(t, reviewRuleID)
 	t.Cleanup(func() { testutil.CleanupRule(t, reviewRuleID) })
 
@@ -466,19 +467,19 @@ func TestValidation_ResponseStructure_ReasonField_AllDecisions(t *testing.T) {
 	}{
 		{
 			name:             "allow_decision",
-			amount:           50000,
+			amount:           500,
 			expectedDecision: "ALLOW",
 			expectedKeywords: []string{"allow", "approved", "permitted", "rule matched"},
 		},
 		{
 			name:             "deny_decision",
-			amount:           600000,
+			amount:           6000,
 			expectedDecision: "DENY",
 			expectedKeywords: []string{"deny", "blocked", "denied", "exceeded", "rule matched"},
 		},
 		{
 			name:             "review_decision",
-			amount:           300000,
+			amount:           3000,
 			expectedDecision: "REVIEW",
 			expectedKeywords: []string{"review", "manual", "flagged"},
 		},
@@ -547,11 +548,11 @@ func TestValidation_ResponseStructure_LimitUsageDetails_Populated(t *testing.T) 
 	accountID := testutil.MustDeterministicUUID(4008).String()
 
 	// PRECONDITIONS: Create and activate 2 limits
-	dailyLimitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 500000, "DAILY")
+	dailyLimitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 5000, "DAILY")
 	testutil.ActivateLimit(t, dailyLimitID)
 	t.Cleanup(func() { testutil.CleanupLimit(t, dailyLimitID) })
 
-	perTxnLimitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 100000, "PER_TRANSACTION")
+	perTxnLimitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 1000, "PER_TRANSACTION")
 	testutil.ActivateLimit(t, perTxnLimitID)
 	t.Cleanup(func() { testutil.CleanupLimit(t, perTxnLimitID) })
 
@@ -562,7 +563,7 @@ func TestValidation_ResponseStructure_LimitUsageDetails_Populated(t *testing.T) 
 		"type":      "checking",
 		"status":    "active",
 	}
-	payload["amount"] = 50000
+	payload["amount"] = 500
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
 	require.Equal(t, http.StatusOK, status)
@@ -593,23 +594,30 @@ func TestValidation_ResponseStructure_LimitUsageDetails_Populated(t *testing.T) 
 		assert.Contains(t, []string{"DAILY", "MONTHLY", "PER_TRANSACTION"}, period,
 			"period must be valid enum value")
 
-		limitAmount, ok := detailMap["limitAmount"].(float64)
-		require.True(t, ok, "limitAmount must be numeric")
-		assert.Greater(t, limitAmount, float64(0), "limitAmount must be positive")
+		// limitAmount is a decimal.Decimal serialized as JSON string
+		limitAmountStr, ok := detailMap["limitAmount"].(string)
+		require.True(t, ok, "limitAmount must be string (decimal serialization)")
+		limitAmount, err := decimal.NewFromString(limitAmountStr)
+		require.NoError(t, err, "limitAmount must be a valid decimal string")
+		assert.True(t, limitAmount.GreaterThan(decimal.Zero), "limitAmount must be positive")
 
-		currentUsage, ok := detailMap["currentUsage"].(float64)
-		require.True(t, ok, "currentUsage must be numeric")
-		assert.GreaterOrEqual(t, currentUsage, float64(0), "currentUsage must be >= 0")
+		currentUsageStr, ok := detailMap["currentUsage"].(string)
+		require.True(t, ok, "currentUsage must be string (decimal serialization)")
+		currentUsage, err := decimal.NewFromString(currentUsageStr)
+		require.NoError(t, err, "currentUsage must be a valid decimal string")
+		assert.True(t, currentUsage.GreaterThanOrEqual(decimal.Zero), "currentUsage must be >= 0")
 
-		attemptedAmount, ok := detailMap["attemptedAmount"].(float64)
-		require.True(t, ok, "attemptedAmount must be numeric")
-		assert.Equal(t, float64(50000), attemptedAmount,
+		attemptedAmountStr, ok := detailMap["attemptedAmount"].(string)
+		require.True(t, ok, "attemptedAmount must be string (decimal serialization)")
+		attemptedAmount, err := decimal.NewFromString(attemptedAmountStr)
+		require.NoError(t, err, "attemptedAmount must be a valid decimal string")
+		assert.True(t, attemptedAmount.Equal(decimal.RequireFromString("500")),
 			"attemptedAmount should equal request amount")
 
 		exceeded, ok := detailMap["exceeded"].(bool)
 		require.True(t, ok, "exceeded must be boolean")
 
-		t.Logf("Limit %d: limitId=%s, period=%s, limitAmount=%d, currentUsage=%d, exceeded=%v",
-			i, limitID, period, int64(limitAmount), int64(currentUsage), exceeded)
+		t.Logf("Limit %d: limitId=%s, period=%s, limitAmount=%s, currentUsage=%s, exceeded=%v",
+			i, limitID, period, limitAmount, currentUsage, exceeded)
 	}
 }

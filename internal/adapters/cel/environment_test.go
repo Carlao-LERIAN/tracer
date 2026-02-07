@@ -11,6 +11,7 @@ import (
 	"tracer/pkg/model"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,9 +63,15 @@ func TestNewEnvironment_CompileValidExpression(t *testing.T) {
 		},
 		{
 			name:        "Success - compile expression with amount comparison",
-			expression:  `amount > 10000`,
+			expression:  `amount > 100`,
 			expectErr:   false,
-			description: "Expression using amount int variable should compile",
+			description: "Expression using amount double variable should compile with cross-type numeric comparison",
+		},
+		{
+			name:        "Success - compile expression with decimal amount literal",
+			expression:  `amount > 12.34`,
+			expectErr:   false,
+			description: "Expression using amount with decimal literal should compile",
 		},
 		{
 			name:        "Success - compile expression with currency check",
@@ -116,7 +123,7 @@ func TestNewEnvironment_CompileValidExpression(t *testing.T) {
 		},
 		{
 			name:        "Success - compile complex expression",
-			expression:  `transactionType == "CARD" && amount > 10000 && account.status == "active"`,
+			expression:  `transactionType == "CARD" && amount > 100 && account.status == "active"`,
 			expectErr:   false,
 			description: "Complex expression using multiple variables should compile",
 		},
@@ -205,7 +212,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 		request            *model.ValidationRequest
 		expectedTransType  string
 		expectedSubType    string
-		expectedAmount     int64
+		expectedAmount     float64
 		expectedCurrency   string
 		expectedAccountID  string
 		expectedMerchantID string
@@ -220,7 +227,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 				RequestID:       uuid.New(),
 				TransactionType: model.TransactionTypeCard,
 				SubType:         &subType,
-				Amount:          10000,
+				Amount:          decimal.RequireFromString("100.75"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Now(),
 				Account: model.AccountContext{
@@ -248,7 +255,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 			},
 			expectedTransType:  "CARD",
 			expectedSubType:    "debit",
-			expectedAmount:     10000,
+			expectedAmount:          float64(100.75),
 			expectedCurrency:   "USD",
 			expectedAccountID:  envTestAccountID1.String(),
 			expectedMerchantID: envTestMerchantID1.String(),
@@ -350,7 +357,7 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 				RequestID:       uuid.New(),
 				TransactionType: model.TransactionTypeWire,
 				SubType:         nil,
-				Amount:          5000,
+				Amount:          decimal.RequireFromString("50"),
 				Currency:        "BRL",
 				TransactionTimestamp:       time.Now(),
 				Account: model.AccountContext{
@@ -371,7 +378,7 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 				RequestID:       uuid.New(),
 				TransactionType: model.TransactionTypePix,
 				SubType:         nil,
-				Amount:          1000,
+				Amount:          decimal.RequireFromString("10"),
 				Currency:        "BRL",
 				TransactionTimestamp:       time.Now(),
 				Account: model.AccountContext{
@@ -392,7 +399,7 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 				RequestID:       uuid.New(),
 				TransactionType: model.TransactionTypeCrypto,
 				SubType:         nil,
-				Amount:          100000,
+				Amount:          decimal.RequireFromString("1000"),
 				Currency:        "USD",
 				TransactionTimestamp:       time.Now(),
 				Account: model.AccountContext{

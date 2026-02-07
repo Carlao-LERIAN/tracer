@@ -650,7 +650,7 @@ func getSortValueFromLimit(lmt *model.Limit, sortBy string) string {
 	case "name":
 		return lmt.Name
 	case "maxAmount":
-		return fmt.Sprintf("%d", lmt.MaxAmount)
+		return lmt.MaxAmount.String()
 	case "updatedAt":
 		return lmt.UpdatedAt.Format(time.RFC3339Nano)
 	case "createdAt":

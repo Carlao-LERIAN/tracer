@@ -6,6 +6,8 @@ package model
 
 import (
 	"testing"
+
+	"github.com/shopspring/decimal"
 	"time"
 
 	"github.com/google/uuid"
@@ -296,7 +298,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			TransactionType:      TransactionTypeCard,
 			SubType:              &subType,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "invalid", // lowercase - will fail validation
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
@@ -335,7 +337,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			TransactionType:      TransactionTypeCard,
 			SubType:              &subType,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "USD", // valid uppercase
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
@@ -368,7 +370,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			TransactionType:      TransactionTypeCard,
 			SubType:              nil, // no subtype
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "invalid", // will fail
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
@@ -397,7 +399,7 @@ func TestValidationRequest_Validate_MerchantID(t *testing.T) {
 		return ValidationRequest{
 			RequestID:            validRequestID,
 			TransactionType:      TransactionTypeCard,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "BRL",
 			TransactionTimestamp: fixedTimestamp,
 			Account:              AccountContext{ID: validAccountID},
@@ -463,7 +465,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 		req := ValidationRequest{
 			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			TransactionType:      TransactionTypeCard,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
@@ -513,7 +515,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 		req := ValidationRequest{
 			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			TransactionType:      TransactionTypeCard,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
@@ -535,7 +537,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 		req := ValidationRequest{
 			RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
 			TransactionType:      TransactionTypeCard,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account:              AccountContext{ID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")},
@@ -608,7 +610,7 @@ func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
 		testutil.MustDeterministicUUID(10),
 		TransactionTypeCard,
 		nil,
-		1000,
+		decimal.RequireFromString("10"),
 		"USD",
 		fixedTime,
 		AccountContext{ID: testutil.MustDeterministicUUID(4)},

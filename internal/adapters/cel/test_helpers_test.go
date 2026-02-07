@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"tracer/internal/testutil"
@@ -66,7 +67,7 @@ func newTestRequest() *model.ValidationRequest {
 	return &model.ValidationRequest{
 		TransactionType:      "PIX",
 		SubType:              &subType,
-		Amount:               150000,
+		Amount:               decimal.RequireFromString("1500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testTimestamp,
 		Account: model.AccountContext{

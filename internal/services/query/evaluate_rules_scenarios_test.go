@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -39,7 +40,7 @@ func TestEvaluateRulesIntegration_DenyPrecedence_AllThreeRuleTypesMatch(t *testi
 	denyRule := &model.Rule{
 		ID:         denyRuleID,
 		Name:       "Block High Value Transactions",
-		Expression: "amount > 10000",
+		Expression: "amount > 100",
 		Action:     model.DecisionDeny,
 		Scopes:     []model.Scope{},
 	}
@@ -53,7 +54,7 @@ func TestEvaluateRulesIntegration_DenyPrecedence_AllThreeRuleTypesMatch(t *testi
 	reviewRule := &model.Rule{
 		ID:         reviewRuleID,
 		Name:       "Review Large Transactions",
-		Expression: "amount > 5000",
+		Expression: "amount > 50",
 		Action:     model.DecisionReview,
 		Scopes:     []model.Scope{},
 	}
@@ -61,7 +62,7 @@ func TestEvaluateRulesIntegration_DenyPrecedence_AllThreeRuleTypesMatch(t *testi
 	testReq := &model.ValidationRequest{
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          15000, // Matches all 3 rules
+		Amount:          decimal.RequireFromString("150"), // Matches all 3 rules
 		Currency:        "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 	}
@@ -116,14 +117,14 @@ func TestEvaluateRulesIntegration_ScopeFiltering_OnlyScopeMatchedRulesEvaluated(
 	matchingRule := &model.Rule{
 		ID:         matchingRuleID,
 		Name:       "Account Specific Rule",
-		Expression: "amount > 1000",
+		Expression: "amount > 10",
 		Action:     model.DecisionDeny,
 		Scopes:     []model.Scope{{AccountID: &accountID}},
 	}
 	nonMatchingRule := &model.Rule{
 		ID:         nonMatchingRuleID,
 		Name:       "Other Account Rule",
-		Expression: "amount > 1000",
+		Expression: "amount > 10",
 		Action:     model.DecisionDeny,
 		Scopes:     []model.Scope{{AccountID: &otherAccountID}},
 	}
@@ -131,7 +132,7 @@ func TestEvaluateRulesIntegration_ScopeFiltering_OnlyScopeMatchedRulesEvaluated(
 	testReq := &model.ValidationRequest{
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          5000,
+		Amount:          decimal.RequireFromString("50"),
 		Currency:        "USD",
 		Account:         model.AccountContext{ID: accountID, Type: "checking"},
 	}
@@ -194,7 +195,7 @@ func TestEvaluateRulesIntegration_DefaultDecisionFallback(t *testing.T) {
 			rule := &model.Rule{
 				ID:         ruleID,
 				Name:       "Non-matching Rule",
-				Expression: "amount > 100000", // Very high threshold
+				Expression: "amount > 1000", // Very high threshold
 				Action:     model.DecisionDeny,
 				Scopes:     []model.Scope{},
 			}
@@ -202,7 +203,7 @@ func TestEvaluateRulesIntegration_DefaultDecisionFallback(t *testing.T) {
 			testReq := &model.ValidationRequest{
 				RequestID:       testutil.MustDeterministicUUID(100),
 				TransactionType: model.TransactionTypeCard,
-				Amount:          100, // Low amount doesn't match rule
+				Amount:          decimal.RequireFromString("1"), // Low amount doesn't match rule
 				Currency:        "USD",
 				Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 			}
@@ -262,7 +263,7 @@ func TestEvaluateRulesIntegration_MaxRulesPerRequestLimit(t *testing.T) {
 	testReq := &model.ValidationRequest{
 		RequestID:       testutil.MustDeterministicUUID(1000),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          1000,
+		Amount:          decimal.RequireFromString("10"),
 		Currency:        "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(2000), Type: "checking"},
 	}
@@ -323,14 +324,14 @@ func TestEvaluateRulesIntegration_ReviewWithoutDeny_ReturnsReview(t *testing.T) 
 	allowRule := &model.Rule{
 		ID:         allowRuleID,
 		Name:       "Allow Low Value",
-		Expression: "amount < 10000",
+		Expression: "amount < 100",
 		Action:     model.DecisionAllow,
 		Scopes:     []model.Scope{},
 	}
 	reviewRule := &model.Rule{
 		ID:         reviewRuleID,
 		Name:       "Review Medium Value",
-		Expression: "amount > 1000",
+		Expression: "amount > 10",
 		Action:     model.DecisionReview,
 		Scopes:     []model.Scope{},
 	}
@@ -338,7 +339,7 @@ func TestEvaluateRulesIntegration_ReviewWithoutDeny_ReturnsReview(t *testing.T) 
 	testReq := &model.ValidationRequest{
 		RequestID:       testutil.MustDeterministicUUID(100),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          5000, // Matches both rules
+		Amount:          decimal.RequireFromString("50"), // Matches both rules
 		Currency:        "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(200), Type: "checking"},
 	}

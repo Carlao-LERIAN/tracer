@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -30,7 +31,7 @@ func TestCompleteEvaluator_EvaluateAll(t *testing.T) {
 	testRequest := &model.ValidationRequest{
 		RequestID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          150000, // $1500.00 in cents
+		Amount:          decimal.RequireFromString("1500"), // $1500.00
 		Currency:        "USD",
 		TransactionTimestamp:       now,
 		Account: model.AccountContext{
@@ -49,7 +50,7 @@ func TestCompleteEvaluator_EvaluateAll(t *testing.T) {
 	denyRule := &model.Rule{
 		ID:         denyRuleID,
 		Name:       "Deny high amount",
-		Expression: "amount > 100000",
+		Expression: "amount > 1000",
 		Action:     model.DecisionDeny,
 		Status:     model.RuleStatusActive,
 		Scopes:     []model.Scope{},
@@ -71,7 +72,7 @@ func TestCompleteEvaluator_EvaluateAll(t *testing.T) {
 	reviewRule := &model.Rule{
 		ID:         reviewRuleID,
 		Name:       "Review medium",
-		Expression: "amount > 50000",
+		Expression: "amount > 500",
 		Action:     model.DecisionReview,
 		Status:     model.RuleStatusActive,
 		Scopes:     []model.Scope{},
@@ -93,7 +94,7 @@ func TestCompleteEvaluator_EvaluateAll(t *testing.T) {
 	secondDenyRule := &model.Rule{
 		ID:         secondDenyRuleID,
 		Name:       "Second deny rule",
-		Expression: "amount > 100000",
+		Expression: "amount > 1000",
 		Action:     model.DecisionDeny,
 		Status:     model.RuleStatusActive,
 		Scopes:     []model.Scope{},
@@ -324,7 +325,7 @@ func TestCompleteEvaluator_EvaluateAll_UnknownAction(t *testing.T) {
 	testRequest := &model.ValidationRequest{
 		RequestID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          150000,
+		Amount:          decimal.RequireFromString("1500"),
 		Currency:        "USD",
 		TransactionTimestamp:       now,
 		Account: model.AccountContext{
@@ -382,7 +383,7 @@ func TestCompleteEvaluator_EvaluateAll_NilRuleSkipped(t *testing.T) {
 	testRequest := &model.ValidationRequest{
 		RequestID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          150000,
+		Amount:          decimal.RequireFromString("1500"),
 		Currency:        "USD",
 		TransactionTimestamp:       now,
 		Account: model.AccountContext{

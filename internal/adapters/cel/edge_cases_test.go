@@ -11,6 +11,7 @@ import (
 	"tracer/pkg/model"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +34,7 @@ func TestEdgeCase_NilMerchant(t *testing.T) {
 	}{
 		{
 			name:       "amount check with nil merchant",
-			expression: "amount > 100000",
+			expression: "amount > 1000",
 			expected:   true,
 		},
 		{
@@ -55,7 +56,7 @@ func TestEdgeCase_NilMerchant(t *testing.T) {
 
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
-				Amount:          150000,
+				Amount:          decimal.RequireFromString("1500"),
 				Currency:        "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
@@ -94,7 +95,7 @@ func TestEdgeCase_NilSegmentPortfolio(t *testing.T) {
 		},
 		{
 			name:       "amount check ignoring segment/portfolio",
-			expression: "amount > 100000",
+			expression: "amount > 1000",
 			expected:   true,
 		},
 	}
@@ -106,7 +107,7 @@ func TestEdgeCase_NilSegmentPortfolio(t *testing.T) {
 
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
-				Amount:          150000,
+				Amount:          decimal.RequireFromString("1500"),
 				Currency:        "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
@@ -137,13 +138,13 @@ func TestEdgeCase_EmptyMetadata(t *testing.T) {
 	}{
 		{
 			name:       "nil metadata - amount check",
-			expression: "amount > 100000",
+			expression: "amount > 1000",
 			metadata:   nil,
 			expected:   true,
 		},
 		{
 			name:       "empty metadata - amount check",
-			expression: "amount > 100000",
+			expression: "amount > 1000",
 			metadata:   map[string]any{},
 			expected:   true,
 		},
@@ -162,7 +163,7 @@ func TestEdgeCase_EmptyMetadata(t *testing.T) {
 
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
-				Amount:          150000,
+				Amount:          decimal.RequireFromString("1500"),
 				Currency:        "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
@@ -184,13 +185,13 @@ func TestEdgeCase_NilSubType(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
-	program, err := adapter.Compile(ctx, "amount > 100000")
+	program, err := adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
 	req := &model.ValidationRequest{
 		TransactionType: "PIX",
 		SubType:         nil, // nil subType
-		Amount:          150000,
+		Amount:          decimal.RequireFromString("1500"),
 		Currency:        "BRL",
 		Account: model.AccountContext{
 			ID:     edgeTestAccountID,
@@ -209,13 +210,13 @@ func TestEdgeCase_MinimalRequest(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 
-	program, err := adapter.Compile(ctx, "amount > 100000")
+	program, err := adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
 	// Minimal request - only required fields
 	req := &model.ValidationRequest{
 		TransactionType: "PIX",
-		Amount:          150000,
+		Amount:          decimal.RequireFromString("1500"),
 		Currency:        "BRL",
 		Account: model.AccountContext{
 			ID:     edgeTestAccountID,
@@ -246,8 +247,13 @@ func TestEdgeCase_ZeroAmount(t *testing.T) {
 		expected   bool
 	}{
 		{
-			name:       "zero amount equals zero",
+			name:       "zero amount equals zero (int literal)",
 			expression: "amount == 0",
+			expected:   true,
+		},
+		{
+			name:       "zero amount equals zero (double literal)",
+			expression: "amount == 0.0",
 			expected:   true,
 		},
 		{
@@ -269,7 +275,7 @@ func TestEdgeCase_ZeroAmount(t *testing.T) {
 
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
-				Amount:          0, // zero amount
+				Amount:          decimal.RequireFromString("0"), // zero amount
 				Currency:        "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
@@ -314,7 +320,7 @@ func TestEdgeCase_EmptyStrings(t *testing.T) {
 
 			req := &model.ValidationRequest{
 				TransactionType: "PIX",
-				Amount:          150000,
+				Amount:          decimal.RequireFromString("1500"),
 				Currency:        "", // empty string
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,
@@ -340,7 +346,7 @@ func TestEdgeCase_NilAccountMetadata(t *testing.T) {
 
 	req := &model.ValidationRequest{
 		TransactionType: "PIX",
-		Amount:          150000,
+		Amount:          decimal.RequireFromString("1500"),
 		Currency:        "BRL",
 		Account: model.AccountContext{
 			ID:       edgeTestAccountID,
@@ -365,7 +371,7 @@ func TestEdgeCase_MerchantWithNilMetadata(t *testing.T) {
 
 	req := &model.ValidationRequest{
 		TransactionType: "PIX",
-		Amount:          150000,
+		Amount:          decimal.RequireFromString("1500"),
 		Currency:        "BRL",
 		Account: model.AccountContext{
 			ID:     edgeTestAccountID,
@@ -386,6 +392,66 @@ func TestEdgeCase_MerchantWithNilMetadata(t *testing.T) {
 	assert.True(t, result)
 }
 
+// TestEdgeCase_FractionalAmount tests evaluation with fractional (decimal) amounts.
+func TestEdgeCase_FractionalAmount(t *testing.T) {
+	adapter := newTestAdapter(t)
+	ctx := context.Background()
+
+	tests := []struct {
+		name       string
+		expression string
+		amount     decimal.Decimal
+		expected   bool
+	}{
+		{
+			name:       "fractional greater than - true",
+			expression: "amount > 10.50",
+			amount:     decimal.RequireFromString("10.75"),
+			expected:   true,
+		},
+		{
+			name:       "fractional exact match",
+			expression: "amount == 99.99",
+			amount:     decimal.RequireFromString("99.99"),
+			expected:   true,
+		},
+		{
+			name:       "fractional less than small value",
+			expression: "amount < 0.01",
+			amount:     decimal.RequireFromString("0.005"),
+			expected:   true,
+		},
+		{
+			name:       "half unit amount",
+			expression: "amount == 0.5",
+			amount:     decimal.RequireFromString("0.5"),
+			expected:   true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			program, err := adapter.Compile(ctx, tc.expression)
+			require.NoError(t, err)
+
+			req := &model.ValidationRequest{
+				TransactionType: "PIX",
+				Amount:          tc.amount,
+				Currency:        "BRL",
+				Account: model.AccountContext{
+					ID:     edgeTestAccountID,
+					Status: "active",
+				},
+			}
+
+			result, err := adapter.Evaluate(ctx, program, req)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 // TestEdgeCase_NegativeAmount tests evaluation with negative amount.
 func TestEdgeCase_NegativeAmount(t *testing.T) {
 	adapter := newTestAdapter(t)
@@ -402,11 +468,47 @@ func TestEdgeCase_NegativeAmount(t *testing.T) {
 			expected:   true,
 		},
 		{
-			name:       "negative amount equals negative value",
-			expression: "amount == -50000",
+			name:       "negative amount equals negative value (int literal)",
+			expression: "amount == -500",
+			expected:   true,
+		},
+		{
+			name:       "negative amount equals negative value (double literal)",
+			expression: "amount == -500.0",
+			expected:   true,
+		},
+		{
+			name:       "negative fractional amount less than zero",
+			expression: "amount < -0.01",
+			expected:   true,
+		},
+		{
+			name:       "negative fractional amount greater than negative threshold",
+			expression: "amount > -500.01",
 			expected:   true,
 		},
 	}
+
+	// Also test with a fractional negative amount
+	t.Run("negative fractional amount equality", func(t *testing.T) {
+		program, err := adapter.Compile(ctx, "amount == -499.99")
+		require.NoError(t, err)
+
+		req := &model.ValidationRequest{
+			TransactionType: "REFUND",
+			Amount:          decimal.RequireFromString("-499.99"),
+			Currency:        "BRL",
+			Account: model.AccountContext{
+				ID:     edgeTestAccountID,
+				Status: "active",
+			},
+		}
+
+		result, err := adapter.Evaluate(ctx, program, req)
+
+		require.NoError(t, err)
+		assert.True(t, result, "-499.99 == -499.99 should be true")
+	})
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -415,7 +517,7 @@ func TestEdgeCase_NegativeAmount(t *testing.T) {
 
 			req := &model.ValidationRequest{
 				TransactionType: "REFUND",
-				Amount:          -50000, // negative amount (refund)
+				Amount:          decimal.RequireFromString("-500"), // negative amount (refund)
 				Currency:        "BRL",
 				Account: model.AccountContext{
 					ID:     edgeTestAccountID,

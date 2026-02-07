@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/shopspring/decimal"
+
 	"tracer/internal/adapters/postgres/db/mocks"
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
@@ -57,7 +59,7 @@ func testLimit() *model.Limit {
 		Name:        "Daily Transaction Limit",
 		Description: testutil.StringPtr("Test description"),
 		LimitType:   model.LimitTypeDaily,
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes:      []model.Scope{},
 		Status:      model.LimitStatusActive,
@@ -1353,7 +1355,7 @@ func TestLimitRepository_buildNextCursor(t *testing.T) {
 			limit:          testLimit(),
 			sortBy:         "maxAmount",
 			sortOrder:      "DESC",
-			wantSortValue:  "100000",
+			wantSortValue:  "1000",
 			wantSortOrder:  "DESC",
 			wantPointsNext: true,
 		},
@@ -1497,7 +1499,7 @@ func TestGetSortValueFromLimit(t *testing.T) {
 		{
 			name:      "maxAmount field",
 			sortBy:    "maxAmount",
-			wantValue: "100000",
+			wantValue: "1000",
 		},
 		{
 			name:      "updatedAt field",
@@ -1534,28 +1536,28 @@ func TestGetSortValueFromLimit_DifferentAmounts(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		maxAmount int64
+		maxAmount decimal.Decimal
 		wantValue string
 	}{
 		{
 			name:      "zero amount",
-			maxAmount: 0,
+			maxAmount: decimal.RequireFromString("0"),
 			wantValue: "0",
 		},
 		{
 			name:      "small amount",
-			maxAmount: 100,
-			wantValue: "100",
+			maxAmount: decimal.RequireFromString("1"),
+			wantValue: "1",
 		},
 		{
 			name:      "large amount",
-			maxAmount: 9999999999,
-			wantValue: "9999999999",
+			maxAmount: decimal.RequireFromString("99999999.99"),
+			wantValue: "99999999.99",
 		},
 		{
 			name:      "negative amount",
-			maxAmount: -500,
-			wantValue: "-500",
+			maxAmount: decimal.RequireFromString("-5"),
+			wantValue: "-5",
 		},
 	}
 

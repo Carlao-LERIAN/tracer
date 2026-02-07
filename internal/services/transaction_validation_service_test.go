@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -119,7 +120,7 @@ func TestTransactionValidationService_GetTransactionValidation(t *testing.T) {
 					ID:                   validationID,
 					RequestID:            requestID,
 					TransactionType:      model.TransactionTypeCard,
-					Amount:               10000,
+					Amount:               decimal.RequireFromString("100"),
 					Currency:             "USD",
 					TransactionTimestamp: fixedTime,
 					Account:              model.AccountContext{ID: accountID},
@@ -136,7 +137,7 @@ func TestTransactionValidationService_GetTransactionValidation(t *testing.T) {
 				assert.Equal(t, validationID, result.ID)
 				assert.Equal(t, requestID, result.RequestID)
 				assert.Equal(t, model.TransactionTypeCard, result.TransactionType)
-				assert.Equal(t, int64(10000), result.Amount)
+				assert.Equal(t, decimal.RequireFromString("100").String(), result.Amount.String())
 				assert.Equal(t, "USD", result.Currency)
 				assert.Equal(t, model.DecisionAllow, result.EvaluationResult.Decision)
 				assert.Equal(t, "Transaction allowed", result.EvaluationResult.Reason)
@@ -247,7 +248,7 @@ func TestTransactionValidationService_ListTransactionValidations(t *testing.T) {
 							ID:                   validationID1,
 							RequestID:            requestID1,
 							TransactionType:      model.TransactionTypeCard,
-							Amount:               10000,
+							Amount:               decimal.RequireFromString("100"),
 							Currency:             "USD",
 							TransactionTimestamp: fixedTime,
 							Account:              model.AccountContext{ID: accountID},
@@ -261,7 +262,7 @@ func TestTransactionValidationService_ListTransactionValidations(t *testing.T) {
 							ID:                   validationID2,
 							RequestID:            requestID2,
 							TransactionType:      model.TransactionTypePix,
-							Amount:               5000,
+							Amount:               decimal.RequireFromString("50"),
 							Currency:             "BRL",
 							TransactionTimestamp: fixedTime.Add(time.Hour),
 							Account:              model.AccountContext{ID: accountID},
@@ -297,7 +298,7 @@ func TestTransactionValidationService_ListTransactionValidations(t *testing.T) {
 							ID:                   validationID1,
 							RequestID:            requestID1,
 							TransactionType:      model.TransactionTypeCard,
-							Amount:               10000,
+							Amount:               decimal.RequireFromString("100"),
 							Currency:             "USD",
 							TransactionTimestamp: fixedTime,
 							Account:              model.AccountContext{ID: accountID},

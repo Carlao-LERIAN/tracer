@@ -6,6 +6,8 @@ package model
 
 import (
 	"testing"
+
+	"github.com/shopspring/decimal"
 	"time"
 
 	"tracer/internal/testutil"
@@ -22,7 +24,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 		return &ValidationRequest{
 			RequestID:       testutil.MustDeterministicUUID(2),
 			TransactionType: TransactionTypeCard,
-			Amount:          10000, // $100.00 in cents
+			Amount:          decimal.RequireFromString("100"), // $100.00
 			Currency:        "USD",
 			TransactionTimestamp:       testutil.FixedTime(),
 			Account: AccountContext{
@@ -67,14 +69,14 @@ func TestValidationRequest_Validate(t *testing.T) {
 		{
 			name: "zero amount fails",
 			modify: func(r *ValidationRequest) {
-				r.Amount = 0
+				r.Amount = decimal.RequireFromString("0")
 			},
 			expectedErr: constant.ErrValidationAmountNonPositive,
 		},
 		{
 			name: "negative amount fails",
 			modify: func(r *ValidationRequest) {
-				r.Amount = -100
+				r.Amount = decimal.RequireFromString("-1")
 			},
 			expectedErr: constant.ErrValidationAmountNonPositive,
 		},
@@ -192,7 +194,7 @@ func TestValidationRequest_ToTransactionContext(t *testing.T) {
 		RequestID:       testutil.MustDeterministicUUID(12),
 		TransactionType: TransactionTypeCard,
 		SubType:         &subType,
-		Amount:          50000,
+		Amount:          decimal.RequireFromString("500"),
 		Currency:        "BRL",
 		TransactionTimestamp:       testutil.FixedTime(),
 		Account: AccountContext{
@@ -230,7 +232,7 @@ func TestValidationRequest_ToTransactionContext_NilOptionalFields(t *testing.T) 
 		RequestID:       testutil.MustDeterministicUUID(20),
 		TransactionType: TransactionTypePix,
 		SubType:         nil,
-		Amount:          10000,
+		Amount:          decimal.RequireFromString("100"),
 		Currency:        "BRL",
 		TransactionTimestamp:       testutil.FixedTime(),
 		Account: AccountContext{
@@ -263,7 +265,7 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 			RequestID:       testutil.MustDeterministicUUID(33),
 			TransactionType: TransactionTypeCard,
 			SubType:         &subType,
-			Amount:          50000,
+			Amount:          decimal.RequireFromString("500"),
 			Currency:        "USD",
 			TransactionTimestamp:       timestamp,
 			Account: AccountContext{
@@ -290,7 +292,7 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 			RequestID:       testutil.MustDeterministicUUID(41),
 			TransactionType: TransactionTypePix,
 			SubType:         nil,
-			Amount:          10000,
+			Amount:          decimal.RequireFromString("100"),
 			Currency:        "BRL",
 			TransactionTimestamp:       testutil.FixedTime(),
 			Account: AccountContext{

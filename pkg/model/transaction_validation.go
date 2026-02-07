@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg/constant"
 )
@@ -20,7 +21,7 @@ type TransactionValidation struct {
 	RequestID            uuid.UUID          `json:"requestId" swaggertype:"string" format:"uuid"`
 	TransactionType      TransactionType    `json:"transactionType"`
 	SubType              *string            `json:"subType,omitempty"`
-	Amount               int64              `json:"amount"`
+	Amount               decimal.Decimal    `json:"amount" swaggertype:"string"`
 	Currency             string             `json:"currency"`
 	TransactionTimestamp time.Time          `json:"transactionTimestamp" format:"date-time"`
 	Account              AccountContext     `json:"account"`

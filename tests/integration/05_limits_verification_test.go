@@ -10,12 +10,14 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"tracer/internal/testutil"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +28,7 @@ import (
 // Tests for limit verification, atomic usage updates, and period reset.
 // Reference: tests/integration/05-limits-verification.md
 //
-// Note: In this file, "limit of X" refers to a limit with `maxAmount: X` (in cents).
+// Note: In this file, "limit of X" refers to a limit with `maxAmount: X`.
 // =============================================================================
 
 // limitVerificationResponse wraps a single limit for verification tests.
@@ -34,7 +36,7 @@ type limitVerificationResponse struct {
 	ID          string               `json:"limitId"`
 	Name        string               `json:"name"`
 	LimitType   string               `json:"limitType"`
-	MaxAmount   int64                `json:"maxAmount"`
+	MaxAmount   decimal.Decimal      `json:"maxAmount"`
 	Currency    string               `json:"currency"`
 	Scopes      []limitScopeResponse `json:"scopes"`
 	Status      string               `json:"status"`
@@ -56,14 +58,14 @@ func TestLimitsVerification_5_1_1_FindsApplicableLimitsByScope(t *testing.T) {
 	accountID2 := testutil.MustDeterministicUUID(50102).String()
 
 	// Create DAILY limit for acc-1
-	limit1ID := testutil.CreateLimitWithAccountScope(t, accountID1, 100000)
+	limit1ID := testutil.CreateLimitWithAccountScope(t, accountID1, 1000)
 	testutil.ActivateLimit(t, limit1ID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limit1ID)
 	})
 
 	// Create DAILY limit for acc-2
-	limit2ID := testutil.CreateLimitWithAccountScope(t, accountID2, 100000)
+	limit2ID := testutil.CreateLimitWithAccountScope(t, accountID2, 1000)
 	testutil.ActivateLimit(t, limit2ID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limit2ID)
@@ -73,7 +75,7 @@ func TestLimitsVerification_5_1_1_FindsApplicableLimitsByScope(t *testing.T) {
 	req := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50103).String(),
 		TransactionType:      "PIX",
-		Amount:               30000,
+		Amount:               decimal.RequireFromString("300"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -113,18 +115,18 @@ func TestLimitsVerification_5_1_1_FindsApplicableLimitsByScope(t *testing.T) {
 func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50110).String()
 
-	// Create DAILY limit of 100000 for the account
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	// Create DAILY limit of 1000 for the account
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// First validation to establish currentUsage = 40000
+	// First validation to establish currentUsage = 400
 	firstReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50111).String(),
 		TransactionType:      "PIX",
-		Amount:               40000,
+		Amount:               decimal.RequireFromString("400"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -136,12 +138,12 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 	defer resp1.Body.Close()
 	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
-	// Second validation with amount = 30000
-	// Projected usage = 40000 + 30000 = 70000
+	// Second validation with amount = 300
+	// Projected usage = 400 + 300 = 700
 	secondReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50112).String(),
 		TransactionType:      "PIX",
-		Amount:               30000,
+		Amount:               decimal.RequireFromString("300"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -158,14 +160,14 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 	err := json.Unmarshal(body2, &result)
 	require.NoError(t, err)
 
-	// Verify projected usage (currentUsage should reflect 40000 + 30000 = 70000)
+	// Verify projected usage (currentUsage should reflect 400 + 300 = 700)
 	var found bool
 	for _, detail := range result.LimitUsageDetails {
 		if detail.LimitID == limitID {
 			found = true
 			// After second transaction, currentUsage reflects the projected value
-			assert.Equal(t, int64(70000), detail.CurrentUsage, "currentUsage should be 70000 (projected)")
-			assert.Equal(t, int64(30000), detail.AttemptedAmount, "attemptedAmount should be 30000")
+			assert.True(t, decimal.RequireFromString("700").Equal(detail.CurrentUsage), "currentUsage should be 700 (projected)")
+			assert.True(t, decimal.RequireFromString("300").Equal(detail.AttemptedAmount), "attemptedAmount should be 300")
 			break
 		}
 	}
@@ -179,18 +181,18 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50120).String()
 
-	// Create limit of 100000
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	// Create limit of 1000
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// First validation to establish currentUsage = 80000
+	// First validation to establish currentUsage = 800
 	firstReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50121).String(),
 		TransactionType:      "PIX",
-		Amount:               80000,
+		Amount:               decimal.RequireFromString("800"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -202,11 +204,11 @@ func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t
 	defer resp1.Body.Close()
 	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
-	// Second validation with amount = 30000 (80000 + 30000 = 110000 > 100000)
+	// Second validation with amount = 300 (800 + 300 = 1100 > 1000)
 	secondReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50122).String(),
 		TransactionType:      "PIX",
-		Amount:               30000,
+		Amount:               decimal.RequireFromString("300"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -246,18 +248,18 @@ func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t
 func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50130).String()
 
-	// Create limit of 100000
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	// Create limit of 1000
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// First validation to establish currentUsage = 70000
+	// First validation to establish currentUsage = 700
 	firstReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50131).String(),
 		TransactionType:      "PIX",
-		Amount:               70000,
+		Amount:               decimal.RequireFromString("700"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -269,11 +271,11 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 	defer resp1.Body.Close()
 	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
-	// Second validation with amount = 30000 (70000 + 30000 = 100000 == limit)
+	// Second validation with amount = 300 (700 + 300 = 1000 == limit)
 	secondReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50132).String(),
 		TransactionType:      "PIX",
-		Amount:               30000,
+		Amount:               decimal.RequireFromString("300"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -290,13 +292,13 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 	err := json.Unmarshal(body2, &result)
 	require.NoError(t, err)
 
-	// Verify limitUsageDetails has exceeded = false and currentUsage = 100000
+	// Verify limitUsageDetails has exceeded = false and currentUsage = 1000
 	var found bool
 	for _, detail := range result.LimitUsageDetails {
 		if detail.LimitID == limitID {
 			found = true
 			assert.False(t, detail.Exceeded, "exceeded should be false when projected == limit")
-			assert.Equal(t, int64(100000), detail.CurrentUsage, "currentUsage should equal limit amount")
+			assert.True(t, decimal.RequireFromString("1000").Equal(detail.CurrentUsage), "currentUsage should equal limit amount")
 			break
 		}
 	}
@@ -310,18 +312,18 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50140).String()
 
-	// Create limit of 100000
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	// Create limit of 1000
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// First validation to establish currentUsage = 50000
+	// First validation to establish currentUsage = 500
 	firstReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50141).String(),
 		TransactionType:      "PIX",
-		Amount:               50000,
+		Amount:               decimal.RequireFromString("500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -333,11 +335,11 @@ func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing
 	defer resp1.Body.Close()
 	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
-	// Second validation with amount = 30000 (50000 + 30000 = 80000 < 100000)
+	// Second validation with amount = 300 (500 + 300 = 800 < 1000)
 	secondReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50142).String(),
 		TransactionType:      "PIX",
-		Amount:               30000,
+		Amount:               decimal.RequireFromString("300"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -372,18 +374,18 @@ func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing
 //
 // Test spec 5.1.6: Checks multiple limits
 func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
-	// Scenario 1: amount = 30000 - both limits should be OK
+	// Scenario 1: amount = 300 - both limits should be OK
 	t.Run("both_limits_ok", func(t *testing.T) {
 		// Create a fresh account for this sub-test to avoid state issues
 		accountID1 := testutil.MustDeterministicUUID(50160).String()
 
-		dailyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID1, 100000, "DAILY")
+		dailyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID1, 1000, "DAILY")
 		testutil.ActivateLimit(t, dailyID)
 		t.Cleanup(func() {
 			testutil.CleanupLimit(t, dailyID)
 		})
 
-		monthlyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID1, 500000, "MONTHLY")
+		monthlyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID1, 5000, "MONTHLY")
 		testutil.ActivateLimit(t, monthlyID)
 		t.Cleanup(func() {
 			testutil.CleanupLimit(t, monthlyID)
@@ -392,7 +394,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(50161).String(),
 			TransactionType:      "PIX",
-			Amount:               30000,
+			Amount:               decimal.RequireFromString("300"),
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -426,17 +428,17 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 		assert.True(t, monthlyFound, "MONTHLY limit should be in response")
 	})
 
-	// Scenario 2: amount = 120000 - exceeds DAILY limit
+	// Scenario 2: amount = 1200 - exceeds DAILY limit
 	t.Run("exceeds_daily_limit", func(t *testing.T) {
 		accountID2 := testutil.MustDeterministicUUID(50170).String()
 
-		dailyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID2, 100000, "DAILY")
+		dailyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID2, 1000, "DAILY")
 		testutil.ActivateLimit(t, dailyID)
 		t.Cleanup(func() {
 			testutil.CleanupLimit(t, dailyID)
 		})
 
-		monthlyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID2, 500000, "MONTHLY")
+		monthlyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID2, 5000, "MONTHLY")
 		testutil.ActivateLimit(t, monthlyID)
 		t.Cleanup(func() {
 			testutil.CleanupLimit(t, monthlyID)
@@ -445,7 +447,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(50171).String(),
 			TransactionType:      "PIX",
-			Amount:               120000, // Exceeds DAILY limit of 100000
+			Amount:               decimal.RequireFromString("1200"), // Exceeds DAILY limit of 1000
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -482,8 +484,8 @@ func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.
 	// Use valid transaction type (must be one of CARD, WIRE, PIX, CRYPTO)
 	transactionType := "CARD"
 
-	// Create PER_TRANSACTION limit of 50000
-	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, 50000)
+	// Create PER_TRANSACTION limit of 500
+	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, 500)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -491,12 +493,12 @@ func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.
 
 	testCases := []struct {
 		name     string
-		amount   int64
+		amount   decimal.Decimal
 		exceeded bool
 	}{
-		{"amount_30000_ok", 30000, false},
-		{"amount_50000_ok", 50000, false},
-		{"amount_60000_exceeded", 60000, true},
+		{"amount_30000_ok", decimal.RequireFromString("300"), false},
+		{"amount_50000_ok", decimal.RequireFromString("500"), false},
+		{"amount_60000_exceeded", decimal.RequireFromString("600"), true},
 	}
 
 	for i, tc := range testCases {
@@ -537,7 +539,7 @@ func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.
 			// Verify exceeded flag
 			for _, detail := range result.LimitUsageDetails {
 				if detail.LimitID == limitID {
-					assert.Equal(t, tc.exceeded, detail.Exceeded, "exceeded flag mismatch for amount %d", tc.amount)
+					assert.Equal(t, tc.exceeded, detail.Exceeded, "exceeded flag mismatch for amount %s", tc.amount)
 					break
 				}
 			}
@@ -556,18 +558,18 @@ func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.
 func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50201).String()
 
-	// Create DAILY limit of 100000 with currentUsage = 0
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	// Create DAILY limit of 1000 with currentUsage = 0
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// Validate transaction with amount = 20000
+	// Validate transaction with amount = 200
 	req := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50202).String(),
 		TransactionType:      "PIX",
-		Amount:               20000,
+		Amount:               decimal.RequireFromString("200"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -609,8 +611,8 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 
 		// If counters exist, verify the usage
 		if len(usageResponse.Counters) > 0 {
-			assert.Equal(t, int64(20000), usageResponse.Counters[0].CurrentUsage,
-				"currentUsage should be 20000 after validation")
+			assert.True(t, decimal.RequireFromString("200").Equal(usageResponse.Counters[0].CurrentUsage),
+				"currentUsage should be 200 after validation")
 		}
 	}
 }
@@ -622,18 +624,18 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50210).String()
 
-	// Create a limit of 100000 (currentUsage: 0)
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	// Create a limit of 1000 (currentUsage: 0)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// First, establish some usage (50000)
+	// First, establish some usage (500)
 	firstReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50211).String(),
 		TransactionType:      "PIX",
-		Amount:               50000,
+		Amount:               decimal.RequireFromString("500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -648,7 +650,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 	// Create DENY rule that will match CARD transactions with high amounts
 	// Use valid transaction type and a specific expression
 	ruleName := "deny-high-card-" + testutil.MustDeterministicUUID(5001).String()[:8]
-	expression := "transactionType == 'CARD' && amount > 15000"
+	expression := "transactionType == 'CARD' && amount > 150"
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, expression, "DENY")
 	testutil.ActivateRule(t, ruleID)
 	t.Cleanup(func() {
@@ -656,11 +658,11 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 	})
 
 	// Validate transaction that will be denied by the rule
-	// Using CARD with amount > 15000 to trigger the rule
+	// Using CARD with amount > 150 to trigger the rule
 	denyReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50212).String(),
 		TransactionType:      "CARD",
-		Amount:               20000,
+		Amount:               decimal.RequireFromString("200"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -680,7 +682,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 	assert.Equal(t, "DENY", result.Decision, "Expected DENY from rule")
 	assert.Contains(t, result.MatchedRuleIDs, ruleID, "Rule should be in matchedRuleIds")
 
-	// Verify usage was NOT incremented (should still be 50000)
+	// Verify usage was NOT incremented (should still be 500)
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -700,7 +702,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 		if len(usageResponse.Counters) > 0 {
-			assert.Equal(t, int64(50000), usageResponse.Counters[0].CurrentUsage,
+			assert.True(t, decimal.RequireFromString("500").Equal(usageResponse.Counters[0].CurrentUsage),
 				"Usage should NOT be incremented on rule-based DENY")
 		}
 	}
@@ -714,17 +716,17 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50220).String()
 
 	// Create a limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// First, establish initial usage (30000) with a PIX transaction (not WIRE, so no REVIEW)
+	// First, establish initial usage (300) with a PIX transaction (not WIRE, so no REVIEW)
 	setupReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50222).String(),
 		TransactionType:      "PIX",
-		Amount:               30000,
+		Amount:               decimal.RequireFromString("300"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -739,7 +741,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 	// Create REVIEW rule for WIRE transactions with medium amounts
 	// Use valid transaction type
 	ruleName := "review-wire-medium-" + testutil.MustDeterministicUUID(5002).String()[:8]
-	expression := "transactionType == 'WIRE' && amount > 10000"
+	expression := "transactionType == 'WIRE' && amount > 100"
 	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, expression, "REVIEW")
 	testutil.ActivateRule(t, ruleID)
 	t.Cleanup(func() {
@@ -747,11 +749,11 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 	})
 
 	// Validate transaction that will trigger REVIEW
-	// Using WIRE with amount > 10000 to trigger the rule
+	// Using WIRE with amount > 100 to trigger the rule
 	req := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50221).String(),
 		TransactionType:      "WIRE",
-		Amount:               20000,
+		Amount:               decimal.RequireFromString("200"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -771,7 +773,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 	assert.Equal(t, "REVIEW", result.Decision, "Expected REVIEW from rule")
 	assert.Contains(t, result.MatchedRuleIDs, ruleID, "Rule should be in matchedRuleIds")
 
-	// Verify usage was NOT incremented (should still be 30000 from setup)
+	// Verify usage was NOT incremented (should still be 300 from setup)
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -791,7 +793,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 		if len(usageResponse.Counters) > 0 {
-			assert.Equal(t, int64(30000), usageResponse.Counters[0].CurrentUsage,
+			assert.True(t, decimal.RequireFromString("300").Equal(usageResponse.Counters[0].CurrentUsage),
 				"Usage should NOT be incremented on REVIEW")
 		}
 	}
@@ -804,16 +806,16 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50230).String()
 
-	// Create limit of 1000000 (high enough for 10 concurrent transactions)
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000000)
+	// Create limit of 10000 (high enough for 10 concurrent transactions)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 10000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// Fire 10 parallel validations of amount=10000 each
+	// Fire 10 parallel validations of amount=100 each
 	const numConcurrent = 10
-	const amountPerTx = 10000
+	const amountPerTx = 100
 
 	var wg sync.WaitGroup
 	results := make(chan *testutil.ValidationResponse, numConcurrent)
@@ -827,7 +829,7 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 			req := &testutil.ValidationRequest{
 				RequestID:            testutil.MustDeterministicUUID(int64(50231 + idx)).String(),
 				TransactionType:      "PIX",
-				Amount:               amountPerTx,
+				Amount:               decimal.RequireFromString(strconv.Itoa(amountPerTx)),
 				Currency:             "BRL",
 				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
@@ -894,9 +896,9 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 
 		if len(usageResponse.Counters) > 0 {
 			// Final usage should be successCount * amountPerTx
-			expectedUsage := int64(successCount * amountPerTx)
-			assert.Equal(t, expectedUsage, usageResponse.Counters[0].CurrentUsage,
-				"Final currentUsage should be %d (based on %d successful validations)", expectedUsage, successCount)
+			expectedUsage := decimal.RequireFromString(strconv.Itoa(successCount * amountPerTx))
+			assert.True(t, expectedUsage.Equal(usageResponse.Counters[0].CurrentUsage),
+				"Final currentUsage should be %s (based on %d successful validations)", expectedUsage, successCount)
 		}
 	}
 
@@ -919,18 +921,18 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50250).String()
 
-	// Create limit of 100000 with high initial usage (90000)
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	// Create limit of 1000 with high initial usage (900)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// First, establish currentUsage = 90000
+	// First, establish currentUsage = 900
 	setupReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50251).String(),
 		TransactionType:      "PIX",
-		Amount:               90000,
+		Amount:               decimal.RequireFromString("900"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -942,11 +944,11 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 	defer respSetup.Body.Close()
 	require.Equal(t, http.StatusOK, respSetup.StatusCode, "Setup validation should succeed: %s", string(bodySetup))
 
-	// Fire 3 parallel validations of amount=10000 each
+	// Fire 3 parallel validations of amount=100 each
 	// Expected: Only 1 should succeed if atomic locking is implemented
-	// (90000 + 10000 = 100000 <= limit)
+	// (900 + 100 = 1000 <= limit)
 	const numConcurrent = 3
-	const amountPerTx = 10000
+	const amountPerTx = 100
 
 	var wg sync.WaitGroup
 	approvedCount := 0
@@ -961,7 +963,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 			req := &testutil.ValidationRequest{
 				RequestID:            testutil.MustDeterministicUUID(int64(50252 + idx)).String(),
 				TransactionType:      "PIX",
-				Amount:               amountPerTx,
+				Amount:               decimal.RequireFromString(strconv.Itoa(amountPerTx)),
 				Currency:             "BRL",
 				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
@@ -1029,7 +1031,7 @@ func TestLimitsVerification_5_3_1_NewPeriodCreatesNewCounter(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50301).String()
 
 	// Create DAILY limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1093,7 +1095,7 @@ func TestLimitsVerification_DailyLimitPeriodFormat(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50307).String()
 
 	// Create DAILY limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1103,7 +1105,7 @@ func TestLimitsVerification_DailyLimitPeriodFormat(t *testing.T) {
 	req := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50308).String(),
 		TransactionType:      "PIX",
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -1140,7 +1142,7 @@ func TestLimitsVerification_MonthlyLimitPeriodFormat(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50317).String()
 
 	// Create MONTHLY limit
-	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 500000, "MONTHLY")
+	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 5000, "MONTHLY")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1150,7 +1152,7 @@ func TestLimitsVerification_MonthlyLimitPeriodFormat(t *testing.T) {
 	req := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50318).String(),
 		TransactionType:      "PIX",
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -1194,18 +1196,18 @@ func TestLimitsVerification_MonthlyLimitPeriodFormat(t *testing.T) {
 func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50260).String()
 
-	// Create limit of 100000 (currentUsage: 0)
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	// Create limit of 1000 (currentUsage: 0)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// Establish initial usage of 50000
+	// Establish initial usage of 500
 	setupReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50261).String(),
 		TransactionType:      "PIX",
-		Amount:               50000,
+		Amount:               decimal.RequireFromString("500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -1217,7 +1219,7 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 	defer resp1.Body.Close()
 	require.Equal(t, http.StatusOK, resp1.StatusCode, "Setup validation should succeed: %s", string(body1))
 
-	// Verify initial usage is 50000
+	// Verify initial usage is 500
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
@@ -1232,7 +1234,7 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	var initialUsage int64
+	var initialUsage decimal.Decimal
 	if usageResp.StatusCode == http.StatusOK {
 		var usageResponse getLimitUsageResponse
 		err = json.Unmarshal(usageBody, &usageResponse)
@@ -1247,7 +1249,7 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 	faultReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50262).String(),
 		TransactionType:      "PIX",
-		Amount:               20000,
+		Amount:               decimal.RequireFromString("200"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -1264,41 +1266,41 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 		t.Log("Fault injection triggered 503 - verifying rollback behavior")
 
 		// Poll for rollback completion (avoid flaky fixed sleeps)
-		checkUsage := func() int64 {
+		checkUsage := func() decimal.Decimal {
 			usageReq2, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
 			if err != nil {
-				return -1
+				return decimal.RequireFromString("-1")
 			}
 			usageReq2.Header.Set("X-API-Key", apiKey)
 
 			usageResp2, err := testutil.HTTPClient.Do(usageReq2)
 			if err != nil {
-				return -1
+				return decimal.RequireFromString("-1")
 			}
 			defer usageResp2.Body.Close()
 
 			usageBody2, err := io.ReadAll(usageResp2.Body)
 			if err != nil {
-				return -1
+				return decimal.RequireFromString("-1")
 			}
 
 			if usageResp2.StatusCode == http.StatusOK {
 				var usageResponse2 getLimitUsageResponse
 				if err := json.Unmarshal(usageBody2, &usageResponse2); err != nil {
-					return -1
+					return decimal.RequireFromString("-1")
 				}
 				if len(usageResponse2.Counters) > 0 {
 					return usageResponse2.Counters[0].CurrentUsage
 				}
 			}
-			return -1
+			return decimal.RequireFromString("-1")
 		}
 
 		// Verify usage remains at initialUsage after rollback
 		require.Eventually(t, func() bool {
 			currentUsage := checkUsage()
-			return currentUsage == initialUsage || currentUsage == -1 // -1 means no counters returned
-		}, 2*time.Second, 100*time.Millisecond, "Usage should be rolled back to %d after failure", initialUsage)
+			return currentUsage.Equal(initialUsage) || currentUsage.Equal(decimal.RequireFromString("-1")) // -1 means no counters returned
+		}, 2*time.Second, 100*time.Millisecond, "Usage should be rolled back to %s after failure", initialUsage)
 	} else {
 		// Fault injection not triggered - document expected behavior
 		t.Logf("Fault injection not triggered (status: %d). Expected behavior documented:", resp2.StatusCode)
@@ -1327,18 +1329,18 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50320).String()
 
-	// Create DAILY limit of 100000
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	// Create DAILY limit of 1000
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// Establish usage in current period (80000)
+	// Establish usage in current period (800)
 	setupReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50321).String(),
 		TransactionType:      "PIX",
-		Amount:               80000,
+		Amount:               decimal.RequireFromString("800"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -1385,10 +1387,10 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 	t.Log("Expected behavior after midnight UTC:")
 	t.Log("- New periodKey created: YYYY-MM-DD (next day)")
 	t.Log("- Counter starts fresh at 0")
-	t.Log("- Transaction with amount=50000 should be approved")
+	t.Log("- Transaction with amount=500 should be approved")
 	t.Log("- New currentUsage = 50000")
 
-	// Verify current usage is 80000 (demonstrates period-based tracking)
+	// Verify current usage is 800 (demonstrates period-based tracking)
 	usageReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
 	require.NoError(t, err)
 	usageReq.Header.Set("X-API-Key", apiKey)
@@ -1406,9 +1408,9 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 		require.NoError(t, err)
 
 		if len(usageResponse.Counters) > 0 {
-			assert.Equal(t, int64(80000), usageResponse.Counters[0].CurrentUsage,
-				"currentUsage should be 80000 in current period")
-			t.Logf("Current period usage: %d", usageResponse.Counters[0].CurrentUsage)
+			assert.True(t, decimal.RequireFromString("800").Equal(usageResponse.Counters[0].CurrentUsage),
+				"currentUsage should be 800 in current period")
+			t.Logf("Current period usage: %s", usageResponse.Counters[0].CurrentUsage)
 		}
 	}
 }
@@ -1423,18 +1425,18 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50330).String()
 
-	// Create MONTHLY limit of 500000
-	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 500000, "MONTHLY")
+	// Create MONTHLY limit of 5000
+	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 5000, "MONTHLY")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// Establish usage in current month (450000)
+	// Establish usage in current month (4500)
 	setupReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50331).String(),
 		TransactionType:      "PIX",
-		Amount:               450000,
+		Amount:               decimal.RequireFromString("4500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -1485,7 +1487,7 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 	t.Log("Expected behavior after month rollover:")
 	t.Log("- New periodKey created: YYYY-MM (next month)")
 	t.Log("- Counter starts fresh at 0")
-	t.Log("- Transaction with amount=100000 should be approved")
+	t.Log("- Transaction with amount=1000 should be approved")
 	t.Log("- New currentUsage = 100000")
 
 	// Verify current usage
@@ -1506,9 +1508,9 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 		require.NoError(t, err)
 
 		if len(usageResponse.Counters) > 0 {
-			assert.Equal(t, int64(450000), usageResponse.Counters[0].CurrentUsage,
-				"currentUsage should be 450000 in current period")
-			t.Logf("Current period usage: %d", usageResponse.Counters[0].CurrentUsage)
+			assert.True(t, decimal.RequireFromString("4500").Equal(usageResponse.Counters[0].CurrentUsage),
+				"currentUsage should be 4500 in current period")
+			t.Logf("Current period usage: %s", usageResponse.Counters[0].CurrentUsage)
 		}
 	}
 }
@@ -1530,7 +1532,7 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50340).String()
 
 	// Create DAILY limit to test counter structure
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1540,7 +1542,7 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 	setupReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50341).String(),
 		TransactionType:      "PIX",
-		Amount:               30000,
+		Amount:               decimal.RequireFromString("300"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -1576,11 +1578,11 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 		// Some implementations may not return detailed counter info
 		if len(usageResponse.Counters) > 0 {
 			counter := usageResponse.Counters[0]
-			t.Logf("Current counter - Period: %s, Usage: %d", counter.PeriodKey, counter.CurrentUsage)
+			t.Logf("Current counter - Period: %s, Usage: %s", counter.PeriodKey, counter.CurrentUsage)
 
 			// Verify counter has expected structure
 			assert.NotEmpty(t, counter.PeriodKey, "Counter should have periodKey")
-			assert.Equal(t, int64(30000), counter.CurrentUsage, "Counter should have expected usage")
+			assert.True(t, decimal.RequireFromString("300").Equal(counter.CurrentUsage), "Counter should have expected usage")
 		} else {
 			t.Log("No counters returned by usage API - counter details may be internal implementation")
 			t.Logf("Usage response: %s", string(usageBody))

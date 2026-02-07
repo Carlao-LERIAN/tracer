@@ -6,6 +6,8 @@
 
 package integration
 
+import "github.com/shopspring/decimal"
+
 // scopeInput represents scope criteria for validation requests.
 // Shared across multiple test files in this package.
 type scopeInput struct {
@@ -23,7 +25,7 @@ type usageCounterResponse struct {
 	LimitID       string `json:"limitId"`
 	ScopeKey      string `json:"scopeKey"`
 	PeriodKey     string `json:"periodKey"`
-	CurrentUsage  int64  `json:"currentUsage"`
+	CurrentUsage  decimal.Decimal `json:"currentUsage"`
 	LastUpdatedAt string `json:"lastUpdatedAt"`
 }
 

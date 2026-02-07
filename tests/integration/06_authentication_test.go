@@ -43,7 +43,7 @@ func validPayload(t *testing.T) []byte {
 	payload := map[string]interface{}{
 		"requestId":            "550e8400-e29b-41d4-a716-446655440000",
 		"transactionType":      "PIX",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": "2024-01-15T10:30:00Z",
 		"account": map[string]interface{}{

@@ -100,7 +100,7 @@ func (e *Environment) CELEnv() *cel.Env {
 // Variables are aligned with model.ValidationRequest structure:
 //   - transactionType (string): CARD, WIRE, PIX, CRYPTO
 //   - subType (string): debit, credit, instant, etc. (optional, empty string if nil)
-//   - amount (int): Amount in smallest currency unit (e.g., cents)
+//   - amount (dyn): Decimal amount as float64 — dyn enables cross-type == with int literals
 //   - currency (string): ISO 4217 currency code
 //   - account (map[string]dyn): Account context with id, type, status, metadata
 //   - segment (map[string]dyn): Segment context (optional, empty map if nil)
@@ -110,10 +110,12 @@ func (e *Environment) CELEnv() *cel.Env {
 //   - transactionTimestamp (int): Unix timestamp in nanoseconds
 func NewEnvironment() (*Environment, error) {
 	env, err := cel.NewEnv(
+		cel.CrossTypeNumericComparisons(true),
+
 		// Transaction fields (from ValidationRequest)
 		cel.Variable("transactionType", cel.StringType),
 		cel.Variable("subType", cel.StringType),
-		cel.Variable("amount", cel.IntType),
+		cel.Variable("amount", cel.DynType),
 		cel.Variable("currency", cel.StringType),
 
 		// Context objects (maps for flexible field access)
@@ -138,7 +140,7 @@ func NewEnvironment() (*Environment, error) {
 // BuildActivation converts a model.ValidationRequest to a CEL activation map.
 // All fields are mapped to their corresponding CEL variable types.
 // Optional fields (subType, merchant) are converted to empty values when nil.
-// Amount is expected in smallest currency unit (e.g., cents).
+// Amount is converted from decimal.Decimal to float64 via InexactFloat64().
 // TransactionTimestamp is in Unix nanoseconds (use transactionTimestamp / 1000000000 in expressions for seconds).
 func BuildActivation(req *model.ValidationRequest) (map[string]any, error) {
 	if req == nil {
@@ -157,8 +159,8 @@ func BuildActivation(req *model.ValidationRequest) (map[string]any, error) {
 		activation["subType"] = ""
 	}
 
-	// Amount (int64, in smallest currency unit)
-	activation["amount"] = req.Amount
+	// Amount (converted to float64 for CEL DynType via InexactFloat64())
+	activation["amount"] = req.Amount.InexactFloat64()
 
 	// Currency (ISO 4217 string)
 	activation["currency"] = req.Currency

@@ -8,7 +8,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"math"
 	"regexp"
 	"testing"
 	"time"
@@ -19,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/shopspring/decimal"
 
 	"tracer/internal/adapters/postgres/db/mocks"
 	"tracer/internal/testutil"
@@ -60,7 +61,7 @@ func testUsageCounter(limitID uuid.UUID) *model.UsageCounter {
 		LimitID:       limitID,
 		ScopeKey:      "acct:123",
 		PeriodKey:     "2025-01",
-		CurrentUsage:  5000,
+		CurrentUsage:  decimal.RequireFromString("50"),
 		LastUpdatedAt: testutil.DefaultTestTime,
 	}
 }
@@ -117,7 +118,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 				assert.Equal(t, limitID, counter.LimitID)
 				assert.Equal(t, "acct:123", counter.ScopeKey)
 				assert.Equal(t, "2025-01", counter.PeriodKey)
-				assert.Equal(t, int64(5000), counter.CurrentUsage)
+				assert.True(t, decimal.RequireFromString("50").Equal(counter.CurrentUsage))
 			},
 		},
 		{
@@ -133,12 +134,12 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 
 				// Insert succeeds
 				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO usage_counters`)).
-					WithArgs(sqlmock.AnyArg(), limitID, "acct:456", "2025-02", int64(0), sqlmock.AnyArg()).
+					WithArgs(sqlmock.AnyArg(), limitID, "acct:456", "2025-02", decimal.RequireFromString("0"), sqlmock.AnyArg()).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 
 				// Post-insert SELECT to acquire FOR UPDATE lock and return the inserted row
 				rows := sqlmock.NewRows(usageCounterColumns()).
-					AddRow(testutil.MustDeterministicUUID(10), limitID, "acct:456", "2025-02", int64(0), testutil.DefaultTestTime)
+					AddRow(testutil.MustDeterministicUUID(10), limitID, "acct:456", "2025-02", decimal.RequireFromString("0"), testutil.DefaultTestTime)
 				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE id = $1 FOR UPDATE`)).
 					WithArgs(sqlmock.AnyArg()).
 					WillReturnRows(rows)
@@ -147,7 +148,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 				assert.Equal(t, limitID, counter.LimitID)
 				assert.Equal(t, "acct:456", counter.ScopeKey)
 				assert.Equal(t, "2025-02", counter.PeriodKey)
-				assert.Equal(t, int64(0), counter.CurrentUsage)
+				assert.True(t, decimal.RequireFromString("0").Equal(counter.CurrentUsage))
 			},
 		},
 		{
@@ -163,7 +164,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 
 				// Insert fails due to concurrent insert (unique constraint violation - SQLSTATE 23505)
 				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO usage_counters`)).
-					WithArgs(sqlmock.AnyArg(), limitID, "acct:789", "2025-03", int64(0), sqlmock.AnyArg()).
+					WithArgs(sqlmock.AnyArg(), limitID, "acct:789", "2025-03", decimal.RequireFromString("0"), sqlmock.AnyArg()).
 					WillReturnError(&pgconn.PgError{Code: "23505", Message: "duplicate key value violates unique constraint"})
 
 				// Retry select succeeds
@@ -172,7 +173,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 					LimitID:       limitID,
 					ScopeKey:      "acct:789",
 					PeriodKey:     "2025-03",
-					CurrentUsage:  100,
+					CurrentUsage:  decimal.RequireFromString("1"),
 					LastUpdatedAt: testutil.DefaultTestTime,
 				}
 				rows := sqlmock.NewRows(usageCounterColumns()).
@@ -186,7 +187,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 				assert.Equal(t, limitID, counter.LimitID)
 				assert.Equal(t, "acct:789", counter.ScopeKey)
 				assert.Equal(t, "2025-03", counter.PeriodKey)
-				assert.Equal(t, int64(100), counter.CurrentUsage)
+				assert.True(t, decimal.RequireFromString("1").Equal(counter.CurrentUsage))
 			},
 		},
 		{
@@ -202,7 +203,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 
 				// Insert fails with non-unique-constraint error (should NOT retry)
 				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO usage_counters`)).
-					WithArgs(sqlmock.AnyArg(), limitID, "acct:fail", "2025-04", int64(0), sqlmock.AnyArg()).
+					WithArgs(sqlmock.AnyArg(), limitID, "acct:fail", "2025-04", decimal.RequireFromString("0"), sqlmock.AnyArg()).
 					WillReturnError(errors.New("disk full"))
 			},
 			wantErr: true,
@@ -260,7 +261,7 @@ func TestUsageCounterRepository_IncrementAtomic_ConnectionError(t *testing.T) {
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	err := repo.IncrementAtomic(ctx, testutil.MustDeterministicUUID(998), 100)
+	err := repo.IncrementAtomic(ctx, testutil.MustDeterministicUUID(998), decimal.RequireFromString("1"))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -274,7 +275,7 @@ func TestUsageCounterRepository_IncrementAtomic(t *testing.T) {
 	tests := []struct {
 		name      string
 		counterID uuid.UUID
-		amount    int64
+		amount    decimal.Decimal
 		mockSetup func(mock sqlmock.Sqlmock)
 		wantErr   bool
 		errVal    error
@@ -283,20 +284,18 @@ func TestUsageCounterRepository_IncrementAtomic(t *testing.T) {
 		{
 			name:      "Success - increments counter",
 			counterID: counterID,
-			amount:    500,
+			amount:    decimal.RequireFromString("5"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				// Atomic UPDATE with overflow check in WHERE clause
-				// maxSafeValue = MaxInt64 - 500
-				maxSafeValue := int64(math.MaxInt64 - 500)
+				// Simple UPDATE: current_usage = current_usage + amount
 				mock.ExpectExec(regexp.QuoteMeta(`UPDATE usage_counters SET`)).
-					WithArgs(int64(500), sqlmock.AnyArg(), counterID, maxSafeValue).
+					WithArgs(decimal.RequireFromString("5"), sqlmock.AnyArg(), counterID).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 		},
 		{
 			name:      "Success - zero amount is no-op",
 			counterID: counterID,
-			amount:    0,
+			amount:    decimal.RequireFromString("0"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// No database calls expected
 			},
@@ -304,7 +303,7 @@ func TestUsageCounterRepository_IncrementAtomic(t *testing.T) {
 		{
 			name:      "Error - negative amount",
 			counterID: counterID,
-			amount:    -100,
+			amount:    decimal.RequireFromString("-1"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// No database calls expected
 			},
@@ -312,44 +311,19 @@ func TestUsageCounterRepository_IncrementAtomic(t *testing.T) {
 			errVal:  constant.ErrUsageCounterIncrementNonNegative,
 		},
 		{
-			name:      "Error - counter not found (0 rows on UPDATE, then SELECT not found)",
+			name:      "Error - counter not found (0 rows on UPDATE)",
 			counterID: counterID,
-			amount:    100,
+			amount:    decimal.RequireFromString("1"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// UPDATE returns 0 rows (counter doesn't exist)
-				maxSafeValue := int64(math.MaxInt64 - 100)
 				mock.ExpectExec(regexp.QuoteMeta(`UPDATE usage_counters SET`)).
-					WithArgs(int64(100), sqlmock.AnyArg(), counterID, maxSafeValue).
+					WithArgs(decimal.RequireFromString("1"), sqlmock.AnyArg(), counterID).
 					WillReturnResult(sqlmock.NewResult(0, 0))
-
-				// SELECT to distinguish: counter not found vs overflow
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT current_usage FROM usage_counters WHERE id = $1`)).
-					WithArgs(counterID).
-					WillReturnError(sql.ErrNoRows)
 			},
 			wantErr: true,
 			errVal:  constant.ErrUsageCounterNotFound,
 		},
-		{
-			name:      "Error - overflow protection (0 rows on UPDATE, then SELECT shows high value)",
-			counterID: counterID,
-			amount:    100,
-			mockSetup: func(mock sqlmock.Sqlmock) {
-				// UPDATE returns 0 rows (current_usage > maxSafeValue)
-				maxSafeValue := int64(math.MaxInt64 - 100)
-				mock.ExpectExec(regexp.QuoteMeta(`UPDATE usage_counters SET`)).
-					WithArgs(int64(100), sqlmock.AnyArg(), counterID, maxSafeValue).
-					WillReturnResult(sqlmock.NewResult(0, 0))
 
-				// SELECT to distinguish: counter exists with high value = overflow
-				rows := sqlmock.NewRows([]string{"current_usage"}).AddRow(int64(math.MaxInt64 - 50))
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT current_usage FROM usage_counters WHERE id = $1`)).
-					WithArgs(counterID).
-					WillReturnRows(rows)
-			},
-			wantErr: true,
-			errVal:  constant.ErrUsageCounterOverflow,
-		},
 	}
 
 	for _, tt := range tests {
@@ -389,7 +363,7 @@ func TestUsageCounterRepository_DecrementAtomic_ConnectionError(t *testing.T) {
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	err := repo.DecrementAtomic(ctx, testutil.MustDeterministicUUID(997), 100)
+	err := repo.DecrementAtomic(ctx, testutil.MustDeterministicUUID(997), decimal.RequireFromString("1"))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -403,7 +377,7 @@ func TestUsageCounterRepository_DecrementAtomic(t *testing.T) {
 	tests := []struct {
 		name      string
 		counterID uuid.UUID
-		amount    int64
+		amount    decimal.Decimal
 		mockSetup func(mock sqlmock.Sqlmock)
 		wantErr   bool
 		errVal    error
@@ -411,18 +385,18 @@ func TestUsageCounterRepository_DecrementAtomic(t *testing.T) {
 		{
 			name:      "Success - decrements counter",
 			counterID: counterID,
-			amount:    500,
+			amount:    decimal.RequireFromString("5"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// Atomic conditional UPDATE with WHERE current_usage >= amount
 				mock.ExpectExec(regexp.QuoteMeta(`UPDATE usage_counters SET`)).
-					WithArgs(int64(500), sqlmock.AnyArg(), counterID, int64(500)).
+					WithArgs(decimal.RequireFromString("5"), sqlmock.AnyArg(), counterID, decimal.RequireFromString("5")).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 		},
 		{
 			name:      "Success - zero amount is no-op",
 			counterID: counterID,
-			amount:    0,
+			amount:    decimal.RequireFromString("0"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// No database calls expected
 			},
@@ -430,7 +404,7 @@ func TestUsageCounterRepository_DecrementAtomic(t *testing.T) {
 		{
 			name:      "Error - negative amount",
 			counterID: counterID,
-			amount:    -100,
+			amount:    decimal.RequireFromString("-1"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// No database calls expected
 			},
@@ -440,11 +414,11 @@ func TestUsageCounterRepository_DecrementAtomic(t *testing.T) {
 		{
 			name:      "Error - counter not found",
 			counterID: counterID,
-			amount:    100,
+			amount:    decimal.RequireFromString("1"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// UPDATE returns 0 rows (counter not found or insufficient balance)
 				mock.ExpectExec(regexp.QuoteMeta(`UPDATE usage_counters SET`)).
-					WithArgs(int64(100), sqlmock.AnyArg(), counterID, int64(100)).
+					WithArgs(decimal.RequireFromString("1"), sqlmock.AnyArg(), counterID, decimal.RequireFromString("1")).
 					WillReturnResult(sqlmock.NewResult(0, 0))
 
 				// SELECT to distinguish: counter not found
@@ -458,15 +432,15 @@ func TestUsageCounterRepository_DecrementAtomic(t *testing.T) {
 		{
 			name:      "Error - would result in negative usage",
 			counterID: counterID,
-			amount:    1000,
+			amount:    decimal.RequireFromString("10"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// UPDATE returns 0 rows (current_usage < amount)
 				mock.ExpectExec(regexp.QuoteMeta(`UPDATE usage_counters SET`)).
-					WithArgs(int64(1000), sqlmock.AnyArg(), counterID, int64(1000)).
+					WithArgs(decimal.RequireFromString("10"), sqlmock.AnyArg(), counterID, decimal.RequireFromString("10")).
 					WillReturnResult(sqlmock.NewResult(0, 0))
 
 				// SELECT to distinguish: counter exists but insufficient balance
-				rows := sqlmock.NewRows([]string{"current_usage"}).AddRow(int64(500))
+				rows := sqlmock.NewRows([]string{"current_usage"}).AddRow(decimal.RequireFromString("5"))
 				mock.ExpectQuery(regexp.QuoteMeta(`SELECT current_usage FROM usage_counters WHERE id = $1`)).
 					WithArgs(counterID).
 					WillReturnRows(rows)
@@ -539,7 +513,7 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 					LimitID:       limitID,
 					ScopeKey:      "acct:456",
 					PeriodKey:     "2025-01",
-					CurrentUsage:  2500,
+					CurrentUsage:  decimal.RequireFromString("25"),
 					LastUpdatedAt: testutil.DefaultTestTime,
 				}
 
@@ -631,7 +605,7 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 		mockSetup func(mock sqlmock.Sqlmock)
 		wantErr   bool
 		errMsg    string
-		validate  func(t *testing.T, result map[uuid.UUID]int64)
+		validate  func(t *testing.T, result map[uuid.UUID]decimal.Decimal)
 	}{
 		{
 			name:      "Success - returns usage for multiple limits",
@@ -640,17 +614,17 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 			periodKey: "2025-01",
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"limit_id", "current_usage"}).
-					AddRow(limitID1, int64(5000)).
-					AddRow(limitID2, int64(2500))
+					AddRow(limitID1, decimal.RequireFromString("50")).
+					AddRow(limitID2, decimal.RequireFromString("25"))
 
 				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
 					WithArgs(limitID1, limitID2, "2025-01", "acct:123").
 					WillReturnRows(rows)
 			},
-			validate: func(t *testing.T, result map[uuid.UUID]int64) {
+			validate: func(t *testing.T, result map[uuid.UUID]decimal.Decimal) {
 				assert.Len(t, result, 2)
-				assert.Equal(t, int64(5000), result[limitID1])
-				assert.Equal(t, int64(2500), result[limitID2])
+				assert.True(t, decimal.RequireFromString("50").Equal(result[limitID1]))
+				assert.True(t, decimal.RequireFromString("25").Equal(result[limitID2]))
 			},
 		},
 		{
@@ -661,7 +635,7 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// No database calls expected
 			},
-			validate: func(t *testing.T, result map[uuid.UUID]int64) {
+			validate: func(t *testing.T, result map[uuid.UUID]decimal.Decimal) {
 				assert.Len(t, result, 0)
 			},
 		},
@@ -672,15 +646,15 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 			periodKey: "2025-01",
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"limit_id", "current_usage"}).
-					AddRow(limitID1, int64(5000))
+					AddRow(limitID1, decimal.RequireFromString("50"))
 
 				mock.ExpectQuery(regexp.QuoteMeta(`SELECT limit_id, current_usage FROM usage_counters WHERE limit_id IN ($1,$2) AND period_key = $3 AND scope_key = $4`)).
 					WithArgs(limitID1, limitID2, "2025-01", "acct:123").
 					WillReturnRows(rows)
 			},
-			validate: func(t *testing.T, result map[uuid.UUID]int64) {
+			validate: func(t *testing.T, result map[uuid.UUID]decimal.Decimal) {
 				assert.Len(t, result, 1)
-				assert.Equal(t, int64(5000), result[limitID1])
+				assert.True(t, decimal.RequireFromString("50").Equal(result[limitID1]))
 				_, exists := result[limitID2]
 				assert.False(t, exists)
 			},

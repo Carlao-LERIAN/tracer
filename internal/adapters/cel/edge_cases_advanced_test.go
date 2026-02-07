@@ -12,6 +12,7 @@ import (
 	"tracer/pkg/model"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +35,7 @@ func newAdvancedTestRequest() *model.ValidationRequest {
 		TransactionTimestamp: advTestTimestamp,
 		TransactionType:      "PIX",
 		SubType:              &subType,
-		Amount:               150000,
+		Amount:               decimal.RequireFromString("1500"),
 		Currency:             "BRL",
 		Account: model.AccountContext{
 			ID:     advTestAccountID,
@@ -265,17 +266,17 @@ func TestAdvancedEdgeCase_LogicalOperators(t *testing.T) {
 	}{
 		{
 			name:       "AND - both true",
-			expression: `transactionType == "PIX" && amount > 100000`,
+			expression: `transactionType == "PIX" && amount > 1000`,
 			expected:   true,
 		},
 		{
 			name:       "AND - first false",
-			expression: `transactionType == "CARD" && amount > 100000`,
+			expression: `transactionType == "CARD" && amount > 1000`,
 			expected:   false,
 		},
 		{
 			name:       "AND - second false",
-			expression: `transactionType == "PIX" && amount > 200000`,
+			expression: `transactionType == "PIX" && amount > 2000`,
 			expected:   false,
 		},
 		{
@@ -305,12 +306,12 @@ func TestAdvancedEdgeCase_LogicalOperators(t *testing.T) {
 		},
 		{
 			name:       "complex - AND OR combined",
-			expression: `(transactionType == "PIX" || transactionType == "TED") && amount > 100000`,
+			expression: `(transactionType == "PIX" || transactionType == "TED") && amount > 1000`,
 			expected:   true,
 		},
 		{
 			name:       "complex - nested NOT",
-			expression: `!(transactionType == "CARD" && amount < 50000)`,
+			expression: `!(transactionType == "CARD" && amount < 500)`,
 			expected:   true,
 		},
 	}
@@ -339,76 +340,97 @@ func TestAdvancedEdgeCase_ComparisonOperators(t *testing.T) {
 		expression string
 		expected   bool
 	}{
-		// Amount is 150000
+		// Amount is 1500
 		{
-			name:       "equal - true",
-			expression: "amount == 150000",
+			name:       "equal - true (int literal)",
+			expression: "amount == 1500",
+			expected:   true,
+		},
+		{
+			name:       "equal - true (double literal)",
+			expression: "amount == 1500.0",
 			expected:   true,
 		},
 		{
 			name:       "equal - false",
-			expression: "amount == 100000",
+			expression: "amount == 1000",
 			expected:   false,
 		},
 		{
-			name:       "not equal - true",
-			expression: "amount != 100000",
+			name:       "not equal - true (int literal)",
+			expression: "amount != 1000",
+			expected:   true,
+		},
+		{
+			name:       "not equal - true (double literal)",
+			expression: "amount != 1000.0",
 			expected:   true,
 		},
 		{
 			name:       "not equal - false",
-			expression: "amount != 150000",
+			expression: "amount != 1500",
 			expected:   false,
 		},
 		{
 			name:       "greater than - true",
-			expression: "amount > 100000",
+			expression: "amount > 1000",
 			expected:   true,
 		},
 		{
 			name:       "greater than - false (equal)",
-			expression: "amount > 150000",
+			expression: "amount > 1500",
 			expected:   false,
 		},
 		{
 			name:       "greater than or equal - true (greater)",
-			expression: "amount >= 100000",
+			expression: "amount >= 1000",
 			expected:   true,
 		},
 		{
 			name:       "greater than or equal - true (equal)",
-			expression: "amount >= 150000",
+			expression: "amount >= 1500",
 			expected:   true,
 		},
 		{
 			name:       "greater than or equal - false",
-			expression: "amount >= 200000",
+			expression: "amount >= 2000",
 			expected:   false,
 		},
 		{
 			name:       "less than - true",
-			expression: "amount < 200000",
+			expression: "amount < 2000",
 			expected:   true,
 		},
 		{
 			name:       "less than - false (equal)",
-			expression: "amount < 150000",
+			expression: "amount < 1500",
 			expected:   false,
 		},
 		{
 			name:       "less than or equal - true (less)",
-			expression: "amount <= 200000",
+			expression: "amount <= 2000",
 			expected:   true,
 		},
 		{
 			name:       "less than or equal - true (equal)",
-			expression: "amount <= 150000",
+			expression: "amount <= 1500",
 			expected:   true,
 		},
 		{
 			name:       "less than or equal - false",
-			expression: "amount <= 100000",
+			expression: "amount <= 1000",
 			expected:   false,
+		},
+		// Fractional comparisons (amount is 1500)
+		{
+			name:       "fractional equal - false",
+			expression: "amount == 1500.50",
+			expected:   false,
+		},
+		{
+			name:       "fractional greater than - true",
+			expression: "amount > 1499.99",
+			expected:   true,
 		},
 	}
 
@@ -438,17 +460,17 @@ func TestAdvancedEdgeCase_TernaryConditional(t *testing.T) {
 	}{
 		{
 			name:       "ternary - condition true",
-			expression: `(amount > 100000 ? true : false)`,
+			expression: `(amount > 1000 ? true : false)`,
 			expected:   true,
 		},
 		{
 			name:       "ternary - condition false",
-			expression: `(amount > 200000 ? true : false)`,
+			expression: `(amount > 2000 ? true : false)`,
 			expected:   false,
 		},
 		{
 			name:       "ternary - nested check",
-			expression: `(transactionType == "PIX" ? amount > 100000 : amount > 50000)`,
+			expression: `(transactionType == "PIX" ? amount > 1000 : amount > 500)`,
 			expected:   true,
 		},
 	}
@@ -475,50 +497,80 @@ func TestAdvancedEdgeCase_AmountBoundaries(t *testing.T) {
 	tests := []struct {
 		name       string
 		expression string
-		amount     int64
+		amount     decimal.Decimal
 		expected   bool
 	}{
 		{
 			name:       "max int64 amount",
 			expression: "amount > 0",
-			amount:     9223372036854775807, // max int64
+			amount:     decimal.RequireFromString("9223372036854775807"), // max int64
 			expected:   true,
 		},
 		{
 			name:       "large amount comparison",
 			expression: "amount > 999999999999",
-			amount:     1000000000000, // 1 trillion
+			amount:     decimal.RequireFromString("1000000000000"), // 1 trillion
 			expected:   true,
 		},
 		{
 			name:       "amount range check - in range",
-			expression: "amount >= 100000 && amount <= 500000",
-			amount:     250000,
+			expression: "amount >= 1000 && amount <= 5000",
+			amount:     decimal.RequireFromString("2500"),
 			expected:   true,
 		},
 		{
 			name:       "amount range check - below range",
-			expression: "amount >= 100000 && amount <= 500000",
-			amount:     50000,
+			expression: "amount >= 1000 && amount <= 5000",
+			amount:     decimal.RequireFromString("500"),
 			expected:   false,
 		},
 		{
 			name:       "amount range check - above range",
-			expression: "amount >= 100000 && amount <= 500000",
-			amount:     600000,
+			expression: "amount >= 1000 && amount <= 5000",
+			amount:     decimal.RequireFromString("6000"),
 			expected:   false,
 		},
 		{
 			name:       "amount at lower boundary",
-			expression: "amount >= 100000 && amount <= 500000",
-			amount:     100000,
+			expression: "amount >= 1000 && amount <= 5000",
+			amount:     decimal.RequireFromString("1000"),
 			expected:   true,
 		},
 		{
 			name:       "amount at upper boundary",
-			expression: "amount >= 100000 && amount <= 500000",
-			amount:     500000,
+			expression: "amount >= 1000 && amount <= 5000",
+			amount:     decimal.RequireFromString("5000"),
 			expected:   true,
+		},
+		{
+			name:       "fractional range - in range",
+			expression: "amount >= 100.50 && amount <= 500.75",
+			amount:     decimal.RequireFromString("250.25"),
+			expected:   true,
+		},
+		{
+			name:       "fractional range - at lower boundary",
+			expression: "amount >= 100.50 && amount <= 500.75",
+			amount:     decimal.RequireFromString("100.50"),
+			expected:   true,
+		},
+		{
+			name:       "fractional range - at upper boundary",
+			expression: "amount >= 100.50 && amount <= 500.75",
+			amount:     decimal.RequireFromString("500.75"),
+			expected:   true,
+		},
+		{
+			name:       "fractional range - below lower boundary",
+			expression: "amount >= 100.50 && amount <= 500.75",
+			amount:     decimal.RequireFromString("100.49"),
+			expected:   false,
+		},
+		{
+			name:       "fractional range - above upper boundary",
+			expression: "amount >= 100.50 && amount <= 500.75",
+			amount:     decimal.RequireFromString("500.76"),
+			expected:   false,
 		},
 	}
 
@@ -714,21 +766,21 @@ func TestAdvancedEdgeCase_ComplexBusinessRules(t *testing.T) {
 	}{
 		{
 			name:        "high value PIX from active account",
-			expression:  `transactionType == "PIX" && amount > 100000 && account["status"] == "active"`,
+			expression:  `transactionType == "PIX" && amount > 1000 && account["status"] == "active"`,
 			modifyReq:   nil,
 			expected:    true,
 			description: "Standard high-value PIX transaction",
 		},
 		{
 			name:        "gambling merchant high risk",
-			expression:  `size(merchant) > 0 && merchant["category"] in ["7995", "7994"] && amount > 50000`,
+			expression:  `size(merchant) > 0 && merchant["category"] in ["7995", "7994"] && amount > 500`,
 			modifyReq:   func(r *model.ValidationRequest) { r.Merchant.Category = "7995" },
 			expected:    true,
 			description: "Gambling merchant with high amount",
 		},
 		{
 			name:        "international transfer check",
-			expression:  `size(merchant) > 0 && merchant["country"] != "BR" && amount > 10000`,
+			expression:  `size(merchant) > 0 && merchant["country"] != "BR" && amount > 100`,
 			modifyReq:   func(r *model.ValidationRequest) { r.Merchant.Country = "US" },
 			expected:    true,
 			description: "International merchant with significant amount",
@@ -742,7 +794,7 @@ func TestAdvancedEdgeCase_ComplexBusinessRules(t *testing.T) {
 		},
 		{
 			name:        "mobile channel large transaction",
-			expression:  `"channel" in metadata && metadata["channel"] == "mobile" && amount > 100000`,
+			expression:  `"channel" in metadata && metadata["channel"] == "mobile" && amount > 1000`,
 			modifyReq:   nil,
 			expected:    true,
 			description: "Large mobile transaction",
@@ -793,7 +845,7 @@ func TestAdvancedEdgeCase_ShortCircuitEvaluation(t *testing.T) {
 		},
 		{
 			name:       "OR short-circuit - first true skips second",
-			expression: `amount > 100000 || merchant["category"] == "9999"`,
+			expression: `amount > 1000 || merchant["category"] == "9999"`,
 			modifyReq:  nil,
 			expected:   true,
 		},

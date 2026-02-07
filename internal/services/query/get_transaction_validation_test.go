@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -28,7 +29,7 @@ func newTestTransactionValidation(id uuid.UUID) *model.TransactionValidation {
 		ID:                   id,
 		RequestID:            testutil.MustDeterministicUUID(100),
 		TransactionType:      model.TransactionTypeCard,
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "USD",
 		TransactionTimestamp: testutil.FixedTime().Add(-time.Hour),
 		Account: model.AccountContext{

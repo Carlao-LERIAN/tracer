@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg"
 	"tracer/pkg/constant"
@@ -53,14 +54,13 @@ const (
 )
 
 // ValidationRequest is the input for transaction validation.
-// Amount is expressed in the smallest currency unit (e.g., cents for USD/BRL).
-// Example: $10.50 should be sent as 1050.
+// Amount is expressed as a decimal value (e.g., 1000.00 for USD/BRL).
 // Use NewValidationRequest() to construct - ensures validation and normalization.
 type ValidationRequest struct {
 	RequestID            uuid.UUID         `json:"requestId" validate:"required" swaggertype:"string" format:"uuid"`
 	TransactionType      TransactionType   `json:"transactionType" validate:"required"`
 	SubType              *string           `json:"subType,omitempty"`
-	Amount               int64             `json:"amount" validate:"required"`
+	Amount               decimal.Decimal   `json:"amount" validate:"required" swaggertype:"string"`
 	Currency             string            `json:"currency" validate:"required"`
 	TransactionTimestamp time.Time         `json:"transactionTimestamp" format:"date-time" validate:"required"`
 	Account              AccountContext    `json:"account" validate:"required"`
@@ -86,7 +86,7 @@ func NewValidationRequest(
 	requestID uuid.UUID,
 	transactionType TransactionType,
 	subType *string,
-	amount int64,
+	amount decimal.Decimal,
 	currency string,
 	transactionTimestamp time.Time,
 	account AccountContext,
@@ -273,12 +273,12 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 }
 
 // LimitUsageDetail contains usage information for a checked limit.
-// Amounts are expressed in the smallest currency unit (e.g., cents).
+// Amounts are expressed as decimal values.
 // Note: RemainingAmount is calculated as (LimitAmount - CurrentUsage), not stored.
 // Aligned with API Design v1.3.2 section 4.1.1 LimitUsage structure.
 type LimitUsageDetail struct {
-	LimitID     uuid.UUID `json:"limitId" swaggertype:"string" format:"uuid"`
-	LimitAmount int64     `json:"limitAmount"`
+	LimitID     uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
+	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string"`
 	// Scope is a human-readable string representation of the limit's scope
 	// (e.g., "account:uuid" or "segment:uuid" or "global").
 	// Per API Design v1.3.2 section 4.1.1.
@@ -291,11 +291,11 @@ type LimitUsageDetail struct {
 	// (counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.
 	// When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
 	// what the usage would have been if the transaction were allowed.
-	CurrentUsage int64 `json:"currentUsage"`
+	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string"`
 	// AttemptedAmount is the transaction amount being validated.
 	// Per API Design v1.3.2 section 4.1.1.
-	AttemptedAmount int64 `json:"attemptedAmount"`
-	Exceeded        bool  `json:"exceeded"`
+	AttemptedAmount decimal.Decimal `json:"attemptedAmount" swaggertype:"string"`
+	Exceeded        bool            `json:"exceeded"`
 
 	// Internal fields for rollback operations - not serialized to JSON.
 	// InternalLimitType stores the persistent limit type for rollback logic.
@@ -379,7 +379,7 @@ func (r *ValidationRequest) validateRequiredFields() error {
 		return constant.ErrValidationInvalidTransactionType
 	}
 
-	if r.Amount <= 0 {
+	if r.Amount.LessThanOrEqual(decimal.Zero) {
 		return constant.ErrValidationAmountNonPositive
 	}
 

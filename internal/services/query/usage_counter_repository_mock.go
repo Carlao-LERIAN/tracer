@@ -16,6 +16,7 @@ import (
 	model "tracer/pkg/model"
 
 	uuid "github.com/google/uuid"
+	decimal "github.com/shopspring/decimal"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -44,7 +45,7 @@ func (m *MockUsageCounterRepository) EXPECT() *MockUsageCounterRepositoryMockRec
 }
 
 // DecrementAtomic mocks base method.
-func (m *MockUsageCounterRepository) DecrementAtomic(ctx context.Context, counterID uuid.UUID, amount int64) error {
+func (m *MockUsageCounterRepository) DecrementAtomic(ctx context.Context, counterID uuid.UUID, amount decimal.Decimal) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DecrementAtomic", ctx, counterID, amount)
 	ret0, _ := ret[0].(error)
@@ -118,10 +119,10 @@ func (mr *MockUsageCounterRepositoryMockRecorder) GetOrCreateForUpdate(ctx, limi
 }
 
 // GetUsageForLimits mocks base method.
-func (m *MockUsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]int64, error) {
+func (m *MockUsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]decimal.Decimal, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUsageForLimits", ctx, limitIDs, scopeKey, periodKey)
-	ret0, _ := ret[0].(map[uuid.UUID]int64)
+	ret0, _ := ret[0].(map[uuid.UUID]decimal.Decimal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -133,7 +134,7 @@ func (mr *MockUsageCounterRepositoryMockRecorder) GetUsageForLimits(ctx, limitID
 }
 
 // IncrementAtomic mocks base method.
-func (m *MockUsageCounterRepository) IncrementAtomic(ctx context.Context, counterID uuid.UUID, amount int64) error {
+func (m *MockUsageCounterRepository) IncrementAtomic(ctx context.Context, counterID uuid.UUID, amount decimal.Decimal) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IncrementAtomic", ctx, counterID, amount)
 	ret0, _ := ret[0].(error)

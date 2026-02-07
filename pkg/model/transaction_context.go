@@ -4,14 +4,18 @@
 
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 // TransactionContext contains all data needed for rule evaluation.
 // Aligned with API Design v1.3.1 for CEL expression evaluation.
 type TransactionContext struct {
 	TransactionType      TransactionType   `json:"transactionType"`
 	SubType              *string           `json:"subType,omitempty"`
-	Amount               int64             `json:"amount"`
+	Amount               decimal.Decimal   `json:"amount" swaggertype:"string"`
 	Currency             string            `json:"currency"`
 	TransactionTimestamp time.Time         `json:"transactionTimestamp"`
 	Account              AccountContext    `json:"account"`
@@ -28,9 +32,11 @@ type TransactionContext struct {
 // - segment/portfolio: nil → nil (allows `segment == nil` checks in CEL)
 // - metadata: nil → empty map (allows `metadata.field` access without nil errors)
 func (tc *TransactionContext) ToMap() map[string]any {
+	// Convert decimal to float64 for CEL evaluation compatibility
+	amountFloat := tc.Amount.InexactFloat64()
 	result := map[string]any{
 		"transactionType":      tc.TransactionType.String(),
-		"amount":               tc.Amount,
+		"amount":               amountFloat,
 		"currency":             tc.Currency,
 		"transactionTimestamp": tc.TransactionTimestamp,
 		"account":              tc.Account.ToMap(),

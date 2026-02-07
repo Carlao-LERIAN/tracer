@@ -255,7 +255,7 @@ func TestValidation_MissingRequestID_ReturnsError(t *testing.T) {
 	// Valid JSON with all fields except requestId
 	payload := map[string]any{
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -326,7 +326,7 @@ func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 			payload := map[string]any{
 				"requestId":            testutil.MustDeterministicUUID(int64(2002 + i*2)).String(),
 				"transactionType":      tc.transactionType,
-				"amount":               10000,
+				"amount":               100,
 				"currency":             "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
@@ -379,12 +379,12 @@ func TestValidation_AmountNonPositive_ReturnsError(t *testing.T) {
 		},
 		{
 			name:        "negative_amount",
-			amount:      -100,
+			amount:      -1,
 			description: "Amount is negative",
 		},
 		{
 			name:        "large_negative",
-			amount:      -999999999,
+			amount:      -9999999,
 			description: "Large negative amount",
 		},
 	}
@@ -438,7 +438,7 @@ func TestValidation_MissingCurrency_ReturnsError(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(2016).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(2017).String(),
@@ -513,7 +513,7 @@ func TestValidation_InvalidCurrency_ReturnsError(t *testing.T) {
 			payload := map[string]any{
 				"requestId":            testutil.MustDeterministicUUID(int64(2018 + i*2)).String(),
 				"transactionType":      "CARD",
-				"amount":               10000,
+				"amount":               100,
 				"currency":             tc.currency,
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
@@ -557,7 +557,7 @@ func TestValidation_MissingTimestamp_ReturnsError(t *testing.T) {
 	payload := map[string]any{
 		"requestId":       testutil.MustDeterministicUUID(2028).String(),
 		"transactionType": "CARD",
-		"amount":          10000,
+		"amount":          100,
 		"currency":        "BRL",
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(2029).String(),
@@ -602,7 +602,7 @@ func TestValidation_FutureTimestamp_ReturnsError(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(2030).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": futureTime,
 		"account": map[string]any{
@@ -649,7 +649,7 @@ func TestValidation_FutureTimestamp_SmallClockSkew_IsAccepted(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(2032).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": futureTime,
 		"account": map[string]any{
@@ -693,7 +693,7 @@ func TestValidation_MissingAccount_ReturnsError(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(2034).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 	}
@@ -732,7 +732,7 @@ func TestValidation_EmptyAccountObject_ReturnsError(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(2035).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account":              map[string]any{}, // Empty account object (missing accountId)
@@ -776,7 +776,7 @@ func TestValidation_SubTypeTooLong_ReturnsError(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(2036).String(),
 		"transactionType":      "CARD",
 		"subType":              longSubType,
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -820,7 +820,7 @@ func TestValidation_WithoutAuth_Returns401(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(2038).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               100,
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -886,7 +886,7 @@ func TestValidation_InvalidUUIDFormat_ReturnsError(t *testing.T) {
 			payload := map[string]any{
 				"requestId":            tc.requestID,
 				"transactionType":      "CARD",
-				"amount":               10000,
+				"amount":               100,
 				"currency":             "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
@@ -958,7 +958,7 @@ func TestValidation_InvalidTimestampFormat_ReturnsError(t *testing.T) {
 			payload := map[string]any{
 				"requestId":            testutil.MustDeterministicUUID(int64(2043 + i*2)).String(),
 				"transactionType":      "CARD",
-				"amount":               10000,
+				"amount":               100,
 				"currency":             "BRL",
 				"transactionTimestamp": tc.timestamp,
 				"account": map[string]any{
@@ -1007,7 +1007,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 			payload: map[string]any{
 				"requestId":            testutil.MustDeterministicUUID(2051).String(),
 				"transactionType":      "CARD",
-				"amount":               "10000", // String instead of integer
+				"amount":               "not_a_number", // Non-numeric string that decimal.Decimal rejects
 				"currency":             "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
@@ -1020,7 +1020,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 			payload: map[string]any{
 				"requestId":            testutil.MustDeterministicUUID(2053).String(),
 				"transactionType":      "CARD",
-				"amount":               10000,
+				"amount":               100,
 				"currency":             "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account":              []string{testutil.MustDeterministicUUID(2054).String()}, // Array instead of object
@@ -1031,7 +1031,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 			payload: map[string]any{
 				"requestId":            testutil.MustDeterministicUUID(2055).String(),
 				"transactionType":      123, // Number instead of string
-				"amount":               10000,
+				"amount":               100,
 				"currency":             "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{

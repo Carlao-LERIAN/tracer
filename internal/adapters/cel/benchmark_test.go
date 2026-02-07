@@ -13,7 +13,7 @@ import (
 // Each iteration creates a new adapter to avoid cache hits.
 func BenchmarkCompile(b *testing.B) {
 	ctx := context.Background()
-	expression := "amount > 100000"
+	expression := "amount > 1000"
 
 	for b.Loop() {
 		adapter := newTestAdapter(b)
@@ -29,7 +29,7 @@ func BenchmarkCompile(b *testing.B) {
 func BenchmarkCompile_Cached(b *testing.B) {
 	adapter := newTestAdapter(b)
 	ctx := context.Background()
-	expression := "amount > 100000"
+	expression := "amount > 1000"
 
 	// Warm up cache
 	_, err := adapter.Compile(ctx, expression)
@@ -48,7 +48,7 @@ func BenchmarkCompile_Cached(b *testing.B) {
 // BenchmarkCompile_ComplexExpression benchmarks compilation of complex expressions.
 func BenchmarkCompile_ComplexExpression(b *testing.B) {
 	ctx := context.Background()
-	expression := `transactionType == "PIX" && amount > 100000 && account["status"] == "active" && currency == "BRL"`
+	expression := `transactionType == "PIX" && amount > 1000 && account["status"] == "active" && currency == "BRL"`
 
 	for b.Loop() {
 		adapter := newTestAdapter(b)
@@ -64,7 +64,7 @@ func BenchmarkCompile_ComplexExpression(b *testing.B) {
 func BenchmarkEvaluate(b *testing.B) {
 	adapter := newTestAdapter(b)
 	ctx := context.Background()
-	expression := "amount > 100000"
+	expression := "amount > 1000"
 
 	program, err := adapter.Compile(ctx, expression)
 	if err != nil {
@@ -85,7 +85,7 @@ func BenchmarkEvaluate(b *testing.B) {
 func BenchmarkEvaluate_ComplexExpression(b *testing.B) {
 	adapter := newTestAdapter(b)
 	ctx := context.Background()
-	expression := `transactionType == "PIX" && amount > 100000 && account["status"] == "active" && currency == "BRL"`
+	expression := `transactionType == "PIX" && amount > 1000 && account["status"] == "active" && currency == "BRL"`
 
 	program, err := adapter.Compile(ctx, expression)
 	if err != nil {
@@ -105,7 +105,7 @@ func BenchmarkEvaluate_ComplexExpression(b *testing.B) {
 // BenchmarkCompileAndEvaluate benchmarks full compile + evaluate cycle (cache miss).
 func BenchmarkCompileAndEvaluate(b *testing.B) {
 	ctx := context.Background()
-	expression := "amount > 100000"
+	expression := "amount > 1000"
 	req := newTestRequest()
 
 	for b.Loop() {
@@ -127,7 +127,7 @@ func BenchmarkCompileAndEvaluate(b *testing.B) {
 func BenchmarkCompileAndEvaluate_Cached(b *testing.B) {
 	adapter := newTestAdapter(b)
 	ctx := context.Background()
-	expression := "amount > 100000"
+	expression := "amount > 1000"
 	req := newTestRequest()
 
 	// Warm up cache
@@ -163,7 +163,7 @@ func BenchmarkBuildActivation(b *testing.B) {
 
 // BenchmarkHashExpression benchmarks expression hashing.
 func BenchmarkHashExpression(b *testing.B) {
-	expression := `transactionType == "PIX" && amount > 100000 && account["status"] == "active"`
+	expression := `transactionType == "PIX" && amount > 1000 && account["status"] == "active"`
 
 	for b.Loop() {
 		HashExpression(expression)

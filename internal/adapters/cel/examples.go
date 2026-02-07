@@ -15,30 +15,48 @@ type ExampleExpression struct {
 }
 
 // AmountExpressions contains expressions that check transaction amounts.
-// Amount is in smallest currency unit (e.g., cents): 100000 = $1000.00
+// Amount is a decimal value (e.g., 1000.00 for $1000.00)
 var AmountExpressions = []ExampleExpression{
 	{
 		Name:        "high_value_transaction",
-		Expression:  "amount > 100000",
-		Description: "Transactions over $1000.00",
+		Expression:  "amount > 1000",
+		Description: "Transactions over $1000",
 		Category:    "amount",
 	},
 	{
 		Name:        "low_value_transaction",
-		Expression:  "amount <= 10000",
-		Description: "Transactions up to $100.00",
+		Expression:  "amount <= 100",
+		Description: "Transactions up to $100",
 		Category:    "amount",
 	},
 	{
 		Name:        "amount_range",
-		Expression:  "amount >= 50000 && amount <= 200000",
-		Description: "Transactions between $500.00 and $2000.00",
+		Expression:  "amount >= 500 && amount <= 2000",
+		Description: "Transactions between $500 and $2000",
 		Category:    "amount",
 	},
 	{
 		Name:        "pix_high_value",
-		Expression:  `transactionType == "PIX" && amount > 500000`,
-		Description: "PIX transactions over $5000.00",
+		Expression:  `transactionType == "PIX" && amount > 5000`,
+		Description: "PIX transactions over $5000",
+		Category:    "amount",
+	},
+	{
+		Name:        "decimal_amount_threshold",
+		Expression:  "amount > 12.34",
+		Description: "Transactions over $12.34",
+		Category:    "amount",
+	},
+	{
+		Name:        "exact_decimal_match",
+		Expression:  "amount == 99.99",
+		Description: "Exact amount match with decimals",
+		Category:    "amount",
+	},
+	{
+		Name:        "decimal_amount_range",
+		Expression:  "amount >= 1000.50 && amount <= 5000.75",
+		Description: "Decimal amount range",
 		Category:    "amount",
 	},
 }
@@ -197,31 +215,31 @@ var MetadataExpressions = []ExampleExpression{
 var CombinedExpressions = []ExampleExpression{
 	{
 		Name:        "high_value_active_account",
-		Expression:  `amount > 100000 && account["status"] == "active"`,
+		Expression:  `amount > 1000 && account["status"] == "active"`,
 		Description: "High-value transaction from active account",
 		Category:    "combined",
 	},
 	{
 		Name:        "pix_high_value_active",
-		Expression:  `transactionType == "PIX" && amount > 500000 && account["status"] == "active"`,
+		Expression:  `transactionType == "PIX" && amount > 5000 && account["status"] == "active"`,
 		Description: "High-value PIX from active account",
 		Category:    "combined",
 	},
 	{
 		Name:        "foreign_high_value",
-		Expression:  `merchant["country"] != "BR" && amount > 200000`,
+		Expression:  `merchant["country"] != "BR" && amount > 2000`,
 		Description: "High-value foreign transaction",
 		Category:    "combined",
 	},
 	{
 		Name:        "risky_transaction",
-		Expression:  `amount > 100000 && merchant["category"] in ["7995"] && account["status"] == "active"`,
+		Expression:  `amount > 1000 && merchant["category"] in ["7995"] && account["status"] == "active"`,
 		Description: "High-value gambling from active account",
 		Category:    "combined",
 	},
 	{
 		Name:        "full_validation",
-		Expression:  `transactionType == "PIX" && amount > 10000 && account["status"] == "active" && currency == "BRL"`,
+		Expression:  `transactionType == "PIX" && amount > 100 && account["status"] == "active" && currency == "BRL"`,
 		Description: "Full PIX validation with multiple checks",
 		Category:    "combined",
 	},
