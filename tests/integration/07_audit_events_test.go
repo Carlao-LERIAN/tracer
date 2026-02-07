@@ -1906,7 +1906,7 @@ func TestAuditEvents_11_9_3_PageSizeExceedsMaximum(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	// Request with limit=50 (exceeds max of 10)
+	// Request with limit=5000 (exceeds max of 100)
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?limit=5000", nil)
 	require.NoError(t, err)
 	req.Header.Set("X-API-Key", apiKey)

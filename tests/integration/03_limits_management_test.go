@@ -299,7 +299,7 @@ func TestLimits_CreateLimit_ValidationError_NameTooLong(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	// Name exceeding 2.55 characters (MaxLimitNameLength)
+	// Name exceeding 255 characters (MaxLimitNameLength)
 	longName := strings.Repeat("a", 256)
 	reqBody := createLimitRequest{
 		Name:      longName,
@@ -329,7 +329,7 @@ func TestLimits_CreateLimit_ValidationError_DescriptionTooLong(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	// Description exceeding 10 characters (MaxLimitDescriptionLength)
+	// Description exceeding 1000 characters (MaxLimitDescriptionLength)
 	longDesc := strings.Repeat("a", 1001)
 	reqBody := createLimitRequest{
 		Name:        "Test Limit",
@@ -2053,7 +2053,7 @@ func TestLimits_UpdateLimit_BlocksCurrencyChange(t *testing.T) {
 }
 
 // TestLimits_UpdateLimit_ValidatesPositiveMaxAmount (3.4.7)
-// Verifies that negative maxAmount on PATCH returns 4.
+// Verifies that negative maxAmount on PATCH returns 400.
 func TestLimits_UpdateLimit_ValidatesPositiveMaxAmount(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
@@ -2252,7 +2252,7 @@ func TestLimits_GetUsage_NearLimitCalculation(t *testing.T) {
 }
 
 // TestLimits_GetUsage_NotFound (3.5.3)
-// Verifies that usage endpoint returns 4.04 for non-existent limit.
+// Verifies that usage endpoint returns 404 for non-existent limit.
 func TestLimits_GetUsage_NotFound(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()

@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -496,9 +495,9 @@ func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.
 		amount   decimal.Decimal
 		exceeded bool
 	}{
-		{"amount_30000_ok", decimal.RequireFromString("300"), false},
-		{"amount_50000_ok", decimal.RequireFromString("500"), false},
-		{"amount_60000_exceeded", decimal.RequireFromString("600"), true},
+		{"amount_300_ok", decimal.RequireFromString("300"), false},
+		{"amount_500_ok", decimal.RequireFromString("500"), false},
+		{"amount_600_exceeded", decimal.RequireFromString("600"), true},
 	}
 
 	for i, tc := range testCases {
@@ -896,7 +895,7 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 
 		if len(usageResponse.Counters) > 0 {
 			// Final usage should be successCount * amountPerTx
-			expectedUsage := decimal.RequireFromString(strconv.Itoa(successCount * amountPerTx))
+			expectedUsage := decimal.NewFromInt(int64(successCount * amountPerTx))
 			assert.True(t, expectedUsage.Equal(usageResponse.Counters[0].CurrentUsage),
 				"Final currentUsage should be %s (based on %d successful validations)", expectedUsage, successCount)
 		}
@@ -1388,7 +1387,7 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 	t.Log("- New periodKey created: YYYY-MM-DD (next day)")
 	t.Log("- Counter starts fresh at 0")
 	t.Log("- Transaction with amount=500 should be approved")
-	t.Log("- New currentUsage = 50000")
+	t.Log("- New currentUsage = 500")
 
 	// Verify current usage is 800 (demonstrates period-based tracking)
 	usageReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
@@ -1488,7 +1487,7 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 	t.Log("- New periodKey created: YYYY-MM (next month)")
 	t.Log("- Counter starts fresh at 0")
 	t.Log("- Transaction with amount=1000 should be approved")
-	t.Log("- New currentUsage = 100000")
+	t.Log("- New currentUsage = 1000")
 
 	// Verify current usage
 	usageReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
