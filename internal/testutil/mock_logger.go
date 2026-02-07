@@ -70,6 +70,7 @@ func (m *mockLoggerFieldsRecorder) record(level, msg string) {
 
 func (m *mockLoggerFieldsRecorder) Info(args ...any) {
 	msg := ""
+
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok {
 			msg = s
@@ -89,6 +90,7 @@ func (m *mockLoggerFieldsRecorder) Infoln(args ...any) {
 
 func (m *mockLoggerFieldsRecorder) Error(args ...any) {
 	msg := ""
+
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok {
 			msg = s
@@ -108,6 +110,7 @@ func (m *mockLoggerFieldsRecorder) Errorln(args ...any) {
 
 func (m *mockLoggerFieldsRecorder) Warn(args ...any) {
 	msg := ""
+
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok {
 			msg = s
@@ -127,6 +130,7 @@ func (m *mockLoggerFieldsRecorder) Warnln(args ...any) {
 
 func (m *mockLoggerFieldsRecorder) Debug(args ...any) {
 	msg := ""
+
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok {
 			msg = s
@@ -146,6 +150,7 @@ func (m *mockLoggerFieldsRecorder) Debugln(args ...any) {
 
 func (m *mockLoggerFieldsRecorder) Fatal(args ...any) {
 	msg := ""
+
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok {
 			msg = s
