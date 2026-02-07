@@ -1694,6 +1694,12 @@ merchant              // Map: merchant["id"], merchant["name"], merchant["catego
 metadata              // Map of custom fields
 ```
 
+> **Note on `amount` precision:** The `amount` variable is internally converted from
+> `decimal.Decimal` to `float64` (via `InexactFloat64()`). This means exact equality
+> checks like `amount == 100.01` may behave unexpectedly due to binary floating-point
+> representation. Prefer range comparisons (e.g., `amount >= 100.00 && amount <= 100.02`)
+> or integer thresholds (e.g., `amount > 100`) for reliable results.
+
 ### Expression Examples
 
 ```cel

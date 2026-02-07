@@ -105,7 +105,7 @@ func TestValidation_ErrorHandling_MissingAmount(t *testing.T) {
 	payload := map[string]any{
 		"requestId":       testutil.MustDeterministicUUID(4602).String(),
 		"transactionType": "CARD",
-		// "amount" intentionally omitted (will be 0 in Go)
+		// "amount" intentionally omitted from JSON payload (server treats missing amount as invalid, triggering TRC-0222)
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
