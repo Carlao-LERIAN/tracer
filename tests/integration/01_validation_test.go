@@ -912,8 +912,8 @@ func TestValidation_InvalidAmount(t *testing.T) {
 		})
 	}
 
-	// Test boundary: amount=1 should be valid (minimum positive amount)
-	t.Run("minimum valid amount (1)", func(t *testing.T) {
+	// Test boundary: amount=0.01 should be valid (minimum positive amount)
+	t.Run("minimum valid amount (0.01)", func(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(163).String(),
 			TransactionType:      "CARD",
@@ -929,7 +929,7 @@ func TestValidation_InvalidAmount(t *testing.T) {
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode,
-			"Amount 1 (minimum valid) should return 200 OK: %s", string(body))
+			"Amount 0.01 (minimum valid) should return 200 OK: %s", string(body))
 	})
 }
 
