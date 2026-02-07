@@ -53,7 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_rules_status ON rules(status) WHERE deleted_at IS
 CREATE INDEX IF NOT EXISTS idx_rules_scopes ON rules USING GIN(scopes) WHERE status = 'ACTIVE';
 
 -- Limits table
--- max_amount is stored in the smallest currency unit (e.g., cents)
+-- max_amount is stored as DECIMAL representing the currency value (e.g., 1000.00 for $1,000)
 -- DECIMAL type enables precise arithmetic for monetary amounts
 CREATE TABLE IF NOT EXISTS limits (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
