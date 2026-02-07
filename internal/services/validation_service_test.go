@@ -595,7 +595,7 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 	assert.Equal(t, requestID, capturedTV.RequestID)
 	assert.Equal(t, model.TransactionTypeCard, capturedTV.TransactionType)
 	assert.Equal(t, &subType, capturedTV.SubType)
-	assert.Equal(t, decimal.RequireFromString("250").String(), capturedTV.Amount.String())
+	assert.True(t, decimal.RequireFromString("250").Equal(capturedTV.Amount), "Amount should be 250")
 	assert.Equal(t, "BRL", capturedTV.Currency)
 	assert.Equal(t, fixedTime, capturedTV.TransactionTimestamp)
 
