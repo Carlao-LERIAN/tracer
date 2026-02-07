@@ -113,30 +113,49 @@ func TestUsageCounterPostgreSQLModel_ToEntity_InvalidLimitID(t *testing.T) {
 func TestUsageCounterPostgreSQLModel_RoundTrip(t *testing.T) {
 	t.Parallel()
 
-	testID := testutil.MustDeterministicUUID(7)
-	testLimitID := testutil.MustDeterministicUUID(8)
-	fixedTime := testutil.FixedTime()
-
-	original := &model.UsageCounter{
-		ID:            testID,
-		LimitID:       testLimitID,
-		ScopeKey:      "portfolio:xyz",
-		PeriodKey:     "2025-12-28",
-		CurrentUsage:  decimal.RequireFromString("7.50"),
-		LastUpdatedAt: fixedTime,
+	tests := []struct {
+		name  string
+		usage string
+	}{
+		{name: "fractional", usage: "7.50"},
+		{name: "zero", usage: "0"},
+		{name: "small precision", usage: "0.01"},
+		{name: "large value", usage: "999999999.99"},
+		{name: "negative", usage: "-100.50"},
+		{name: "high precision", usage: "123.456789"},
 	}
 
-	dbModel := &UsageCounterPostgreSQLModel{}
-	err := dbModel.FromEntity(original)
-	require.NoError(t, err)
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	restored, err := dbModel.ToEntity()
-	require.NoError(t, err)
+			testID := testutil.MustDeterministicUUID(int64(7 + i*2))
+			testLimitID := testutil.MustDeterministicUUID(int64(8 + i*2))
+			fixedTime := testutil.FixedTime()
 
-	assert.Equal(t, original.ID, restored.ID)
-	assert.Equal(t, original.LimitID, restored.LimitID)
-	assert.Equal(t, original.ScopeKey, restored.ScopeKey)
-	assert.Equal(t, original.PeriodKey, restored.PeriodKey)
-	assert.True(t, original.CurrentUsage.Equal(restored.CurrentUsage), "CurrentUsage should match")
-	assert.Equal(t, original.LastUpdatedAt, restored.LastUpdatedAt)
+			original := &model.UsageCounter{
+				ID:            testID,
+				LimitID:       testLimitID,
+				ScopeKey:      "portfolio:xyz",
+				PeriodKey:     "2025-12-28",
+				CurrentUsage:  decimal.RequireFromString(tt.usage),
+				LastUpdatedAt: fixedTime,
+			}
+
+			dbModel := &UsageCounterPostgreSQLModel{}
+			err := dbModel.FromEntity(original)
+			require.NoError(t, err)
+
+			restored, err := dbModel.ToEntity()
+			require.NoError(t, err)
+
+			assert.Equal(t, original.ID, restored.ID)
+			assert.Equal(t, original.LimitID, restored.LimitID)
+			assert.Equal(t, original.ScopeKey, restored.ScopeKey)
+			assert.Equal(t, original.PeriodKey, restored.PeriodKey)
+			assert.True(t, original.CurrentUsage.Equal(restored.CurrentUsage),
+				"CurrentUsage mismatch: want %s, got %s", original.CurrentUsage, restored.CurrentUsage)
+			assert.Equal(t, original.LastUpdatedAt, restored.LastUpdatedAt)
+		})
+	}
 }
