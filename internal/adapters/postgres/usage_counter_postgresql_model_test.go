@@ -137,6 +137,6 @@ func TestUsageCounterPostgreSQLModel_RoundTrip(t *testing.T) {
 	assert.Equal(t, original.LimitID, restored.LimitID)
 	assert.Equal(t, original.ScopeKey, restored.ScopeKey)
 	assert.Equal(t, original.PeriodKey, restored.PeriodKey)
-	assert.Equal(t, original.CurrentUsage, restored.CurrentUsage)
+	assert.True(t, original.CurrentUsage.Equal(restored.CurrentUsage), "CurrentUsage should match")
 	assert.Equal(t, original.LastUpdatedAt, restored.LastUpdatedAt)
 }
