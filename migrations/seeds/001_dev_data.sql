@@ -1,7 +1,7 @@
 -- ============================================
 -- Development Seed Data
 -- WARNING: For development/testing only - NOT for production
--- Note: MVP uses a single migration (000001_initial_schema)
+-- Note: Uses ON CONFLICT DO NOTHING for idempotent re-execution
 -- ============================================
 
 BEGIN;
@@ -22,7 +22,7 @@ INSERT INTO rules (
     'DENY',
     '[]'::jsonb,
     'ACTIVE'
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- Rule 2: Allow small transactions
 INSERT INTO rules (
@@ -36,7 +36,7 @@ INSERT INTO rules (
     'ALLOW',
     '[]'::jsonb,
     'ACTIVE'
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- Rule 3: Weekend review (DRAFT for testing)
 INSERT INTO rules (
@@ -50,7 +50,7 @@ INSERT INTO rules (
     'REVIEW',
     '[]'::jsonb,
     'DRAFT'
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
 -- Sample Limits (max_amount in decimal)
@@ -70,7 +70,7 @@ INSERT INTO limits (
     '[{"transactionType": "CARD"}]'::jsonb,
     'ACTIVE',
     (CURRENT_DATE + INTERVAL '1 day')::TIMESTAMP WITH TIME ZONE
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- Limit 2: Monthly portfolio limit ($1,000,000.00)
 INSERT INTO limits (
@@ -86,7 +86,7 @@ INSERT INTO limits (
     '[{"portfolioId": "80000000-0000-0000-0000-000000000001"}]'::jsonb,
     'ACTIVE',
     (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::TIMESTAMP WITH TIME ZONE
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
 -- Sample Usage Counters (current_usage in decimal)
@@ -101,7 +101,7 @@ INSERT INTO usage_counters (
     'transactionType:CARD',
     TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD'),
     15000
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- Counter for monthly limit ($250,000.00 used)
 INSERT INTO usage_counters (
@@ -112,12 +112,14 @@ INSERT INTO usage_counters (
     'portfolioId:80000000-0000-0000-0000-000000000001',
     TO_CHAR(CURRENT_DATE, 'YYYY-MM'),
     250000
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
 -- Sample Transaction Validation
 -- ============================================
 
+-- Note: transaction_validations has PostgreSQL rules (prevent_update/delete)
+-- that block ON CONFLICT. Using WHERE NOT EXISTS for idempotent insert.
 INSERT INTO transaction_validations (
     id,
     request_id,
@@ -137,7 +139,8 @@ INSERT INTO transaction_validations (
     evaluated_rule_ids,
     limit_usage_details,
     processing_time_ms
-) VALUES (
+)
+SELECT
     '40000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
     'CARD',
@@ -156,6 +159,8 @@ INSERT INTO transaction_validations (
     ARRAY['10000000-0000-0000-0000-000000000001'::UUID, '10000000-0000-0000-0000-000000000002'::UUID],
     '[]'::jsonb,
     23
+WHERE NOT EXISTS (
+    SELECT 1 FROM transaction_validations WHERE id = '40000000-0000-0000-0000-000000000001'
 );
 
 COMMIT;
