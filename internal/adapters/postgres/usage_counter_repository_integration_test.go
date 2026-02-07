@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,7 +32,7 @@ func createTestLimit(t *testing.T, db *sql.DB) uuid.UUID {
 	_, err := db.Exec(`
 		INSERT INTO limits (id, name, limit_type, max_amount, currency, scopes, status)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, limitID, "Test Limit "+limitID.String()[:8], "DAILY", int64(1000000), "USD", "[]", "ACTIVE")
+	`, limitID, "Test Limit "+limitID.String()[:8], "DAILY", "10000", "USD", "[]", "ACTIVE")
 	require.NoError(t, err, "Failed to create test limit")
 
 	return limitID
@@ -54,8 +55,8 @@ func cleanupTestLimit(t *testing.T, db *sql.DB, limitID uuid.UUID) {
 // This is a real integration test that:
 // 1. Uses a real PostgreSQL database (from docker-compose)
 // 2. Creates a usage counter with currentUsage=0
-// 3. Runs 10 goroutines in parallel, each calling IncrementAtomic with amount=1000
-// 4. Verifies final currentUsage equals exactly 10000 (10 * 1000)
+// 3. Runs 10 goroutines in parallel, each calling IncrementAtomic with amount=10
+// 4. Verifies final currentUsage equals exactly 100 (10 * 10)
 //
 // If SELECT FOR UPDATE is working correctly, no updates should be lost due to race conditions.
 func TestUsageCounterRepository_IncrementAtomic_Concurrent_Integration(t *testing.T) {
@@ -71,8 +72,8 @@ func TestUsageCounterRepository_IncrementAtomic_Concurrent_Integration(t *testin
 
 	// Test parameters
 	const numGoroutines = 10
-	const incrementAmount = int64(1000)
-	const expectedFinalUsage = numGoroutines * incrementAmount // 10000
+	incrementAmount := decimal.RequireFromString("10")
+	expectedFinalUsage := decimal.RequireFromString("100") // numGoroutines(10) * incrementAmount(10)
 
 	// Create a test limit first (required for FK constraint)
 	limitID := createTestLimit(t, db)
@@ -89,7 +90,7 @@ func TestUsageCounterRepository_IncrementAtomic_Concurrent_Integration(t *testin
 	counter, err := repo.GetOrCreateForUpdate(ctx, limitID, scopeKey, periodKey)
 	require.NoError(t, err, "Failed to create initial counter")
 	require.NotNil(t, counter)
-	require.Equal(t, int64(0), counter.CurrentUsage, "Initial counter should have 0 usage")
+	require.True(t, decimal.Zero.Equal(counter.CurrentUsage), "Initial counter should have 0 usage")
 
 	counterID := counter.ID
 	t.Logf("Created counter %s with initial usage 0", counterID)
@@ -127,16 +128,16 @@ func TestUsageCounterRepository_IncrementAtomic_Concurrent_Integration(t *testin
 	require.Empty(t, goroutineErrors, "Goroutines should not have errors: %v", goroutineErrors)
 
 	// Verify final usage equals expected value (no lost updates)
-	var finalUsage int64
+	var finalUsage decimal.Decimal
 	err = db.QueryRowContext(ctx, "SELECT current_usage FROM usage_counters WHERE id = $1", counterID).Scan(&finalUsage)
 	require.NoError(t, err, "Failed to query final usage")
 
-	assert.Equal(t, expectedFinalUsage, finalUsage,
-		"Final usage should be exactly %d (no lost updates), but got %d",
-		expectedFinalUsage, finalUsage)
+	assert.True(t, expectedFinalUsage.Equal(finalUsage),
+		"Final usage should be exactly %s (no lost updates), but got %s",
+		expectedFinalUsage.String(), finalUsage.String())
 
-	t.Logf("SUCCESS: %d goroutines each incremented by %d, final usage = %d (expected %d)",
-		numGoroutines, incrementAmount, finalUsage, expectedFinalUsage)
+	t.Logf("SUCCESS: %d goroutines each incremented by %s, final usage = %s (expected %s)",
+		numGoroutines, incrementAmount.String(), finalUsage.String(), expectedFinalUsage.String())
 }
 
 // TestUsageCounterRepository_GetOrCreateForUpdate_Concurrent_Integration tests that
@@ -239,9 +240,9 @@ func TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration(t *testin
 	repo := NewUsageCounterRepositoryWithConnection(adapter)
 
 	const numGoroutines = 10
-	const decrementAmount = int64(500)
-	const initialUsage = int64(10000)                                           // Start with 10000
-	const expectedFinalUsage = initialUsage - (numGoroutines * decrementAmount) // 5000
+	decrementAmount := decimal.RequireFromString("5")
+	initialUsage := decimal.RequireFromString("100")
+	expectedFinalUsage := decimal.RequireFromString("50") // 100 - numGoroutines(10) * decrementAmount(5)
 
 	// Create a test limit first (required for FK constraint)
 	limitID := createTestLimit(t, db)
@@ -292,16 +293,16 @@ func TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration(t *testin
 	require.Empty(t, goroutineErrors, "Goroutines should not have errors: %v", goroutineErrors)
 
 	// Verify final usage
-	var finalUsage int64
+	var finalUsage decimal.Decimal
 	err = db.QueryRowContext(ctx, "SELECT current_usage FROM usage_counters WHERE id = $1", counterID).Scan(&finalUsage)
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedFinalUsage, finalUsage,
-		"Final usage should be exactly %d, but got %d",
-		expectedFinalUsage, finalUsage)
+	assert.True(t, expectedFinalUsage.Equal(finalUsage),
+		"Final usage should be exactly %s, but got %s",
+		expectedFinalUsage.String(), finalUsage.String())
 
-	t.Logf("SUCCESS: %d goroutines each decremented by %d from %d, final usage = %d",
-		numGoroutines, decrementAmount, initialUsage, finalUsage)
+	t.Logf("SUCCESS: %d goroutines each decremented by %s from %s, final usage = %s",
+		numGoroutines, decrementAmount.String(), initialUsage.String(), finalUsage.String())
 }
 
 // TestUsageCounterRepository_MixedOperations_Concurrent_Integration tests concurrent
@@ -316,12 +317,12 @@ func TestUsageCounterRepository_MixedOperations_Concurrent_Integration(t *testin
 
 	const numIncrements = 5
 	const numDecrements = 5
-	const incrementAmount = int64(1000)
-	const decrementAmount = int64(500)
-	const initialUsage = int64(5000)
+	incrementAmount := decimal.RequireFromString("10")
+	decrementAmount := decimal.RequireFromString("5")
+	initialUsage := decimal.RequireFromString("50")
 
-	// Expected: 5000 + (5 * 1000) - (5 * 500) = 5000 + 5000 - 2500 = 7500
-	const expectedFinalUsage = initialUsage + (numIncrements * incrementAmount) - (numDecrements * decrementAmount)
+	// Expected: 50 + (5 * 10) - (5 * 5) = 50 + 50 - 25 = 75
+	expectedFinalUsage := decimal.RequireFromString("75")
 
 	// Create a test limit first (required for FK constraint)
 	limitID := createTestLimit(t, db)
@@ -382,14 +383,14 @@ func TestUsageCounterRepository_MixedOperations_Concurrent_Integration(t *testin
 
 	require.Empty(t, goroutineErrors, "Operations should not have errors: %v", goroutineErrors)
 
-	var finalUsage int64
+	var finalUsage decimal.Decimal
 	err = db.QueryRowContext(ctx, "SELECT current_usage FROM usage_counters WHERE id = $1", counterID).Scan(&finalUsage)
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedFinalUsage, finalUsage,
-		"Final usage should be exactly %d, but got %d",
-		expectedFinalUsage, finalUsage)
+	assert.True(t, expectedFinalUsage.Equal(finalUsage),
+		"Final usage should be exactly %s, but got %s",
+		expectedFinalUsage.String(), finalUsage.String())
 
-	t.Logf("SUCCESS: Mixed ops (5 increments of 1000, 5 decrements of 500) from %d, final = %d (expected %d)",
-		initialUsage, finalUsage, expectedFinalUsage)
+	t.Logf("SUCCESS: Mixed ops (5 increments of %s, 5 decrements of %s) from %s, final = %s (expected %s)",
+		incrementAmount.String(), decrementAmount.String(), initialUsage.String(), finalUsage.String(), expectedFinalUsage.String())
 }

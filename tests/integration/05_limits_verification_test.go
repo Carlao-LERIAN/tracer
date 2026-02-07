@@ -829,7 +829,7 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 			req := &testutil.ValidationRequest{
 				RequestID:            testutil.MustDeterministicUUID(int64(50231 + idx)).String(),
 				TransactionType:      "PIX",
-				Amount:               decimal.RequireFromString(strconv.Itoa(amountPerTx)),
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
@@ -963,7 +963,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 			req := &testutil.ValidationRequest{
 				RequestID:            testutil.MustDeterministicUUID(int64(50252 + idx)).String(),
 				TransactionType:      "PIX",
-				Amount:               decimal.RequireFromString(strconv.Itoa(amountPerTx)),
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 				Account: &testutil.AccountContext{

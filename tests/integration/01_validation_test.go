@@ -2810,11 +2810,10 @@ func TestValidation_1_2_8_CompleteLimitUsagePreserved(t *testing.T) {
 	})
 
 	// Create validation that consumes part of the limit
-	consumeAmount := int64(500)
 	req := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "PIX",
-		Amount:               decimal.RequireFromString(strconv.FormatInt(consumeAmount, 10)),
+		Amount:               decimal.RequireFromString("500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -2861,8 +2860,8 @@ func TestValidation_1_2_8_CompleteLimitUsagePreserved(t *testing.T) {
 
 	// Verify LimitUsage fields are present and correct
 	assert.Equal(t, limitID, foundLimit.LimitID, "limitId should match the created limit")
-	assert.True(t, decimal.RequireFromString(strconv.FormatInt(maxAmount, 10)).Equal(foundLimit.LimitAmount), "limitAmount should be the configured max amount")
-	assert.True(t, decimal.RequireFromString(strconv.FormatInt(consumeAmount, 10)).Equal(foundLimit.CurrentUsage), "currentUsage should reflect the consumed amount")
+	assert.True(t, decimal.RequireFromString("2000").Equal(foundLimit.LimitAmount), "limitAmount should be the configured max amount")
+	assert.True(t, decimal.RequireFromString("500").Equal(foundLimit.CurrentUsage), "currentUsage should reflect the consumed amount")
 	assert.False(t, foundLimit.Exceeded, "exceeded should be false for this non-exceeding transaction")
 
 	// Verify scope format (per API design Section 4.1.1: format "{scopeType}:{scopeValue}")
