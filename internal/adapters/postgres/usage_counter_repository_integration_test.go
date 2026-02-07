@@ -25,10 +25,10 @@ import (
 
 // createTestLimit creates a test limit in the database and returns its ID.
 // This is required because usage_counters has a foreign key constraint to limits.
-func createTestLimit(t *testing.T, db *sql.DB) uuid.UUID {
+func createTestLimit(t *testing.T, db *sql.DB, base int64) uuid.UUID {
 	t.Helper()
 
-	limitID := uuid.New()
+	limitID := testutil.MustDeterministicUUID(base)
 
 	_, err := db.Exec(`
 		INSERT INTO limits (id, name, limit_type, max_amount, currency, scopes, status)
@@ -77,7 +77,7 @@ func TestUsageCounterRepository_IncrementAtomic_Concurrent_Integration(t *testin
 	expectedFinalUsage := decimal.RequireFromString("100") // numGoroutines(10) * incrementAmount(10)
 
 	// Create a test limit first (required for FK constraint)
-	limitID := createTestLimit(t, db)
+	limitID := createTestLimit(t, db, 9001)
 	scopeKey := "test:concurrent-" + uuid.New().String()[:8]
 	periodKey := "2025-01"
 
@@ -157,7 +157,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate_Concurrent_Integration(t *t
 	const numGoroutines = 10
 
 	// Create a test limit first (required for FK constraint)
-	limitID := createTestLimit(t, db)
+	limitID := createTestLimit(t, db, 9002)
 	scopeKey := "test:concurrent-create-" + uuid.New().String()[:8]
 	periodKey := "2025-01"
 
@@ -246,7 +246,7 @@ func TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration(t *testin
 	expectedFinalUsage := decimal.RequireFromString("50") // 100 - numGoroutines(10) * decrementAmount(5)
 
 	// Create a test limit first (required for FK constraint)
-	limitID := createTestLimit(t, db)
+	limitID := createTestLimit(t, db, 9003)
 	scopeKey := "test:concurrent-decrement-" + uuid.New().String()[:8]
 	periodKey := "2025-01"
 
@@ -316,7 +316,7 @@ func TestUsageCounterRepository_DecrementAtomic_UnderflowProtection_Integration(
 	adapter := &testutil.IntegrationDBAdapter{DB: db}
 	repo := NewUsageCounterRepositoryWithConnection(adapter)
 
-	limitID := createTestLimit(t, db)
+	limitID := createTestLimit(t, db, 9004)
 	scopeKey := "test:decrement-underflow-" + uuid.New().String()[:8]
 	periodKey := "2025-01"
 
@@ -367,7 +367,7 @@ func TestUsageCounterRepository_MixedOperations_Concurrent_Integration(t *testin
 	expectedFinalUsage := decimal.RequireFromString("75")
 
 	// Create a test limit first (required for FK constraint)
-	limitID := createTestLimit(t, db)
+	limitID := createTestLimit(t, db, 9005)
 	scopeKey := "test:mixed-ops-" + uuid.New().String()[:8]
 	periodKey := "2025-01"
 
