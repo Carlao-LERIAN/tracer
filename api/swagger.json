@@ -2046,7 +2046,8 @@
                     "format": "uuid"
                 },
                 "amount": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "createdAt": {
                     "type": "string",
@@ -2556,7 +2557,8 @@
                     "$ref": "#/definitions/tracer_pkg_model.AccountContext"
                 },
                 "amount": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "createdAt": {
                     "type": "string",

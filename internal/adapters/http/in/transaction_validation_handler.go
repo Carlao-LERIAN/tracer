@@ -483,7 +483,7 @@ type ValidationSummary struct {
 	ID               uuid.UUID             `json:"validationId" swaggertype:"string" format:"uuid"`
 	Decision         model.Decision        `json:"decision"`
 	Reason           string                `json:"reason"`
-	Amount           decimal.Decimal       `json:"amount" swaggertype:"string"`
+	Amount           decimal.Decimal       `json:"amount" swaggertype:"string" example:"100.00"`
 	Currency         string                `json:"currency"`
 	TransactionType  model.TransactionType `json:"transactionType"`
 	AccountID        uuid.UUID             `json:"accountId" swaggertype:"string" format:"uuid"`

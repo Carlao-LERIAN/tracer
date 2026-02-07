@@ -196,6 +196,7 @@ definitions:
         format: uuid
         type: string
       amount:
+        example: "100.00"
         type: string
       createdAt:
         format: date-time
@@ -582,6 +583,7 @@ definitions:
       account:
         $ref: '#/definitions/tracer_pkg_model.AccountContext'
       amount:
+        example: "100.00"
         type: string
       createdAt:
         format: date-time

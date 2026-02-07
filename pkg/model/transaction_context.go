@@ -15,7 +15,7 @@ import (
 type TransactionContext struct {
 	TransactionType      TransactionType   `json:"transactionType"`
 	SubType              *string           `json:"subType,omitempty"`
-	Amount               decimal.Decimal   `json:"amount" swaggertype:"string"`
+	Amount               decimal.Decimal   `json:"amount" swaggertype:"string" example:"100.00"`
 	Currency             string            `json:"currency"`
 	TransactionTimestamp time.Time         `json:"transactionTimestamp"`
 	Account              AccountContext    `json:"account"`

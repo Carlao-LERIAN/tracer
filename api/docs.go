@@ -2048,7 +2048,8 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "amount": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "createdAt": {
                     "type": "string",
@@ -2558,7 +2559,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.AccountContext"
                 },
                 "amount": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "createdAt": {
                     "type": "string",

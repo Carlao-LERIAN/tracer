@@ -1728,7 +1728,7 @@ components:
         hasMore: true
         transactionValidations:
         - reason: reason
-          amount: amount
+          amount: "100.00"
           validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           decision: ALLOW
           matchedRuleIds:
@@ -1745,7 +1745,7 @@ components:
           segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           currency: currency
         - reason: reason
-          amount: amount
+          amount: "100.00"
           validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           decision: ALLOW
           matchedRuleIds:
@@ -1814,7 +1814,7 @@ components:
     internal_adapters_http_in.ValidationSummary:
       example:
         reason: reason
-        amount: amount
+        amount: "100.00"
         validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         decision: ALLOW
         matchedRuleIds:
@@ -1835,6 +1835,7 @@ components:
           format: uuid
           type: string
         amount:
+          example: "100.00"
           type: string
         createdAt:
           format: date-time
@@ -2349,7 +2350,7 @@ components:
           limitAmount: "1000.00"
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         reason: reason
-        amount: amount
+        amount: "100.00"
         metadata:
           key: "{}"
         validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -2396,6 +2397,7 @@ components:
         account:
           $ref: '#/components/schemas/tracer_pkg_model.AccountContext'
         amount:
+          example: "100.00"
           type: string
         createdAt:
           format: date-time
