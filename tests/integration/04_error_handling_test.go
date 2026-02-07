@@ -59,7 +59,7 @@ func TestValidation_ErrorHandling_MissingRequestId(t *testing.T) {
 	payload := map[string]any{
 		// "requestId" intentionally omitted
 		"transactionType":      "CARD",
-		"amount":               100,
+		"amount":               "100.00",
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -151,7 +151,7 @@ func TestValidation_ErrorHandling_MissingCurrency(t *testing.T) {
 	payload := map[string]any{
 		"requestId":       testutil.MustDeterministicUUID(4604).String(),
 		"transactionType": "CARD",
-		"amount":          100,
+		"amount":          "100.00",
 		// "currency" intentionally omitted
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -197,7 +197,7 @@ func TestValidation_ErrorHandling_MissingTransactionType(t *testing.T) {
 	payload := map[string]any{
 		"requestId": testutil.MustDeterministicUUID(4606).String(),
 		// "transactionType" intentionally omitted
-		"amount":               100,
+		"amount":               "100.00",
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -243,7 +243,7 @@ func TestValidation_ErrorHandling_MissingTransactionTimestamp(t *testing.T) {
 	payload := map[string]any{
 		"requestId":       testutil.MustDeterministicUUID(4608).String(),
 		"transactionType": "CARD",
-		"amount":          100,
+		"amount":          "100.00",
 		"currency":        "BRL",
 		// "transactionTimestamp" intentionally omitted
 		"account": map[string]any{
@@ -289,7 +289,7 @@ func TestValidation_ErrorHandling_InvalidAmount_ZeroValue(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4610).String(),
 		"transactionType":      "CARD",
-		"amount":               0, // Zero is invalid per API Design 6.10
+		"amount":               "0", // Zero is invalid per API Design 6.10
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -335,7 +335,7 @@ func TestValidation_ErrorHandling_InvalidAmount_NegativeValue(t *testing.T) {
 	payload := map[string]any{
 		"requestId":            testutil.MustDeterministicUUID(4612).String(),
 		"transactionType":      "CARD",
-		"amount":               -100, // Negative is invalid
+		"amount":               "-100.00", // Negative is invalid
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
@@ -435,7 +435,7 @@ func TestValidation_ErrorHandling_InvalidCurrency_MixedCase(t *testing.T) {
 			payload := map[string]any{
 				"requestId":            testutil.MustDeterministicUUID(4616).String(),
 				"transactionType":      "CARD",
-				"amount":               100,
+				"amount":               "100.00",
 				"currency":             tc.currency, // Invalid case
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
