@@ -17,8 +17,8 @@ INSERT INTO rules (
 ) VALUES (
     '10000000-0000-0000-0000-000000000001',
     'block-high-value',
-    'Block transactions above $10,000 (1000000 cents)',
-    'amount > 1000000',
+    'Block transactions above $10,000.00',
+    'amount > 10000.00',
     'DENY',
     '[]'::jsonb,
     'ACTIVE'
@@ -31,8 +31,8 @@ INSERT INTO rules (
 ) VALUES (
     '10000000-0000-0000-0000-000000000002',
     'allow-small-transactions',
-    'Auto-approve transactions below $1,000 (100000 cents)',
-    'amount < 100000',
+    'Auto-approve transactions below $1,000.00',
+    'amount < 1000.00',
     'ALLOW',
     '[]'::jsonb,
     'ACTIVE'
@@ -142,7 +142,7 @@ INSERT INTO transaction_validations (
     'a0000000-0000-0000-0000-000000000001',
     'CARD',
     NULL,
-    1500000,
+    15000.00,
     'USD',
     NOW(),
     '{"id": "20000000-0000-0000-0000-000000000001"}'::jsonb,
