@@ -1693,7 +1693,7 @@ func TestValidation_1_1_28_Returns503OnServiceUnavailable(t *testing.T) {
 	assert.Equal(t, "service temporarily unavailable", errorResp.Message, "Error message should indicate service unavailable")
 }
 
-// Test 1.1.29: Validation rejects decimal amount values
+// Test 1.1.29: Validation accepts decimal amount values
 func TestValidation_1_1_29_AcceptsDecimalAmount(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1129).String()
 	requestID := testutil.MustDeterministicUUID(11291).String()
@@ -1702,7 +1702,7 @@ func TestValidation_1_1_29_AcceptsDecimalAmount(t *testing.T) {
 	jsonPayload := fmt.Sprintf(`{
 		"requestId": "%s",
 		"transactionType": "CARD",
-		"amount": 1.50,
+		"amount": "1.50",
 		"currency": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"},
@@ -2341,7 +2341,7 @@ func TestValidation_1_1_39_RejectsMissingAccountId(t *testing.T) {
 	jsonPayload := fmt.Sprintf(`{
 		"requestId": "%s",
 		"transactionType": "CARD",
-		"amount": 100,
+		"amount": "100.00",
 		"currency": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {
