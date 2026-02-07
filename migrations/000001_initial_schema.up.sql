@@ -54,12 +54,13 @@ CREATE INDEX IF NOT EXISTS idx_rules_scopes ON rules USING GIN(scopes) WHERE sta
 
 -- Limits table
 -- max_amount is stored in the smallest currency unit (e.g., cents)
+-- DECIMAL type enables precise arithmetic for monetary amounts
 CREATE TABLE IF NOT EXISTS limits (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     limit_type limit_type_enum NOT NULL,
-    max_amount BIGINT NOT NULL CHECK (max_amount > 0),
+    max_amount DECIMAL NOT NULL CHECK (max_amount > 0),
     currency VARCHAR(3) NOT NULL,
     scopes JSONB NOT NULL DEFAULT '[]',
     status limit_status_enum NOT NULL DEFAULT 'DRAFT',
@@ -84,7 +85,7 @@ CREATE TABLE IF NOT EXISTS usage_counters (
     limit_id UUID NOT NULL REFERENCES limits(id) ON DELETE CASCADE,
     scope_key VARCHAR(255) NOT NULL,
     period_key VARCHAR(50) NOT NULL,
-    current_usage BIGINT NOT NULL DEFAULT 0 CHECK (current_usage >= 0),
+    current_usage DECIMAL NOT NULL DEFAULT 0 CHECK (current_usage >= 0),
     last_updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT usage_counters_composite_unique UNIQUE (limit_id, scope_key, period_key)
 );
@@ -109,7 +110,7 @@ CREATE TABLE IF NOT EXISTS transaction_validations (
     -- Transaction data
     transaction_type transaction_type_enum NOT NULL,
     sub_type VARCHAR(50),
-    amount BIGINT NOT NULL CHECK (amount > 0),
+    amount DECIMAL NOT NULL CHECK (amount > 0),
     currency CHAR(3) NOT NULL,
     transaction_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     

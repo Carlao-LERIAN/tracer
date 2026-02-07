@@ -53,10 +53,10 @@ INSERT INTO rules (
 );
 
 -- ============================================
--- Sample Limits (max_amount in cents)
+-- Sample Limits (max_amount in decimal)
 -- ============================================
 
--- Limit 1: Daily spending limit (5000000 cents = $50,000.00)
+-- Limit 1: Daily spending limit ($50,000.00)
 INSERT INTO limits (
     id, name, description, limit_type, max_amount, currency,
     scopes, status, reset_at
@@ -65,14 +65,14 @@ INSERT INTO limits (
     'daily-account-limit',
     'Daily spending limit per account',
     'DAILY',
-    5000000,
+    50000,
     'USD',
     '[{"transactionType": "CARD"}]'::jsonb,
     'ACTIVE',
     (CURRENT_DATE + INTERVAL '1 day')::TIMESTAMP WITH TIME ZONE
 );
 
--- Limit 2: Monthly portfolio limit (100000000 cents = $1,000,000.00)
+-- Limit 2: Monthly portfolio limit ($1,000,000.00)
 INSERT INTO limits (
     id, name, description, limit_type, max_amount, currency,
     scopes, status, reset_at
@@ -81,7 +81,7 @@ INSERT INTO limits (
     'monthly-portfolio-limit',
     'Monthly spending limit per portfolio',
     'MONTHLY',
-    100000000,
+    1000000,
     'USD',
     '[{"portfolioId": "80000000-0000-0000-0000-000000000001"}]'::jsonb,
     'ACTIVE',
@@ -89,10 +89,10 @@ INSERT INTO limits (
 );
 
 -- ============================================
--- Sample Usage Counters (current_usage in cents)
+-- Sample Usage Counters (current_usage in decimal)
 -- ============================================
 
--- Counter for daily limit (1500000 cents = $15,000.00 used)
+-- Counter for daily limit ($15,000.00 used)
 INSERT INTO usage_counters (
     id, limit_id, scope_key, period_key, current_usage
 ) VALUES (
@@ -100,10 +100,10 @@ INSERT INTO usage_counters (
     '20000000-0000-0000-0000-000000000001',
     'transactionType:CARD',
     TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD'),
-    1500000
+    15000
 );
 
--- Counter for monthly limit (25000000 cents = $250,000.00 used)
+-- Counter for monthly limit ($250,000.00 used)
 INSERT INTO usage_counters (
     id, limit_id, scope_key, period_key, current_usage
 ) VALUES (
@@ -111,7 +111,7 @@ INSERT INTO usage_counters (
     '20000000-0000-0000-0000-000000000002',
     'portfolioId:80000000-0000-0000-0000-000000000001',
     TO_CHAR(CURRENT_DATE, 'YYYY-MM'),
-    25000000
+    250000
 );
 
 -- ============================================
