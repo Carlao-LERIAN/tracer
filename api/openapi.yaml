@@ -1466,8 +1466,8 @@ components:
         limitType:
           $ref: '#/components/schemas/tracer_pkg_model.LimitType'
         maxAmount:
-          minimum: 1
-          type: integer
+          example: "1000.00"
+          type: string
         name:
           maxLength: 255
           minLength: 1
@@ -1621,7 +1621,7 @@ components:
             merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             subType: subType
-          maxAmount: 100000
+          maxAmount: "1000.00"
           limitType: DAILY
           status: DRAFT
           updatedAt: 2000-01-23T04:56:07.000+00:00
@@ -1645,7 +1645,7 @@ components:
             merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             subType: subType
-          maxAmount: 100000
+          maxAmount: "1000.00"
           limitType: DAILY
           status: DRAFT
           updatedAt: 2000-01-23T04:56:07.000+00:00
@@ -1728,7 +1728,7 @@ components:
         hasMore: true
         transactionValidations:
         - reason: reason
-          amount: 0
+          amount: amount
           validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           decision: ALLOW
           matchedRuleIds:
@@ -1741,11 +1741,11 @@ components:
           - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          processingTimeMs: 6
+          processingTimeMs: 0
           segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           currency: currency
         - reason: reason
-          amount: 0
+          amount: amount
           validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           decision: ALLOW
           matchedRuleIds:
@@ -1758,7 +1758,7 @@ components:
           - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          processingTimeMs: 6
+          processingTimeMs: 0
           segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           currency: currency
       properties:
@@ -1777,8 +1777,8 @@ components:
           maxLength: 1000
           type: string
         maxAmount:
-          minimum: 1
-          type: integer
+          example: "1000.00"
+          type: string
         name:
           maxLength: 255
           minLength: 1
@@ -1814,7 +1814,7 @@ components:
     internal_adapters_http_in.ValidationSummary:
       example:
         reason: reason
-        amount: 0
+        amount: amount
         validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         decision: ALLOW
         matchedRuleIds:
@@ -1827,7 +1827,7 @@ components:
         - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        processingTimeMs: 6
+        processingTimeMs: 0
         segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         currency: currency
       properties:
@@ -1835,7 +1835,7 @@ components:
           format: uuid
           type: string
         amount:
-          type: integer
+          type: string
         createdAt:
           format: date-time
           type: string
@@ -2046,7 +2046,7 @@ components:
           merchantId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           subType: subType
-        maxAmount: 100000
+        maxAmount: "1000.00"
         limitType: DAILY
         status: DRAFT
         updatedAt: 2000-01-23T04:56:07.000+00:00
@@ -2067,8 +2067,8 @@ components:
         limitType:
           $ref: '#/components/schemas/tracer_pkg_model.LimitType'
         maxAmount:
-          example: 100000
-          type: integer
+          example: "1000.00"
+          type: string
         name:
           type: string
         resetAt:
@@ -2110,17 +2110,17 @@ components:
       example:
         period: period
         exceeded: true
-        attemptedAmount: 0
+        attemptedAmount: attemptedAmount
         scope: scope
-        currentUsage: 6
-        limitAmount: 1
+        currentUsage: currentUsage
+        limitAmount: limitAmount
         limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
       properties:
         attemptedAmount:
           description: |-
             AttemptedAmount is the transaction amount being validated.
             Per API Design v1.3.2 section 4.1.1.
-          type: integer
+          type: string
         currentUsage:
           description: |-
             CurrentUsage represents the PROJECTED usage after applying the transaction amount,
@@ -2128,11 +2128,11 @@ components:
             (counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.
             When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
             what the usage would have been if the transaction were allowed.
-          type: integer
+          type: string
         exceeded:
           type: boolean
         limitAmount:
-          type: integer
+          type: string
         limitId:
           format: uuid
           type: string
@@ -2333,20 +2333,20 @@ components:
         limitUsageDetails:
         - period: period
           exceeded: true
-          attemptedAmount: 0
+          attemptedAmount: attemptedAmount
           scope: scope
-          currentUsage: 6
-          limitAmount: 1
+          currentUsage: currentUsage
+          limitAmount: limitAmount
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         - period: period
           exceeded: true
-          attemptedAmount: 0
+          attemptedAmount: attemptedAmount
           scope: scope
-          currentUsage: 6
-          limitAmount: 1
+          currentUsage: currentUsage
+          limitAmount: limitAmount
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         reason: reason
-        amount: 0
+        amount: amount
         metadata:
           key: "{}"
         validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -2373,14 +2373,14 @@ components:
             key: "{}"
           portfolioId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           name: name
-        processingTimeMs: 6
+        processingTimeMs: 0
         requestId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         segment:
           metadata:
             key: "{}"
           segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           name: name
-        totalRulesLoaded: 1
+        totalRulesLoaded: 6
         currency: currency
         subType: subType
         account:
@@ -2393,7 +2393,7 @@ components:
         account:
           $ref: '#/components/schemas/tracer_pkg_model.AccountContext'
         amount:
-          type: integer
+          type: string
         createdAt:
           format: date-time
           type: string
@@ -2452,18 +2452,18 @@ components:
         nearLimit: false
         utilizationPercent: 50.0
         resetAt: 2000-01-23T04:56:07.000+00:00
-        currentUsage: 50000
-        limitAmount: 100000
+        currentUsage: "500.00"
+        limitAmount: "1000.00"
         limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
       properties:
         currentUsage:
-          description: Current usage amount in cents (sum of all counters)
-          example: 50000
-          type: integer
+          description: Current usage amount (sum of all counters)
+          example: "500.00"
+          type: string
         limitAmount:
-          description: Total limit amount in cents (from Limit.MaxAmount)
-          example: 100000
-          type: integer
+          description: Total limit amount (from Limit.MaxAmount)
+          example: "1000.00"
+          type: string
         limitId:
           description: Limit identifier
           format: uuid
@@ -2486,7 +2486,7 @@ components:
         account:
           $ref: '#/components/schemas/tracer_pkg_model.AccountContext'
         amount:
-          type: integer
+          type: string
         currency:
           type: string
         merchant:
@@ -2522,24 +2522,24 @@ components:
         limitUsageDetails:
         - period: period
           exceeded: true
-          attemptedAmount: 0
+          attemptedAmount: attemptedAmount
           scope: scope
-          currentUsage: 6
-          limitAmount: 1
+          currentUsage: currentUsage
+          limitAmount: limitAmount
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         - period: period
           exceeded: true
-          attemptedAmount: 0
+          attemptedAmount: attemptedAmount
           scope: scope
-          currentUsage: 6
-          limitAmount: 1
+          currentUsage: currentUsage
+          limitAmount: limitAmount
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         reason: reason
         validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         decision: ALLOW
-        processingTimeMs: 5
+        processingTimeMs: 0
         requestId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        totalRulesLoaded: 5
+        totalRulesLoaded: 6
         truncated: true
         evaluatedRuleIds:
         - 046b6c7f-0b8a-43b9-b35d-6489e6daee91

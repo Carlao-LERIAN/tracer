@@ -61,8 +61,8 @@ definitions:
       limitType:
         $ref: '#/definitions/tracer_pkg_model.LimitType'
       maxAmount:
-        minimum: 1
-        type: integer
+        example: "1000.00"
+        type: string
       name:
         maxLength: 255
         minLength: 1
@@ -156,8 +156,8 @@ definitions:
         maxLength: 1000
         type: string
       maxAmount:
-        minimum: 1
-        type: integer
+        example: "1000.00"
+        type: string
       name:
         maxLength: 255
         minLength: 1
@@ -196,7 +196,7 @@ definitions:
         format: uuid
         type: string
       amount:
-        type: integer
+        type: string
       createdAt:
         format: date-time
         type: string
@@ -373,8 +373,8 @@ definitions:
       limitType:
         $ref: '#/definitions/tracer_pkg_model.LimitType'
       maxAmount:
-        example: 100000
-        type: integer
+        example: "1000.00"
+        type: string
       name:
         type: string
       resetAt:
@@ -418,7 +418,7 @@ definitions:
         description: |-
           AttemptedAmount is the transaction amount being validated.
           Per API Design v1.3.2 section 4.1.1.
-        type: integer
+        type: string
       currentUsage:
         description: |-
           CurrentUsage represents the PROJECTED usage after applying the transaction amount,
@@ -426,11 +426,11 @@ definitions:
           (counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.
           When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
           what the usage would have been if the transaction were allowed.
-        type: integer
+        type: string
       exceeded:
         type: boolean
       limitAmount:
-        type: integer
+        type: string
       limitId:
         format: uuid
         type: string
@@ -579,7 +579,7 @@ definitions:
       account:
         $ref: '#/definitions/tracer_pkg_model.AccountContext'
       amount:
-        type: integer
+        type: string
       createdAt:
         format: date-time
         type: string
@@ -635,13 +635,13 @@ definitions:
   tracer_pkg_model.UsageSnapshot:
     properties:
       currentUsage:
-        description: Current usage amount in cents (sum of all counters)
-        example: 50000
-        type: integer
+        description: Current usage amount (sum of all counters)
+        example: "500.00"
+        type: string
       limitAmount:
-        description: Total limit amount in cents (from Limit.MaxAmount)
-        example: 100000
-        type: integer
+        description: Total limit amount (from Limit.MaxAmount)
+        example: "1000.00"
+        type: string
       limitId:
         description: Limit identifier
         format: uuid
@@ -664,7 +664,7 @@ definitions:
       account:
         $ref: '#/definitions/tracer_pkg_model.AccountContext'
       amount:
-        type: integer
+        type: string
       currency:
         type: string
       merchant:
