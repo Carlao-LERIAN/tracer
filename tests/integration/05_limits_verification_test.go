@@ -33,16 +33,16 @@ import (
 
 // limitVerificationResponse wraps a single limit for verification tests.
 type limitVerificationResponse struct {
-	ID          string               `json:"limitId"`
-	Name        string               `json:"name"`
-	LimitType   string               `json:"limitType"`
-	MaxAmount   decimal.Decimal      `json:"maxAmount"`
-	Currency    string               `json:"currency"`
-	Scopes      []limitScopeResponse `json:"scopes"`
-	Status      string               `json:"status"`
-	ResetAt     *string              `json:"resetAt,omitempty"`
-	CreatedAt   string               `json:"createdAt"`
-	UpdatedAt   string               `json:"updatedAt"`
+	ID        string               `json:"limitId"`
+	Name      string               `json:"name"`
+	LimitType string               `json:"limitType"`
+	MaxAmount decimal.Decimal      `json:"maxAmount"`
+	Currency  string               `json:"currency"`
+	Scopes    []limitScopeResponse `json:"scopes"`
+	Status    string               `json:"status"`
+	ResetAt   *string              `json:"resetAt,omitempty"`
+	CreatedAt string               `json:"createdAt"`
+	UpdatedAt string               `json:"updatedAt"`
 }
 
 // =============================================================================
@@ -1601,4 +1601,3 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 	t.Log("- Recent counters are preserved for auditing")
 	t.Log("- Cleanup does not affect current period counters")
 }
-

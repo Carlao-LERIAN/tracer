@@ -452,8 +452,8 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(404).String(),
-			TransactionType:      "CRYPTO", // Uncommon type unlikely to match any rules
-			Amount:               decimal.RequireFromString("9.99"),      // Uncommon amount
+			TransactionType:      "CRYPTO",                          // Uncommon type unlikely to match any rules
+			Amount:               decimal.RequireFromString("9.99"), // Uncommon amount
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -646,9 +646,9 @@ func TestValidation_1_1_8_MultipleMatchingRules(t *testing.T) {
 	// Create validation request that matches all 3 rules
 	req := &testutil.ValidationRequest{
 		RequestID:            requestID,
-		TransactionType:      "PIX", // matches rule1
+		TransactionType:      "PIX",                            // matches rule1
 		Amount:               decimal.RequireFromString("100"), // matches rule2
-		Currency:             "BRL", // matches rule3
+		Currency:             "BRL",                            // matches rule3
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
@@ -4052,10 +4052,10 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 		// This ensures we get ALLOW decision regardless of other rules in DB
 		uniqueAccountID := testutil.MustDeterministicUUID(7111).String()
 		ruleName := "allow-decision-test-" + testutil.MustDeterministicUUID(1012).String()[:8]
-		ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, 
+		ruleID := testutil.CreateTestRuleWithExpression(t, ruleName,
 			fmt.Sprintf("account.accountId == '%s' && amount < 50", uniqueAccountID), "ALLOW")
 		testutil.ActivateRule(t, ruleID)
-		
+
 		t.Cleanup(func() {
 			testutil.CleanupRule(t, ruleID)
 		})
@@ -4080,7 +4080,7 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 		var createResult testutil.ValidationResponse
 		err := json.Unmarshal(body, &createResult)
 		require.NoError(t, err)
-		
+
 		require.Equal(t, "ALLOW", createResult.Decision, "Should return ALLOW based on our test rule")
 
 		// GET and verify
