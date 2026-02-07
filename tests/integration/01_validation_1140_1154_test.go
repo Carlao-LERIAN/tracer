@@ -608,8 +608,8 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	require.NotNil(t, foundLimit, "limitUsageDetails should contain our limit")
 	// The key check is that the CARD transaction's 500 was NOT added
 	expectedUsage := initialUsage.Add(decimal.RequireFromString("10")) // PIX (300) + check request (10)
-	assert.True(t, foundLimit.CurrentUsage.LessThanOrEqual(expectedUsage),
-		"Usage should NOT include the DENIED CARD transaction amount; expected around %s, got %s",
+	assert.True(t, foundLimit.CurrentUsage.Equal(expectedUsage),
+		"Usage should exclude the DENIED CARD transaction and include the PIX check; expected %s, got %s",
 		expectedUsage, foundLimit.CurrentUsage)
 }
 
