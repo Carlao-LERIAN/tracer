@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tracer/internal/testutil"
+	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
 
@@ -303,6 +304,47 @@ func TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration(t *testin
 
 	t.Logf("SUCCESS: %d goroutines each decremented by %s from %s, final usage = %s",
 		numGoroutines, decrementAmount.String(), initialUsage.String(), finalUsage.String())
+}
+
+// TestUsageCounterRepository_DecrementAtomic_UnderflowProtection_Integration tests that
+// DecrementAtomic returns an error and does not modify current_usage when the decrement
+// amount exceeds the current balance.
+func TestUsageCounterRepository_DecrementAtomic_UnderflowProtection_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	repo := NewUsageCounterRepositoryWithConnection(adapter)
+
+	limitID := createTestLimit(t, db)
+	scopeKey := "test:decrement-underflow-" + uuid.New().String()[:8]
+	periodKey := "2025-01"
+
+	t.Cleanup(func() {
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	ctx := context.Background()
+	counter, err := repo.GetOrCreateForUpdate(ctx, limitID, scopeKey, periodKey)
+	require.NoError(t, err)
+
+	// Set initial usage to 10
+	initialUsage := decimal.RequireFromString("10")
+	_, err = db.ExecContext(ctx, "UPDATE usage_counters SET current_usage = $1 WHERE id = $2", initialUsage, counter.ID)
+	require.NoError(t, err)
+
+	// Attempt to decrement by 15 (exceeds current_usage of 10)
+	decrementAmount := decimal.RequireFromString("15")
+	err = repo.DecrementAtomic(ctx, counter.ID, decrementAmount)
+	require.ErrorIs(t, err, constant.ErrUsageCounterCurrentUsageNegative)
+
+	// Verify usage was NOT modified
+	var finalUsage decimal.Decimal
+	err = db.QueryRowContext(ctx, "SELECT current_usage FROM usage_counters WHERE id = $1", counter.ID).Scan(&finalUsage)
+	require.NoError(t, err)
+	assert.True(t, initialUsage.Equal(finalUsage),
+		"Usage should remain %s after failed underflow decrement, got %s",
+		initialUsage.String(), finalUsage.String())
 }
 
 // TestUsageCounterRepository_MixedOperations_Concurrent_Integration tests concurrent
