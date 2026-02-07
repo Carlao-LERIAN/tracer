@@ -83,7 +83,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Monthly Transfer Limit",
 				LimitType: model.LimitTypeMonthly,
-				MaxAmount:   decimal.RequireFromString("5000"),
+				MaxAmount: decimal.RequireFromString("5000"),
 				Currency:  "BRL",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -101,7 +101,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Per Transaction Limit",
 				LimitType: model.LimitTypePerTransaction,
-				MaxAmount:   decimal.RequireFromString("100"),
+				MaxAmount: decimal.RequireFromString("100"),
 				Currency:  "EUR",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -119,7 +119,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Multi-Scope Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("500"),
+				MaxAmount: decimal.RequireFromString("500"),
 				Currency:  "USD",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(10))},
@@ -139,7 +139,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Lowercase Currency Test",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "usd",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -159,7 +159,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "  Whitespace Name  ",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -179,7 +179,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "  Foo  ",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  " usd ",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -200,7 +200,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "   ",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  " usd ",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -213,7 +213,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -226,7 +226,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitType("INVALID"),
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -239,7 +239,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("0"),
+				MaxAmount: decimal.RequireFromString("0"),
 				Currency:  "USD",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -265,7 +265,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "US1",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -278,7 +278,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "US",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -291,7 +291,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []model.Scope{},
 			},
@@ -304,7 +304,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    nil,
 			},
@@ -317,7 +317,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []model.Scope{{}},
 			},
@@ -330,7 +330,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -345,7 +345,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 			input: &CreateLimitInput{
 				Name:      "Audit Failure Test",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount:   decimal.RequireFromString("1000"),
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []model.Scope{validScope},
 			},
@@ -453,7 +453,7 @@ func TestCreateLimitCommand_Execute_ContextCancellation(t *testing.T) {
 	input := &CreateLimitInput{
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
-		MaxAmount:   decimal.RequireFromString("1000"),
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []model.Scope{validScope},
 	}

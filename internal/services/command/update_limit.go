@@ -45,7 +45,7 @@ type UpdateLimitInput struct {
 
 // UpdateLimitCommand handles limit updates.
 type UpdateLimitCommand struct {
-	repo LimitRepository
+	repo        LimitRepository
 	auditWriter AuditWriter
 }
 
@@ -82,11 +82,11 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 	normalizedInput := c.normalizeInput(input)
 
 	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "update_limit_input", map[string]any{
-		"limit_id":            id.String(),
-		"has_name":            normalizedInput.Name != nil,
-		"has_max_amount":      normalizedInput.MaxAmount != nil,
-		"has_description":     normalizedInput.Description != nil,
-		"has_scopes":          normalizedInput.Scopes != nil,
+		"limit_id":        id.String(),
+		"has_name":        normalizedInput.Name != nil,
+		"has_max_amount":  normalizedInput.MaxAmount != nil,
+		"has_description": normalizedInput.Description != nil,
+		"has_scopes":      normalizedInput.Scopes != nil,
 	})
 
 	if ctx.Err() != nil {
@@ -272,4 +272,3 @@ func (c *UpdateLimitCommand) recordAudit(ctx context.Context, logger libLog.Logg
 		).Warn("Failed to record audit event")
 	}
 }
-

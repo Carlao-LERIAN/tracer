@@ -73,14 +73,14 @@ func TestDeactivateLimitCommand_Execute_Success(t *testing.T) {
 	// Audit event should be called exactly once with specific parameters
 	auditWriter.EXPECT().
 		RecordLimitEvent(
-			gomock.Any(),                         // ctx
-			model.AuditEventLimitDeactivated,     // eventType
-			model.AuditActionDeactivate,          // action
-			limitID,                              // limitID
-			gomock.Any(),                         // beforeState
-			gomock.Any(),                         // afterState
-			"Limit deactivated via API",          // description
-			gomock.Any(),                         // clientIP
+			gomock.Any(),                     // ctx
+			model.AuditEventLimitDeactivated, // eventType
+			model.AuditActionDeactivate,      // action
+			limitID,                          // limitID
+			gomock.Any(),                     // beforeState
+			gomock.Any(),                     // afterState
+			"Limit deactivated via API",      // description
+			gomock.Any(),                     // clientIP
 		).
 		Times(1).
 		Return(nil)

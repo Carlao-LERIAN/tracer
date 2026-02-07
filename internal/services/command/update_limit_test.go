@@ -320,14 +320,14 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 				// Audit event should be called exactly once with specific parameters
 				auditWriter.EXPECT().
 					RecordLimitEvent(
-						gomock.Any(),                  // ctx
-						model.AuditEventLimitUpdated,  // eventType
-						model.AuditActionUpdate,       // action
-						tc.limitID,                    // limitID
-						gomock.Any(),                  // beforeState
-						gomock.Any(),                  // afterState
-						"Limit updated via API",       // description
-						gomock.Any(),                  // clientIP
+						gomock.Any(),                 // ctx
+						model.AuditEventLimitUpdated, // eventType
+						model.AuditActionUpdate,      // action
+						tc.limitID,                   // limitID
+						gomock.Any(),                 // beforeState
+						gomock.Any(),                 // afterState
+						"Limit updated via API",      // description
+						gomock.Any(),                 // clientIP
 					).
 					Times(1).
 					Return(nil)

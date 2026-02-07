@@ -20,14 +20,13 @@ import (
 	"tracer/internal/testutil"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // Ensure we use the shared HTTP client
 var _ = testutil.HTTPClient
-
 
 // decimalPtr returns a pointer to a decimal.Decimal created from the given int64 value.
 func decimalPtr(v int64) *decimal.Decimal {
@@ -336,7 +335,7 @@ func TestLimits_CreateLimit_ValidationError_DescriptionTooLong(t *testing.T) {
 		Name:        "Test Limit",
 		Description: &longDesc,
 		LimitType:   "DAILY",
-		MaxAmount: decimal.RequireFromString("1000"),
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes:      []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
@@ -689,7 +688,7 @@ func TestLimits_CreateLimit_Success(t *testing.T) {
 		Name:        uniqueName,
 		Description: &description,
 		LimitType:   "DAILY",
-		MaxAmount: decimal.RequireFromString("1000"),
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -1394,7 +1393,7 @@ func TestLimits_FullLifecycle(t *testing.T) {
 		Name:        uniqueName,
 		Description: &description,
 		LimitType:   "DAILY",
-		MaxAmount: decimal.RequireFromString("1000"),
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -1611,12 +1610,12 @@ func cleanupLimit(t *testing.T, limitID string) {
 // =============================================================================
 
 type usageSnapshotResponse struct {
-	LimitID            string  `json:"limitId"`
+	LimitID            string          `json:"limitId"`
 	CurrentUsage       decimal.Decimal `json:"currentUsage"`
 	LimitAmount        decimal.Decimal `json:"limitAmount"`
-	UtilizationPercent float64 `json:"utilizationPercent"`
-	NearLimit          bool    `json:"nearLimit"`
-	ResetAt            *string `json:"resetAt,omitempty"`
+	UtilizationPercent float64         `json:"utilizationPercent"`
+	NearLimit          bool            `json:"nearLimit"`
+	ResetAt            *string         `json:"resetAt,omitempty"`
 }
 
 // =============================================================================
@@ -2654,7 +2653,7 @@ func TestLimits_CreateLimit_ValidationError_DescriptionWithXSS(t *testing.T) {
 		Name:        "XSS Test Limit " + testutil.MustDeterministicUUID(3019).String()[:8],
 		Description: &xssDescription,
 		LimitType:   "DAILY",
-		MaxAmount: decimal.RequireFromString("1000"),
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -3277,7 +3276,7 @@ func TestLimits_CreateLimit_Boundary_DescriptionExactly1000Chars(t *testing.T) {
 		Name:        "Boundary Test Limit " + testutil.MustDeterministicUUID(3026).String()[:8],
 		Description: &exactDesc,
 		LimitType:   "DAILY",
-		MaxAmount: decimal.RequireFromString("1000"),
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -3331,7 +3330,7 @@ func TestLimits_CreateLimit_ResponseFields_Complete(t *testing.T) {
 		Name:        uniqueName,
 		Description: &description,
 		LimitType:   "DAILY",
-		MaxAmount: decimal.RequireFromString("1000"),
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{AccountID: &accountID, TransactionType: testutil.Ptr("CARD")},
@@ -3489,7 +3488,7 @@ func TestLimits_GetLimit_ResponseFields_Complete(t *testing.T) {
 		Name:        uniqueName,
 		Description: &description,
 		LimitType:   "MONTHLY",
-		MaxAmount: decimal.RequireFromString("5000"),
+		MaxAmount:   decimal.RequireFromString("5000"),
 		Currency:    "BRL",
 		Scopes: []limitScopeInput{
 			{AccountID: &accountID},
@@ -3584,10 +3583,10 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 
 	// Test cases for immutable field validation
 	testCases := []struct {
-		name           string
-		updateBody     map[string]interface{}
-		expectedField  string
-		description    string
+		name          string
+		updateBody    map[string]interface{}
+		expectedField string
+		description   string
 	}{
 		{
 			name: "change_limitType_DAILY_to_MONTHLY",

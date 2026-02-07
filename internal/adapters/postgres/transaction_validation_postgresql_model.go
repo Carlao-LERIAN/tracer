@@ -29,19 +29,19 @@ type TransactionValidationPostgreSQLModel struct {
 	SubType              *string         `db:"sub_type"`
 	Amount               decimal.Decimal `db:"amount"`
 	Currency             string          `db:"currency"`
-	TransactionTimestamp time.Time `db:"transaction_timestamp"`
-	Account              string    `db:"account"`   // JSONB
-	Segment              *string   `db:"segment"`   // JSONB (nullable)
-	Portfolio            *string   `db:"portfolio"` // JSONB (nullable)
-	Merchant             *string   `db:"merchant"`  // JSONB (nullable)
-	Metadata             string    `db:"metadata"`  // JSONB
-	Decision             string    `db:"decision"`
-	Reason               string    `db:"reason"`
-	MatchedRuleIds       string    `db:"matched_rule_ids"`    // UUID[] as string
-	EvaluatedRuleIds     string    `db:"evaluated_rule_ids"`  // UUID[] as string
-	LimitUsageDetails    string    `db:"limit_usage_details"` // JSONB
-	ProcessingTimeMs     int64     `db:"processing_time_ms"`
-	CreatedAt            time.Time `db:"created_at"`
+	TransactionTimestamp time.Time       `db:"transaction_timestamp"`
+	Account              string          `db:"account"`   // JSONB
+	Segment              *string         `db:"segment"`   // JSONB (nullable)
+	Portfolio            *string         `db:"portfolio"` // JSONB (nullable)
+	Merchant             *string         `db:"merchant"`  // JSONB (nullable)
+	Metadata             string          `db:"metadata"`  // JSONB
+	Decision             string          `db:"decision"`
+	Reason               string          `db:"reason"`
+	MatchedRuleIds       string          `db:"matched_rule_ids"`    // UUID[] as string
+	EvaluatedRuleIds     string          `db:"evaluated_rule_ids"`  // UUID[] as string
+	LimitUsageDetails    string          `db:"limit_usage_details"` // JSONB
+	ProcessingTimeMs     int64           `db:"processing_time_ms"`
+	CreatedAt            time.Time       `db:"created_at"`
 }
 
 // ToEntity converts the database model to a domain entity.

@@ -29,11 +29,11 @@ func TestCompleteEvaluator_EvaluateAll(t *testing.T) {
 
 	// Create test request for all test cases
 	testRequest := &model.ValidationRequest{
-		RequestID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"),
-		TransactionType: model.TransactionTypeCard,
-		Amount:          decimal.RequireFromString("1500"), // $1500.00
-		Currency:        "USD",
-		TransactionTimestamp:       now,
+		RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"),
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("1500"), // $1500.00
+		Currency:             "USD",
+		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: testAccountID,
 		},
@@ -323,11 +323,11 @@ func TestCompleteEvaluator_EvaluateAll_UnknownAction(t *testing.T) {
 	testAccountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 
 	testRequest := &model.ValidationRequest{
-		RequestID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
-		TransactionType: model.TransactionTypeCard,
-		Amount:          decimal.RequireFromString("1500"),
-		Currency:        "USD",
-		TransactionTimestamp:       now,
+		RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440003"),
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("1500"),
+		Currency:             "USD",
+		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: testAccountID,
 		},
@@ -381,11 +381,11 @@ func TestCompleteEvaluator_EvaluateAll_NilRuleSkipped(t *testing.T) {
 	testAccountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 
 	testRequest := &model.ValidationRequest{
-		RequestID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"),
-		TransactionType: model.TransactionTypeCard,
-		Amount:          decimal.RequireFromString("1500"),
-		Currency:        "USD",
-		TransactionTimestamp:       now,
+		RequestID:            uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"),
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("1500"),
+		Currency:             "USD",
+		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: testAccountID,
 		},

@@ -82,8 +82,8 @@ func TestAmountExpressions(t *testing.T) {
 	tests := []struct {
 		name       string
 		expression string
-		amount   string
-		expected bool
+		amount     string
+		expected   bool
 	}{
 		{
 			name:       "high_value_true",

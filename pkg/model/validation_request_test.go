@@ -7,8 +7,9 @@ package model
 import (
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
@@ -22,11 +23,11 @@ func TestValidationRequest_Validate(t *testing.T) {
 	validRequest := func() *ValidationRequest {
 		accountID := testutil.MustDeterministicUUID(1)
 		return &ValidationRequest{
-			RequestID:       testutil.MustDeterministicUUID(2),
-			TransactionType: TransactionTypeCard,
-			Amount:          decimal.RequireFromString("100"), // $100.00
-			Currency:        "USD",
-			TransactionTimestamp:       testutil.FixedTime(),
+			RequestID:            testutil.MustDeterministicUUID(2),
+			TransactionType:      TransactionTypeCard,
+			Amount:               decimal.RequireFromString("100"), // $100.00
+			Currency:             "USD",
+			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID:     accountID,
 				Type:   "checking",
@@ -191,12 +192,12 @@ func TestValidationRequest_ToTransactionContext(t *testing.T) {
 	segmentID := testutil.MustDeterministicUUID(10)
 	portfolioID := testutil.MustDeterministicUUID(11)
 	req := &ValidationRequest{
-		RequestID:       testutil.MustDeterministicUUID(12),
-		TransactionType: TransactionTypeCard,
-		SubType:         &subType,
-		Amount:          decimal.RequireFromString("500"),
-		Currency:        "BRL",
-		TransactionTimestamp:       testutil.FixedTime(),
+		RequestID:            testutil.MustDeterministicUUID(12),
+		TransactionType:      TransactionTypeCard,
+		SubType:              &subType,
+		Amount:               decimal.RequireFromString("500"),
+		Currency:             "BRL",
+		TransactionTimestamp: testutil.FixedTime(),
 		Account: AccountContext{
 			ID:     testutil.MustDeterministicUUID(13),
 			Type:   "checking",
@@ -229,12 +230,12 @@ func TestValidationRequest_ToTransactionContext(t *testing.T) {
 
 func TestValidationRequest_ToTransactionContext_NilOptionalFields(t *testing.T) {
 	req := &ValidationRequest{
-		RequestID:       testutil.MustDeterministicUUID(20),
-		TransactionType: TransactionTypePix,
-		SubType:         nil,
-		Amount:          decimal.RequireFromString("100"),
-		Currency:        "BRL",
-		TransactionTimestamp:       testutil.FixedTime(),
+		RequestID:            testutil.MustDeterministicUUID(20),
+		TransactionType:      TransactionTypePix,
+		SubType:              nil,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "BRL",
+		TransactionTimestamp: testutil.FixedTime(),
 		Account: AccountContext{
 			ID: testutil.MustDeterministicUUID(21),
 		},
@@ -262,12 +263,12 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 		portfolioID := testutil.MustDeterministicUUID(32)
 		timestamp := testutil.FixedTime()
 		req := &ValidationRequest{
-			RequestID:       testutil.MustDeterministicUUID(33),
-			TransactionType: TransactionTypeCard,
-			SubType:         &subType,
-			Amount:          decimal.RequireFromString("500"),
-			Currency:        "USD",
-			TransactionTimestamp:       timestamp,
+			RequestID:            testutil.MustDeterministicUUID(33),
+			TransactionType:      TransactionTypeCard,
+			SubType:              &subType,
+			Amount:               decimal.RequireFromString("500"),
+			Currency:             "USD",
+			TransactionTimestamp: timestamp,
 			Account: AccountContext{
 				ID: accountID,
 			},
@@ -289,12 +290,12 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 	t.Run("handles nil segment and portfolio", func(t *testing.T) {
 		accountID := testutil.MustDeterministicUUID(40)
 		req := &ValidationRequest{
-			RequestID:       testutil.MustDeterministicUUID(41),
-			TransactionType: TransactionTypePix,
-			SubType:         nil,
-			Amount:          decimal.RequireFromString("100"),
-			Currency:        "BRL",
-			TransactionTimestamp:       testutil.FixedTime(),
+			RequestID:            testutil.MustDeterministicUUID(41),
+			TransactionType:      TransactionTypePix,
+			SubType:              nil,
+			Amount:               decimal.RequireFromString("100"),
+			Currency:             "BRL",
+			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: accountID,
 			},

@@ -213,10 +213,10 @@ func TestValidateMetadata(t *testing.T) {
 	t.Run("Error - one invalid key among many valid keys", func(t *testing.T) {
 		req := createValidRequest()
 		req.Metadata = map[string]any{
-			"valid_key1":      "value1",
-			"valid_key2":      "value2",
-			"invalid-key":     "value3", // hyphen is not allowed
-			"another_valid":   "value4",
+			"valid_key1":    "value1",
+			"valid_key2":    "value2",
+			"invalid-key":   "value3", // hyphen is not allowed
+			"another_valid": "value4",
 		}
 
 		err := req.validateMetadata()

@@ -7,8 +7,9 @@ package model
 import (
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"tracer/internal/testutil"
 
@@ -31,11 +32,11 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "complete context with all fields",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeCard,
-				SubType:         testutil.StringPtr("debit"),
-				Amount:          decimal.RequireFromString("1000"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 10, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeCard,
+				SubType:              testutil.StringPtr("debit"),
+				Amount:               decimal.RequireFromString("1000"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Date(2030, 12, 24, 10, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:     accountID,
 					Type:   "checking",
@@ -95,10 +96,10 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "minimal context without optional fields",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeWire,
-				Amount:          decimal.RequireFromString("500"),
-				Currency:        "EUR",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 11, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeWire,
+				Amount:               decimal.RequireFromString("500"),
+				Currency:             "EUR",
+				TransactionTimestamp: time.Date(2030, 12, 24, 11, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:   accountID,
 					Type: "savings",
@@ -125,10 +126,10 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "zero amount is preserved",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeCard,
-				Amount:          decimal.RequireFromString("0"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeCard,
+				Amount:               decimal.RequireFromString("0"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:   accountID,
 					Type: "checking",
@@ -141,10 +142,10 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "negative amount is preserved",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeCard,
-				Amount:          decimal.RequireFromString("-500"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeCard,
+				Amount:               decimal.RequireFromString("-500"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:   accountID,
 					Type: "checking",
@@ -157,10 +158,10 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "empty currency string is preserved",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeCard,
-				Amount:          decimal.RequireFromString("100"),
-				Currency:        "",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeCard,
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "",
+				TransactionTimestamp: time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:   accountID,
 					Type: "checking",
@@ -173,10 +174,10 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "empty account type and status are preserved",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeCard,
-				Amount:          decimal.RequireFromString("100"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeCard,
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:     accountID,
 					Type:   "",
@@ -193,10 +194,10 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "nil segment yields nil",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeCard,
-				Amount:          decimal.RequireFromString("100"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeCard,
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:   accountID,
 					Type: "checking",
@@ -210,10 +211,10 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "nil portfolio yields nil",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeCard,
-				Amount:          decimal.RequireFromString("100"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeCard,
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:   accountID,
 					Type: "checking",
@@ -227,10 +228,10 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "empty metadata map is preserved as empty",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeCard,
-				Amount:          decimal.RequireFromString("100"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeCard,
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:   accountID,
 					Type: "checking",
@@ -246,10 +247,10 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		{
 			name: "nil metadata yields empty map",
 			ctx: &TransactionContext{
-				TransactionType: TransactionTypeCard,
-				Amount:          decimal.RequireFromString("100"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
+				TransactionType:      TransactionTypeCard,
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Date(2030, 12, 24, 12, 0, 0, 0, time.UTC),
 				Account: AccountContext{
 					ID:   accountID,
 					Type: "checking",
@@ -306,5 +307,3 @@ func TestTransactionContext_ToMap(t *testing.T) {
 		})
 	}
 }
-
-

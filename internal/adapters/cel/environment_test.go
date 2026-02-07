@@ -224,12 +224,12 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 		{
 			name: "Success - build activation from full request",
 			request: &model.ValidationRequest{
-				RequestID:       uuid.New(),
-				TransactionType: model.TransactionTypeCard,
-				SubType:         &subType,
-				Amount:          decimal.RequireFromString("100.75"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Now(),
+				RequestID:            uuid.New(),
+				TransactionType:      model.TransactionTypeCard,
+				SubType:              &subType,
+				Amount:               decimal.RequireFromString("100.75"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID1,
 					Type:   "checking",
@@ -255,7 +255,7 @@ func TestBuildActivation_FullRequest(t *testing.T) {
 			},
 			expectedTransType:  "CARD",
 			expectedSubType:    "debit",
-			expectedAmount:          float64(100.75),
+			expectedAmount:     float64(100.75),
 			expectedCurrency:   "USD",
 			expectedAccountID:  envTestAccountID1.String(),
 			expectedMerchantID: envTestMerchantID1.String(),
@@ -354,12 +354,12 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 		{
 			name: "Success - build activation with nil merchant",
 			request: &model.ValidationRequest{
-				RequestID:       uuid.New(),
-				TransactionType: model.TransactionTypeWire,
-				SubType:         nil,
-				Amount:          decimal.RequireFromString("50"),
-				Currency:        "BRL",
-				TransactionTimestamp:       time.Now(),
+				RequestID:            uuid.New(),
+				TransactionType:      model.TransactionTypeWire,
+				SubType:              nil,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "BRL",
+				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID2,
 					Type:   "savings",
@@ -375,12 +375,12 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 		{
 			name: "Success - build activation with nil subType",
 			request: &model.ValidationRequest{
-				RequestID:       uuid.New(),
-				TransactionType: model.TransactionTypePix,
-				SubType:         nil,
-				Amount:          decimal.RequireFromString("10"),
-				Currency:        "BRL",
-				TransactionTimestamp:       time.Now(),
+				RequestID:            uuid.New(),
+				TransactionType:      model.TransactionTypePix,
+				SubType:              nil,
+				Amount:               decimal.RequireFromString("10"),
+				Currency:             "BRL",
+				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID3,
 					Type:   "checking",
@@ -396,12 +396,12 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 		{
 			name: "Success - build activation with nil segment and portfolio",
 			request: &model.ValidationRequest{
-				RequestID:       uuid.New(),
-				TransactionType: model.TransactionTypeCrypto,
-				SubType:         nil,
-				Amount:          decimal.RequireFromString("1000"),
-				Currency:        "USD",
-				TransactionTimestamp:       time.Now(),
+				RequestID:            uuid.New(),
+				TransactionType:      model.TransactionTypeCrypto,
+				SubType:              nil,
+				Amount:               decimal.RequireFromString("1000"),
+				Currency:             "USD",
+				TransactionTimestamp: time.Now(),
 				Account: model.AccountContext{
 					ID:     envTestAccountID4,
 					Type:   "credit",

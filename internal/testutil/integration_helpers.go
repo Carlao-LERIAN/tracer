@@ -333,13 +333,13 @@ type MerchantContext struct {
 
 // LimitUsageDetail represents limit usage information in validation response.
 type LimitUsageDetail struct {
-	LimitID         string `json:"limitId"`
-	LimitAmount     decimal.Decimal  `json:"limitAmount"`
-	CurrentUsage    decimal.Decimal  `json:"currentUsage"`
-	Exceeded        bool   `json:"exceeded"`
-	Period          string `json:"period"`
-	Scope           string `json:"scope"`
-	AttemptedAmount decimal.Decimal  `json:"attemptedAmount"`
+	LimitID         string          `json:"limitId"`
+	LimitAmount     decimal.Decimal `json:"limitAmount"`
+	CurrentUsage    decimal.Decimal `json:"currentUsage"`
+	Exceeded        bool            `json:"exceeded"`
+	Period          string          `json:"period"`
+	Scope           string          `json:"scope"`
+	AttemptedAmount decimal.Decimal `json:"attemptedAmount"`
 }
 
 // ValidationResponse represents the response from transaction validation.
@@ -646,19 +646,19 @@ func GetValidationWithoutAuth(t *testing.T, validationID string) (*http.Response
 
 // ValidationSummary represents a summary of a validation record in list responses.
 type ValidationSummary struct {
-	ID               string   `json:"validationId"`
-	Decision         string   `json:"decision"`
-	Reason           string   `json:"reason"`
-	Amount           decimal.Decimal    `json:"amount"`
-	Currency         string   `json:"currency"`
-	TransactionType  string   `json:"transactionType"`
-	AccountID        string   `json:"accountId"`
-	SegmentID        string   `json:"segmentId,omitempty"`
-	PortfolioID      string   `json:"portfolioId,omitempty"`
-	MatchedRuleIDs   []string `json:"matchedRuleIds"`
-	ExceededLimitIDs []string `json:"exceededLimitIds"`
-	ProcessingTimeMs int64    `json:"processingTimeMs"`
-	CreatedAt        string   `json:"createdAt"`
+	ID               string          `json:"validationId"`
+	Decision         string          `json:"decision"`
+	Reason           string          `json:"reason"`
+	Amount           decimal.Decimal `json:"amount"`
+	Currency         string          `json:"currency"`
+	TransactionType  string          `json:"transactionType"`
+	AccountID        string          `json:"accountId"`
+	SegmentID        string          `json:"segmentId,omitempty"`
+	PortfolioID      string          `json:"portfolioId,omitempty"`
+	MatchedRuleIDs   []string        `json:"matchedRuleIds"`
+	ExceededLimitIDs []string        `json:"exceededLimitIds"`
+	ProcessingTimeMs int64           `json:"processingTimeMs"`
+	CreatedAt        string          `json:"createdAt"`
 }
 
 // ListValidationsResponse represents the response from GET /v1/validations.

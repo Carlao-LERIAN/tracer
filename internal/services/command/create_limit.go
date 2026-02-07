@@ -43,7 +43,7 @@ type CreateLimitInput struct {
 
 // CreateLimitCommand handles limit creation.
 type CreateLimitCommand struct {
-	repo LimitRepository
+	repo        LimitRepository
 	auditWriter AuditWriter
 }
 

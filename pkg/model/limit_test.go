@@ -5,11 +5,12 @@
 package model
 
 import (
-	"github.com/shopspring/decimal"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -261,7 +262,7 @@ func TestNewLimit(t *testing.T) {
 			limitName:    "  Trimmed Name  ",
 			expectedName: "Trimmed Name",
 			limitType:    LimitTypeDaily,
-			maxAmount:   decimal.RequireFromString("1000"),
+			maxAmount:    decimal.RequireFromString("1000"),
 			currency:     "USD",
 			scopes:       []Scope{validScope},
 			description:  nil,
@@ -271,7 +272,7 @@ func TestNewLimit(t *testing.T) {
 			name:                "trims description whitespace",
 			limitName:           "Test Limit",
 			limitType:           LimitTypeDaily,
-			maxAmount:   decimal.RequireFromString("1000"),
+			maxAmount:           decimal.RequireFromString("1000"),
 			currency:            "USD",
 			scopes:              []Scope{validScope},
 			description:         testutil.StringPtr("  trimmed description  "),
@@ -352,7 +353,7 @@ func TestNewLimit(t *testing.T) {
 			name:             "normalizes lowercase currency to uppercase",
 			limitName:        "Test Limit",
 			limitType:        LimitTypeDaily,
-			maxAmount:   decimal.RequireFromString("1000"),
+			maxAmount:        decimal.RequireFromString("1000"),
 			currency:         "usd",
 			expectedCurrency: "USD",
 			scopes:           []Scope{validScope},
@@ -362,7 +363,7 @@ func TestNewLimit(t *testing.T) {
 			name:             "trims and normalizes currency",
 			limitName:        "Test Limit",
 			limitType:        LimitTypeDaily,
-			maxAmount:   decimal.RequireFromString("1000"),
+			maxAmount:        decimal.RequireFromString("1000"),
 			currency:         "  brl  ",
 			expectedCurrency: "BRL",
 			scopes:           []Scope{validScope},
@@ -1272,7 +1273,7 @@ func TestUsageCounter_Increment(t *testing.T) {
 		},
 		{
 			name:        "rejects negative amount",
-			amount:            decimal.RequireFromString("-1"),
+			amount:      decimal.RequireFromString("-1"),
 			expectedErr: constant.ErrUsageCounterIncrementNonNegative,
 		},
 	}
@@ -1647,45 +1648,45 @@ func TestNewUsageSnapshot_DailyLimit(t *testing.T) {
 // TestNewUsageSnapshot_NearLimitThreshold tests nearLimit flag at boundary.
 func TestNewUsageSnapshot_NearLimitThreshold(t *testing.T) {
 	tests := []struct {
-		name           string
-		currentUsage   decimal.Decimal
-		maxAmount      decimal.Decimal
-		expectedNear   bool
+		name            string
+		currentUsage    decimal.Decimal
+		maxAmount       decimal.Decimal
+		expectedNear    bool
 		expectedPercent float64
 	}{
 		{
-			name:           "at 80% - not near (>80%, not >=80%)",
-			currentUsage: decimal.RequireFromString("800"),
-			maxAmount:   decimal.RequireFromString("1000"),
-			expectedNear:   false,
+			name:            "at 80% - not near (>80%, not >=80%)",
+			currentUsage:    decimal.RequireFromString("800"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    false,
 			expectedPercent: 80.0,
 		},
 		{
-			name:           "at 80.01% - near",
-			currentUsage: decimal.RequireFromString("800.10"),
-			maxAmount:   decimal.RequireFromString("1000"),
-			expectedNear:   true,
+			name:            "at 80.01% - near",
+			currentUsage:    decimal.RequireFromString("800.10"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    true,
 			expectedPercent: 80.01,
 		},
 		{
-			name:           "at 85% - near",
-			currentUsage: decimal.RequireFromString("850"),
-			maxAmount:   decimal.RequireFromString("1000"),
-			expectedNear:   true,
+			name:            "at 85% - near",
+			currentUsage:    decimal.RequireFromString("850"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    true,
 			expectedPercent: 85.0,
 		},
 		{
-			name:           "at 100% - near",
-			currentUsage: decimal.RequireFromString("1000"),
-			maxAmount:   decimal.RequireFromString("1000"),
-			expectedNear:   true,
+			name:            "at 100% - near",
+			currentUsage:    decimal.RequireFromString("1000"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    true,
 			expectedPercent: 100.0,
 		},
 		{
-			name:           "at 0% - not near",
-			currentUsage: decimal.RequireFromString("0"),
-			maxAmount:   decimal.RequireFromString("1000"),
-			expectedNear:   false,
+			name:            "at 0% - not near",
+			currentUsage:    decimal.RequireFromString("0"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    false,
 			expectedPercent: 0.0,
 		},
 	}

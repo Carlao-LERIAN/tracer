@@ -17,18 +17,18 @@ import (
 // Stores individual fields for explicit traceability and queryability.
 // Embeds EvaluationResult to avoid field duplication.
 type TransactionValidation struct {
-	ID                   uuid.UUID          `json:"validationId" swaggertype:"string" format:"uuid"`
-	RequestID            uuid.UUID          `json:"requestId" swaggertype:"string" format:"uuid"`
-	TransactionType      TransactionType    `json:"transactionType"`
-	SubType              *string            `json:"subType,omitempty"`
-	Amount               decimal.Decimal    `json:"amount" swaggertype:"string"`
-	Currency             string             `json:"currency"`
-	TransactionTimestamp time.Time          `json:"transactionTimestamp" format:"date-time"`
-	Account              AccountContext     `json:"account"`
-	Segment              *SegmentContext    `json:"segment,omitempty"`
-	Portfolio            *PortfolioContext  `json:"portfolio,omitempty"`
-	Merchant             *MerchantContext   `json:"merchant,omitempty"`
-	Metadata             map[string]any     `json:"metadata,omitempty"`
+	ID                   uuid.UUID         `json:"validationId" swaggertype:"string" format:"uuid"`
+	RequestID            uuid.UUID         `json:"requestId" swaggertype:"string" format:"uuid"`
+	TransactionType      TransactionType   `json:"transactionType"`
+	SubType              *string           `json:"subType,omitempty"`
+	Amount               decimal.Decimal   `json:"amount" swaggertype:"string"`
+	Currency             string            `json:"currency"`
+	TransactionTimestamp time.Time         `json:"transactionTimestamp" format:"date-time"`
+	Account              AccountContext    `json:"account"`
+	Segment              *SegmentContext   `json:"segment,omitempty"`
+	Portfolio            *PortfolioContext `json:"portfolio,omitempty"`
+	Merchant             *MerchantContext  `json:"merchant,omitempty"`
+	Metadata             map[string]any    `json:"metadata,omitempty"`
 	EvaluationResult
 	LimitUsageDetails []LimitUsageDetail `json:"limitUsageDetails"`
 	ProcessingTimeMs  int64              `json:"processingTimeMs"`

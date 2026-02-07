@@ -278,8 +278,8 @@ func TestEvaluate_NilFields(t *testing.T) {
 			description: "Should work with fractional amount and nil merchant",
 		},
 		{
-			name:        "Success - cross-type equality with int literal",
-			expression:  "amount == 1500",
+			name:       "Success - cross-type equality with int literal",
+			expression: "amount == 1500",
 			req: &model.ValidationRequest{
 				TransactionType: "PIX",
 				Amount:          decimal.RequireFromString("1500"),

@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
-
 // TestNewAdapter_Success tests successful adapter creation.
 func TestNewAdapter_Success(t *testing.T) {
 	t.Parallel()

@@ -103,8 +103,8 @@ func TestValidation_ErrorHandling_MissingAmount(t *testing.T) {
 
 	// EXECUTION: Send request WITHOUT amount
 	payload := map[string]any{
-		"requestId":            testutil.MustDeterministicUUID(4602).String(),
-		"transactionType":      "CARD",
+		"requestId":       testutil.MustDeterministicUUID(4602).String(),
+		"transactionType": "CARD",
 		// "amount" intentionally omitted (will be 0 in Go)
 		"currency":             "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
@@ -149,9 +149,9 @@ func TestValidation_ErrorHandling_MissingCurrency(t *testing.T) {
 
 	// EXECUTION: Send request WITHOUT currency
 	payload := map[string]any{
-		"requestId":            testutil.MustDeterministicUUID(4604).String(),
-		"transactionType":      "CARD",
-		"amount":               100,
+		"requestId":       testutil.MustDeterministicUUID(4604).String(),
+		"transactionType": "CARD",
+		"amount":          100,
 		// "currency" intentionally omitted
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{

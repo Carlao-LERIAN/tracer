@@ -552,7 +552,7 @@ func BenchmarkSanitize(b *testing.B) {
 			"name":  "John Doe",
 		},
 		"metadata": map[string]any{
-			"source":    "api",
+			"source":     "api",
 			"auth_token": "tok-123",
 		},
 	}

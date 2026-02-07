@@ -427,8 +427,8 @@ func TestValidation_Metadata_CELExpressionAccess(t *testing.T) {
 	// EXECUTION 2: Send validation with non-matching metadata
 	payload2 := testutil.CreateBasicValidationPayload()
 	payload2["metadata"] = map[string]any{
-		"channel":   "web",      // Different value
-		"user_tier": "silver",   // Different value
+		"channel":   "web",    // Different value
+		"user_tier": "silver", // Different value
 	}
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)

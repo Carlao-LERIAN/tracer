@@ -624,7 +624,7 @@ func TestAuditEvents_11_2_10_A_ReturnsAllResultsWithoutPagination(t *testing.T) 
 	// Create exactly 2 rules to generate exactly 2 audit events (predictable scenario)
 	var ruleIDs []string
 	for i := 0; i < 2; i++ {
-		ruleName := fmt.Sprintf("no-pagination-test-%d-%s", i, testutil.MustDeterministicUUID(int64(7100+i)).String()[:8])
+		ruleName := fmt.Sprintf("no-pagination-test-%d-%s", i, testutil.MustDeterministicUUID(int64(7100 + i)).String()[:8])
 		ruleReq := testutil.RuleRequest{
 			Name:       ruleName,
 			Expression: "true",
@@ -696,7 +696,7 @@ func TestAuditEvents_11_2_10_B_IteratesThroughMultiplePages(t *testing.T) {
 	// Create at least 7 rules to ensure we have at least 3 pages (7 events / 2 per page = 3.5 pages)
 	var ruleIDs []string
 	for i := 0; i < 7; i++ {
-		ruleName := fmt.Sprintf("pagination-test-%d-%s", i, testutil.MustDeterministicUUID(int64(7200+i)).String()[:8])
+		ruleName := fmt.Sprintf("pagination-test-%d-%s", i, testutil.MustDeterministicUUID(int64(7200 + i)).String()[:8])
 		ruleReq := testutil.RuleRequest{
 			Name:       ruleName,
 			Expression: "true",
@@ -2468,7 +2468,7 @@ func TestAuditEvents_11_5_1_HashChainIntactAfterMultipleOperations(t *testing.T)
 
 	// Perform multiple operations to generate events
 	for i := 0; i < 5; i++ {
-		ruleName := fmt.Sprintf("chain-test-%d-%s", i, testutil.MustDeterministicUUID(int64(7300+i)).String()[:8])
+		ruleName := fmt.Sprintf("chain-test-%d-%s", i, testutil.MustDeterministicUUID(int64(7300 + i)).String()[:8])
 		ruleReq := testutil.RuleRequest{
 			Name:       ruleName,
 			Expression: "true",

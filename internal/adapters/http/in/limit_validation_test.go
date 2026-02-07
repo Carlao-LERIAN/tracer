@@ -381,7 +381,7 @@ func TestCreateLimitInput_DescriptionValidation(t *testing.T) {
 			Name:        "Test Limit",
 			Description: nil,
 			LimitType:   model.LimitTypeDaily,
-			MaxAmount: decimal.RequireFromString("1000"),
+			MaxAmount:   decimal.RequireFromString("1000"),
 			Currency:    "BRL",
 			Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 		}
@@ -394,7 +394,7 @@ func TestCreateLimitInput_DescriptionValidation(t *testing.T) {
 			Name:        "Test Limit",
 			Description: testutil.StringPtr(strings.Repeat("d", MaxLimitDescriptionLength)),
 			LimitType:   model.LimitTypeDaily,
-			MaxAmount: decimal.RequireFromString("1000"),
+			MaxAmount:   decimal.RequireFromString("1000"),
 			Currency:    "BRL",
 			Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 		}
@@ -407,7 +407,7 @@ func TestCreateLimitInput_DescriptionValidation(t *testing.T) {
 			Name:        "Test Limit",
 			Description: testutil.StringPtr(strings.Repeat("d", MaxLimitDescriptionLength+1)),
 			LimitType:   model.LimitTypeDaily,
-			MaxAmount: decimal.RequireFromString("1000"),
+			MaxAmount:   decimal.RequireFromString("1000"),
 			Currency:    "BRL",
 			Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(limitValidUUID1)}},
 		}

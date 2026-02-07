@@ -111,10 +111,10 @@ func TestDeleteLimitCommand_Execute_Success_FromInactive(t *testing.T) {
 	// Audit event should be called exactly once with specific parameters
 	auditWriter.EXPECT().
 		RecordLimitEvent(
-			gomock.Any(),                                // ctx (may have trace info)
-			model.AuditEventLimitDeleted,                // eventType
-			model.AuditActionDelete,                     // action
-			limitID,                                     // limitID
+			gomock.Any(),                 // ctx (may have trace info)
+			model.AuditEventLimitDeleted, // eventType
+			model.AuditActionDelete,      // action
+			limitID,                      // limitID
 			gomock.AssignableToTypeOf(map[string]any{}), // beforeState (INACTIVE)
 			gomock.AssignableToTypeOf(map[string]any{}), // afterState (empty map for delete)
 			"Limit deleted via API",                     // description

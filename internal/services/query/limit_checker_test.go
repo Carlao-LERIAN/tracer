@@ -109,9 +109,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "no active limits - allowed",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("100"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -134,9 +134,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "single DAILY limit - not exceeded",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -181,9 +181,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "single DAILY limit - exceeded",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("600"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("600"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -227,9 +227,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "PER_TRANSACTION limit - not exceeded",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -263,9 +263,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "PER_TRANSACTION limit - exceeded",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("150"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("150"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -298,9 +298,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "multiple limits - one exceeded",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("80"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("80"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -354,9 +354,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "currency filter - no limits for currency (DB-level filtering)",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -381,9 +381,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "scope mismatch - limit not applicable",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -417,9 +417,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "global limit - matches all scopes",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -463,9 +463,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "invalid input - zero amount",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("0"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("0"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -478,9 +478,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "invalid input - nil accountID",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: uuid.Nil,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            uuid.Nil,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -493,9 +493,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "MONTHLY limit period key",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -540,9 +540,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "boundary - amount equals remaining capacity",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("500"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("500"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -588,9 +588,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "error - LimitRepository.List returns error",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -609,9 +609,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "error - UsageCounterRepository.GetOrCreateForUpdate returns error",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -647,9 +647,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "error - UsageCounterRepository.IncrementAtomic returns error",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -693,9 +693,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 		{
 			name: "invalid input - negative amount",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("-1"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("-1"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
@@ -764,9 +764,9 @@ func TestLimitCheckerService_RollbackUsage(t *testing.T) {
 		{
 			name: "empty usage details - no-op",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			usageDetails: []model.LimitUsageDetail{},
@@ -778,9 +778,9 @@ func TestLimitCheckerService_RollbackUsage(t *testing.T) {
 		{
 			name: "rollback DAILY limit",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			usageDetails: []model.LimitUsageDetail{
@@ -811,9 +811,9 @@ func TestLimitCheckerService_RollbackUsage(t *testing.T) {
 		{
 			name: "skip PER_TRANSACTION limit - no persistent counter",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			usageDetails: []model.LimitUsageDetail{
@@ -834,9 +834,9 @@ func TestLimitCheckerService_RollbackUsage(t *testing.T) {
 		{
 			name: "GetForUpdate error - logs warning but continues",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			usageDetails: []model.LimitUsageDetail{
@@ -860,9 +860,9 @@ func TestLimitCheckerService_RollbackUsage(t *testing.T) {
 		{
 			name: "DecrementAtomic error - logs warning but continues",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			usageDetails: []model.LimitUsageDetail{
@@ -894,9 +894,9 @@ func TestLimitCheckerService_RollbackUsage(t *testing.T) {
 		{
 			name: "multiple limits - partial failures logged as warnings",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			usageDetails: []model.LimitUsageDetail{
@@ -941,9 +941,9 @@ func TestLimitCheckerService_RollbackUsage(t *testing.T) {
 		{
 			name: "decrement would result in negative - logs warning but continues",
 			input: &model.CheckLimitsInput{
-				Amount:    decimal.RequireFromString("50"),
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			},
 			usageDetails: []model.LimitUsageDetail{
@@ -1076,9 +1076,9 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			input := &model.CheckLimitsInput{
-				Amount:    amountPerRequest,
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               amountPerRequest,
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			}
 
@@ -1183,9 +1183,9 @@ func TestLimitCheckerService_CheckLimits_TwoPhaseNoPartialIncrement(t *testing.T
 	require.NoError(t, err)
 
 	input := &model.CheckLimitsInput{
-		Amount:    decimal.RequireFromString("80"), // Exceeds PER_TRANSACTION limit of 50
-		Currency:  "USD",
-		AccountID: accountID,
+		Amount:               decimal.RequireFromString("80"), // Exceeds PER_TRANSACTION limit of 50
+		Currency:             "USD",
+		AccountID:            accountID,
 		TransactionTimestamp: timestamp,
 	}
 
@@ -1232,11 +1232,11 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 		},
 		{
 			name:         "large amount exceeds limit - projected usage > maxAmount",
-			amount:       decimal.RequireFromString("10000000000000000"),                          // Very large amount
-			currentUsage: decimal.RequireFromString("90000000000000000"),                          // Current usage close to max
+			amount:       decimal.RequireFromString("10000000000000000"),    // Very large amount
+			currentUsage: decimal.RequireFromString("90000000000000000"),    // Current usage close to max
 			maxAmount:    decimal.RequireFromString("92233720368547758.07"), // MaxInt64 / 100
-			wantAllowed:  false,                      // Projected usage exceeds maxAmount
-			wantErr:      false,                      // No error, just exceeds limit
+			wantAllowed:  false,                                             // Projected usage exceeds maxAmount
+			wantErr:      false,                                             // No error, just exceeds limit
 			wantErrIs:    nil,
 			setupIncr:    func(ucr *MockUsageCounterRepository) {}, // No increment called - limit exceeded
 		},
@@ -1311,9 +1311,9 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 			require.NoError(t, err)
 
 			input := &model.CheckLimitsInput{
-				Amount:    tc.amount,
-				Currency:  "USD",
-				AccountID: accountID,
+				Amount:               tc.amount,
+				Currency:             "USD",
+				AccountID:            accountID,
 				TransactionTimestamp: timestamp,
 			}
 
@@ -1497,9 +1497,9 @@ func TestLimitCheckerService_CheckLimits_PaginationLoop(t *testing.T) {
 	require.NoError(t, err)
 
 	input := &model.CheckLimitsInput{
-		Amount:    decimal.RequireFromString("50"),
-		Currency:  "USD",
-		AccountID: accountID,
+		Amount:               decimal.RequireFromString("50"),
+		Currency:             "USD",
+		AccountID:            accountID,
 		TransactionTimestamp: timestamp,
 	}
 
@@ -1534,9 +1534,9 @@ func TestLimitCheckerService_RollbackUsage_UnknownLimitType(t *testing.T) {
 	require.NoError(t, err)
 
 	input := &model.CheckLimitsInput{
-		Amount:    decimal.RequireFromString("50"),
-		Currency:  "USD",
-		AccountID: accountID,
+		Amount:               decimal.RequireFromString("50"),
+		Currency:             "USD",
+		AccountID:            accountID,
 		TransactionTimestamp: timestamp,
 	}
 
@@ -1678,9 +1678,9 @@ func TestLimitCheckerService_CheckLimits_LargeDecimalValues(t *testing.T) {
 	require.NoError(t, err)
 
 	input := &model.CheckLimitsInput{
-		Amount:    decimal.RequireFromString("1"), // Small amount but would cause overflow
-		Currency:  "USD",
-		AccountID: accountID,
+		Amount:               decimal.RequireFromString("1"), // Small amount but would cause overflow
+		Currency:             "USD",
+		AccountID:            accountID,
 		TransactionTimestamp: timestamp,
 	}
 

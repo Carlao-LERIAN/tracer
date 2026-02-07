@@ -323,7 +323,6 @@ func TestUsageCounterRepository_IncrementAtomic(t *testing.T) {
 			wantErr: true,
 			errVal:  constant.ErrUsageCounterNotFound,
 		},
-
 	}
 
 	for _, tt := range tests {

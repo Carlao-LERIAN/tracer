@@ -1062,59 +1062,59 @@ func TestBuildNextCursor_Integration(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		sortBy            string
-		sortOrder         string
-		wantCursorSortBy  string
-		wantCursorOrder   string
-		wantCursorValue   string
-		wantErr           bool
-		errIs             error
+		name             string
+		sortBy           string
+		sortOrder        string
+		wantCursorSortBy string
+		wantCursorOrder  string
+		wantCursorValue  string
+		wantErr          bool
+		errIs            error
 	}{
 		{
-			name:              "Success - snake_case created_at with DESC",
-			sortBy:            "created_at",
-			sortOrder:         "DESC",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "DESC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - snake_case created_at with DESC",
+			sortBy:           "created_at",
+			sortOrder:        "DESC",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "DESC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
-			name:              "Success - snake_case created_at with ASC",
-			sortBy:            "created_at",
-			sortOrder:         "ASC",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "ASC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - snake_case created_at with ASC",
+			sortBy:           "created_at",
+			sortOrder:        "ASC",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "ASC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
-			name:              "Success - lowercase sortOrder normalized to uppercase in cursor",
-			sortBy:            "created_at",
-			sortOrder:         "desc",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "DESC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - lowercase sortOrder normalized to uppercase in cursor",
+			sortBy:           "created_at",
+			sortOrder:        "desc",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "DESC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
-			name:              "Success - mixed case sortOrder normalized in cursor",
-			sortBy:            "created_at",
-			sortOrder:         "AsC",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "ASC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - mixed case sortOrder normalized in cursor",
+			sortBy:           "created_at",
+			sortOrder:        "AsC",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "ASC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
-			name:              "Success - invalid sortOrder defaults to DESC in cursor",
-			sortBy:            "created_at",
-			sortOrder:         "INVALID",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "DESC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - invalid sortOrder defaults to DESC in cursor",
+			sortBy:           "created_at",
+			sortOrder:        "INVALID",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "DESC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
 			name:      "Error - invalid sortBy rejected",

@@ -16,7 +16,6 @@ import (
 	"tracer/pkg/model"
 )
 
-
 // newTestAdapter creates an adapter for testing with default config.
 func newTestAdapter(t testing.TB) *Adapter {
 	t.Helper()

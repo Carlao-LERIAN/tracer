@@ -73,12 +73,12 @@ func BenchmarkValidationService_Validate(b *testing.B) {
 
 	accountID := testutil.MustDeterministicUUID(100)
 	request := &model.ValidationRequest{
-		RequestID:       testutil.MustDeterministicUUID(1),
-		TransactionType: model.TransactionTypeCard,
-		Amount:          decimal.RequireFromString("100"),
-		Currency:        "USD",
-		TransactionTimestamp:       time.Now(),
-		Account:         model.AccountContext{ID: accountID},
+		RequestID:            testutil.MustDeterministicUUID(1),
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		TransactionTimestamp: time.Now(),
+		Account:              model.AccountContext{ID: accountID},
 	}
 
 	ctx := context.Background()
@@ -141,12 +141,12 @@ func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 
 	accountID := testutil.MustDeterministicUUID(100)
 	request := &model.ValidationRequest{
-		RequestID:       testutil.MustDeterministicUUID(1),
-		TransactionType: model.TransactionTypeCard,
-		Amount:          decimal.RequireFromString("100"),
-		Currency:        "USD",
-		TransactionTimestamp:       time.Now(),
-		Account:         model.AccountContext{ID: accountID},
+		RequestID:            testutil.MustDeterministicUUID(1),
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		TransactionTimestamp: time.Now(),
+		Account:              model.AccountContext{ID: accountID},
 	}
 
 	ctx := context.Background()
@@ -218,12 +218,12 @@ func BenchmarkValidationService_Validate_Parallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		accountID := uuid.New()
 		request := &model.ValidationRequest{
-			RequestID:       uuid.New(),
-			TransactionType: model.TransactionTypeCard,
-			Amount:          decimal.RequireFromString("100"),
-			Currency:        "USD",
-			TransactionTimestamp:       time.Now(),
-			Account:         model.AccountContext{ID: accountID},
+			RequestID:            uuid.New(),
+			TransactionType:      model.TransactionTypeCard,
+			Amount:               decimal.RequireFromString("100"),
+			Currency:             "USD",
+			TransactionTimestamp: time.Now(),
+			Account:              model.AccountContext{ID: accountID},
 		}
 
 		var localSink any

@@ -7,10 +7,11 @@ package model_test
 import (
 	"encoding/json"
 
-	"github.com/shopspring/decimal"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -253,8 +254,8 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 			name: "zero timestamp",
 			input: model.CheckLimitsInput{
 				Amount:               decimal.RequireFromString("100"),
-				Currency:  "BRL",
-				AccountID: accountID,
+				Currency:             "BRL",
+				AccountID:            accountID,
 				TransactionTimestamp: time.Time{},
 			},
 			expectedErr: constant.ErrCheckLimitsInvalidTimestamp,
@@ -313,7 +314,7 @@ func TestCheckLimitsOutput_WithLimitUsageDetails(t *testing.T) {
 	details := []model.LimitUsageDetail{
 		{
 			LimitID:      testutil.MustDeterministicUUID(1),
-			LimitAmount:               decimal.RequireFromString("1000"),
+			LimitAmount:  decimal.RequireFromString("1000"),
 			CurrentUsage: decimal.RequireFromString("500"),
 			Exceeded:     false,
 		},
@@ -332,7 +333,7 @@ func TestCheckLimitsOutput_ChainedMethods(t *testing.T) {
 	details := []model.LimitUsageDetail{
 		{
 			LimitID:      testutil.MustDeterministicUUID(1),
-			LimitAmount:               decimal.RequireFromString("1000"),
+			LimitAmount:  decimal.RequireFromString("1000"),
 			CurrentUsage: decimal.RequireFromString("1500"),
 			Exceeded:     true,
 		},
@@ -387,7 +388,7 @@ func TestLimitUsageDetail_RemainingAmount(t *testing.T) {
 		{
 			name: "has remaining",
 			detail: model.LimitUsageDetail{
-				LimitAmount:               decimal.RequireFromString("1000"),
+				LimitAmount:  decimal.RequireFromString("1000"),
 				CurrentUsage: decimal.RequireFromString("300"),
 			},
 			expectedRest: decimal.RequireFromString("700"),
@@ -395,7 +396,7 @@ func TestLimitUsageDetail_RemainingAmount(t *testing.T) {
 		{
 			name: "exactly at limit",
 			detail: model.LimitUsageDetail{
-				LimitAmount:               decimal.RequireFromString("1000"),
+				LimitAmount:  decimal.RequireFromString("1000"),
 				CurrentUsage: decimal.RequireFromString("1000"),
 			},
 			expectedRest: decimal.RequireFromString("0"),
@@ -403,7 +404,7 @@ func TestLimitUsageDetail_RemainingAmount(t *testing.T) {
 		{
 			name: "exceeded - clamped to zero",
 			detail: model.LimitUsageDetail{
-				LimitAmount:               decimal.RequireFromString("1000"),
+				LimitAmount:  decimal.RequireFromString("1000"),
 				CurrentUsage: decimal.RequireFromString("1500"),
 			},
 			expectedRest: decimal.RequireFromString("0"), // Cannot be negative
@@ -411,7 +412,7 @@ func TestLimitUsageDetail_RemainingAmount(t *testing.T) {
 		{
 			name: "no usage - returns full limit",
 			detail: model.LimitUsageDetail{
-				LimitAmount:               decimal.RequireFromString("1000"),
+				LimitAmount:  decimal.RequireFromString("1000"),
 				CurrentUsage: decimal.RequireFromString("0"),
 			},
 			expectedRest: decimal.RequireFromString("1000"), // Full limit available

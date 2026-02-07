@@ -21,12 +21,12 @@ type scopeInput struct {
 
 // usageCounterResponse represents a single usage counter for limit tracking.
 type usageCounterResponse struct {
-	ID            string `json:"usageCounterId"`
-	LimitID       string `json:"limitId"`
-	ScopeKey      string `json:"scopeKey"`
-	PeriodKey     string `json:"periodKey"`
+	ID            string          `json:"usageCounterId"`
+	LimitID       string          `json:"limitId"`
+	ScopeKey      string          `json:"scopeKey"`
+	PeriodKey     string          `json:"periodKey"`
 	CurrentUsage  decimal.Decimal `json:"currentUsage"`
-	LastUpdatedAt string `json:"lastUpdatedAt"`
+	LastUpdatedAt string          `json:"lastUpdatedAt"`
 }
 
 // getLimitUsageResponse represents the wrapper response from GET /limits/:id/usage.

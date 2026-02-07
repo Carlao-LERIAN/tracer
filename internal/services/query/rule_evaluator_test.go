@@ -40,10 +40,10 @@ func TestRuleEvaluator_Evaluate(t *testing.T) {
 	}
 
 	testRequest := &model.ValidationRequest{
-		RequestID:       testRequestID,
-		TransactionType: model.TransactionTypeCard,
-		Amount:          decimal.RequireFromString("1500"), // $1500.00, should trigger rule
-		Currency:        "USD",
+		RequestID:            testRequestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("1500"), // $1500.00, should trigger rule
+		Currency:             "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: testAccountID,
@@ -52,10 +52,10 @@ func TestRuleEvaluator_Evaluate(t *testing.T) {
 	}
 
 	testRequestNoMatch := &model.ValidationRequest{
-		RequestID:       testRequestNoMatchID,
-		TransactionType: model.TransactionTypeCard,
-		Amount:          decimal.RequireFromString("50"), // $50.00, should NOT trigger rule
-		Currency:        "USD",
+		RequestID:            testRequestNoMatchID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("50"), // $50.00, should NOT trigger rule
+		Currency:             "USD",
 		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: testAccountID,
@@ -395,7 +395,7 @@ func TestRuleEvaluator_MultipleScopesOneMatch(t *testing.T) {
 		Status:     model.RuleStatusActive,
 		Scopes: []model.Scope{
 			{AccountID: &otherAccountID1},
-			{AccountID: &accountID},      // This one matches
+			{AccountID: &accountID}, // This one matches
 			{AccountID: &otherAccountID2},
 		},
 		CreatedAt: now.Add(-24 * time.Hour),

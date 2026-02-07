@@ -54,13 +54,13 @@ func TestGetTransactionValidationQuery_Execute(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		tvID   uuid.UUID
+		tvID      uuid.UUID
 		mockSetup func(ctrl *gomock.Controller, audit *model.TransactionValidation) *mocks.MockTransactionValidationRepository
 		wantErr   bool
 		errIs     error
 	}{
 		{
-			name:    "success - returns audit",
+			name: "success - returns audit",
 			tvID: tvID,
 			mockSetup: func(ctrl *gomock.Controller, audit *model.TransactionValidation) *mocks.MockTransactionValidationRepository {
 				mockRepo := mocks.NewMockTransactionValidationRepository(ctrl)
@@ -72,7 +72,7 @@ func TestGetTransactionValidationQuery_Execute(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "error - audit not found",
+			name: "error - audit not found",
 			tvID: tvID,
 			mockSetup: func(ctrl *gomock.Controller, audit *model.TransactionValidation) *mocks.MockTransactionValidationRepository {
 				mockRepo := mocks.NewMockTransactionValidationRepository(ctrl)
@@ -85,7 +85,7 @@ func TestGetTransactionValidationQuery_Execute(t *testing.T) {
 			errIs:   constant.ErrTransactionValidationNotFound,
 		},
 		{
-			name:    "error - repository error",
+			name: "error - repository error",
 			tvID: tvID,
 			mockSetup: func(ctrl *gomock.Controller, audit *model.TransactionValidation) *mocks.MockTransactionValidationRepository {
 				mockRepo := mocks.NewMockTransactionValidationRepository(ctrl)
@@ -97,7 +97,7 @@ func TestGetTransactionValidationQuery_Execute(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "error - nil UUID returns invalid path parameter",
+			name: "error - nil UUID returns invalid path parameter",
 			tvID: uuid.Nil,
 			mockSetup: func(ctrl *gomock.Controller, _ *model.TransactionValidation) *mocks.MockTransactionValidationRepository {
 				// Repository is not called - validation fails before reaching repo

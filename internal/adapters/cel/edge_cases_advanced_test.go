@@ -19,11 +19,11 @@ import (
 
 // Test UUIDs for advanced edge case tests
 var (
-	advTestAccountID   = uuid.MustParse("550e8400-e29b-41d4-a716-446655440030")
-	advTestMerchantID  = uuid.MustParse("550e8400-e29b-41d4-a716-446655440031")
-	advTestSegmentID   = uuid.MustParse("550e8400-e29b-41d4-a716-446655440032")
-	advTestRequestID   = uuid.MustParse("550e8400-e29b-41d4-a716-446655440034")
-	advTestTimestamp   = time.Date(2030, 6, 15, 10, 30, 0, 0, time.UTC)
+	advTestAccountID  = uuid.MustParse("550e8400-e29b-41d4-a716-446655440030")
+	advTestMerchantID = uuid.MustParse("550e8400-e29b-41d4-a716-446655440031")
+	advTestSegmentID  = uuid.MustParse("550e8400-e29b-41d4-a716-446655440032")
+	advTestRequestID  = uuid.MustParse("550e8400-e29b-41d4-a716-446655440034")
+	advTestTimestamp  = time.Date(2030, 6, 15, 10, 30, 0, 0, time.UTC)
 )
 
 // newAdvancedTestRequest creates a full ValidationRequest for advanced testing.
