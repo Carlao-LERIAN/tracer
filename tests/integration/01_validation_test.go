@@ -4322,12 +4322,12 @@ func TestValidation_1_3_31_EmptyResultSetValidStructure(t *testing.T) {
 	assert.False(t, result.HasMore, "hasMore should be false for empty result")
 }
 
-// Test 1.3.32: Default pagination limit is 1
+// Test 1.3.32: Default pagination limit is 100
 func TestValidation_1_3_32_DefaultPaginationLimit(t *testing.T) {
 	// Create a unique account for this test
 	accountID := testutil.MustDeterministicUUID(740).String()
 
-	// Create 1.05 validations to exceed default limit
+	// Create 105 validations to exceed default limit
 	for i := 0; i < 105; i++ {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(int64(741 + i)).String(),
@@ -4356,11 +4356,11 @@ func TestValidation_1_3_32_DefaultPaginationLimit(t *testing.T) {
 	err := json.Unmarshal(listBody, &result)
 	require.NoError(t, err)
 
-	// Verify default limit is 1
+	// Verify default limit is 100
 	assert.LessOrEqual(t, len(result.TransactionValidations), 100,
 		"Default pagination limit should be 100, got %d items", len(result.TransactionValidations))
 
-	// With 1.05 validations and default limit of 1, hasMore should be true
+	// With 105 validations and default limit of 100, hasMore should be true
 	assert.True(t, result.HasMore, "hasMore should be true when there are more than 100 validations")
 }
 
