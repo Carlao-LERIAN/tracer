@@ -40,13 +40,13 @@ import (
 func validPayload(t *testing.T) []byte {
 	t.Helper()
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"requestId":            "550e8400-e29b-41d4-a716-446655440000",
 		"transactionType":      "PIX",
-		"amount":               100,
+		"amount":               "100.00",
 		"currency":             "BRL",
 		"transactionTimestamp": "2024-01-15T10:30:00Z",
-		"account": map[string]interface{}{
+		"account": map[string]any{
 			"accountId": "550e8400-e29b-41d4-a716-446655440001",
 			"type":      "checking",
 			"status":    "active",
@@ -92,7 +92,7 @@ func TestAuth_6_1_1_AcceptsValidAPIKey(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "expected 200 OK, body: %s", string(body))
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal(body, &result)
 	require.NoError(t, err, "failed to parse response")
 
@@ -201,7 +201,7 @@ func TestAuth_6_1_5_WhitespaceAPIKeyAccepted(t *testing.T) {
 				"API should accept key with whitespace (trimmed per RFC 7230), body: %s", string(body))
 
 			// Verify response contains expected fields
-			var result map[string]interface{}
+			var result map[string]any
 			err = json.Unmarshal(body, &result)
 			require.NoError(t, err, "response should be valid JSON")
 			assert.Contains(t, result, "validationId", "response should contain validationId")
@@ -423,7 +423,7 @@ func TestAuth_6_1_10_PublicEndpointsNoAuthRequired(t *testing.T) {
 			path:           "/ready",
 			expectedStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]interface{}
+				var result map[string]any
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 				status, ok := result["status"].(string)
@@ -438,7 +438,7 @@ func TestAuth_6_1_10_PublicEndpointsNoAuthRequired(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
 				// lib-commons Version() returns {version, requestDate}
-				var result map[string]interface{}
+				var result map[string]any
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 				assert.Contains(t, result, "version", "should have version field")
@@ -463,7 +463,7 @@ func TestAuth_6_1_10_PublicEndpointsNoAuthRequired(t *testing.T) {
 				assert.Contains(t, contentType, "application/json", "swagger doc should return JSON")
 			},
 			validateBody: func(t *testing.T, body []byte) {
-				var result map[string]interface{}
+				var result map[string]any
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 				// OpenAPI spec should have these fields
@@ -576,7 +576,7 @@ func TestAuth_6_1_12_DevModeAuthDisabled(t *testing.T) {
 			assert.Equal(t, http.StatusOK, resp.StatusCode,
 				"with API_KEY_ENABLED=false, request should succeed regardless of API key, body: %s", string(body))
 
-			var result map[string]interface{}
+			var result map[string]any
 			err = json.Unmarshal(body, &result)
 			require.NoError(t, err)
 			assert.Contains(t, result, "validationId", "response should contain validationId")
