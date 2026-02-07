@@ -198,7 +198,7 @@ func TestValidation_ReturnsDenyWhenLimitExceeded(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(200).String()
 
 	// Create and activate DAILY limit with amount 1000 for accountId
-	limitID := createTestLimitWithAccountScope(t, accountID, 1000)
+	limitID := createTestLimitWithAccountScope(t, accountID, "1000")
 	activateTestLimit(t, limitID)
 	t.Cleanup(func() {
 		cleanupTestLimit(t, limitID)
@@ -332,7 +332,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		accountID := testutil.MustDeterministicUUID(220).String()
 
 		// Create a limit with low amount
-		limitID := createTestLimitWithAccountScope(t, accountID, 50)
+		limitID := createTestLimitWithAccountScope(t, accountID, "50")
 		activateTestLimit(t, limitID)
 
 		// Create REVIEW rule
@@ -517,7 +517,7 @@ func TestValidation_DefaultDecisionWithoutRules(t *testing.T) {
 
 // createTestLimitWithAccountScope creates a DAILY limit with the specified account scope and max amount.
 // Returns the limit ID.
-func createTestLimitWithAccountScope(t *testing.T, accountID string, maxAmount int64) string {
+func createTestLimitWithAccountScope(t *testing.T, accountID string, maxAmount string) string {
 	t.Helper()
 
 	apiKey := testutil.GetAPIKey()
@@ -530,7 +530,7 @@ func createTestLimitWithAccountScope(t *testing.T, accountID string, maxAmount i
 	type createLimitRequest struct {
 		Name      string            `json:"name"`
 		LimitType string            `json:"limitType"`
-		MaxAmount int64             `json:"maxAmount"`
+		MaxAmount string            `json:"maxAmount"`
 		Currency  string            `json:"currency"`
 		Scopes    []limitScopeInput `json:"scopes"`
 	}
@@ -2802,7 +2802,7 @@ func TestValidation_1_2_8_CompleteLimitUsagePreserved(t *testing.T) {
 	requestID := testutil.MustDeterministicUUID(461).String()
 
 	// Create a limit for the account with a specific maxAmount
-	maxAmount := int64(2000)
+	maxAmount := "2000"
 	limitID := createTestLimitWithAccountScope(t, accountID, maxAmount)
 	activateTestLimit(t, limitID)
 	t.Cleanup(func() {
@@ -3337,7 +3337,7 @@ func TestValidation_1_3_9_FiltersByExceededLimitId(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(575).String()
 
 	// Create a limit for the account with a LOW maxAmount to easily exceed
-	maxAmount := int64(100) // Very low limit
+	maxAmount := "100" // Very low limit
 	limitID := createTestLimitWithAccountScope(t, accountID, maxAmount)
 	activateTestLimit(t, limitID)
 	t.Cleanup(func() {
