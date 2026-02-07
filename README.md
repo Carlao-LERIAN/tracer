@@ -63,13 +63,13 @@ Every transaction submitted to Tracer contains:
 Rules are CEL expressions evaluated against transaction data:
 
 ```cel
-// Example: Deny high-value transactions (amount in cents)
-amount > 1000000
+// Example: Deny high-value transactions (amount in decimal)
+amount > 10000
 
 // Example: Review transactions for premium merchants
 size(merchant) > 0 &&
 merchant["category"] == "5411" &&
-amount > 500000
+amount > 5000
 ```
 
 ### 3. **Spending Limits**

@@ -198,13 +198,13 @@ func (r *Repository) buildNextCursor(item *Item, sortBy, sortOrder string) (stri
 
 ```go
 // ValidationRequest - Input for transaction validation
-// Amount is expressed in the smallest currency unit (e.g., cents for USD/BRL).
-// Example: $10.50 should be sent as 1050.
+// Amount uses decimal.Decimal (shopspring/decimal) for precise monetary arithmetic.
+// Example: $10.50 is sent as 10.50 (decimal, not cents).
 type ValidationRequest struct {
     RequestID       uuid.UUID              `json:"requestId"`
     TransactionType TransactionType        `json:"transactionType"` // CARD, WIRE, PIX, CRYPTO
     SubType         *string                `json:"subType"`         // "debit", "credit", "instant", etc.
-    Amount          int64                  `json:"amount"`          // In smallest currency unit (cents)
+    Amount          decimal.Decimal        `json:"amount"`          // Precise decimal (shopspring/decimal)
     Currency        string                 `json:"currency"`        // ISO 4217
     Timestamp       time.Time              `json:"timestamp"`
     Account         AccountContext         `json:"account"`
@@ -287,19 +287,19 @@ type Scope struct {
 
 ```go
 // Limit - Spending limit configuration
-// MaxAmount is expressed in the smallest currency unit (e.g., cents).
+// MaxAmount uses decimal.Decimal for precise monetary values.
 type Limit struct {
-    ID        uuid.UUID   `json:"id"`
-    Name      string      `json:"name"`
-    LimitType LimitType   `json:"limitType"`
-    MaxAmount int64       `json:"maxAmount"`   // In smallest currency unit (cents)
-    Currency  string      `json:"currency"`    // ISO 4217
-    Scopes    []Scope     `json:"scopes"`
-    Status    LimitStatus `json:"status"`
-    ResetAt   *time.Time  `json:"resetAt"`
-    CreatedAt time.Time   `json:"createdAt"`
-    UpdatedAt time.Time   `json:"updatedAt"`
-    DeletedAt *time.Time  `json:"deletedAt"`   // Soft delete
+    ID        uuid.UUID       `json:"id"`
+    Name      string          `json:"name"`
+    LimitType LimitType       `json:"limitType"`
+    MaxAmount decimal.Decimal `json:"maxAmount"`   // Precise decimal (shopspring/decimal)
+    Currency  string          `json:"currency"`    // ISO 4217
+    Scopes    []Scope         `json:"scopes"`
+    Status    LimitStatus     `json:"status"`
+    ResetAt   *time.Time      `json:"resetAt"`
+    CreatedAt time.Time       `json:"createdAt"`
+    UpdatedAt time.Time       `json:"updatedAt"`
+    DeletedAt *time.Time      `json:"deletedAt"`   // Soft delete
 }
 
 // LimitType - Period types for limits
@@ -312,12 +312,12 @@ const (
 )
 
 // LimitUsage - Current usage for response
-// All amounts are in smallest currency unit (e.g., cents).
+// All monetary amounts use decimal.Decimal for precision.
 type LimitUsage struct {
-    LimitID      uuid.UUID `json:"limitId"`
-    LimitAmount  int64     `json:"limitAmount"`  // In cents
-    CurrentUsage int64     `json:"currentUsage"` // In cents
-    Exceeded     bool      `json:"exceeded"`
+    LimitID      uuid.UUID       `json:"limitId"`
+    LimitAmount  decimal.Decimal `json:"limitAmount"`  // Precise decimal
+    CurrentUsage decimal.Decimal `json:"currentUsage"` // Precise decimal
+    Exceeded     bool            `json:"exceeded"`
 }
 ```
 
@@ -1684,7 +1684,7 @@ Rules have access to the complete transaction context:
 // Available variables in expression evaluation
 transactionType       // String: "CARD", "WIRE", "PIX", "CRYPTO"
 subType               // String: "debit", "credit", "instant", etc.
-amount                // int64 in smallest currency unit (cents)
+amount                // dyn (decimal.Decimal as float64 — supports == with int and double literals)
 currency              // String (ISO 4217)
 transactionTimestamp  // int64 Unix timestamp in nanoseconds
 account               // Map: account["id"], account["type"], account["status"]
@@ -2055,6 +2055,26 @@ func MustDeterministicUUID(base int64) uuid.UUID {
 - Distinguishes validation failures from logic bugs
 
 **Apply to:** UUID generators, timestamp helpers, fixture builders, any helper that validates input.
+
+### Decimal Values in Tests (shopspring/decimal)
+
+- **Tests**: ALWAYS use `decimal.RequireFromString("value")` — this reproduces the production path where JSON unmarshaling calls `NewFromString` internally
+- **Production**: values arrive automatically via JSON/DB unmarshaling, no manual constructors needed
+- **Math constants** (e.g., ×100 for percentage): `decimal.NewFromInt` is acceptable in production code
+- **NEVER** use `decimal.NewFromFloat()` — IEEE 754 floating-point imprecision
+
+```go
+// CORRECT — matches production behavior (JSON → NewFromString)
+decimal.RequireFromString("100")
+decimal.RequireFromString("99.99")
+decimal.RequireFromString("0.01")
+
+// WRONG — float64 imprecision
+decimal.NewFromFloat(99.99)
+
+// WRONG in tests — does not match production path
+decimal.NewFromInt(100)
+```
 
 ### Mocking Rules
 
