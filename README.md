@@ -53,7 +53,7 @@
 
 Every transaction submitted to Tracer contains:
 - **Request ID** - Unique identifier for idempotency
-- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (cents), currency, timestamp
+- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (decimal), currency, timestamp
 - **Account context** - Account ID, type, status (required)
 - **Optional contexts** - Segment, portfolio, merchant information
 - **Metadata** - Custom key-value pairs for business rules
@@ -397,7 +397,7 @@ curl -X POST http://localhost:8080/v1/validations \
   }'
 ```
 
-**Note:** `amount` is expressed in smallest currency unit (cents). Example: $15,000.00 = 1500000 cents.
+**Note:** `amount` is expressed as a decimal currency value. Example: $15,000.00 = 15000.00.
 
 ---
 
@@ -600,7 +600,7 @@ X-API-Key: your-api-key
 ```
 
 **Notes:**
-- `amount` is in smallest currency unit (cents). Example: $5,000.00 = 500000 cents
+- `amount` is expressed as a decimal currency value. Example: $5,000.00 = 5000.00
 - `transactionType` must be one of: `CARD`, `WIRE`, `PIX`, `CRYPTO`
 - `account.type` values: `checking`, `savings`, `credit`
 - `account.status` values: `active`, `suspended`, `closed`
