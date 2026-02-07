@@ -88,7 +88,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, limit *model.Limit) {
-				assert.True(t, decimal.RequireFromString("2000").Equal(limit.MaxAmount))
+				assert.Equal(t, "2000", limit.MaxAmount.String())
 			},
 		},
 		{
@@ -138,7 +138,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			expectError: false,
 			validate: func(t *testing.T, limit *model.Limit) {
 				assert.Equal(t, "Multi-Update Limit", limit.Name)
-				assert.True(t, decimal.RequireFromString("3000").Equal(limit.MaxAmount))
+				assert.Equal(t, "3000", limit.MaxAmount.String())
 			},
 		},
 		{
