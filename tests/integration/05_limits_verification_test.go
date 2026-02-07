@@ -8,6 +8,7 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -1265,40 +1266,52 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 		t.Log("Fault injection triggered 503 - verifying rollback behavior")
 
 		// Poll for rollback completion (avoid flaky fixed sleeps)
-		checkUsage := func() (decimal.Decimal, bool) {
+		// Returns (usage, hasCounters, error) to distinguish network errors from empty counters.
+		checkUsage := func() (decimal.Decimal, bool, error) {
 			usageReq2, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
 			if err != nil {
-				return decimal.Zero, false
+				return decimal.Zero, false, fmt.Errorf("create request: %w", err)
 			}
 			usageReq2.Header.Set("X-API-Key", apiKey)
 
 			usageResp2, err := testutil.HTTPClient.Do(usageReq2)
 			if err != nil {
-				return decimal.Zero, false
+				return decimal.Zero, false, fmt.Errorf("HTTP request: %w", err)
 			}
 			defer usageResp2.Body.Close()
 
 			usageBody2, err := io.ReadAll(usageResp2.Body)
 			if err != nil {
-				return decimal.Zero, false
+				return decimal.Zero, false, fmt.Errorf("read body: %w", err)
 			}
 
-			if usageResp2.StatusCode == http.StatusOK {
-				var usageResponse2 getLimitUsageResponse
-				if err := json.Unmarshal(usageBody2, &usageResponse2); err != nil {
-					return decimal.Zero, false
-				}
-				if len(usageResponse2.Counters) > 0 {
-					return usageResponse2.Counters[0].CurrentUsage, true
-				}
+			if usageResp2.StatusCode != http.StatusOK {
+				return decimal.Zero, false, fmt.Errorf("unexpected status %d: %s", usageResp2.StatusCode, string(usageBody2))
 			}
-			return decimal.Zero, false
+
+			var usageResponse2 getLimitUsageResponse
+			if err := json.Unmarshal(usageBody2, &usageResponse2); err != nil {
+				return decimal.Zero, false, fmt.Errorf("unmarshal: %w", err)
+			}
+
+			if len(usageResponse2.Counters) > 0 {
+				return usageResponse2.Counters[0].CurrentUsage, true, nil
+			}
+
+			return decimal.Zero, false, nil // no counters yet
 		}
 
 		// Verify usage remains at initialUsage after rollback
 		require.Eventually(t, func() bool {
-			usage, ok := checkUsage()
-			return !ok || usage.Equal(initialUsage) // no counters yet, or rollback complete
+			usage, hasCounters, err := checkUsage()
+			if err != nil {
+				t.Logf("checkUsage error (retrying): %v", err)
+				return false // keep retrying on transient errors
+			}
+			if !hasCounters {
+				return true // no counters = zero usage = rollback complete
+			}
+			return usage.Equal(initialUsage)
 		}, 2*time.Second, 100*time.Millisecond, "Usage should be rolled back to %s after failure", initialUsage)
 	} else {
 		// Fault injection not triggered - document expected behavior
