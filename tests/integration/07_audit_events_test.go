@@ -1564,7 +1564,7 @@ func TestAuditEvents_11_4_7_GeneratesAuditForLimitCreation(t *testing.T) {
 
 	// Precondition: Create a limit to generate LIMIT_CREATED audit event
 	accountID := testutil.MustDeterministicUUID(7021).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	defer testutil.CleanupLimit(t, limitID)
 
 	// Wait briefly for audit event to be created
@@ -1617,7 +1617,7 @@ func TestAuditEvents_11_4_8_GeneratesAuditForLimitActivation(t *testing.T) {
 
 	// Create limit in DRAFT
 	accountID := testutil.MustDeterministicUUID(7022).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	defer testutil.CleanupLimit(t, limitID)
 
 	// Activate limit
@@ -1664,7 +1664,7 @@ func TestAuditEvents_11_4_9_GeneratesAuditForLimitUpdate(t *testing.T) {
 
 	// Create limit
 	accountID := testutil.MustDeterministicUUID(7023).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	defer testutil.CleanupLimit(t, limitID)
 
 	time.Sleep(100 * time.Millisecond)
@@ -1729,7 +1729,7 @@ func TestAuditEvents_11_4_10_GeneratesAuditForLimitDeactivation(t *testing.T) {
 
 	// Create and activate limit
 	accountID := testutil.MustDeterministicUUID(7024).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	defer testutil.CleanupLimit(t, limitID)
 
 	testutil.ActivateLimit(t, limitID)
@@ -1788,7 +1788,7 @@ func TestAuditEvents_11_4_11_GeneratesAuditForLimitDelete(t *testing.T) {
 
 	// Create limit in DRAFT status
 	accountID := testutil.MustDeterministicUUID(7025).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 
 	// Delete limit directly from DRAFT (DRAFT → DELETED is allowed)
 	// Valid transitions: DRAFT → ACTIVE/DELETED, ACTIVE → INACTIVE, INACTIVE → ACTIVE/DRAFT/DELETED
@@ -2273,7 +2273,7 @@ func TestAuditEvents_11_10_3_CompleteLimitLifecycleIsAudited(t *testing.T) {
 
 	// 1. Create limit
 	accountID := testutil.MustDeterministicUUID(7029).String()
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 
 	// 2. Activate limit
 	testutil.ActivateLimit(t, limitID)

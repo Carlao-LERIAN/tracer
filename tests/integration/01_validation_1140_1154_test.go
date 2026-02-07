@@ -31,7 +31,7 @@ func TestValidation_1_1_40_MonthlyLimitType(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1000).String()
 
 	// Create and activate MONTHLY limit of 10000
-	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 10000, "MONTHLY")
+	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, "10000", "MONTHLY")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -100,7 +100,7 @@ func TestValidation_1_1_40_MonthlyLimitType(t *testing.T) {
 func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 	// Create and activate PER_TRANSACTION limit of 1000 for CARD transactions
 	transactionType := "CARD"
-	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, 1000)
+	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -454,7 +454,7 @@ func TestValidation_1_1_45_DenyRulePrecedenceOverLimitExceeded(t *testing.T) {
 	testutil.ActivateRule(t, ruleID)
 
 	// Create and activate a DAILY limit that would also be exceeded
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 
 	t.Cleanup(func() {
@@ -515,7 +515,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1060).String()
 
 	// Create and activate a DAILY limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 
 	// Create and activate DENY rule for CARD transactions
@@ -833,7 +833,7 @@ func TestValidation_1_1_53_NonIdempotentBehavior(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1130).String()
 
 	// Create and activate a DAILY limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)

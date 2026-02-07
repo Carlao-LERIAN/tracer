@@ -57,14 +57,14 @@ func TestLimitsVerification_5_1_1_FindsApplicableLimitsByScope(t *testing.T) {
 	accountID2 := testutil.MustDeterministicUUID(50102).String()
 
 	// Create DAILY limit for acc-1
-	limit1ID := testutil.CreateLimitWithAccountScope(t, accountID1, 1000)
+	limit1ID := testutil.CreateLimitWithAccountScope(t, accountID1, "1000")
 	testutil.ActivateLimit(t, limit1ID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limit1ID)
 	})
 
 	// Create DAILY limit for acc-2
-	limit2ID := testutil.CreateLimitWithAccountScope(t, accountID2, 1000)
+	limit2ID := testutil.CreateLimitWithAccountScope(t, accountID2, "1000")
 	testutil.ActivateLimit(t, limit2ID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limit2ID)
@@ -115,7 +115,7 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50110).String()
 
 	// Create DAILY limit of 1000 for the account
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -181,7 +181,7 @@ func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t
 	accountID := testutil.MustDeterministicUUID(50120).String()
 
 	// Create limit of 1000
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -248,7 +248,7 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 	accountID := testutil.MustDeterministicUUID(50130).String()
 
 	// Create limit of 1000
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -312,7 +312,7 @@ func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing
 	accountID := testutil.MustDeterministicUUID(50140).String()
 
 	// Create limit of 1000
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -378,13 +378,13 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 		// Create a fresh account for this sub-test to avoid state issues
 		accountID1 := testutil.MustDeterministicUUID(50160).String()
 
-		dailyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID1, 1000, "DAILY")
+		dailyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID1, "1000", "DAILY")
 		testutil.ActivateLimit(t, dailyID)
 		t.Cleanup(func() {
 			testutil.CleanupLimit(t, dailyID)
 		})
 
-		monthlyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID1, 5000, "MONTHLY")
+		monthlyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID1, "5000", "MONTHLY")
 		testutil.ActivateLimit(t, monthlyID)
 		t.Cleanup(func() {
 			testutil.CleanupLimit(t, monthlyID)
@@ -431,13 +431,13 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 	t.Run("exceeds_daily_limit", func(t *testing.T) {
 		accountID2 := testutil.MustDeterministicUUID(50170).String()
 
-		dailyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID2, 1000, "DAILY")
+		dailyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID2, "1000", "DAILY")
 		testutil.ActivateLimit(t, dailyID)
 		t.Cleanup(func() {
 			testutil.CleanupLimit(t, dailyID)
 		})
 
-		monthlyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID2, 5000, "MONTHLY")
+		monthlyID := testutil.CreateLimitWithAccountScopeAndType(t, accountID2, "5000", "MONTHLY")
 		testutil.ActivateLimit(t, monthlyID)
 		t.Cleanup(func() {
 			testutil.CleanupLimit(t, monthlyID)
@@ -484,7 +484,7 @@ func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.
 	transactionType := "CARD"
 
 	// Create PER_TRANSACTION limit of 500
-	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, 500)
+	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, "500")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -558,7 +558,7 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50201).String()
 
 	// Create DAILY limit of 1000 with currentUsage = 0
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -624,7 +624,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 	accountID := testutil.MustDeterministicUUID(50210).String()
 
 	// Create a limit of 1000 (currentUsage: 0)
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -715,7 +715,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50220).String()
 
 	// Create a limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -806,7 +806,7 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 	accountID := testutil.MustDeterministicUUID(50230).String()
 
 	// Create limit of 10000 (high enough for 10 concurrent transactions)
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 10000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "10000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -921,7 +921,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50250).String()
 
 	// Create limit of 1000 with high initial usage (900)
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1030,7 +1030,7 @@ func TestLimitsVerification_5_3_1_NewPeriodCreatesNewCounter(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50301).String()
 
 	// Create DAILY limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1094,7 +1094,7 @@ func TestLimitsVerification_DailyLimitPeriodFormat(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50307).String()
 
 	// Create DAILY limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1141,7 +1141,7 @@ func TestLimitsVerification_MonthlyLimitPeriodFormat(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50317).String()
 
 	// Create MONTHLY limit
-	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 5000, "MONTHLY")
+	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, "5000", "MONTHLY")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1196,7 +1196,7 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50260).String()
 
 	// Create limit of 1000 (currentUsage: 0)
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1329,7 +1329,7 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50320).String()
 
 	// Create DAILY limit of 1000
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1425,7 +1425,7 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50330).String()
 
 	// Create MONTHLY limit of 5000
-	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 5000, "MONTHLY")
+	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, "5000", "MONTHLY")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -1531,7 +1531,7 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50340).String()
 
 	// Create DAILY limit to test counter structure
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 1000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)

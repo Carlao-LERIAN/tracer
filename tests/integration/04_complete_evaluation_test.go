@@ -548,11 +548,11 @@ func TestValidation_ResponseStructure_LimitUsageDetails_Populated(t *testing.T) 
 	accountID := testutil.MustDeterministicUUID(4008).String()
 
 	// PRECONDITIONS: Create and activate 2 limits
-	dailyLimitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 5000, "DAILY")
+	dailyLimitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, "5000", "DAILY")
 	testutil.ActivateLimit(t, dailyLimitID)
 	t.Cleanup(func() { testutil.CleanupLimit(t, dailyLimitID) })
 
-	perTxnLimitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 1000, "PER_TRANSACTION")
+	perTxnLimitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, "1000", "PER_TRANSACTION")
 	testutil.ActivateLimit(t, perTxnLimitID)
 	t.Cleanup(func() { testutil.CleanupLimit(t, perTxnLimitID) })
 

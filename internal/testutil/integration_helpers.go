@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -777,7 +776,7 @@ type limitResponse struct {
 
 // CreateLimitWithAccountScope creates a DAILY limit with the specified account scope and max amount.
 // Returns the limit ID.
-func CreateLimitWithAccountScope(t *testing.T, accountID string, maxAmount int64) string {
+func CreateLimitWithAccountScope(t *testing.T, accountID string, maxAmount string) string {
 	t.Helper()
 
 	return CreateLimitWithAccountScopeAndType(t, accountID, maxAmount, "DAILY")
@@ -785,7 +784,7 @@ func CreateLimitWithAccountScope(t *testing.T, accountID string, maxAmount int64
 
 // CreateLimitWithAccountScopeAndType creates a limit with the specified account scope, max amount, and limit type.
 // Returns the limit ID.
-func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmount int64, limitType string) string {
+func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmount string, limitType string) string {
 	t.Helper()
 
 	apiKey := GetAPIKey()
@@ -801,7 +800,7 @@ func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmoun
 	reqBody := createLimitRequestAccount{
 		Name:      uniqueName,
 		LimitType: limitType,
-		MaxAmount: decimal.RequireFromString(strconv.FormatInt(maxAmount, 10)),
+		MaxAmount: decimal.RequireFromString(maxAmount),
 		Currency:  "BRL",
 		Scopes: []limitScopeInputAccount{
 			{AccountID: &accountID},
@@ -835,7 +834,7 @@ func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmoun
 
 // CreateLimitWithTransactionTypeScope creates a PER_TRANSACTION limit with the specified transaction type scope.
 // Returns the limit ID.
-func CreateLimitWithTransactionTypeScope(t *testing.T, transactionType string, maxAmount int64) string {
+func CreateLimitWithTransactionTypeScope(t *testing.T, transactionType string, maxAmount string) string {
 	t.Helper()
 
 	apiKey := GetAPIKey()
@@ -845,7 +844,7 @@ func CreateLimitWithTransactionTypeScope(t *testing.T, transactionType string, m
 	reqBody := createLimitRequestTransactionType{
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
-		MaxAmount: decimal.RequireFromString(strconv.FormatInt(maxAmount, 10)),
+		MaxAmount: decimal.RequireFromString(maxAmount),
 		Currency:  "BRL",
 		Scopes: []limitScopeInputTransactionType{
 			{TransactionType: &transactionType},
@@ -1006,7 +1005,7 @@ func CreateBasicValidationPayload() map[string]any {
 	return map[string]any{
 		"requestId":            MustDeterministicUUID(currentBase).String(),
 		"transactionType":      "CARD",
-		"amount":               100,
+		"amount":               "100.00",
 		"currency":             "BRL",
 		"transactionTimestamp": FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
