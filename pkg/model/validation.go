@@ -458,23 +458,6 @@ func (r *ValidationRequest) validateMetadata() error {
 	return nil
 }
 
-// ToTransactionContext converts ValidationRequest to TransactionContext for rule evaluation.
-// Used by T-011 (Validation Orchestration) to prepare input for T-008 (Rule Evaluation).
-func (r *ValidationRequest) ToTransactionContext() *TransactionContext {
-	return &TransactionContext{
-		TransactionType:      r.TransactionType,
-		SubType:              r.SubType,
-		Amount:               r.Amount,
-		Currency:             r.Currency,
-		TransactionTimestamp: r.TransactionTimestamp,
-		Account:              r.Account,
-		Segment:              r.Segment,
-		Portfolio:            r.Portfolio,
-		Merchant:             r.Merchant,
-		Metadata:             r.Metadata,
-	}
-}
-
 // ToCheckLimitsInput converts ValidationRequest to CheckLimitsInput for limit checking.
 // Used by T-011 (Validation Orchestration) to prepare input for T-010 (Limit Checking).
 func (r *ValidationRequest) ToCheckLimitsInput() *CheckLimitsInput {
