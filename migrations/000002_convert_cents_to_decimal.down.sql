@@ -27,15 +27,15 @@ UPDATE rules SET expression = 'amount < 100000'
 -- ============================================================================
 
 ALTER TABLE limits
-    ALTER COLUMN max_amount TYPE BIGINT USING (max_amount * 100)::BIGINT;
+    ALTER COLUMN max_amount TYPE BIGINT USING ROUND(max_amount * 100)::BIGINT;
 
 ALTER TABLE usage_counters
-    ALTER COLUMN current_usage TYPE BIGINT USING (current_usage * 100)::BIGINT;
+    ALTER COLUMN current_usage TYPE BIGINT USING ROUND(current_usage * 100)::BIGINT;
 
 ALTER TABLE usage_counters
     ALTER COLUMN current_usage SET DEFAULT 0;
 
 ALTER TABLE transaction_validations
-    ALTER COLUMN amount TYPE BIGINT USING (amount * 100)::BIGINT;
+    ALTER COLUMN amount TYPE BIGINT USING ROUND(amount * 100)::BIGINT;
 
 COMMIT;
