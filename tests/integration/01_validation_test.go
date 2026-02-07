@@ -4830,7 +4830,7 @@ func TestValidation_1_3_43_DateRangeBoundarySemantics(t *testing.T) {
 	})
 }
 
-// Test 1.3.44: Limit parameter exactly 10 (maximum) is accepted
+// Test 1.3.44: Limit parameter exactly 1000 (maximum) is accepted
 func TestValidation_1_3_44_LimitMaximum1000Accepted(t *testing.T) {
 	listResp, listBody := testutil.ListValidations(t, "limit=1000")
 	defer listResp.Body.Close()
