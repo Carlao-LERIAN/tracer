@@ -4998,7 +4998,7 @@ func TestValidation_1_3_29_ValidationSummaryFields(t *testing.T) {
 		assert.Contains(t, []string{"CARD", "WIRE", "PIX", "CRYPTO"}, item.TransactionType,
 			"Item %d: transactionType should be valid enum value, got: %s", i, item.TransactionType)
 
-		// Verify amount - must be present (int64, can be 0 or positive)
+		// Verify amount - must be present (decimal.Decimal, can be 0 or positive)
 		assert.True(t, item.Amount.GreaterThanOrEqual(decimal.Zero),
 			"Item %d: amount should be >= 0, got: %s", i, item.Amount)
 
