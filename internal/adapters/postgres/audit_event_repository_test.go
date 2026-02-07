@@ -696,6 +696,43 @@ func TestAuditEventRepository_List(t *testing.T) {
 			errMsg:  "TRC-0141",
 		},
 		{
+			name: "Success - limit zero uses default",
+			filters: &model.AuditEventFilters{
+				Limit: 0,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
+					WillReturnRows(sqlmock.NewRows(auditEventColumns()))
+			},
+			wantLen:  0,
+			wantMore: false,
+			wantErr:  false,
+		},
+		{
+			name: "Success - limit at maximum boundary",
+			filters: &model.AuditEventFilters{
+				Limit: model.MaxAuditEventFilterLimit,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
+					WillReturnRows(sqlmock.NewRows(auditEventColumns()))
+			},
+			wantLen:  0,
+			wantMore: false,
+			wantErr:  false,
+		},
+		{
+			name: "Error - limit exceeds maximum boundary",
+			filters: &model.AuditEventFilters{
+				Limit: model.MaxAuditEventFilterLimit + 1,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// No query expected
+			},
+			wantErr: true,
+			errMsg:  "TRC-0141",
+		},
+		{
 			name: "Error - database query fails",
 			filters: &model.AuditEventFilters{
 				Limit: 10,
