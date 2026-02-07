@@ -76,7 +76,7 @@ func TestValidation_CompleteEvaluation_AllActiveRules(t *testing.T) {
 	// EXECUTION: Send validation request that matches all rules with scoped account
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 100
+	payload["amount"] = "100.00"
 	payload["currency"] = "BRL"
 	payload["account"] = map[string]any{
 		"accountId": testAccountID,
@@ -139,7 +139,7 @@ func TestValidation_CompleteEvaluation_CollectsMatchingWithDenyPrecedence(t *tes
 
 	// EXECUTION: Send validation request with scoped account
 	payload := testutil.CreateBasicValidationPayload()
-	payload["amount"] = 1000 // Matches 3 ALLOW + 1 DENY, but not the "amount > 10000" rule
+	payload["amount"] = "1000.00" // Matches 3 ALLOW + 1 DENY, but not the "amount > 10000" rule
 	payload["account"] = map[string]any{
 		"accountId": testAccountID,
 		"type":      "checking",
@@ -223,7 +223,7 @@ func TestValidation_CompleteEvaluation_CollectsEvaluatedRules(t *testing.T) {
 		"status":    "active",
 	}
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 100
+	payload["amount"] = "100.00"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
 	require.Equal(t, http.StatusOK, status)
@@ -262,7 +262,7 @@ func TestValidation_CompleteEvaluation_DraftRulesNotEvaluated(t *testing.T) {
 	// EXECUTION: Send validation request
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 100
+	payload["amount"] = "100.00"
 	payload["currency"] = "BRL" // Would match DRAFT rule if it were active
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
@@ -303,7 +303,7 @@ func TestValidation_CompleteEvaluation_InactiveRulesNotEvaluated(t *testing.T) {
 	// EXECUTION: Send validation request
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 100
+	payload["amount"] = "100.00"
 	payload["currency"] = "BRL" // Would match INACTIVE rule if it were active
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
@@ -343,7 +343,7 @@ func TestValidation_CompleteEvaluation_DeletedRulesNotEvaluated(t *testing.T) {
 	// EXECUTION: Send validation request
 	payload := testutil.CreateBasicValidationPayload()
 	payload["transactionType"] = "CARD"
-	payload["amount"] = 100
+	payload["amount"] = "100.00"
 	payload["currency"] = "BRL" // Would match DELETED rule if it existed
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
@@ -461,25 +461,25 @@ func TestValidation_ResponseStructure_ReasonField_AllDecisions(t *testing.T) {
 
 	testCases := []struct {
 		name             string
-		amount           int64
+		amount           string
 		expectedDecision string
 		expectedKeywords []string
 	}{
 		{
 			name:             "allow_decision",
-			amount:           500,
+			amount:           "500.00",
 			expectedDecision: "ALLOW",
 			expectedKeywords: []string{"allow", "approved", "permitted", "rule matched"},
 		},
 		{
 			name:             "deny_decision",
-			amount:           6000,
+			amount:           "6000.00",
 			expectedDecision: "DENY",
 			expectedKeywords: []string{"deny", "blocked", "denied", "exceeded", "rule matched"},
 		},
 		{
 			name:             "review_decision",
-			amount:           3000,
+			amount:           "3000.00",
 			expectedDecision: "REVIEW",
 			expectedKeywords: []string{"review", "manual", "flagged"},
 		},
@@ -563,7 +563,7 @@ func TestValidation_ResponseStructure_LimitUsageDetails_Populated(t *testing.T) 
 		"type":      "checking",
 		"status":    "active",
 	}
-	payload["amount"] = 500
+	payload["amount"] = "500.00"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
 	require.Equal(t, http.StatusOK, status)
