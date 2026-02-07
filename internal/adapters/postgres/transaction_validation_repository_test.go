@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/shopspring/decimal"
+
 	"tracer/internal/adapters/postgres/db/mocks"
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
@@ -57,7 +59,7 @@ func testTransactionValidation() *model.TransactionValidation {
 		RequestID:            testutil.MustDeterministicUUID(100),
 		TransactionType:      model.TransactionTypeCard,
 		SubType:              nil,
-		Amount:               50000,
+		Amount:               decimal.RequireFromString("500"),
 		Currency:             "USD",
 		TransactionTimestamp: time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC),
 		Account: model.AccountContext{
@@ -88,7 +90,7 @@ func testTransactionValidationWithArrays() *model.TransactionValidation {
 		RequestID:            testutil.MustDeterministicUUID(101),
 		TransactionType:      model.TransactionTypeWire,
 		SubType:              nil,
-		Amount:               100000,
+		Amount:               decimal.RequireFromString("1000"),
 		Currency:             "USD",
 		TransactionTimestamp: time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC),
 		Account: model.AccountContext{
@@ -109,14 +111,14 @@ func testTransactionValidationWithArrays() *model.TransactionValidation {
 		LimitUsageDetails: []model.LimitUsageDetail{
 			{
 				LimitID:      testutil.MustDeterministicUUID(30),
-				LimitAmount:  1000000,
-				CurrentUsage: 950000,
+				LimitAmount:  decimal.RequireFromString("10000"),
+				CurrentUsage: decimal.RequireFromString("9500"),
 				Exceeded:     false,
 			},
 			{
 				LimitID:      testutil.MustDeterministicUUID(31),
-				LimitAmount:  500000,
-				CurrentUsage: 500001,
+				LimitAmount:  decimal.RequireFromString("5000"),
+				CurrentUsage: decimal.RequireFromString("5000.01"),
 				Exceeded:     true,
 			},
 		},
@@ -1060,59 +1062,59 @@ func TestBuildNextCursor_Integration(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		sortBy            string
-		sortOrder         string
-		wantCursorSortBy  string
-		wantCursorOrder   string
-		wantCursorValue   string
-		wantErr           bool
-		errIs             error
+		name             string
+		sortBy           string
+		sortOrder        string
+		wantCursorSortBy string
+		wantCursorOrder  string
+		wantCursorValue  string
+		wantErr          bool
+		errIs            error
 	}{
 		{
-			name:              "Success - snake_case created_at with DESC",
-			sortBy:            "created_at",
-			sortOrder:         "DESC",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "DESC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - snake_case created_at with DESC",
+			sortBy:           "created_at",
+			sortOrder:        "DESC",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "DESC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
-			name:              "Success - snake_case created_at with ASC",
-			sortBy:            "created_at",
-			sortOrder:         "ASC",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "ASC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - snake_case created_at with ASC",
+			sortBy:           "created_at",
+			sortOrder:        "ASC",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "ASC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
-			name:              "Success - lowercase sortOrder normalized to uppercase in cursor",
-			sortBy:            "created_at",
-			sortOrder:         "desc",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "DESC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - lowercase sortOrder normalized to uppercase in cursor",
+			sortBy:           "created_at",
+			sortOrder:        "desc",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "DESC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
-			name:              "Success - mixed case sortOrder normalized in cursor",
-			sortBy:            "created_at",
-			sortOrder:         "AsC",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "ASC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - mixed case sortOrder normalized in cursor",
+			sortBy:           "created_at",
+			sortOrder:        "AsC",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "ASC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
-			name:              "Success - invalid sortOrder defaults to DESC in cursor",
-			sortBy:            "created_at",
-			sortOrder:         "INVALID",
-			wantCursorSortBy:  "created_at",
-			wantCursorOrder:   "DESC",
-			wantCursorValue:   fixedTime.Format(time.RFC3339Nano),
-			wantErr:           false,
+			name:             "Success - invalid sortOrder defaults to DESC in cursor",
+			sortBy:           "created_at",
+			sortOrder:        "INVALID",
+			wantCursorSortBy: "created_at",
+			wantCursorOrder:  "DESC",
+			wantCursorValue:  fixedTime.Format(time.RFC3339Nano),
+			wantErr:          false,
 		},
 		{
 			name:      "Error - invalid sortBy rejected",

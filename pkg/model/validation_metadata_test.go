@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +25,7 @@ func TestValidateMetadata(t *testing.T) {
 		return &ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1),
 			TransactionType:      TransactionTypeCard,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
@@ -211,10 +213,10 @@ func TestValidateMetadata(t *testing.T) {
 	t.Run("Error - one invalid key among many valid keys", func(t *testing.T) {
 		req := createValidRequest()
 		req.Metadata = map[string]any{
-			"valid_key1":      "value1",
-			"valid_key2":      "value2",
-			"invalid-key":     "value3", // hyphen is not allowed
-			"another_valid":   "value4",
+			"valid_key1":    "value1",
+			"valid_key2":    "value2",
+			"invalid-key":   "value3", // hyphen is not allowed
+			"another_valid": "value4",
 		}
 
 		err := req.validateMetadata()
@@ -230,7 +232,7 @@ func TestValidateOptionalFields_AccountType(t *testing.T) {
 		return &ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(10),
 			TransactionType:      TransactionTypeCard,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
@@ -297,7 +299,7 @@ func TestValidateOptionalFields_AccountStatus(t *testing.T) {
 		return &ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(10),
 			TransactionType:      TransactionTypeCard,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
@@ -364,7 +366,7 @@ func TestValidateOptionalFields_SubType(t *testing.T) {
 		return &ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(10),
 			TransactionType:      TransactionTypeCard,
-			Amount:               1000,
+			Amount:               decimal.RequireFromString("10"),
 			Currency:             "USD",
 			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{

@@ -81,7 +81,7 @@ func createTestAuditEvent(t *testing.T) *model.AuditEvent {
 					"portfolioId": "port-001",
 				},
 				"transactionType": "PIX",
-				"amount":          10000,
+				"amount":          100,
 			},
 			"response": map[string]any{
 				"decision":         "ALLOW",
@@ -442,7 +442,7 @@ func TestAuditEventRepository_List(t *testing.T) {
 		{
 			name: "Success - finds all events with pagination",
 			filters: &model.AuditEventFilters{
-				Limit:  10,
+				Limit:     10,
 				SortBy:    "createdAt",
 				SortOrder: "DESC",
 			},
@@ -461,7 +461,7 @@ func TestAuditEventRepository_List(t *testing.T) {
 				eventType := model.AuditEventTransactionValidated
 				return &model.AuditEventFilters{
 					EventType: &eventType,
-					Limit:  10,
+					Limit:     10,
 				}
 			}(),
 			mockSetup: func(mock sqlmock.Sqlmock) {
@@ -478,8 +478,8 @@ func TestAuditEventRepository_List(t *testing.T) {
 			filters: func() *model.AuditEventFilters {
 				action := model.AuditActionValidate
 				return &model.AuditEventFilters{
-					Action:   &action,
-					Limit: 10,
+					Action: &action,
+					Limit:  10,
 				}
 			}(),
 			mockSetup: func(mock sqlmock.Sqlmock) {
@@ -496,8 +496,8 @@ func TestAuditEventRepository_List(t *testing.T) {
 			filters: func() *model.AuditEventFilters {
 				result := model.AuditResultAllow
 				return &model.AuditEventFilters{
-					Result:   &result,
-					Limit: 10,
+					Result: &result,
+					Limit:  10,
 				}
 			}(),
 			mockSetup: func(mock sqlmock.Sqlmock) {
@@ -517,7 +517,7 @@ func TestAuditEventRepository_List(t *testing.T) {
 				return &model.AuditEventFilters{
 					ResourceType: &resourceType,
 					ResourceID:   &resourceID,
-					Limit:     10,
+					Limit:        10,
 				}
 			}(),
 			mockSetup: func(mock sqlmock.Sqlmock) {
@@ -537,7 +537,7 @@ func TestAuditEventRepository_List(t *testing.T) {
 				return &model.AuditEventFilters{
 					ActorType: &actorType,
 					ActorID:   &actorID,
-					Limit:  10,
+					Limit:     10,
 				}
 			}(),
 			mockSetup: func(mock sqlmock.Sqlmock) {
@@ -554,7 +554,7 @@ func TestAuditEventRepository_List(t *testing.T) {
 			filters: &model.AuditEventFilters{
 				StartDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 				EndDate:   time.Date(2024, 12, 31, 23, 59, 59, 0, time.UTC),
-				Limit:  10,
+				Limit:     10,
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				event := createTestAuditEvent(t)
@@ -571,7 +571,7 @@ func TestAuditEventRepository_List(t *testing.T) {
 				accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
 				return &model.AuditEventFilters{
 					AccountID: &accountID,
-					Limit:  10,
+					Limit:     10,
 				}
 			}(),
 			mockSetup: func(mock sqlmock.Sqlmock) {
@@ -589,7 +589,7 @@ func TestAuditEventRepository_List(t *testing.T) {
 				txnType := model.TransactionTypePix
 				return &model.AuditEventFilters{
 					TransactionType: &txnType,
-					Limit:        10,
+					Limit:           10,
 				}
 			}(),
 			mockSetup: func(mock sqlmock.Sqlmock) {
@@ -607,7 +607,7 @@ func TestAuditEventRepository_List(t *testing.T) {
 				ruleID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440003")
 				return &model.AuditEventFilters{
 					MatchedRuleID: &ruleID,
-					Limit:      10,
+					Limit:         10,
 				}
 			}(),
 			mockSetup: func(mock sqlmock.Sqlmock) {
@@ -686,8 +686,45 @@ func TestAuditEventRepository_List(t *testing.T) {
 		{
 			name: "Error - invalid filters",
 			filters: &model.AuditEventFilters{
-				Limit:  -1,
+				Limit:     -1,
 				SortOrder: "INVALID",
+			},
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// No query expected
+			},
+			wantErr: true,
+			errMsg:  "TRC-0141",
+		},
+		{
+			name: "Success - limit zero uses default",
+			filters: &model.AuditEventFilters{
+				Limit: 0,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
+					WillReturnRows(sqlmock.NewRows(auditEventColumns()))
+			},
+			wantLen:  0,
+			wantMore: false,
+			wantErr:  false,
+		},
+		{
+			name: "Success - limit at maximum boundary",
+			filters: &model.AuditEventFilters{
+				Limit: model.MaxAuditEventFilterLimit,
+			},
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
+					WillReturnRows(sqlmock.NewRows(auditEventColumns()))
+			},
+			wantLen:  0,
+			wantMore: false,
+			wantErr:  false,
+		},
+		{
+			name: "Error - limit exceeds maximum boundary",
+			filters: &model.AuditEventFilters{
+				Limit: model.MaxAuditEventFilterLimit + 1,
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// No query expected
@@ -932,7 +969,7 @@ func TestAuditEventRepository_List_SortFields(t *testing.T) {
 
 			ctx := context.Background()
 			filters := &model.AuditEventFilters{
-				Limit:  10,
+				Limit:     10,
 				SortBy:    tt.sortBy,
 				SortOrder: tt.sortOrder,
 			}

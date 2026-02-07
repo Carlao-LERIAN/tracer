@@ -1282,9 +1282,9 @@ func TestCreateRule_2_1_26_RejectsSubTypeExceedingMaxLength(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	testCases := []struct {
-		name      string
+		name       string
 		subTypeLen int
-		expect    int
+		expect     int
 	}{
 		{"50_chars", 50, http.StatusCreated},
 		{"51_chars", 51, http.StatusBadRequest},
@@ -2633,7 +2633,6 @@ func TestListRules_2_3_20_WithoutAuthenticationReturns401(t *testing.T) {
 	assert.Equal(t, "Unauthorized", errResp.Title)
 	assert.Equal(t, "API Key missing or invalid", errResp.Message)
 }
-
 
 // =============================================================================
 // 2.4 PATCH /v1/rules/{ruleId} - Update Rule
@@ -4254,5 +4253,3 @@ func TestDeleteRule_2_7_7_WithoutAuthenticationReturns401(t *testing.T) {
 	assert.Equal(t, "Unauthorized", errResp.Title)
 	assert.Equal(t, "API Key missing or invalid", errResp.Message)
 }
-
-

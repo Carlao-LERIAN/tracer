@@ -180,18 +180,18 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 				require.NoError(t, err)
 				require.NotNil(t, event)
-				
+
 				// Assert generated fields are populated
 				assert.NotEmpty(t, event.EventID, "EventID should be generated")
 				assert.False(t, event.CreatedAt.IsZero(), "CreatedAt should be set")
-				
+
 				// Assert input fields are preserved
 				assert.Equal(t, tc.eventType, event.EventType)
 				assert.Equal(t, tc.action, event.Action)
 				assert.Equal(t, tc.result, event.Result)
 				assert.Equal(t, tc.resourceType, event.ResourceType)
 				assert.Equal(t, tc.resourceID, event.ResourceID, "ResourceID should be preserved")
-				
+
 				// Assert actor is preserved
 				assert.Equal(t, validActor.ActorType, event.Actor.ActorType, "Actor.ActorType should be preserved")
 				assert.Equal(t, validActor.ID, event.Actor.ID, "Actor.ID should be preserved")
@@ -202,7 +202,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 	t.Run("Success - context and metadata initialized as empty maps", func(t *testing.T) {
 		resourceID20 := testutil.MustDeterministicUUID(20).String()
-		
+
 		event, err := NewAuditEvent(
 			AuditEventRuleCreated,
 			AuditActionCreate,
@@ -214,7 +214,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, event)
-		
+
 		// Assert generated fields are populated
 		assert.NotEmpty(t, event.EventID, "EventID should be generated")
 		assert.False(t, event.CreatedAt.IsZero(), "CreatedAt should be set")
@@ -270,11 +270,11 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 				require.NoError(t, err)
 				require.NotNil(t, event)
-				
+
 				// Assert generated fields are populated
 				assert.NotEmpty(t, event.EventID, "EventID should be generated")
 				assert.False(t, event.CreatedAt.IsZero(), "CreatedAt should be set")
-				
+
 				assert.Equal(t, tc.expected, event.ResourceID, "ResourceID should be trimmed")
 			})
 		}
@@ -316,7 +316,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 		for i, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				resourceID := testutil.MustDeterministicUUID(int64(30 + i)).String()
-				
+
 				actorWithWhitespace := Actor{
 					ActorType: ActorTypeSystem,
 					ID:        tc.actorID,
@@ -334,11 +334,11 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 				require.NoError(t, err)
 				require.NotNil(t, event)
-				
+
 				// Assert generated fields are populated
 				assert.NotEmpty(t, event.EventID, "EventID should be generated")
 				assert.False(t, event.CreatedAt.IsZero(), "CreatedAt should be set")
-				
+
 				assert.Equal(t, tc.expected, event.Actor.ID, "Actor.ID should be trimmed")
 			})
 		}
@@ -361,7 +361,7 @@ func TestNewAuditEvent_Validation(t *testing.T) {
 
 	t.Run("Error - whitespace-only actor.ID", func(t *testing.T) {
 		resourceID40 := testutil.MustDeterministicUUID(40).String()
-		
+
 		invalidActor := Actor{
 			ActorType: ActorTypeUser,
 			ID:        "   ",

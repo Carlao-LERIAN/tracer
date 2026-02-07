@@ -11,16 +11,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg"
 	"tracer/pkg/constant"
 )
 
 // CheckLimitsInput represents the input for limit checking operations.
-// Amount is expressed in the smallest currency unit (e.g., cents for USD/BRL).
+// Amount is expressed as a decimal value (e.g., 1000.00 for USD/BRL).
 // AccountID is required; SegmentID, PortfolioID, TransactionType and SubType are optional for scope matching.
 type CheckLimitsInput struct {
-	Amount               int64            `json:"amount"`
+	Amount               decimal.Decimal  `json:"amount"`
 	Currency             string           `json:"currency"`
 	AccountID            uuid.UUID        `json:"accountId"`
 	SegmentID            *uuid.UUID       `json:"segmentId,omitempty"`
@@ -34,7 +35,7 @@ type CheckLimitsInput struct {
 // Currency is normalized to uppercase.
 // Amount must be positive.
 // AccountID is required.
-func NewCheckLimitsInput(amount int64, currency string, accountID uuid.UUID, segmentID, portfolioID *uuid.UUID, transactionType *TransactionType, subType *string, timestamp time.Time) (*CheckLimitsInput, error) {
+func NewCheckLimitsInput(amount decimal.Decimal, currency string, accountID uuid.UUID, segmentID, portfolioID *uuid.UUID, transactionType *TransactionType, subType *string, timestamp time.Time) (*CheckLimitsInput, error) {
 	normalizedCurrency := strings.ToUpper(strings.TrimSpace(currency))
 
 	input := &CheckLimitsInput{
@@ -62,7 +63,7 @@ func (i *CheckLimitsInput) Validate() error {
 		return constant.ErrCheckLimitsNilInput
 	}
 
-	if i.Amount <= 0 {
+	if i.Amount.LessThanOrEqual(decimal.Zero) {
 		return constant.ErrCheckLimitsInvalidAmount
 	}
 
@@ -149,23 +150,23 @@ func (o *CheckLimitsOutput) WithLimitUsageDetails(details []LimitUsageDetail) *C
 //   - If limit is exceeded (CurrentUsage > LimitAmount), returns 0
 //   - If no usage yet (CurrentUsage <= 0), returns LimitAmount
 //   - Otherwise, returns LimitAmount - CurrentUsage
-func (d *LimitUsageDetail) RemainingAmount() int64 {
+func (d *LimitUsageDetail) RemainingAmount() decimal.Decimal {
 	// Nil receiver protection
 	if d == nil {
-		return 0
+		return decimal.Zero
 	}
 
 	// If CurrentUsage is zero or negative, remaining is the full limit
-	if d.CurrentUsage <= 0 {
+	if d.CurrentUsage.LessThanOrEqual(decimal.Zero) {
 		return d.LimitAmount
 	}
 
 	// If limit is exceeded, remaining is 0
-	if d.CurrentUsage >= d.LimitAmount {
-		return 0
+	if d.CurrentUsage.GreaterThanOrEqual(d.LimitAmount) {
+		return decimal.Zero
 	}
 
-	return d.LimitAmount - d.CurrentUsage
+	return d.LimitAmount.Sub(d.CurrentUsage)
 }
 
 // CalculatePeriodKey computes the period key for a given limit type and timestamp.

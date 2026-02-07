@@ -18,6 +18,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -35,11 +36,11 @@ func TestValidationHandler_Validate(t *testing.T) {
 	now := testutil.DefaultTestTime
 
 	validRequest := model.ValidationRequest{
-		RequestID:       validRequestID,
-		TransactionType: model.TransactionTypeCard,
-		Amount:          10000, // $100.00 in cents
-		Currency:        "USD",
-		TransactionTimestamp:       now,
+		RequestID:            validRequestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"), // $100.00
+		Currency:             "USD",
+		TransactionTimestamp: now,
 		Account: model.AccountContext{
 			ID: accountID,
 		},
@@ -134,8 +135,8 @@ func TestValidationHandler_Validate(t *testing.T) {
 						LimitUsageDetails: []model.LimitUsageDetail{
 							{
 								LimitID:      limitID,
-								LimitAmount:  100000, // $1000.00
-								CurrentUsage: 50000,  // $500.00
+								LimitAmount:  decimal.RequireFromString("1000"), // $1000.00
+								CurrentUsage: decimal.RequireFromString("500"),  // $500.00
 								Exceeded:     false,
 							},
 						},
@@ -187,11 +188,11 @@ func TestValidationHandler_Validate(t *testing.T) {
 		{
 			name: "error - missing required field requestId",
 			requestBody: map[string]any{
-				"transactionType": "CARD",
-				"amount":          10000,
-				"currency":        "USD",
-				"transactionTimestamp":       now.Format(time.RFC3339),
-				"account":         map[string]any{"accountId": accountID.String()},
+				"transactionType":      "CARD",
+				"amount":               100,
+				"currency":             "USD",
+				"transactionTimestamp": now.Format(time.RFC3339),
+				"account":              map[string]any{"accountId": accountID.String()},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
 				// Service should NOT be called when validation fails
@@ -205,12 +206,12 @@ func TestValidationHandler_Validate(t *testing.T) {
 		{
 			name: "error - invalid transaction type",
 			requestBody: map[string]any{
-				"requestId":       validRequestID.String(),
-				"transactionType": "INVALID_TYPE",
-				"amount":          10000,
-				"currency":        "USD",
-				"transactionTimestamp":       now.Format(time.RFC3339),
-				"account":         map[string]any{"accountId": accountID.String()},
+				"requestId":            validRequestID.String(),
+				"transactionType":      "INVALID_TYPE",
+				"amount":               100,
+				"currency":             "USD",
+				"transactionTimestamp": now.Format(time.RFC3339),
+				"account":              map[string]any{"accountId": accountID.String()},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
 				return mocks.NewMockValidationService(ctrl)
@@ -223,12 +224,12 @@ func TestValidationHandler_Validate(t *testing.T) {
 		{
 			name: "error - amount non-positive",
 			requestBody: map[string]any{
-				"requestId":       validRequestID.String(),
-				"transactionType": "CARD",
-				"amount":          0,
-				"currency":        "USD",
-				"transactionTimestamp":       now.Format(time.RFC3339),
-				"account":         map[string]any{"accountId": accountID.String()},
+				"requestId":            validRequestID.String(),
+				"transactionType":      "CARD",
+				"amount":               0,
+				"currency":             "USD",
+				"transactionTimestamp": now.Format(time.RFC3339),
+				"account":              map[string]any{"accountId": accountID.String()},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
 				return mocks.NewMockValidationService(ctrl)
@@ -241,12 +242,12 @@ func TestValidationHandler_Validate(t *testing.T) {
 		{
 			name: "error - negative amount",
 			requestBody: map[string]any{
-				"requestId":       validRequestID.String(),
-				"transactionType": "CARD",
-				"amount":          -100,
-				"currency":        "USD",
-				"transactionTimestamp":       now.Format(time.RFC3339),
-				"account":         map[string]any{"accountId": accountID.String()},
+				"requestId":            validRequestID.String(),
+				"transactionType":      "CARD",
+				"amount":               -100,
+				"currency":             "USD",
+				"transactionTimestamp": now.Format(time.RFC3339),
+				"account":              map[string]any{"accountId": accountID.String()},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
 				return mocks.NewMockValidationService(ctrl)
@@ -259,11 +260,11 @@ func TestValidationHandler_Validate(t *testing.T) {
 		{
 			name: "error - missing currency",
 			requestBody: map[string]any{
-				"requestId":       validRequestID.String(),
-				"transactionType": "CARD",
-				"amount":          10000,
-				"transactionTimestamp":       now.Format(time.RFC3339),
-				"account":         map[string]any{"accountId": accountID.String()},
+				"requestId":            validRequestID.String(),
+				"transactionType":      "CARD",
+				"amount":               100,
+				"transactionTimestamp": now.Format(time.RFC3339),
+				"account":              map[string]any{"accountId": accountID.String()},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
 				return mocks.NewMockValidationService(ctrl)
@@ -278,7 +279,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 			requestBody: map[string]any{
 				"requestId":       validRequestID.String(),
 				"transactionType": "CARD",
-				"amount":          10000,
+				"amount":          100,
 				"currency":        "USD",
 				"account":         map[string]any{"accountId": accountID.String()},
 			},
@@ -367,11 +368,11 @@ func TestValidationHandler_Validate(t *testing.T) {
 		{
 			name: "error - missing account",
 			requestBody: map[string]any{
-				"requestId":       validRequestID.String(),
-				"transactionType": "CARD",
-				"amount":          10000,
-				"currency":        "USD",
-				"transactionTimestamp":       now.Format("2006-01-02T15:04:05Z07:00"),
+				"requestId":            validRequestID.String(),
+				"transactionType":      "CARD",
+				"amount":               100,
+				"currency":             "USD",
+				"transactionTimestamp": now.Format("2006-01-02T15:04:05Z07:00"),
 			},
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
 				// Service should NOT be called when account is missing
@@ -385,12 +386,12 @@ func TestValidationHandler_Validate(t *testing.T) {
 		{
 			name: "error - missing account ID (nil UUID)",
 			requestBody: map[string]any{
-				"requestId":       validRequestID.String(),
-				"transactionType": "CARD",
-				"amount":          10000,
-				"currency":        "USD",
-				"transactionTimestamp":       now.Format("2006-01-02T15:04:05Z07:00"),
-				"account":         map[string]any{"accountId": ""},
+				"requestId":            validRequestID.String(),
+				"transactionType":      "CARD",
+				"amount":               100,
+				"currency":             "USD",
+				"transactionTimestamp": now.Format("2006-01-02T15:04:05Z07:00"),
+				"account":              map[string]any{"accountId": ""},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockValidationService {
 				// Service should NOT be called when account.id is empty
@@ -457,11 +458,11 @@ func TestValidationHandler_Validate_PayloadSizeCheck(t *testing.T) {
 		now := testutil.FixedTime()
 
 		baseRequest := model.ValidationRequest{
-			RequestID:       validRequestID,
-			TransactionType: model.TransactionTypeCard,
-			Amount:          10000,
-			Currency:        "USD",
-			TransactionTimestamp:       now,
+			RequestID:            validRequestID,
+			TransactionType:      model.TransactionTypeCard,
+			Amount:               decimal.RequireFromString("100"),
+			Currency:             "USD",
+			TransactionTimestamp: now,
 			Account: model.AccountContext{
 				ID: accountID,
 			},

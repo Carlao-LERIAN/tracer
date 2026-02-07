@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -38,7 +39,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 		Name:        "Test Limit",
 		Description: testutil.StringPtr("A test limit description"),
 		LimitType:   model.LimitTypeDaily,
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes:      []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 		Status:      model.LimitStatusActive,
@@ -66,7 +67,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 				assert.Equal(t, limitID, limit.ID)
 				assert.Equal(t, "Test Limit", limit.Name)
 				assert.Equal(t, model.LimitTypeDaily, limit.LimitType)
-				assert.Equal(t, int64(100000), limit.MaxAmount)
+				assert.True(t, decimal.RequireFromString("1000").Equal(limit.MaxAmount))
 				assert.Equal(t, "USD", limit.Currency)
 				assert.Equal(t, model.LimitStatusActive, limit.Status)
 				assert.NotNil(t, limit.Description)
@@ -81,7 +82,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 					ID:        limitID,
 					Name:      "Inactive Limit",
 					LimitType: model.LimitTypeMonthly,
-					MaxAmount: 500000,
+					MaxAmount: decimal.RequireFromString("5000"),
 					Currency:  "BRL",
 					Scopes:    []model.Scope{{PortfolioID: testutil.UUIDPtr(testutil.MustDeterministicUUID(10))}},
 					Status:    model.LimitStatusInactive,
@@ -103,7 +104,7 @@ func TestGetLimitQuery_Execute(t *testing.T) {
 					ID:        limitID,
 					Name:      "Per Transaction Limit",
 					LimitType: model.LimitTypePerTransaction,
-					MaxAmount: 10000,
+					MaxAmount: decimal.RequireFromString("100"),
 					Currency:  "EUR",
 					Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11))}},
 					Status:    model.LimitStatusActive,

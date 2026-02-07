@@ -5,11 +5,12 @@
 package model
 
 import (
-	"math"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,7 @@ func newTestLimit(t *testing.T) *Limit {
 	limit, err := NewLimit(
 		"Test Limit",
 		LimitTypeDaily,
-		100000,
+		decimal.RequireFromString("1000"),
 		"USD",
 		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 		testutil.StringPtr("Test description"),
@@ -227,7 +228,7 @@ func TestNewLimit(t *testing.T) {
 		limitName           string
 		expectedName        string // if empty, defaults to limitName (for normalization tests)
 		limitType           LimitType
-		maxAmount           int64
+		maxAmount           decimal.Decimal
 		currency            string
 		expectedCurrency    string // if empty, defaults to currency (for normalization tests)
 		scopes              []Scope
@@ -240,7 +241,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "creates valid limit",
 			limitName:   "Daily Card Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000, // 1000.00 in cents
+			maxAmount:   decimal.RequireFromString("1000"), // $1000.00
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			description: testutil.StringPtr("Daily spending limit for card transactions"),
@@ -250,7 +251,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "creates limit without description",
 			limitName:   "Monthly Limit",
 			limitType:   LimitTypeMonthly,
-			maxAmount:   500000,
+			maxAmount:   decimal.RequireFromString("5000"),
 			currency:    "BRL",
 			scopes:      []Scope{validScope},
 			description: nil,
@@ -261,7 +262,7 @@ func TestNewLimit(t *testing.T) {
 			limitName:    "  Trimmed Name  ",
 			expectedName: "Trimmed Name",
 			limitType:    LimitTypeDaily,
-			maxAmount:    100000,
+			maxAmount:    decimal.RequireFromString("1000"),
 			currency:     "USD",
 			scopes:       []Scope{validScope},
 			description:  nil,
@@ -271,7 +272,7 @@ func TestNewLimit(t *testing.T) {
 			name:                "trims description whitespace",
 			limitName:           "Test Limit",
 			limitType:           LimitTypeDaily,
-			maxAmount:           100000,
+			maxAmount:           decimal.RequireFromString("1000"),
 			currency:            "USD",
 			scopes:              []Scope{validScope},
 			description:         testutil.StringPtr("  trimmed description  "),
@@ -282,7 +283,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects empty name",
 			limitName:   "",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -292,7 +293,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects whitespace-only name",
 			limitName:   "   ",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -302,7 +303,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects invalid limit type",
 			limitName:   "Test Limit",
 			limitType:   LimitType("INVALID"),
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -312,7 +313,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects zero maxAmount",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   0,
+			maxAmount:   decimal.RequireFromString("0"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -322,7 +323,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects negative maxAmount",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   -100,
+			maxAmount:   decimal.RequireFromString("-1"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -332,7 +333,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects empty currency",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -342,7 +343,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects invalid currency length",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "US",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -352,7 +353,7 @@ func TestNewLimit(t *testing.T) {
 			name:             "normalizes lowercase currency to uppercase",
 			limitName:        "Test Limit",
 			limitType:        LimitTypeDaily,
-			maxAmount:        100000,
+			maxAmount:        decimal.RequireFromString("1000"),
 			currency:         "usd",
 			expectedCurrency: "USD",
 			scopes:           []Scope{validScope},
@@ -362,7 +363,7 @@ func TestNewLimit(t *testing.T) {
 			name:             "trims and normalizes currency",
 			limitName:        "Test Limit",
 			limitType:        LimitTypeDaily,
-			maxAmount:        100000,
+			maxAmount:        decimal.RequireFromString("1000"),
 			currency:         "  brl  ",
 			expectedCurrency: "BRL",
 			scopes:           []Scope{validScope},
@@ -372,7 +373,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects currency with numbers",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "US1",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -382,7 +383,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects scope with invalid TransactionType",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11)), TransactionType: testutil.Ptr(TransactionType("INVALID"))}},
 			expectError: true,
@@ -392,7 +393,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "accepts name at max length",
 			limitName:   strings.Repeat("a", MaxNameLength),
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			description: nil,
@@ -402,7 +403,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects name exceeding max length",
 			limitName:   strings.Repeat("a", MaxNameLength+1),
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -412,7 +413,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects name with XSS characters",
 			limitName:   "<script>alert('xss')</script>",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -422,7 +423,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects name with tab",
 			limitName:   "Name\twith\ttabs",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -432,7 +433,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects name with newline",
 			limitName:   "Name\nwith\nnewlines",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -442,7 +443,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects name with carriage return",
 			limitName:   "Name\rwith\rcarriage",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			expectError: true,
@@ -452,7 +453,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects empty scopes",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{},
 			expectError: true,
@@ -462,7 +463,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects nil scopes",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      nil,
 			expectError: true,
@@ -472,7 +473,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects empty scope in array",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{{}},
 			expectError: true,
@@ -482,7 +483,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects description with XSS",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			description: testutil.StringPtr("<script>alert('xss')</script>"),
@@ -493,7 +494,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects description with HTML",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			description: testutil.StringPtr("Text with <img src=x> tag"),
@@ -504,7 +505,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "accepts description at max length",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			description: testutil.StringPtr(strings.Repeat("a", MaxDescriptionLength)),
@@ -514,7 +515,7 @@ func TestNewLimit(t *testing.T) {
 			name:        "rejects description exceeding max length",
 			limitName:   "Test Limit",
 			limitType:   LimitTypeDaily,
-			maxAmount:   100000,
+			maxAmount:   decimal.RequireFromString("1000"),
 			currency:    "USD",
 			scopes:      []Scope{validScope},
 			description: testutil.StringPtr(strings.Repeat("a", MaxDescriptionLength+1)),
@@ -551,7 +552,7 @@ func TestNewLimit(t *testing.T) {
 
 				assert.Equal(t, expectedDescription, limit.Description)
 				assert.Equal(t, tc.limitType, limit.LimitType)
-				assert.Equal(t, tc.maxAmount, limit.MaxAmount)
+				assert.True(t, tc.maxAmount.Equal(limit.MaxAmount), "expected MaxAmount %s, got %s", tc.maxAmount, limit.MaxAmount)
 
 				expectedCurrency := tc.currency
 				if tc.expectedCurrency != "" {
@@ -579,7 +580,7 @@ func TestNewLimit(t *testing.T) {
 
 	t.Run("does not allow external mutation of scopes slice passed to NewLimit", func(t *testing.T) {
 		scopes := []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(12))}}
-		limit, err := NewLimit("Test Limit", LimitTypeDaily, 100000, "USD", scopes, nil)
+		limit, err := NewLimit("Test Limit", LimitTypeDaily, decimal.RequireFromString("1000"), "USD", scopes, nil)
 		require.NoError(t, err)
 
 		// mutate caller slice after creation
@@ -596,7 +597,7 @@ func TestLimit_Update(t *testing.T) {
 		name         string
 		updateName   *string
 		expectedName string // if non-empty, assert limit.Name equals this (for normalization tests)
-		updateMax    *int64
+		updateMax    *decimal.Decimal
 		updateDesc   *string
 		expectedDesc string // if non-empty, assert limit.Description equals this (for normalization tests)
 		updateScope  *[]Scope
@@ -616,7 +617,7 @@ func TestLimit_Update(t *testing.T) {
 		},
 		{
 			name:        "updates maxAmount",
-			updateMax:   testutil.Ptr(int64(200000)),
+			updateMax:   testutil.Ptr(decimal.RequireFromString("2000")),
 			expectError: false,
 		},
 		{
@@ -638,7 +639,7 @@ func TestLimit_Update(t *testing.T) {
 		{
 			name:        "updates multiple fields",
 			updateName:  testutil.StringPtr("Multi Update"),
-			updateMax:   testutil.Ptr(int64(300000)),
+			updateMax:   testutil.Ptr(decimal.RequireFromString("3000")),
 			expectError: false,
 		},
 		{
@@ -655,13 +656,13 @@ func TestLimit_Update(t *testing.T) {
 		},
 		{
 			name:        "rejects zero maxAmount",
-			updateMax:   testutil.Ptr(int64(0)),
+			updateMax:   testutil.Ptr(decimal.RequireFromString("0")),
 			expectError: true,
 			errorIs:     constant.ErrLimitInvalidMaxAmount,
 		},
 		{
 			name:        "rejects negative maxAmount",
-			updateMax:   testutil.Ptr(int64(-100)),
+			updateMax:   testutil.Ptr(decimal.RequireFromString("-1")),
 			expectError: true,
 			errorIs:     constant.ErrLimitInvalidMaxAmount,
 		},
@@ -730,7 +731,7 @@ func TestLimit_Update(t *testing.T) {
 
 				// Verify no partial mutation occurred
 				assert.Equal(t, originalName, limit.Name, "Name should not change on error")
-				assert.Equal(t, originalMaxAmount, limit.MaxAmount, "MaxAmount should not change on error")
+				assert.True(t, originalMaxAmount.Equal(limit.MaxAmount), "MaxAmount should not change on error")
 				assert.Equal(t, originalDescription, limit.Description, "Description should not change on error")
 				assert.Equal(t, originalScopes, limit.Scopes, "Scopes should not change on error")
 				assert.Equal(t, originalUpdatedAt, limit.UpdatedAt, "UpdatedAt should not change on error")
@@ -745,7 +746,7 @@ func TestLimit_Update(t *testing.T) {
 					assert.Equal(t, expectedName, limit.Name)
 				}
 				if tc.updateMax != nil {
-					assert.Equal(t, *tc.updateMax, limit.MaxAmount)
+					assert.True(t, (*tc.updateMax).Equal(limit.MaxAmount), "expected MaxAmount %s, got %s", *tc.updateMax, limit.MaxAmount)
 				}
 				if tc.updateDesc != nil {
 					require.NotNil(t, limit.Description, "Description should not be nil after update")
@@ -941,7 +942,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(21),
 				Name:      "Valid Limit",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
@@ -956,7 +957,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(22),
 				Name:      "",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
@@ -970,7 +971,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(23),
 				Name:      "<script>alert('xss')</script>",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
@@ -984,7 +985,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(24),
 				Name:      strings.Repeat("a", MaxNameLength+1),
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
@@ -998,7 +999,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(25),
 				Name:      "Test",
 				LimitType: LimitType("INVALID"),
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
@@ -1012,7 +1013,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(26),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 0,
+				MaxAmount: decimal.RequireFromString("0"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
@@ -1026,7 +1027,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(27),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "US",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
@@ -1040,7 +1041,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(28),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{},
 				Status:    LimitStatusActive,
@@ -1054,7 +1055,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(29),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatus("INVALID"),
@@ -1068,7 +1069,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(30),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusDeleted,
@@ -1083,7 +1084,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(31),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusActive,
@@ -1098,7 +1099,7 @@ func TestLimit_Validate(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(32),
 				Name:      "Test",
 				LimitType: LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "USD",
 				Scopes:    []Scope{validScope},
 				Status:    LimitStatusDeleted,
@@ -1223,7 +1224,7 @@ func TestNewUsageCounter(t *testing.T) {
 				}
 				assert.Equal(t, expectedPeriodKey, counter.PeriodKey)
 
-				assert.Equal(t, int64(0), counter.CurrentUsage)
+				assert.True(t, decimal.RequireFromString("0").Equal(counter.CurrentUsage))
 				assert.False(t, counter.LastUpdatedAt.IsZero())
 			}
 		})
@@ -1242,51 +1243,45 @@ func TestUsageCounter_Increment(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		amount            int64
-		expectedUsage     int64
+		amount            decimal.Decimal
+		expectedUsage     decimal.Decimal
 		expectedErr       error
-		initialUsage      int64
+		initialUsage      decimal.Decimal
 		expectTimeChanged bool
 	}{
 		{
 			name:              "increments by positive amount",
-			amount:            1000,
-			expectedUsage:     1000,
+			amount:            decimal.RequireFromString("10"),
+			expectedUsage:     decimal.RequireFromString("10"),
 			expectedErr:       nil,
 			expectTimeChanged: true,
 		},
 		{
 			name:              "zero increment does not update timestamp",
-			amount:            0,
-			expectedUsage:     0,
+			amount:            decimal.RequireFromString("0"),
+			expectedUsage:     decimal.RequireFromString("0"),
 			expectedErr:       nil,
 			expectTimeChanged: false,
 		},
 		{
 			name:              "accumulates multiple increments",
-			amount:            500,
-			initialUsage:      1000,
-			expectedUsage:     1500,
+			amount:            decimal.RequireFromString("5"),
+			initialUsage:      decimal.RequireFromString("10"),
+			expectedUsage:     decimal.RequireFromString("15"),
 			expectedErr:       nil,
 			expectTimeChanged: true,
 		},
 		{
 			name:        "rejects negative amount",
-			amount:      -100,
+			amount:      decimal.RequireFromString("-1"),
 			expectedErr: constant.ErrUsageCounterIncrementNonNegative,
-		},
-		{
-			name:         "rejects integer overflow",
-			amount:       100,
-			initialUsage: math.MaxInt64 - 50,
-			expectedErr:  constant.ErrUsageCounterOverflow,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			counter := createCounter(t)
-			if tc.initialUsage > 0 {
+			if tc.initialUsage.IsPositive() {
 				counter.CurrentUsage = tc.initialUsage
 			}
 			// Set a deterministic past time to detect LastUpdatedAt changes without sleeping
@@ -1303,11 +1298,11 @@ func TestUsageCounter_Increment(t *testing.T) {
 				assert.ErrorIs(t, err, tc.expectedErr)
 
 				// Verify no mutation occurred on error
-				assert.Equal(t, originalUsage, counter.CurrentUsage, "CurrentUsage should not change on error")
+				assert.True(t, originalUsage.Equal(counter.CurrentUsage), "CurrentUsage should not change on error")
 				assert.Equal(t, originalUpdatedAt, counter.LastUpdatedAt, "LastUpdatedAt should not change on error")
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tc.expectedUsage, counter.CurrentUsage)
+				assert.True(t, tc.expectedUsage.Equal(counter.CurrentUsage), "expected %s, got %s", tc.expectedUsage, counter.CurrentUsage)
 
 				if tc.expectTimeChanged {
 					assert.True(t, counter.LastUpdatedAt.After(originalUpdatedAt))
@@ -1332,7 +1327,7 @@ func TestUsageCounter_Validate(t *testing.T) {
 				LimitID:       testutil.MustDeterministicUUID(51),
 				ScopeKey:      "acct:123",
 				PeriodKey:     "2025-01",
-				CurrentUsage:  1000,
+				CurrentUsage:  decimal.RequireFromString("10"),
 				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: nil,
@@ -1344,7 +1339,7 @@ func TestUsageCounter_Validate(t *testing.T) {
 				LimitID:       uuid.Nil,
 				ScopeKey:      "acct:123",
 				PeriodKey:     "2025-01",
-				CurrentUsage:  0,
+				CurrentUsage:  decimal.RequireFromString("0"),
 				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterLimitIDRequired,
@@ -1356,7 +1351,7 @@ func TestUsageCounter_Validate(t *testing.T) {
 				LimitID:       testutil.MustDeterministicUUID(54),
 				ScopeKey:      "",
 				PeriodKey:     "2025-01",
-				CurrentUsage:  0,
+				CurrentUsage:  decimal.RequireFromString("0"),
 				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterScopeKeyRequired,
@@ -1368,7 +1363,7 @@ func TestUsageCounter_Validate(t *testing.T) {
 				LimitID:       testutil.MustDeterministicUUID(56),
 				ScopeKey:      "acct:123",
 				PeriodKey:     "",
-				CurrentUsage:  0,
+				CurrentUsage:  decimal.RequireFromString("0"),
 				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterPeriodKeyRequired,
@@ -1380,7 +1375,7 @@ func TestUsageCounter_Validate(t *testing.T) {
 				LimitID:       testutil.MustDeterministicUUID(58),
 				ScopeKey:      "acct:123",
 				PeriodKey:     "2025-01",
-				CurrentUsage:  -100,
+				CurrentUsage:  decimal.RequireFromString("-1"),
 				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterCurrentUsageNegative,
@@ -1392,7 +1387,7 @@ func TestUsageCounter_Validate(t *testing.T) {
 				LimitID:       testutil.MustDeterministicUUID(60),
 				ScopeKey:      "   \t  ",
 				PeriodKey:     "2025-01",
-				CurrentUsage:  0,
+				CurrentUsage:  decimal.RequireFromString("0"),
 				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterScopeKeyRequired,
@@ -1404,7 +1399,7 @@ func TestUsageCounter_Validate(t *testing.T) {
 				LimitID:       testutil.MustDeterministicUUID(62),
 				ScopeKey:      "acct:123",
 				PeriodKey:     "   \t  ",
-				CurrentUsage:  0,
+				CurrentUsage:  decimal.RequireFromString("0"),
 				LastUpdatedAt: testutil.FixedTime(),
 			},
 			expectedErr: constant.ErrUsageCounterPeriodKeyRequired,
@@ -1612,7 +1607,7 @@ func TestUsageCounter_ScanFields(t *testing.T) {
 		LimitID:       testutil.MustDeterministicUUID(71),
 		ScopeKey:      "acct:123",
 		PeriodKey:     "2025-01",
-		CurrentUsage:  5000,
+		CurrentUsage:  decimal.RequireFromString("50"),
 		LastUpdatedAt: testutil.FixedTime(),
 	}
 
@@ -1633,18 +1628,18 @@ func TestUsageCounter_ScanFields(t *testing.T) {
 
 // TestNewUsageSnapshot_DailyLimit tests UsageSnapshot creation for DAILY limits.
 func TestNewUsageSnapshot_DailyLimit(t *testing.T) {
-	limit := newTestLimit(t) // Creates a DAILY limit with MaxAmount=100000
+	limit := newTestLimit(t) // Creates a DAILY limit with MaxAmount=1000
 
 	counters := []UsageCounter{
-		{CurrentUsage: 30000},
-		{CurrentUsage: 20000},
+		{CurrentUsage: decimal.RequireFromString("300")},
+		{CurrentUsage: decimal.RequireFromString("200")},
 	}
 
 	snapshot := NewUsageSnapshot(limit, counters)
 
 	assert.Equal(t, limit.ID, snapshot.LimitID)
-	assert.Equal(t, int64(50000), snapshot.CurrentUsage, "should sum all counters")
-	assert.Equal(t, int64(100000), snapshot.LimitAmount)
+	assert.True(t, decimal.RequireFromString("500").Equal(snapshot.CurrentUsage), "should sum all counters")
+	assert.True(t, decimal.RequireFromString("1000").Equal(snapshot.LimitAmount))
 	assert.Equal(t, 50.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit, "50% should not be near limit")
 	assert.NotNil(t, snapshot.ResetAt, "DAILY limit should have resetAt")
@@ -1653,45 +1648,45 @@ func TestNewUsageSnapshot_DailyLimit(t *testing.T) {
 // TestNewUsageSnapshot_NearLimitThreshold tests nearLimit flag at boundary.
 func TestNewUsageSnapshot_NearLimitThreshold(t *testing.T) {
 	tests := []struct {
-		name           string
-		currentUsage   int64
-		maxAmount      int64
-		expectedNear   bool
+		name            string
+		currentUsage    decimal.Decimal
+		maxAmount       decimal.Decimal
+		expectedNear    bool
 		expectedPercent float64
 	}{
 		{
-			name:           "at 80% - not near (>80%, not >=80%)",
-			currentUsage:   80000,
-			maxAmount:      100000,
-			expectedNear:   false,
+			name:            "at 80% - not near (>80%, not >=80%)",
+			currentUsage:    decimal.RequireFromString("800"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    false,
 			expectedPercent: 80.0,
 		},
 		{
-			name:           "at 80.01% - near",
-			currentUsage:   80010,
-			maxAmount:      100000,
-			expectedNear:   true,
+			name:            "at 80.01% - near",
+			currentUsage:    decimal.RequireFromString("800.10"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    true,
 			expectedPercent: 80.01,
 		},
 		{
-			name:           "at 85% - near",
-			currentUsage:   85000,
-			maxAmount:      100000,
-			expectedNear:   true,
+			name:            "at 85% - near",
+			currentUsage:    decimal.RequireFromString("850"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    true,
 			expectedPercent: 85.0,
 		},
 		{
-			name:           "at 100% - near",
-			currentUsage:   100000,
-			maxAmount:      100000,
-			expectedNear:   true,
+			name:            "at 100% - near",
+			currentUsage:    decimal.RequireFromString("1000"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    true,
 			expectedPercent: 100.0,
 		},
 		{
-			name:           "at 0% - not near",
-			currentUsage:   0,
-			maxAmount:      100000,
-			expectedNear:   false,
+			name:            "at 0% - not near",
+			currentUsage:    decimal.RequireFromString("0"),
+			maxAmount:       decimal.RequireFromString("1000"),
+			expectedNear:    false,
 			expectedPercent: 0.0,
 		},
 	}
@@ -1723,7 +1718,7 @@ func TestNewUsageSnapshot_PerTransactionLimit(t *testing.T) {
 	limit, err := NewLimit(
 		"Per Transaction Limit",
 		LimitTypePerTransaction,
-		100000,
+		decimal.RequireFromString("1000"),
 		"USD",
 		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(81))}},
 		nil,
@@ -1732,15 +1727,15 @@ func TestNewUsageSnapshot_PerTransactionLimit(t *testing.T) {
 
 	// Even with counters (which shouldn't exist for PER_TRANSACTION), currentUsage should be 0
 	counters := []UsageCounter{
-		{CurrentUsage: 30000},
-		{CurrentUsage: 20000},
+		{CurrentUsage: decimal.RequireFromString("300")},
+		{CurrentUsage: decimal.RequireFromString("200")},
 	}
 
 	snapshot := NewUsageSnapshot(limit, counters)
 
 	assert.Equal(t, limit.ID, snapshot.LimitID)
-	assert.Equal(t, int64(0), snapshot.CurrentUsage, "PER_TRANSACTION should always have 0 usage")
-	assert.Equal(t, int64(100000), snapshot.LimitAmount)
+	assert.True(t, decimal.RequireFromString("0").Equal(snapshot.CurrentUsage), "PER_TRANSACTION should always have 0 usage")
+	assert.True(t, decimal.RequireFromString("1000").Equal(snapshot.LimitAmount))
 	assert.Equal(t, 0.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit)
 	assert.Nil(t, snapshot.ResetAt, "PER_TRANSACTION should have nil resetAt")
@@ -1752,7 +1747,7 @@ func TestNewUsageSnapshot_EmptyCounters(t *testing.T) {
 
 	snapshot := NewUsageSnapshot(limit, []UsageCounter{})
 
-	assert.Equal(t, int64(0), snapshot.CurrentUsage)
+	assert.True(t, decimal.RequireFromString("0").Equal(snapshot.CurrentUsage))
 	assert.Equal(t, 0.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit)
 }
@@ -1763,7 +1758,7 @@ func TestNewUsageSnapshot_NilCounters(t *testing.T) {
 
 	snapshot := NewUsageSnapshot(limit, nil)
 
-	assert.Equal(t, int64(0), snapshot.CurrentUsage)
+	assert.True(t, decimal.RequireFromString("0").Equal(snapshot.CurrentUsage))
 	assert.Equal(t, 0.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit)
 }
@@ -1773,19 +1768,19 @@ func TestNewUsageSnapshot_MonthlyLimit(t *testing.T) {
 	limit, err := NewLimit(
 		"Monthly Limit",
 		LimitTypeMonthly,
-		1000000,
+		decimal.RequireFromString("10000"),
 		"USD",
 		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(82))}},
 		nil,
 	)
 	require.NoError(t, err)
 
-	counters := []UsageCounter{{CurrentUsage: 500000}}
+	counters := []UsageCounter{{CurrentUsage: decimal.RequireFromString("5000")}}
 
 	snapshot := NewUsageSnapshot(limit, counters)
 
-	assert.Equal(t, int64(500000), snapshot.CurrentUsage)
-	assert.Equal(t, int64(1000000), snapshot.LimitAmount)
+	assert.True(t, decimal.RequireFromString("5000").Equal(snapshot.CurrentUsage))
+	assert.True(t, decimal.RequireFromString("10000").Equal(snapshot.LimitAmount))
 	assert.Equal(t, 50.0, snapshot.UtilizationPercent)
 	assert.NotNil(t, snapshot.ResetAt, "MONTHLY limit should have resetAt")
 }

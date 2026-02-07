@@ -45,13 +45,13 @@ func TestNewAuditEventService_NilDependencies(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockRepo := query.NewMockAuditEventRepository(ctrl)
-	
+
 	validGetQuery, err := query.NewGetAuditEventQuery(mockRepo)
 	require.NoError(t, err, "NewGetAuditEventQuery should not fail in test setup")
-	
+
 	validListQuery, err := query.NewListAuditEventsQuery(mockRepo)
 	require.NoError(t, err, "NewListAuditEventsQuery should not fail in test setup")
-	
+
 	validVerifyQuery, err := query.NewVerifyAuditEventQuery(mockRepo)
 	require.NoError(t, err, "NewVerifyAuditEventQuery should not fail in test setup")
 

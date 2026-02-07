@@ -15,6 +15,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -1014,7 +1015,7 @@ func TestToValidationSummary_NilSlices_ReturnEmptyArrays(t *testing.T) {
 
 	tv := &model.TransactionValidation{
 		ID:              validationID,
-		Amount:          10000,
+		Amount:          decimal.RequireFromString("100"),
 		Currency:        "BRL",
 		TransactionType: model.TransactionTypePix,
 		Account:         model.AccountContext{ID: accountID},

@@ -5,11 +5,13 @@
 package model
 
 import (
+	"maps"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg"
 	"tracer/pkg/constant"
@@ -53,14 +55,13 @@ const (
 )
 
 // ValidationRequest is the input for transaction validation.
-// Amount is expressed in the smallest currency unit (e.g., cents for USD/BRL).
-// Example: $10.50 should be sent as 1050.
+// Amount is expressed as a decimal value (e.g., 1000.00 for USD/BRL).
 // Use NewValidationRequest() to construct - ensures validation and normalization.
 type ValidationRequest struct {
 	RequestID            uuid.UUID         `json:"requestId" validate:"required" swaggertype:"string" format:"uuid"`
 	TransactionType      TransactionType   `json:"transactionType" validate:"required"`
 	SubType              *string           `json:"subType,omitempty"`
-	Amount               int64             `json:"amount" validate:"required"`
+	Amount               decimal.Decimal   `json:"amount" validate:"required" swaggertype:"string" example:"100.00"`
 	Currency             string            `json:"currency" validate:"required"`
 	TransactionTimestamp time.Time         `json:"transactionTimestamp" format:"date-time" validate:"required"`
 	Account              AccountContext    `json:"account" validate:"required"`
@@ -86,7 +87,7 @@ func NewValidationRequest(
 	requestID uuid.UUID,
 	transactionType TransactionType,
 	subType *string,
-	amount int64,
+	amount decimal.Decimal,
 	currency string,
 	transactionTimestamp time.Time,
 	account AccountContext,
@@ -111,9 +112,7 @@ func NewValidationRequest(
 	var metadataCopy map[string]any
 	if metadata != nil {
 		metadataCopy = make(map[string]any, len(metadata))
-		for k, v := range metadata {
-			metadataCopy[k] = v
-		}
+		maps.Copy(metadataCopy, metadata)
 	}
 
 	// Defensive copy of nested context metadata maps
@@ -125,9 +124,7 @@ func NewValidationRequest(
 		}
 		if segment.Metadata != nil {
 			segmentCopy.Metadata = make(map[string]any, len(segment.Metadata))
-			for k, v := range segment.Metadata {
-				segmentCopy.Metadata[k] = v
-			}
+			maps.Copy(segmentCopy.Metadata, segment.Metadata)
 		}
 	}
 
@@ -139,9 +136,7 @@ func NewValidationRequest(
 		}
 		if portfolio.Metadata != nil {
 			portfolioCopy.Metadata = make(map[string]any, len(portfolio.Metadata))
-			for k, v := range portfolio.Metadata {
-				portfolioCopy.Metadata[k] = v
-			}
+			maps.Copy(portfolioCopy.Metadata, portfolio.Metadata)
 		}
 	}
 
@@ -155,9 +150,7 @@ func NewValidationRequest(
 		}
 		if merchant.Metadata != nil {
 			merchantCopy.Metadata = make(map[string]any, len(merchant.Metadata))
-			for k, v := range merchant.Metadata {
-				merchantCopy.Metadata[k] = v
-			}
+			maps.Copy(merchantCopy.Metadata, merchant.Metadata)
 		}
 	}
 
@@ -213,9 +206,7 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 	var metadataCopy map[string]any
 	if r.Metadata != nil {
 		metadataCopy = make(map[string]any, len(r.Metadata))
-		for k, v := range r.Metadata {
-			metadataCopy[k] = v
-		}
+		maps.Copy(metadataCopy, r.Metadata)
 	}
 
 	// Create temporary copy with normalized values for validation
@@ -226,9 +217,7 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 	// Deep copy nested context metadata to prevent shared references
 	if temp.Segment != nil && temp.Segment.Metadata != nil {
 		segmentMetaCopy := make(map[string]any, len(temp.Segment.Metadata))
-		for k, v := range temp.Segment.Metadata {
-			segmentMetaCopy[k] = v
-		}
+		maps.Copy(segmentMetaCopy, temp.Segment.Metadata)
 
 		segmentCopy := *temp.Segment
 		segmentCopy.Metadata = segmentMetaCopy
@@ -237,9 +226,7 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 
 	if temp.Portfolio != nil && temp.Portfolio.Metadata != nil {
 		portfolioMetaCopy := make(map[string]any, len(temp.Portfolio.Metadata))
-		for k, v := range temp.Portfolio.Metadata {
-			portfolioMetaCopy[k] = v
-		}
+		maps.Copy(portfolioMetaCopy, temp.Portfolio.Metadata)
 
 		portfolioCopy := *temp.Portfolio
 		portfolioCopy.Metadata = portfolioMetaCopy
@@ -248,9 +235,7 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 
 	if temp.Merchant != nil && temp.Merchant.Metadata != nil {
 		merchantMetaCopy := make(map[string]any, len(temp.Merchant.Metadata))
-		for k, v := range temp.Merchant.Metadata {
-			merchantMetaCopy[k] = v
-		}
+		maps.Copy(merchantMetaCopy, temp.Merchant.Metadata)
 
 		merchantCopy := *temp.Merchant
 		merchantCopy.Metadata = merchantMetaCopy
@@ -273,12 +258,12 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 }
 
 // LimitUsageDetail contains usage information for a checked limit.
-// Amounts are expressed in the smallest currency unit (e.g., cents).
+// Amounts are expressed as decimal values.
 // Note: RemainingAmount is calculated as (LimitAmount - CurrentUsage), not stored.
 // Aligned with API Design v1.3.2 section 4.1.1 LimitUsage structure.
 type LimitUsageDetail struct {
-	LimitID     uuid.UUID `json:"limitId" swaggertype:"string" format:"uuid"`
-	LimitAmount int64     `json:"limitAmount"`
+	LimitID     uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
+	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string" example:"1000.00"`
 	// Scope is a human-readable string representation of the limit's scope
 	// (e.g., "account:uuid" or "segment:uuid" or "global").
 	// Per API Design v1.3.2 section 4.1.1.
@@ -291,11 +276,11 @@ type LimitUsageDetail struct {
 	// (counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.
 	// When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
 	// what the usage would have been if the transaction were allowed.
-	CurrentUsage int64 `json:"currentUsage"`
+	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00"`
 	// AttemptedAmount is the transaction amount being validated.
 	// Per API Design v1.3.2 section 4.1.1.
-	AttemptedAmount int64 `json:"attemptedAmount"`
-	Exceeded        bool  `json:"exceeded"`
+	AttemptedAmount decimal.Decimal `json:"attemptedAmount" swaggertype:"string" example:"100.00"`
+	Exceeded        bool            `json:"exceeded"`
 
 	// Internal fields for rollback operations - not serialized to JSON.
 	// InternalLimitType stores the persistent limit type for rollback logic.
@@ -379,7 +364,7 @@ func (r *ValidationRequest) validateRequiredFields() error {
 		return constant.ErrValidationInvalidTransactionType
 	}
 
-	if r.Amount <= 0 {
+	if r.Amount.LessThanOrEqual(decimal.Zero) {
 		return constant.ErrValidationAmountNonPositive
 	}
 
@@ -471,23 +456,6 @@ func (r *ValidationRequest) validateMetadata() error {
 	}
 
 	return nil
-}
-
-// ToTransactionContext converts ValidationRequest to TransactionContext for rule evaluation.
-// Used by T-011 (Validation Orchestration) to prepare input for T-008 (Rule Evaluation).
-func (r *ValidationRequest) ToTransactionContext() *TransactionContext {
-	return &TransactionContext{
-		TransactionType:      r.TransactionType,
-		SubType:              r.SubType,
-		Amount:               r.Amount,
-		Currency:             r.Currency,
-		TransactionTimestamp: r.TransactionTimestamp,
-		Account:              r.Account,
-		Segment:              r.Segment,
-		Portfolio:            r.Portfolio,
-		Merchant:             r.Merchant,
-		Metadata:             r.Metadata,
-	}
 }
 
 // ToCheckLimitsInput converts ValidationRequest to CheckLimitsInput for limit checking.

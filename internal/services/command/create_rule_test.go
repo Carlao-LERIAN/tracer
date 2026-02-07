@@ -233,14 +233,14 @@ func TestCreateRuleCommand_Execute(t *testing.T) {
 				// Audit event should be called exactly once with specific parameters
 				auditWriter.EXPECT().
 					RecordRuleEvent(
-						gomock.Any(),                   // ctx
-						model.AuditEventRuleCreated,    // eventType
-						model.AuditActionCreate,        // action
-						gomock.Any(),                   // ruleID (generated)
-						nil,                            // beforeState (no before for create)
-						gomock.Any(),                   // afterState
-						"Rule created via API",         // description
-						gomock.Any(),                   // clientIP
+						gomock.Any(),                // ctx
+						model.AuditEventRuleCreated, // eventType
+						model.AuditActionCreate,     // action
+						gomock.Any(),                // ruleID (generated)
+						nil,                         // beforeState (no before for create)
+						gomock.Any(),                // afterState
+						"Rule created via API",      // description
+						gomock.Any(),                // clientIP
 					).
 					Times(1).
 					Return(nil)

@@ -1,7 +1,7 @@
 -- ============================================
 -- Development Seed Data
 -- WARNING: For development/testing only - NOT for production
--- Note: MVP uses a single migration (000001_initial_schema)
+-- Note: Uses ON CONFLICT DO NOTHING for idempotent re-execution
 -- ============================================
 
 BEGIN;
@@ -17,12 +17,12 @@ INSERT INTO rules (
 ) VALUES (
     '10000000-0000-0000-0000-000000000001',
     'block-high-value',
-    'Block transactions above $10,000 (1000000 cents)',
-    'amount > 1000000',
+    'Block transactions above $10,000.00',
+    'amount > 10000.00',
     'DENY',
     '[]'::jsonb,
     'ACTIVE'
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- Rule 2: Allow small transactions
 INSERT INTO rules (
@@ -31,12 +31,12 @@ INSERT INTO rules (
 ) VALUES (
     '10000000-0000-0000-0000-000000000002',
     'allow-small-transactions',
-    'Auto-approve transactions below $1,000 (100000 cents)',
-    'amount < 100000',
+    'Auto-approve transactions below $1,000.00',
+    'amount < 1000.00',
     'ALLOW',
     '[]'::jsonb,
     'ACTIVE'
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- Rule 3: Weekend review (DRAFT for testing)
 INSERT INTO rules (
@@ -50,13 +50,13 @@ INSERT INTO rules (
     'REVIEW',
     '[]'::jsonb,
     'DRAFT'
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
--- Sample Limits (max_amount in cents)
+-- Sample Limits (max_amount in decimal)
 -- ============================================
 
--- Limit 1: Daily spending limit (5000000 cents = $50,000.00)
+-- Limit 1: Daily spending limit ($50,000.00)
 INSERT INTO limits (
     id, name, description, limit_type, max_amount, currency,
     scopes, status, reset_at
@@ -65,14 +65,14 @@ INSERT INTO limits (
     'daily-account-limit',
     'Daily spending limit per account',
     'DAILY',
-    5000000,
+    50000,
     'USD',
     '[{"transactionType": "CARD"}]'::jsonb,
     'ACTIVE',
     (CURRENT_DATE + INTERVAL '1 day')::TIMESTAMP WITH TIME ZONE
-);
+) ON CONFLICT (id) DO NOTHING;
 
--- Limit 2: Monthly portfolio limit (100000000 cents = $1,000,000.00)
+-- Limit 2: Monthly portfolio limit ($1,000,000.00)
 INSERT INTO limits (
     id, name, description, limit_type, max_amount, currency,
     scopes, status, reset_at
@@ -81,18 +81,18 @@ INSERT INTO limits (
     'monthly-portfolio-limit',
     'Monthly spending limit per portfolio',
     'MONTHLY',
-    100000000,
+    1000000,
     'USD',
     '[{"portfolioId": "80000000-0000-0000-0000-000000000001"}]'::jsonb,
     'ACTIVE',
     (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::TIMESTAMP WITH TIME ZONE
-);
+) ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
--- Sample Usage Counters (current_usage in cents)
+-- Sample Usage Counters (current_usage in decimal)
 -- ============================================
 
--- Counter for daily limit (1500000 cents = $15,000.00 used)
+-- Counter for daily limit ($15,000.00 used)
 INSERT INTO usage_counters (
     id, limit_id, scope_key, period_key, current_usage
 ) VALUES (
@@ -100,10 +100,10 @@ INSERT INTO usage_counters (
     '20000000-0000-0000-0000-000000000001',
     'transactionType:CARD',
     TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD'),
-    1500000
-);
+    15000
+) ON CONFLICT (id) DO NOTHING;
 
--- Counter for monthly limit (25000000 cents = $250,000.00 used)
+-- Counter for monthly limit ($250,000.00 used)
 INSERT INTO usage_counters (
     id, limit_id, scope_key, period_key, current_usage
 ) VALUES (
@@ -111,13 +111,15 @@ INSERT INTO usage_counters (
     '20000000-0000-0000-0000-000000000002',
     'portfolioId:80000000-0000-0000-0000-000000000001',
     TO_CHAR(CURRENT_DATE, 'YYYY-MM'),
-    25000000
-);
+    250000
+) ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
 -- Sample Transaction Validation
 -- ============================================
 
+-- Note: transaction_validations has PostgreSQL rules (prevent_update/delete)
+-- that block ON CONFLICT. Using WHERE NOT EXISTS for idempotent insert.
 INSERT INTO transaction_validations (
     id,
     request_id,
@@ -137,12 +139,13 @@ INSERT INTO transaction_validations (
     evaluated_rule_ids,
     limit_usage_details,
     processing_time_ms
-) VALUES (
+)
+SELECT
     '40000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
     'CARD',
     NULL,
-    1500000,
+    15000.00,
     'USD',
     NOW(),
     '{"id": "20000000-0000-0000-0000-000000000001"}'::jsonb,
@@ -156,6 +159,8 @@ INSERT INTO transaction_validations (
     ARRAY['10000000-0000-0000-0000-000000000001'::UUID, '10000000-0000-0000-0000-000000000002'::UUID],
     '[]'::jsonb,
     23
+WHERE NOT EXISTS (
+    SELECT 1 FROM transaction_validations WHERE id = '40000000-0000-0000-0000-000000000001'
 );
 
 COMMIT;

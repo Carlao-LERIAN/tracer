@@ -6,6 +6,7 @@
 package testutil
 
 import (
+	"fmt"
 	"sync"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -61,6 +62,12 @@ type mockLoggerFieldsRecorder struct {
 	fields []any
 }
 
+func (m *mockLoggerFieldsRecorder) record(level, msg string) {
+	m.parent.mu.Lock()
+	m.parent.Calls = append(m.parent.Calls, LogCall{Level: level, Message: msg, Fields: m.fields})
+	m.parent.mu.Unlock()
+}
+
 func (m *mockLoggerFieldsRecorder) Info(args ...any) {
 	msg := ""
 
@@ -70,12 +77,17 @@ func (m *mockLoggerFieldsRecorder) Info(args ...any) {
 		}
 	}
 
-	m.parent.mu.Lock()
-	m.parent.Calls = append(m.parent.Calls, LogCall{Level: "info", Message: msg, Fields: m.fields})
-	m.parent.mu.Unlock()
+	m.record("info", msg)
 }
-func (m *mockLoggerFieldsRecorder) Infof(format string, args ...any)                  {}
-func (m *mockLoggerFieldsRecorder) Infoln(args ...any)                                {}
+
+func (m *mockLoggerFieldsRecorder) Infof(format string, args ...any) {
+	m.record("info", fmt.Sprintf(format, args...))
+}
+
+func (m *mockLoggerFieldsRecorder) Infoln(args ...any) {
+	m.record("info", fmt.Sprint(args...))
+}
+
 func (m *mockLoggerFieldsRecorder) Error(args ...any) {
 	msg := ""
 
@@ -85,21 +97,16 @@ func (m *mockLoggerFieldsRecorder) Error(args ...any) {
 		}
 	}
 
-	m.parent.mu.Lock()
-	m.parent.Calls = append(m.parent.Calls, LogCall{Level: "error", Message: msg, Fields: m.fields})
-	m.parent.mu.Unlock()
+	m.record("error", msg)
 }
-func (m *mockLoggerFieldsRecorder) Errorf(format string, args ...any)                 {}
-func (m *mockLoggerFieldsRecorder) Errorln(args ...any)                               {}
-func (m *mockLoggerFieldsRecorder) Warnf(format string, args ...any)                  {}
-func (m *mockLoggerFieldsRecorder) Warnln(args ...any)                                {}
-func (m *mockLoggerFieldsRecorder) Debugf(format string, args ...any)                 {}
-func (m *mockLoggerFieldsRecorder) Debugln(args ...any)                               {}
-func (m *mockLoggerFieldsRecorder) Fatal(args ...any)                                 {}
-func (m *mockLoggerFieldsRecorder) Fatalf(format string, args ...any)                 {}
-func (m *mockLoggerFieldsRecorder) Fatalln(args ...any)                               {}
-func (m *mockLoggerFieldsRecorder) WithDefaultMessageTemplate(s string) libLog.Logger { return m }
-func (m *mockLoggerFieldsRecorder) Sync() error                                       { return nil }
+
+func (m *mockLoggerFieldsRecorder) Errorf(format string, args ...any) {
+	m.record("error", fmt.Sprintf(format, args...))
+}
+
+func (m *mockLoggerFieldsRecorder) Errorln(args ...any) {
+	m.record("error", fmt.Sprint(args...))
+}
 
 func (m *mockLoggerFieldsRecorder) Warn(args ...any) {
 	msg := ""
@@ -110,9 +117,15 @@ func (m *mockLoggerFieldsRecorder) Warn(args ...any) {
 		}
 	}
 
-	m.parent.mu.Lock()
-	m.parent.Calls = append(m.parent.Calls, LogCall{Level: "warn", Message: msg, Fields: m.fields})
-	m.parent.mu.Unlock()
+	m.record("warn", msg)
+}
+
+func (m *mockLoggerFieldsRecorder) Warnf(format string, args ...any) {
+	m.record("warn", fmt.Sprintf(format, args...))
+}
+
+func (m *mockLoggerFieldsRecorder) Warnln(args ...any) {
+	m.record("warn", fmt.Sprint(args...))
 }
 
 func (m *mockLoggerFieldsRecorder) Debug(args ...any) {
@@ -124,10 +137,39 @@ func (m *mockLoggerFieldsRecorder) Debug(args ...any) {
 		}
 	}
 
-	m.parent.mu.Lock()
-	m.parent.Calls = append(m.parent.Calls, LogCall{Level: "debug", Message: msg, Fields: m.fields})
-	m.parent.mu.Unlock()
+	m.record("debug", msg)
 }
+
+func (m *mockLoggerFieldsRecorder) Debugf(format string, args ...any) {
+	m.record("debug", fmt.Sprintf(format, args...))
+}
+
+func (m *mockLoggerFieldsRecorder) Debugln(args ...any) {
+	m.record("debug", fmt.Sprint(args...))
+}
+
+func (m *mockLoggerFieldsRecorder) Fatal(args ...any) {
+	msg := ""
+
+	if len(args) > 0 {
+		if s, ok := args[0].(string); ok {
+			msg = s
+		}
+	}
+
+	m.record("fatal", msg)
+}
+
+func (m *mockLoggerFieldsRecorder) Fatalf(format string, args ...any) {
+	m.record("fatal", fmt.Sprintf(format, args...))
+}
+
+func (m *mockLoggerFieldsRecorder) Fatalln(args ...any) {
+	m.record("fatal", fmt.Sprint(args...))
+}
+
+func (m *mockLoggerFieldsRecorder) WithDefaultMessageTemplate(s string) libLog.Logger { return m }
+func (m *mockLoggerFieldsRecorder) Sync() error                                       { return nil }
 
 func (m *mockLoggerFieldsRecorder) WithFields(fields ...any) libLog.Logger {
 	return &mockLoggerFieldsRecorder{parent: m.parent, fields: fields}

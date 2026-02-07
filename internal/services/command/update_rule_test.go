@@ -20,8 +20,6 @@ import (
 	"tracer/pkg/model"
 )
 
-
-
 func TestUpdateRuleCommand_Execute(t *testing.T) {
 	ruleID := testutil.MustDeterministicUUID(1)
 	// Use fixed times for deterministic tests
@@ -361,14 +359,14 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 				// Audit event should be called exactly once with specific parameters
 				auditWriter.EXPECT().
 					RecordRuleEvent(
-						gomock.Any(),                 // ctx
-						model.AuditEventRuleUpdated,  // eventType
-						model.AuditActionUpdate,      // action
-						tt.ruleID,                    // ruleID
-						gomock.Any(),                 // beforeState
-						gomock.Any(),                 // afterState
-						"Rule updated via API",       // description
-						gomock.Any(),                 // clientIP
+						gomock.Any(),                // ctx
+						model.AuditEventRuleUpdated, // eventType
+						model.AuditActionUpdate,     // action
+						tt.ruleID,                   // ruleID
+						gomock.Any(),                // beforeState
+						gomock.Any(),                // afterState
+						"Rule updated via API",      // description
+						gomock.Any(),                // clientIP
 					).
 					Times(1).
 					Return(nil)
@@ -453,14 +451,14 @@ func TestUpdateRuleCommand_Execute_AppliesChangesCorrectly(t *testing.T) {
 	// Audit event should be called exactly once with specific parameters
 	auditWriter.EXPECT().
 		RecordRuleEvent(
-			gomock.Any(),                 // ctx
-			model.AuditEventRuleUpdated,  // eventType
-			model.AuditActionUpdate,      // action
-			ruleID,                       // ruleID
-			gomock.Any(),                 // beforeState
-			gomock.Any(),                 // afterState
-			"Rule updated via API",       // description
-			gomock.Any(),                 // clientIP
+			gomock.Any(),                // ctx
+			model.AuditEventRuleUpdated, // eventType
+			model.AuditActionUpdate,     // action
+			ruleID,                      // ruleID
+			gomock.Any(),                // beforeState
+			gomock.Any(),                // afterState
+			"Rule updated via API",      // description
+			gomock.Any(),                // clientIP
 		).
 		Times(1).
 		Return(nil)

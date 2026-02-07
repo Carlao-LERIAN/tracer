@@ -6,9 +6,12 @@ package model_test
 
 import (
 	"encoding/json"
+
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -25,10 +28,10 @@ func TestNewCheckLimitsInput_Valid(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1)
 	fixedTime := testutil.FixedTime()
 
-	input, err := model.NewCheckLimitsInput(10000, "BRL", accountID, nil, nil, nil, nil, fixedTime)
+	input, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), "BRL", accountID, nil, nil, nil, nil, fixedTime)
 
 	require.NoError(t, err)
-	assert.Equal(t, int64(10000), input.Amount)
+	assert.True(t, decimal.RequireFromString("100").Equal(input.Amount))
 	assert.Equal(t, "BRL", input.Currency)
 	assert.Equal(t, accountID, input.AccountID)
 }
@@ -39,7 +42,7 @@ func TestNewCheckLimitsInput_NormalizeCurrency(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1)
 	fixedTime := testutil.FixedTime()
 
-	input, err := model.NewCheckLimitsInput(10000, "brl", accountID, nil, nil, nil, nil, fixedTime)
+	input, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), "brl", accountID, nil, nil, nil, nil, fixedTime)
 
 	require.NoError(t, err)
 	assert.Equal(t, "BRL", input.Currency)
@@ -53,10 +56,10 @@ func TestNewCheckLimitsInput_InvalidAmount(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		amount int64
+		amount decimal.Decimal
 	}{
-		{"zero amount", 0},
-		{"negative amount", -100},
+		{"zero amount", decimal.RequireFromString("0")},
+		{"negative amount", decimal.RequireFromString("-1")},
 	}
 
 	for _, tt := range tests {
@@ -93,7 +96,7 @@ func TestNewCheckLimitsInput_InvalidCurrency(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := model.NewCheckLimitsInput(10000, tt.currency, accountID, nil, nil, nil, nil, fixedTime)
+			_, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), tt.currency, accountID, nil, nil, nil, nil, fixedTime)
 
 			require.Error(t, err)
 			assert.ErrorIs(t, err, constant.ErrCheckLimitsInvalidCurrency)
@@ -106,7 +109,7 @@ func TestNewCheckLimitsInput_InvalidAccountID(t *testing.T) {
 
 	fixedTime := testutil.FixedTime()
 
-	_, err := model.NewCheckLimitsInput(10000, "BRL", uuid.Nil, nil, nil, nil, nil, fixedTime)
+	_, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), "BRL", uuid.Nil, nil, nil, nil, nil, fixedTime)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, constant.ErrCheckLimitsInvalidAccountID)
@@ -119,7 +122,7 @@ func TestCheckLimitsInput_Validate(t *testing.T) {
 	fixedTime := testutil.FixedTime()
 
 	input := &model.CheckLimitsInput{
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		AccountID:            accountID,
 		TransactionTimestamp: fixedTime,
@@ -146,7 +149,7 @@ func TestNewCheckLimitsInput_ZeroTimestamp(t *testing.T) {
 
 	accountID := testutil.MustDeterministicUUID(1)
 
-	_, err := model.NewCheckLimitsInput(10000, "BRL", accountID, nil, nil, nil, nil, time.Time{})
+	_, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), "BRL", accountID, nil, nil, nil, nil, time.Time{})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, constant.ErrCheckLimitsInvalidTimestamp)
@@ -159,7 +162,7 @@ func TestNewCheckLimitsInput_WithTransactionType(t *testing.T) {
 	fixedTime := testutil.FixedTime()
 	txType := model.TransactionTypeCard
 
-	input, err := model.NewCheckLimitsInput(10000, "BRL", accountID, nil, nil, &txType, nil, fixedTime)
+	input, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), "BRL", accountID, nil, nil, &txType, nil, fixedTime)
 
 	require.NoError(t, err)
 	require.NotNil(t, input.TransactionType)
@@ -174,7 +177,7 @@ func TestNewCheckLimitsInput_WithSubType(t *testing.T) {
 	fixedTime := testutil.FixedTime()
 	subType := "debit"
 
-	input, err := model.NewCheckLimitsInput(10000, "BRL", accountID, nil, nil, nil, &subType, fixedTime)
+	input, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), "BRL", accountID, nil, nil, nil, &subType, fixedTime)
 
 	require.NoError(t, err)
 	assert.Nil(t, input.TransactionType)
@@ -192,7 +195,7 @@ func TestNewCheckLimitsInput_WithAllOptionalFields(t *testing.T) {
 	txType := model.TransactionTypePix
 	subType := "instant"
 
-	input, err := model.NewCheckLimitsInput(10000, "BRL", accountID, &segmentID, &portfolioID, &txType, &subType, fixedTime)
+	input, err := model.NewCheckLimitsInput(decimal.RequireFromString("100"), "BRL", accountID, &segmentID, &portfolioID, &txType, &subType, fixedTime)
 
 	require.NoError(t, err)
 	assert.Equal(t, accountID, input.AccountID)
@@ -220,7 +223,7 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 		{
 			name: "zero amount",
 			input: model.CheckLimitsInput{
-				Amount:               0,
+				Amount:               decimal.RequireFromString("0"),
 				Currency:             "BRL",
 				AccountID:            accountID,
 				TransactionTimestamp: fixedTime,
@@ -230,7 +233,7 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 		{
 			name: "invalid currency",
 			input: model.CheckLimitsInput{
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "XX",
 				AccountID:            accountID,
 				TransactionTimestamp: fixedTime,
@@ -240,7 +243,7 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 		{
 			name: "nil account ID",
 			input: model.CheckLimitsInput{
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				AccountID:            uuid.Nil,
 				TransactionTimestamp: fixedTime,
@@ -250,9 +253,9 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 		{
 			name: "zero timestamp",
 			input: model.CheckLimitsInput{
-				Amount:    10000,
-				Currency:  "BRL",
-				AccountID: accountID,
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "BRL",
+				AccountID:            accountID,
 				TransactionTimestamp: time.Time{},
 			},
 			expectedErr: constant.ErrCheckLimitsInvalidTimestamp,
@@ -311,8 +314,8 @@ func TestCheckLimitsOutput_WithLimitUsageDetails(t *testing.T) {
 	details := []model.LimitUsageDetail{
 		{
 			LimitID:      testutil.MustDeterministicUUID(1),
-			LimitAmount:  100000,
-			CurrentUsage: 50000,
+			LimitAmount:  decimal.RequireFromString("1000"),
+			CurrentUsage: decimal.RequireFromString("500"),
 			Exceeded:     false,
 		},
 	}
@@ -330,8 +333,8 @@ func TestCheckLimitsOutput_ChainedMethods(t *testing.T) {
 	details := []model.LimitUsageDetail{
 		{
 			LimitID:      testutil.MustDeterministicUUID(1),
-			LimitAmount:  100000,
-			CurrentUsage: 150000,
+			LimitAmount:  decimal.RequireFromString("1000"),
+			CurrentUsage: decimal.RequireFromString("1500"),
 			Exceeded:     true,
 		},
 	}
@@ -380,39 +383,39 @@ func TestLimitUsageDetail_RemainingAmount(t *testing.T) {
 	tests := []struct {
 		name         string
 		detail       model.LimitUsageDetail
-		expectedRest int64
+		expectedRest decimal.Decimal
 	}{
 		{
 			name: "has remaining",
 			detail: model.LimitUsageDetail{
-				LimitAmount:  100000,
-				CurrentUsage: 30000,
+				LimitAmount:  decimal.RequireFromString("1000"),
+				CurrentUsage: decimal.RequireFromString("300"),
 			},
-			expectedRest: 70000,
+			expectedRest: decimal.RequireFromString("700"),
 		},
 		{
 			name: "exactly at limit",
 			detail: model.LimitUsageDetail{
-				LimitAmount:  100000,
-				CurrentUsage: 100000,
+				LimitAmount:  decimal.RequireFromString("1000"),
+				CurrentUsage: decimal.RequireFromString("1000"),
 			},
-			expectedRest: 0,
+			expectedRest: decimal.RequireFromString("0"),
 		},
 		{
 			name: "exceeded - clamped to zero",
 			detail: model.LimitUsageDetail{
-				LimitAmount:  100000,
-				CurrentUsage: 150000,
+				LimitAmount:  decimal.RequireFromString("1000"),
+				CurrentUsage: decimal.RequireFromString("1500"),
 			},
-			expectedRest: 0, // Cannot be negative
+			expectedRest: decimal.RequireFromString("0"), // Cannot be negative
 		},
 		{
 			name: "no usage - returns full limit",
 			detail: model.LimitUsageDetail{
-				LimitAmount:  100000,
-				CurrentUsage: 0,
+				LimitAmount:  decimal.RequireFromString("1000"),
+				CurrentUsage: decimal.RequireFromString("0"),
 			},
-			expectedRest: 100000, // Full limit available
+			expectedRest: decimal.RequireFromString("1000"), // Full limit available
 		},
 	}
 
@@ -422,7 +425,7 @@ func TestLimitUsageDetail_RemainingAmount(t *testing.T) {
 
 			remaining := tt.detail.RemainingAmount()
 
-			assert.Equal(t, tt.expectedRest, remaining)
+			assert.True(t, tt.expectedRest.Equal(remaining), "expected %s, got %s", tt.expectedRest, remaining)
 		})
 	}
 }
@@ -434,7 +437,7 @@ func TestLimitUsageDetail_RemainingAmount_NilReceiver(t *testing.T) {
 
 	remaining := detail.RemainingAmount()
 
-	assert.Equal(t, int64(0), remaining)
+	assert.True(t, decimal.Zero.Equal(remaining))
 }
 
 func TestCalculatePeriodKey(t *testing.T) {
@@ -577,7 +580,7 @@ func TestCheckLimitsInput_Validate_InvalidTransactionType(t *testing.T) {
 	invalidTxType := model.TransactionType("INVALID")
 
 	input := &model.CheckLimitsInput{
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		AccountID:            accountID,
 		TransactionTimestamp: fixedTime,
@@ -598,7 +601,7 @@ func TestCheckLimitsInput_Validate_SubTypeTooLong(t *testing.T) {
 	longSubType := "a_very_long_subtype_that_exceeds_the_fifty_character_limit_defined"
 
 	input := &model.CheckLimitsInput{
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		AccountID:            accountID,
 		TransactionTimestamp: fixedTime,
@@ -619,7 +622,7 @@ func TestCheckLimitsInput_Validate_SubTypeExactlyAtLimit(t *testing.T) {
 	exactSubType := strings.Repeat("a", model.MaxSubTypeLength)
 
 	input := &model.CheckLimitsInput{
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		AccountID:            accountID,
 		TransactionTimestamp: fixedTime,

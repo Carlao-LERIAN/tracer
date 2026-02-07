@@ -21,7 +21,7 @@ import (
 func TestComponents_CompileCacheEvaluate(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
-	expression := "amount > 100000"
+	expression := "amount > 1000"
 
 	// Step 1: Compile (cache miss)
 	program, err := adapter.Compile(ctx, expression)
@@ -46,7 +46,7 @@ func TestComponents_CompileCacheEvaluate(t *testing.T) {
 	req := newTestRequest()
 	result, err := adapter.Evaluate(ctx, program2, req)
 	require.NoError(t, err, "Evaluate should succeed")
-	assert.True(t, result, "150000 > 100000 should be true")
+	assert.True(t, result, "1500 > 1000 should be true")
 }
 
 // TestComponents_AllTransactionFields tests that all transaction fields work correctly
@@ -59,7 +59,7 @@ func TestComponents_AllTransactionFields(t *testing.T) {
 	// newTestRequest() returns:
 	// - TransactionType: "PIX"
 	// - SubType: "instant"
-	// - Amount: 150000
+	// - Amount: 1500
 	// - Currency: "BRL"
 	// - TransactionTimestamp: time.Now()
 	// - Account: {ID: testAccountID, Type: "checking", Status: "active"}
@@ -95,15 +95,15 @@ func TestComponents_AllTransactionFields(t *testing.T) {
 		},
 		{
 			name:        "amount greater than threshold",
-			expression:  `amount > 100000`,
+			expression:  `amount > 1000`,
 			expectTrue:  true,
-			description: "amount 150000 should be > 100000",
+			description: "amount 1500 should be > 1000",
 		},
 		{
 			name:        "amount less than threshold",
-			expression:  `amount < 100000`,
+			expression:  `amount < 1000`,
 			expectTrue:  false,
-			description: "amount 150000 should not be < 100000",
+			description: "amount 1500 should not be < 1000",
 		},
 		{
 			name:        "currency equals BRL",
@@ -206,10 +206,36 @@ func TestComponents_AllTransactionFields(t *testing.T) {
 			description: "metadata.channel should not be empty",
 		},
 
+		// Amount equality and fractional comparisons
+		{
+			name:        "amount equals integer literal",
+			expression:  `amount == 1500`,
+			expectTrue:  true,
+			description: "amount 1500 should == 1500 (cross-type equality via DynType)",
+		},
+		{
+			name:        "amount equals double literal",
+			expression:  `amount == 1500.0`,
+			expectTrue:  true,
+			description: "amount 1500 should == 1500.0",
+		},
+		{
+			name:        "amount not equals integer literal",
+			expression:  `amount != 999`,
+			expectTrue:  true,
+			description: "amount 1500 should != 999 (cross-type inequality via DynType)",
+		},
+		{
+			name:        "fractional amount greater than threshold",
+			expression:  `amount > 12.34`,
+			expectTrue:  true,
+			description: "amount 1500 should be > 12.34 (cross-type numeric comparison)",
+		},
+
 		// Complex expressions combining multiple fields
 		{
 			name:        "complex - high value PIX",
-			expression:  `transactionType == "PIX" && amount > 100000 && currency == "BRL"`,
+			expression:  `transactionType == "PIX" && amount > 1000 && currency == "BRL"`,
 			expectTrue:  true,
 			description: "complex expression with multiple fields should match",
 		},
@@ -258,7 +284,7 @@ func TestComponents_AllTransactionFields(t *testing.T) {
 func TestComponents_CacheHitPath(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
-	expression := `transactionType == "PIX" && amount > 100000`
+	expression := `transactionType == "PIX" && amount > 1000`
 
 	// Compile multiple times
 	programs := make([]*CompiledProgram, 5)
@@ -286,7 +312,7 @@ func TestComponents_CacheHitPath(t *testing.T) {
 func TestComponents_InvalidateAndRecompile(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
-	expression := "amount > 100000"
+	expression := "amount > 1000"
 
 	// Step 1: Compile
 	program1, err := adapter.Compile(ctx, expression)
@@ -320,7 +346,7 @@ func TestComponents_MultipleExpressions(t *testing.T) {
 	ctx := context.Background()
 
 	expressions := []string{
-		"amount > 100000",
+		"amount > 1000",
 		`transactionType == "PIX"`,
 		`account["status"] == "active"`,
 		`merchant["category"] == "5411"`,
@@ -368,7 +394,7 @@ func TestComponents_ConcurrentAccess(t *testing.T) {
 	ctx := context.Background()
 
 	expressions := []string{
-		"amount > 100000",
+		"amount > 1000",
 		`transactionType == "PIX"`,
 		`account["status"] == "active"`,
 	}
@@ -455,7 +481,7 @@ func TestComponents_ErrorRecovery(t *testing.T) {
 	ctx := context.Background()
 
 	// Compile valid expression
-	program, err := adapter.Compile(ctx, "amount > 100000")
+	program, err := adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
 	initialStats := adapter.Stats()
@@ -486,7 +512,8 @@ func TestComponents_EndToEndWorkflow(t *testing.T) {
 		name       string
 		expression string
 	}{
-		{"high_value", "amount > 100000"},
+		{"high_value", "amount > 1000"},
+		{"fractional_threshold", "amount > 1499.99"},
 		{"pix_transaction", `transactionType == "PIX"`},
 		{"active_account", `account["status"] == "active"`},
 		{"domestic_merchant", `merchant["country"] == "BR"`},
@@ -511,12 +538,13 @@ func TestComponents_EndToEndWorkflow(t *testing.T) {
 	}
 
 	// 3. Verify results
-	assert.True(t, results["high_value"], "150000 > 100000")
+	assert.True(t, results["high_value"], "1500 > 1000")
+	assert.True(t, results["fractional_threshold"], "1500 > 1499.99")
 	assert.True(t, results["pix_transaction"], "Transaction type is PIX")
 	assert.True(t, results["active_account"], "Account status is active")
 	assert.True(t, results["domestic_merchant"], "Merchant country is BR")
 
 	// 4. Check cache efficiency
 	stats := adapter.Stats()
-	assert.Equal(t, int64(4), stats.Size, "All 4 rules should be cached")
+	assert.Equal(t, int64(5), stats.Size, "All 5 rules should be cached")
 }
