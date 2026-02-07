@@ -1785,7 +1785,7 @@ func TestLimits_CreateLimit_ScopeWithoutFields_BadRequest(t *testing.T) {
 	reqBodyJSON := `{
 		"name": "Empty Scope Fields Test",
 		"limitType": "DAILY",
-		"maxAmount": 100000,
+		"maxAmount": "100000.00",
 		"currency": "BRL",
 		"scopes": [{}]
 	}`
