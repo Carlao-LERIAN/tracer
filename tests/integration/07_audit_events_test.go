@@ -2091,7 +2091,8 @@ func TestAuditEvents_11_10_1_CompleteRuleLifecycleIsAudited(t *testing.T) {
 	createReq.Header.Set("X-API-Key", apiKey)
 	createReq.Header.Set("Content-Type", "application/json")
 
-	createResp, _ := testutil.HTTPClient.Do(createReq)
+	createResp, err := testutil.HTTPClient.Do(createReq)
+	require.NoError(t, err)
 	defer createResp.Body.Close()
 
 	var rule testutil.RuleResponse
@@ -2130,7 +2131,8 @@ func TestAuditEvents_11_10_1_CompleteRuleLifecycleIsAudited(t *testing.T) {
 	auditReq, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resourceId="+rule.ID+"&resourceType=rule", nil)
 	auditReq.Header.Set("X-API-Key", apiKey)
 
-	auditResp, _ := testutil.HTTPClient.Do(auditReq)
+	auditResp, err := testutil.HTTPClient.Do(auditReq)
+	require.NoError(t, err)
 	defer auditResp.Body.Close()
 
 	var result struct {
@@ -2295,7 +2297,8 @@ func TestAuditEvents_11_10_3_CompleteLimitLifecycleIsAudited(t *testing.T) {
 	auditReq, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resourceId="+limitID+"&resourceType=limit", nil)
 	auditReq.Header.Set("X-API-Key", apiKey)
 
-	auditResp, _ := testutil.HTTPClient.Do(auditReq)
+	auditResp, err := testutil.HTTPClient.Do(auditReq)
+	require.NoError(t, err)
 	defer auditResp.Body.Close()
 
 	var result struct {
@@ -2416,7 +2419,8 @@ func TestAuditEvents_11_11_2_ActorInformationCaptured(t *testing.T) {
 	req.Header.Set("X-API-Key", apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, _ := testutil.HTTPClient.Do(req)
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	var rule testutil.RuleResponse
@@ -2429,7 +2433,8 @@ func TestAuditEvents_11_11_2_ActorInformationCaptured(t *testing.T) {
 	auditReq, _ := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?resourceId="+rule.ID, nil)
 	auditReq.Header.Set("X-API-Key", apiKey)
 
-	auditResp, _ := testutil.HTTPClient.Do(auditReq)
+	auditResp, err := testutil.HTTPClient.Do(auditReq)
+	require.NoError(t, err)
 	defer auditResp.Body.Close()
 
 	var result struct {
