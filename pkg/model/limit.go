@@ -90,7 +90,7 @@ type UsageCounter struct {
 	LimitID       uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
 	ScopeKey      string          `json:"scopeKey"`
 	PeriodKey     string          `json:"periodKey"`
-	CurrentUsage  decimal.Decimal `json:"currentUsage" swaggertype:"string" minimum:"0"`
+	CurrentUsage  decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00" minimum:"0"`
 	LastUpdatedAt time.Time       `json:"lastUpdatedAt" format:"date-time"`
 }
 

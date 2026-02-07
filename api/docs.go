@@ -2345,17 +2345,20 @@ const docTemplate = `{
             "properties": {
                 "attemptedAmount": {
                     "description": "AttemptedAmount is the transaction amount being validated.\nPer API Design v1.3.2 section 4.1.1.",
-                    "type": "string"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "currentUsage": {
                     "description": "CurrentUsage represents the PROJECTED usage after applying the transaction amount,\nnot the actual persisted counter value. This is calculated as:\n(counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.\nWhen Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows\nwhat the usage would have been if the transaction were allowed.",
-                    "type": "string"
+                    "type": "string",
+                    "example": "500.00"
                 },
                 "exceeded": {
                     "type": "boolean"
                 },
                 "limitAmount": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "1000.00"
                 },
                 "limitId": {
                     "type": "string",
@@ -2682,7 +2685,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.AccountContext"
                 },
                 "amount": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "currency": {
                     "type": "string"
