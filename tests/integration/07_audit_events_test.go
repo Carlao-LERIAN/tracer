@@ -630,15 +630,19 @@ func TestAuditEvents_11_2_10_A_ReturnsAllResultsWithoutPagination(t *testing.T) 
 			Expression: "true",
 			Action:     "ALLOW",
 		}
-		body, _ := json.Marshal(ruleReq)
+		body, err := json.Marshal(ruleReq)
+		require.NoError(t, err)
 
-		req, _ := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+		req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+		require.NoError(t, err)
 		req.Header.Set("X-API-Key", apiKey)
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, _ := testutil.HTTPClient.Do(req)
+		resp, err := testutil.HTTPClient.Do(req)
+		require.NoError(t, err)
 		var rule testutil.RuleResponse
-		json.NewDecoder(resp.Body).Decode(&rule)
+		err = json.NewDecoder(resp.Body).Decode(&rule)
+		require.NoError(t, err)
 		resp.Body.Close()
 
 		ruleIDs = append(ruleIDs, rule.ID)
@@ -702,15 +706,19 @@ func TestAuditEvents_11_2_10_B_IteratesThroughMultiplePages(t *testing.T) {
 			Expression: "true",
 			Action:     "ALLOW",
 		}
-		body, _ := json.Marshal(ruleReq)
+		body, err := json.Marshal(ruleReq)
+		require.NoError(t, err)
 
-		req, _ := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+		req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+		require.NoError(t, err)
 		req.Header.Set("X-API-Key", apiKey)
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, _ := testutil.HTTPClient.Do(req)
+		resp, err := testutil.HTTPClient.Do(req)
+		require.NoError(t, err)
 		var rule testutil.RuleResponse
-		json.NewDecoder(resp.Body).Decode(&rule)
+		err = json.NewDecoder(resp.Body).Decode(&rule)
+		require.NoError(t, err)
 		resp.Body.Close()
 
 		ruleIDs = append(ruleIDs, rule.ID)

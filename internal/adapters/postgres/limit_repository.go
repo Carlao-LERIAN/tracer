@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "tracer/internal/adapters/postgres/db"
@@ -630,9 +630,9 @@ func validateCursorSortValue(sortBy, sortValue string) error {
 			return fmt.Errorf("invalid timestamp format for %s", sortBy)
 		}
 	case "maxAmount":
-		// Integer column expects numeric string
-		if _, err := strconv.ParseInt(sortValue, 10, 64); err != nil {
-			return fmt.Errorf("invalid numeric format for %s", sortBy)
+		// Decimal column expects numeric string (integer or decimal format)
+		if _, err := decimal.NewFromString(sortValue); err != nil {
+			return fmt.Errorf("invalid decimal format for %s", sortBy)
 		}
 	case "name":
 		// String values are acceptable as-is

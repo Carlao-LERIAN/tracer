@@ -1084,6 +1084,34 @@ func TestLimitRepository_applyCursorFilter_CursorValidation(t *testing.T) {
 			errType:           constant.ErrInvalidSortColumn,
 		},
 		{
+			name: "Success - cursor with maxAmount decimal value",
+			cursor: pkgHTTP.Cursor{
+				ID:        "550e8400-e29b-41d4-a716-446655440001",
+				SortValue: "1000.50",
+				SortBy:    "maxAmount",
+				SortOrder: "DESC",
+			},
+			requestedSortBy:   "maxAmount",
+			requestedOrderDir: "DESC",
+			wantSortBy:        "max_amount",
+			wantOrderDir:      "DESC",
+			wantErr:           false,
+		},
+		{
+			name: "Success - cursor with maxAmount integer value",
+			cursor: pkgHTTP.Cursor{
+				ID:        "550e8400-e29b-41d4-a716-446655440001",
+				SortValue: "5000",
+				SortBy:    "maxAmount",
+				SortOrder: "ASC",
+			},
+			requestedSortBy:   "maxAmount",
+			requestedOrderDir: "ASC",
+			wantSortBy:        "max_amount",
+			wantOrderDir:      "ASC",
+			wantErr:           false,
+		},
+		{
 			name: "Error - SQL injection attempt in cursor sortBy",
 			cursor: pkgHTTP.Cursor{
 				ID:        "550e8400-e29b-41d4-a716-446655440001",
