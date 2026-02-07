@@ -50,7 +50,7 @@ var AmountExpressions = []ExampleExpression{
 	{
 		Name:        "exact_decimal_match",
 		Expression:  "amount == 99.99",
-		Description: "Exact amount match with decimals",
+		Description: "Exact amount match; works for direct values but avoid for computed amounts due to float precision",
 		Category:    "amount",
 	},
 	{

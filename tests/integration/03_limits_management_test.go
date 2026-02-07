@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -27,12 +26,6 @@ import (
 
 // Ensure we use the shared HTTP client
 var _ = testutil.HTTPClient
-
-// decimalPtr returns a pointer to a decimal.Decimal created from the given int64 value.
-func decimalPtr(v int64) *decimal.Decimal {
-	d := decimal.RequireFromString(strconv.FormatInt(v, 10))
-	return &d
-}
 
 type createLimitRequest struct {
 	Name        string            `json:"name"`

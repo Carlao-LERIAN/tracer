@@ -559,7 +559,7 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 	validationReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(7011).String(),
 		TransactionType:      "PIX",
-		Amount:               decimal.RequireFromString("10"), // > 500, will match rule
+		Amount:               decimal.RequireFromString("10"), // 10 > 5, will match rule
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
 		Account: &testutil.AccountContext{

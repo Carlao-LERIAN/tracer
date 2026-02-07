@@ -499,11 +499,18 @@ func TestAdvancedEdgeCase_AmountBoundaries(t *testing.T) {
 		expression string
 		amount     decimal.Decimal
 		expected   bool
+		expectErr  bool
 	}{
 		{
 			name:       "max int64 amount",
 			expression: "amount > 0",
-			amount:     decimal.RequireFromString("9223372036854775807"), // max int64
+			amount:     decimal.RequireFromString("9223372036854775807"), // max int64, exceeds float64 safe precision
+			expectErr:  true,
+		},
+		{
+			name:       "max safe float64 amount",
+			expression: "amount > 0",
+			amount:     decimal.RequireFromString("9007199254740992"), // 2^53, at the safe limit
 			expected:   true,
 		},
 		{
@@ -593,8 +600,13 @@ func TestAdvancedEdgeCase_AmountBoundaries(t *testing.T) {
 
 			result, err := adapter.Evaluate(ctx, program, req)
 
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, result)
+			if tc.expectErr {
+				require.Error(t, err, "Expected error for amount %s", tc.amount)
+				assert.Contains(t, err.Error(), "exceeds safe precision")
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
 		})
 	}
 }

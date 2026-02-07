@@ -1690,7 +1690,7 @@ func TestLimitCheckerService_CheckLimits_LargeDecimalValues(t *testing.T) {
 	require.NotNil(t, output)
 	assert.False(t, output.Allowed, "Should be denied because projected usage exceeds limit")
 	assert.Contains(t, output.ExceededLimitIDs, limitID, "Limit should be marked as exceeded when projected > max")
-	assert.Len(t, output.LimitUsageDetails, 1)
+	require.Len(t, output.LimitUsageDetails, 1)
 
 	// Verify that CurrentUsage is capped at MaxInt64
 	assert.True(t, decimal.RequireFromString("92233720368547759").Equal(output.LimitUsageDetails[0].CurrentUsage),

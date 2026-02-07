@@ -139,6 +139,24 @@ func TestAmountExpressions(t *testing.T) {
 			amount:     "2500.25",
 			expected:   true,
 		},
+		{
+			name:       "boundary_exact_1000",
+			expression: "amount > 1000",
+			amount:     "1000",
+			expected:   false,
+		},
+		{
+			name:       "zero_amount",
+			expression: "amount >= 0",
+			amount:     "0",
+			expected:   true,
+		},
+		{
+			name:       "negative_amount",
+			expression: "amount > 0",
+			amount:     "-10",
+			expected:   false,
+		},
 	}
 
 	for _, tc := range tests {

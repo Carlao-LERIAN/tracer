@@ -483,6 +483,65 @@ func TestBuildActivation_NilOptionalFields(t *testing.T) {
 	}
 }
 
+// TestBuildActivation_AmountPrecisionValidation tests that BuildActivation rejects amounts
+// that exceed float64 safe precision range.
+func TestBuildActivation_AmountPrecisionValidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		amount    string
+		expectErr bool
+	}{
+		{
+			name:      "Success - normal monetary amount",
+			amount:    "1000.50",
+			expectErr: false,
+		},
+		{
+			name:      "Success - large but safe amount",
+			amount:    "999999999999999",
+			expectErr: false,
+		},
+		{
+			name:      "Error - amount exceeds float64 safe precision",
+			amount:    "9007199254740993",
+			expectErr: true,
+		},
+		{
+			name:      "Error - negative amount exceeds float64 safe precision",
+			amount:    "-9007199254740993",
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &model.ValidationRequest{
+				RequestID:            uuid.New(),
+				TransactionType:      model.TransactionTypePix,
+				Amount:               decimal.RequireFromString(tc.amount),
+				Currency:             "BRL",
+				TransactionTimestamp: time.Now(),
+				Account: model.AccountContext{
+					ID:     envTestAccountID1,
+					Type:   "checking",
+					Status: "active",
+				},
+			}
+
+			activation, err := BuildActivation(req)
+
+			if tc.expectErr {
+				require.Error(t, err, "Expected error for amount %s", tc.amount)
+				assert.Nil(t, activation, "Activation should be nil on error")
+				assert.Contains(t, err.Error(), "exceeds safe precision")
+			} else {
+				require.NoError(t, err, "Unexpected error for amount %s", tc.amount)
+				assert.NotNil(t, activation, "Activation should not be nil")
+			}
+		})
+	}
+}
+
 // TestBuildActivation_NilRequest tests that BuildActivation returns error for nil request.
 func TestBuildActivation_NilRequest(t *testing.T) {
 	activation, err := BuildActivation(nil)

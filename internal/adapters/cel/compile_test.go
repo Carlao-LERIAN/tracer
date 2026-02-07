@@ -156,7 +156,7 @@ func TestCompile_InvalidExpression(t *testing.T) {
 			name:           "Error - type mismatch",
 			expression:     `transactionTimestamp == "string"`,
 			expectedErrMsg: "TRC-0084",
-			description:    "Should fail on type mismatch (int vs string)",
+			description:    "Should fail on type mismatch (timestamp int vs string)",
 		},
 		{
 			name:           "Error - empty expression",
