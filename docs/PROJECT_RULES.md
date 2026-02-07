@@ -1698,7 +1698,7 @@ metadata              // Map of custom fields
 
 ```cel
 // Block high-value transactions (amount > $100.00)
-amount > 10000
+amount > 100
 
 // Review international wire transactions
 transactionType == "WIRE" && subType == "international"
@@ -1707,7 +1707,7 @@ transactionType == "WIRE" && subType == "international"
 account["status"] == "suspended"
 
 // Allow small transactions from active accounts (amount < $10.00)
-amount < 1000 && account["status"] == "active"
+amount < 10 && account["status"] == "active"
 ```
 
 ### Compilation and Caching
