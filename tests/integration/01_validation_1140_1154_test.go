@@ -625,7 +625,7 @@ func TestValidation_1_1_47_AcceptsAmountExceedingInt64Max(t *testing.T) {
 	rawJSON := fmt.Sprintf(`{
 		"requestId": "%s",
 		"transactionType": "CARD",
-		"amount": 9223372036854775808,
+		"amount": "9223372036854775808",
 		"currency": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"}
@@ -687,7 +687,7 @@ func TestValidation_1_1_49_NullOptionalFields(t *testing.T) {
 		"requestId": "%s",
 		"transactionType": "CARD",
 		"subType": null,
-		"amount": 100,
+		"amount": "100.00",
 		"currency": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"},

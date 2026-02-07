@@ -332,7 +332,7 @@ func TestAuth_6_1_9_ProtectedEndpointsRequireAuth(t *testing.T) {
 	testUUID := "550e8400-e29b-41d4-a716-446655440000"
 
 	ruleBody := `{"name":"Test Rule","description":"Test","expression":"amount > 100000","action":"REVIEW"}`
-	limitBody := `{"name":"Test Limit","limitType":"DAILY","maxAmount":100000,"currency":"BRL","scopes":[{"accountId":"550e8400-e29b-41d4-a716-446655440000"}]}`
+	limitBody := `{"name":"Test Limit","limitType":"DAILY","maxAmount":"100000.00","currency":"BRL","scopes":[{"accountId":"550e8400-e29b-41d4-a716-446655440000"}]}`
 	validationBody := string(validPayload(t))
 
 	tests := []struct {
@@ -744,7 +744,7 @@ func TestAuth_6_1_15_AuthErrorPrecedence(t *testing.T) {
 		{
 			name:        "invalid auth + invalid UUID and values",
 			contentType: "application/json",
-			body:        `{"requestId":"not-a-valid-uuid","transactionType":"INVALID_TYPE","amount":-100,"currency":"INVALID"}`,
+			body:        `{"requestId":"not-a-valid-uuid","transactionType":"INVALID_TYPE","amount":"-100.00","currency":"INVALID"}`,
 			description: "validation errors should not matter - auth error first",
 		},
 		{

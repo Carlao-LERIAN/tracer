@@ -485,7 +485,7 @@ func TestValidation_Scope_EmptyScopes(t *testing.T) {
 				"status":    "active",
 			}
 			payload["transactionType"] = tc.transactionType
-			payload["amount"] = 5000 // Always > 0 to match expression
+			payload["amount"] = "5000.00" // Always > 0 to match expression
 
 			result, status := testutil.ExecuteValidationRequest(t, payload)
 			require.Equal(t, http.StatusOK, status)
