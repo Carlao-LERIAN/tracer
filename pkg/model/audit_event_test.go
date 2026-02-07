@@ -74,7 +74,7 @@ func TestAuditEvent_WithValidationContext(t *testing.T) {
 
 		request := map[string]any{
 			"transactionType": "PIX",
-			"amount":          15000000,
+			"amount":          150000,
 			"currency":        "BRL",
 		}
 
