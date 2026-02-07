@@ -13,12 +13,12 @@ import (
 
 func TestValidateDateRange(t *testing.T) {
 	tests := []struct {
-		name       string
-		startDate  time.Time
-		endDate    time.Time
-		startField string
-		endField   string
-		wantErr    bool
+		name        string
+		startDate   time.Time
+		endDate     time.Time
+		startField  string
+		endField    string
+		wantErr     bool
 		errContains string
 	}{
 		{
@@ -38,12 +38,12 @@ func TestValidateDateRange(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "invalid range - start after end",
-			startDate:  time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
-			endDate:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-			startField: "startDate",
-			endField:   "endDate",
-			wantErr:    true,
+			name:        "invalid range - start after end",
+			startDate:   time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+			endDate:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			startField:  "startDate",
+			endField:    "endDate",
+			wantErr:     true,
 			errContains: "must not be after",
 		},
 		{

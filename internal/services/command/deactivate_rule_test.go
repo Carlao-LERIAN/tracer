@@ -49,10 +49,10 @@ func TestDeactivateRule_Success(t *testing.T) {
 	auditWriter := NewMockAuditWriter(ctrl)
 	// Audit event should be called exactly once with specific parameters
 	auditWriter.EXPECT().RecordRuleEvent(
-		gomock.Any(),                                // ctx (may have trace info)
-		model.AuditEventRuleDeactivated,             // eventType
-		model.AuditActionDeactivate,                 // action
-		ruleID,                                      // ruleID
+		gomock.Any(),                    // ctx (may have trace info)
+		model.AuditEventRuleDeactivated, // eventType
+		model.AuditActionDeactivate,     // action
+		ruleID,                          // ruleID
 		gomock.AssignableToTypeOf(map[string]any{}), // beforeState (ACTIVE)
 		gomock.AssignableToTypeOf(map[string]any{}), // afterState (INACTIVE)
 		"Rule deactivated via API",                  // description

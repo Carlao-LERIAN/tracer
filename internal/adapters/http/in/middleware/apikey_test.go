@@ -13,10 +13,11 @@ import (
 	"strings"
 	"testing"
 
+	"tracer/internal/testutil"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"tracer/internal/testutil"
 )
 
 // errorResponse represents the standard error response format from libHTTP.

@@ -7,8 +7,9 @@ package model
 import (
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

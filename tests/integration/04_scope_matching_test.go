@@ -309,11 +309,11 @@ func TestValidation_Scope_MultipleScopeFields(t *testing.T) {
 	t.Cleanup(func() { testutil.CleanupRule(t, ruleID) })
 
 	testCases := []struct {
-		name               string
-		accountID          string
-		transactionType    string
-		shouldBeEvaluated  bool
-		description        string
+		name              string
+		accountID         string
+		transactionType   string
+		shouldBeEvaluated bool
+		description       string
 	}{
 		{
 			name:              "both_match",

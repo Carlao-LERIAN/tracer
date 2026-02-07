@@ -16,15 +16,15 @@ import (
 // WithError returns an error with the given status code and message.
 func WithError(c *fiber.Ctx, err error) error {
 	var (
-		notFoundErr         *pkg.EntityNotFoundError
-		conflictErr         *pkg.EntityConflictError
-		validationErr       *pkg.ValidationError
-		unprocessableErr    *pkg.UnprocessableOperationError
-		unauthorizedErr     *pkg.UnauthorizedError
-		forbiddenErr        *pkg.ForbiddenError
-		knownFieldsErr      *pkg.ValidationKnownFieldsError
-		unknownFieldsErr    *pkg.ValidationUnknownFieldsError
-		responseErr         *pkg.ResponseError
+		notFoundErr      *pkg.EntityNotFoundError
+		conflictErr      *pkg.EntityConflictError
+		validationErr    *pkg.ValidationError
+		unprocessableErr *pkg.UnprocessableOperationError
+		unauthorizedErr  *pkg.UnauthorizedError
+		forbiddenErr     *pkg.ForbiddenError
+		knownFieldsErr   *pkg.ValidationKnownFieldsError
+		unknownFieldsErr *pkg.ValidationUnknownFieldsError
+		responseErr      *pkg.ResponseError
 	)
 
 	switch {

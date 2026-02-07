@@ -41,9 +41,9 @@ func TestGetAuditEvent_InvalidUUID_ReturnsTRC0007(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	testCases := []struct {
-		name      string
-		eventID   string
-		desc      string
+		name    string
+		eventID string
+		desc    string
 	}{
 		{
 			name:    "plain_text",

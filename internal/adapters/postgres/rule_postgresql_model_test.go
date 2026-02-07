@@ -43,18 +43,18 @@ func TestRulePostgreSQLModel_ToEntity(t *testing.T) {
 		{
 			name: "converts basic rule without optional fields",
 			dbModel: RulePostgreSQLModel{
-				ID:          testID.String(),
-				Name:        "Test Rule",
-				Description: sql.NullString{Valid: false},
-				Expression:  "amount > 1000",
-				Action:      "DENY",
-				Scopes:      "[]",
-				Status:      "DRAFT",
-				CreatedAt:   fixedTime,
-				UpdatedAt:   fixedTime,
-				ActivatedAt: sql.NullTime{Valid: false},
+				ID:            testID.String(),
+				Name:          "Test Rule",
+				Description:   sql.NullString{Valid: false},
+				Expression:    "amount > 1000",
+				Action:        "DENY",
+				Scopes:        "[]",
+				Status:        "DRAFT",
+				CreatedAt:     fixedTime,
+				UpdatedAt:     fixedTime,
+				ActivatedAt:   sql.NullTime{Valid: false},
 				DeactivatedAt: sql.NullTime{Valid: false},
-				DeletedAt:   sql.NullTime{Valid: false},
+				DeletedAt:     sql.NullTime{Valid: false},
 			},
 			expected: &model.Rule{
 				ID:            testID,
@@ -74,18 +74,18 @@ func TestRulePostgreSQLModel_ToEntity(t *testing.T) {
 		{
 			name: "converts rule with all optional fields populated",
 			dbModel: RulePostgreSQLModel{
-				ID:          testID.String(),
-				Name:        "Full Rule",
-				Description: sql.NullString{String: "A detailed description", Valid: true},
-				Expression:  "amount > 5000",
-				Action:      "REVIEW",
-				Scopes:      `[{"accountId":"` + testAccountID.String() + `","segmentId":"` + testSegmentID.String() + `"}]`,
-				Status:      "ACTIVE",
-				CreatedAt:   fixedTime,
-				UpdatedAt:   fixedTime.Add(30 * time.Minute),
-				ActivatedAt: sql.NullTime{Time: activatedAt, Valid: true},
+				ID:            testID.String(),
+				Name:          "Full Rule",
+				Description:   sql.NullString{String: "A detailed description", Valid: true},
+				Expression:    "amount > 5000",
+				Action:        "REVIEW",
+				Scopes:        `[{"accountId":"` + testAccountID.String() + `","segmentId":"` + testSegmentID.String() + `"}]`,
+				Status:        "ACTIVE",
+				CreatedAt:     fixedTime,
+				UpdatedAt:     fixedTime.Add(30 * time.Minute),
+				ActivatedAt:   sql.NullTime{Time: activatedAt, Valid: true},
 				DeactivatedAt: sql.NullTime{Time: deactivatedAt, Valid: true},
-				DeletedAt:   sql.NullTime{Valid: false},
+				DeletedAt:     sql.NullTime{Valid: false},
 			},
 			expected: &model.Rule{
 				ID:            testID,
@@ -221,9 +221,9 @@ func TestRulePostgreSQLModel_FromEntity(t *testing.T) {
 	activatedAt := fixedTime.Add(1 * time.Hour)
 
 	tests := []struct {
-		name      string
-		entity    *model.Rule
-		assertFn  func(t *testing.T, dbModel *RulePostgreSQLModel)
+		name     string
+		entity   *model.Rule
+		assertFn func(t *testing.T, dbModel *RulePostgreSQLModel)
 	}{
 		{
 			name: "converts basic entity without optional fields",

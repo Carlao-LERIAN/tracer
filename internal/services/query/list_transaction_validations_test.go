@@ -82,9 +82,9 @@ func TestListTransactionValidationsQuery_Execute(t *testing.T) {
 							t.Errorf("expected default sortOrder 'DESC', got %s", f.SortOrder)
 						}
 						return &model.ListTransactionValidationsResult{
-							TransactionValidations:     testAudits,
-							NextCursor: "",
-							HasMore:    false,
+							TransactionValidations: testAudits,
+							NextCursor:             "",
+							HasMore:                false,
 						}, nil
 					})
 				return mockRepo
@@ -117,9 +117,9 @@ func TestListTransactionValidationsQuery_Execute(t *testing.T) {
 							t.Errorf("expected cursor 'test-cursor', got %s", f.Cursor)
 						}
 						return &model.ListTransactionValidationsResult{
-							TransactionValidations:     testAudits,
-							NextCursor: "next-cursor",
-							HasMore:    true,
+							TransactionValidations: testAudits,
+							NextCursor:             "next-cursor",
+							HasMore:                true,
 						}, nil
 					})
 				return mockRepo
@@ -147,9 +147,9 @@ func TestListTransactionValidationsQuery_Execute(t *testing.T) {
 							t.Errorf("expected decision filter DENY, got %v", f.Decision)
 						}
 						return &model.ListTransactionValidationsResult{
-							TransactionValidations:     []*model.TransactionValidation{testAudits[1]},
-							NextCursor: "",
-							HasMore:    false,
+							TransactionValidations: []*model.TransactionValidation{testAudits[1]},
+							NextCursor:             "",
+							HasMore:                false,
 						}, nil
 					})
 				return mockRepo
@@ -170,9 +170,9 @@ func TestListTransactionValidationsQuery_Execute(t *testing.T) {
 				mockRepo.EXPECT().
 					List(gomock.Any(), gomock.Any()).
 					Return(&model.ListTransactionValidationsResult{
-						TransactionValidations:     []*model.TransactionValidation{},
-						NextCursor: "",
-						HasMore:    false,
+						TransactionValidations: []*model.TransactionValidation{},
+						NextCursor:             "",
+						HasMore:                false,
 					}, nil)
 				return mockRepo
 			},

@@ -74,8 +74,8 @@ func (m *mockLoggerFieldsRecorder) Info(args ...any) {
 	m.parent.Calls = append(m.parent.Calls, LogCall{Level: "info", Message: msg, Fields: m.fields})
 	m.parent.mu.Unlock()
 }
-func (m *mockLoggerFieldsRecorder) Infof(format string, args ...any)                  {}
-func (m *mockLoggerFieldsRecorder) Infoln(args ...any)                                {}
+func (m *mockLoggerFieldsRecorder) Infof(format string, args ...any) {}
+func (m *mockLoggerFieldsRecorder) Infoln(args ...any)               {}
 func (m *mockLoggerFieldsRecorder) Error(args ...any) {
 	msg := ""
 
