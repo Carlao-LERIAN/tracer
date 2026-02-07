@@ -30,20 +30,20 @@ import (
 func TestLimitHandler_CreateLimit(t *testing.T) {
 	tests := []struct {
 		name           string
-		requestBody    interface{}
+		requestBody    any
 		mockSetup      func(ctrl *gomock.Controller) *MockLimitService
 		expectedStatus int
 		expectedBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name: "success - creates limit",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":        "Daily Limit",
 				"description": "Daily spending limit",
 				"limitType":   "DAILY",
-				"maxAmount":   100000,
+				"maxAmount":   "1000.00",
 				"currency":    "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -66,7 +66,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 				assert.Equal(t, "Daily Limit", response["name"])
@@ -76,11 +76,11 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - missing required field name",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"limitType": "DAILY",
-				"maxAmount": 1000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -94,11 +94,11 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - missing required field limitType",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
-				"maxAmount": 1000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -112,12 +112,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - invalid limitType value",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "INVALID",
-				"maxAmount": 1000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -131,12 +131,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - invalid currency (not 3 chars)",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 1000,
+				"maxAmount": "1000.00",
 				"currency":  "BR",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -150,12 +150,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - maxAmount must be positive",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 0,
+				"maxAmount": "0",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -169,12 +169,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - empty scopes",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 1000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes":    []map[string]interface{}{},
+				"scopes":    []map[string]any{},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				return NewMockLimitService(ctrl)
@@ -186,12 +186,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - service returns internal error",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 1000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -285,7 +285,7 @@ func TestLimitHandler_GetLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 				assert.Equal(t, "Daily Limit", response["name"])
@@ -496,7 +496,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 	tests := []struct {
 		name           string
 		limitID        string
-		requestBody    interface{}
+		requestBody    any
 		mockSetup      func(ctrl *gomock.Controller) *MockLimitService
 		expectedStatus int
 		expectedBody   func(t *testing.T, body []byte)
@@ -504,7 +504,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "success - updates limit name",
 			limitID: validID.String(),
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name": "Updated Limit Name",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
@@ -526,7 +526,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 				assert.Equal(t, "Updated Limit Name", response["name"])
@@ -535,8 +535,8 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "success - updates maxAmount",
 			limitID: validID.String(),
-			requestBody: map[string]interface{}{
-				"maxAmount": 2000,
+			requestBody: map[string]any{
+				"maxAmount": "2000.00",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				mockService := NewMockLimitService(ctrl)
@@ -557,7 +557,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 				assert.Equal(t, "2000", response["maxAmount"])
@@ -566,7 +566,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:        "error - empty body (no fields to update)",
 			limitID:     validID.String(),
-			requestBody: map[string]interface{}{},
+			requestBody: map[string]any{},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				return NewMockLimitService(ctrl)
 			},
@@ -578,7 +578,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "error - invalid UUID",
 			limitID: "invalid-uuid",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name": "Test",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
@@ -592,7 +592,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "error - limit not found",
 			limitID: validID.String(),
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name": "Test",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
@@ -609,7 +609,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "error - limit already deleted",
 			limitID: validID.String(),
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name": "Test",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
@@ -1367,12 +1367,12 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitNameRequired)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, _ := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 1000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1389,12 +1389,12 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidType)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, _ := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 1000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1411,12 +1411,12 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidMaxAmount)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, _ := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 1000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1433,12 +1433,12 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidCurrency)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, _ := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 1000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1455,12 +1455,12 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidScope)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, _ := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 1000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1477,12 +1477,12 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitNameTooLong)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, _ := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 1000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1499,12 +1499,12 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitNameInvalidChars)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, _ := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 1000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1521,12 +1521,12 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitDescriptionInvalidChars)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, _ := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 1000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
@@ -1652,7 +1652,7 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			validateJSON: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 
@@ -1683,7 +1683,7 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			validateJSON: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 
@@ -1712,7 +1712,7 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			validateJSON: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 
