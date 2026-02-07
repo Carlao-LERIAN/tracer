@@ -78,7 +78,7 @@ func TestUsageCounterRepository_IncrementAtomic_Concurrent_Integration(t *testin
 
 	// Create a test limit first (required for FK constraint)
 	limitID := createTestLimit(t, db, 9001)
-	scopeKey := "test:concurrent-" + uuid.New().String()[:8]
+	scopeKey := "test:concurrent-" + testutil.MustDeterministicUUID(9101).String()[:8]
 	periodKey := "2025-01"
 
 	// Cleanup: remove test limit (cascades to counters)
@@ -158,7 +158,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate_Concurrent_Integration(t *t
 
 	// Create a test limit first (required for FK constraint)
 	limitID := createTestLimit(t, db, 9002)
-	scopeKey := "test:concurrent-create-" + uuid.New().String()[:8]
+	scopeKey := "test:concurrent-create-" + testutil.MustDeterministicUUID(9102).String()[:8]
 	periodKey := "2025-01"
 
 	// Cleanup: remove test limit (cascades to counters)
@@ -247,7 +247,7 @@ func TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration(t *testin
 
 	// Create a test limit first (required for FK constraint)
 	limitID := createTestLimit(t, db, 9003)
-	scopeKey := "test:concurrent-decrement-" + uuid.New().String()[:8]
+	scopeKey := "test:concurrent-decrement-" + testutil.MustDeterministicUUID(9103).String()[:8]
 	periodKey := "2025-01"
 
 	// Cleanup: remove test limit (cascades to counters)
@@ -317,7 +317,7 @@ func TestUsageCounterRepository_DecrementAtomic_UnderflowProtection_Integration(
 	repo := NewUsageCounterRepositoryWithConnection(adapter)
 
 	limitID := createTestLimit(t, db, 9004)
-	scopeKey := "test:decrement-underflow-" + uuid.New().String()[:8]
+	scopeKey := "test:decrement-underflow-" + testutil.MustDeterministicUUID(9104).String()[:8]
 	periodKey := "2025-01"
 
 	t.Cleanup(func() {
@@ -368,7 +368,7 @@ func TestUsageCounterRepository_MixedOperations_Concurrent_Integration(t *testin
 
 	// Create a test limit first (required for FK constraint)
 	limitID := createTestLimit(t, db, 9005)
-	scopeKey := "test:mixed-ops-" + uuid.New().String()[:8]
+	scopeKey := "test:mixed-ops-" + testutil.MustDeterministicUUID(9105).String()[:8]
 	periodKey := "2025-01"
 
 	// Cleanup: remove test limit (cascades to counters)
