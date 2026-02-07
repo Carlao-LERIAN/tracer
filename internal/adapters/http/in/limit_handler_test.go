@@ -1367,13 +1367,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitNameRequired)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]any{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
 					"currency":  "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1389,13 +1390,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidType)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]any{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
 					"currency":  "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1411,13 +1413,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidMaxAmount)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]any{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
 					"currency":  "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1433,13 +1436,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidCurrency)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]any{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
 					"currency":  "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1455,13 +1459,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidScope)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]any{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
 					"currency":  "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1477,13 +1482,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitNameTooLong)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]any{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
 					"currency":  "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1499,13 +1505,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitNameInvalidChars)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]any{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
 					"currency":  "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1521,13 +1528,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitDescriptionInvalidChars)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]any{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
 					"currency":  "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
