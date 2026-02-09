@@ -316,6 +316,7 @@ definitions:
     - RULE_UPDATED
     - RULE_ACTIVATED
     - RULE_DEACTIVATED
+    - RULE_DRAFTED
     - RULE_DELETED
     - LIMIT_CREATED
     - LIMIT_UPDATED
@@ -329,6 +330,7 @@ definitions:
     - AuditEventRuleUpdated
     - AuditEventRuleActivated
     - AuditEventRuleDeactivated
+    - AuditEventRuleDrafted
     - AuditEventRuleDeleted
     - AuditEventLimitCreated
     - AuditEventLimitUpdated
@@ -1708,6 +1710,48 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Deactivate a fraud rule
+      tags:
+      - rules
+  /v1/rules/{id}/draft:
+    post:
+      consumes:
+      - application/json
+      description: Transitions a rule from INACTIVE to DRAFT status. Allows re-editing
+        a previously deactivated rule.
+      operationId: draftRule
+      parameters:
+      - description: Rule ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Rule transitioned to draft successfully
+          schema:
+            $ref: '#/definitions/tracer_pkg_model.Rule'
+        "400":
+          description: Invalid rule ID or transition
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Rule not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Transition a rule back to draft
       tags:
       - rules
   /v1/validations:
