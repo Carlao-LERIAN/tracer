@@ -33,6 +33,7 @@ type RuleService interface {
 	ListRules(ctx context.Context, filter *model.ListRulesFilter) (*model.ListRulesResult, error)
 	ActivateRule(ctx context.Context, id uuid.UUID) (*model.Rule, error)
 	DeactivateRule(ctx context.Context, id uuid.UUID) (*model.Rule, error)
+	DraftRule(ctx context.Context, id uuid.UUID) (*model.Rule, error)
 	DeleteRule(ctx context.Context, id uuid.UUID) error
 }
 
@@ -432,6 +433,57 @@ func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 		"operation", "handler.rule.deactivate",
 		"rule.id", id.String(),
 	).Info("Rule deactivated")
+
+	return libHTTP.OK(c, rule)
+}
+
+// DraftRule godoc
+//
+//	@Summary		Transition a rule back to draft
+//	@Description	Transitions a rule from INACTIVE to DRAFT status. Allows re-editing a previously deactivated rule.
+//	@ID				draftRule
+//	@Tags			rules
+//	@Accept			json
+//	@Produce		json
+//	@Security		ApiKeyAuth
+//	@Param			id			path		string	true	"Rule ID (UUID)"	Format(uuid)
+//	@Success		200			{object}	model.Rule		"Rule transitioned to draft successfully"
+//	@Failure		400			{object}	api.ErrorResponse	"Invalid rule ID or transition"
+//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
+//	@Failure		404			{object}	api.ErrorResponse	"Rule not found"
+//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
+//	@Router			/v1/rules/{id}/draft [post]
+func (h *Handler) DraftRule(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.rule.draft")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	idParam := c.Params("id")
+
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule ID", err)
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid rule ID format")
+	}
+
+	logger.WithFields(
+		"operation", "handler.rule.draft",
+		"rule.id", id.String(),
+	).Info("Transitioning rule to draft")
+
+	rule, err := h.service.DraftRule(ctx, id)
+	if err != nil {
+		return handleLifecycleError(c, &span, err)
+	}
+
+	logger.WithFields(
+		"operation", "handler.rule.draft",
+		"rule.id", id.String(),
+	).Info("Rule transitioned to draft")
 
 	return libHTTP.OK(c, rule)
 }
