@@ -374,3 +374,125 @@ func TestDeleteRuleHandler_InternalError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 }
+
+func TestDraftRuleHandler_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	app := fiber.New()
+	ruleID := testutil.MustDeterministicUUID(1)
+
+	rule := &model.Rule{
+		ID:     ruleID,
+		Name:   "Test Rule",
+		Status: model.RuleStatusDraft,
+	}
+
+	mockService := NewMockRuleService(ctrl)
+
+	mockService.EXPECT().
+		DraftRule(gomock.Any(), ruleID).
+		Return(rule, nil)
+
+	handler := NewHandler(mockService)
+	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/draft", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var body model.Rule
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, ruleID, body.ID)
+	assert.Equal(t, model.RuleStatusDraft, body.Status)
+}
+
+func TestDraftRuleHandler_InvalidUUID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	app := fiber.New()
+
+	mockService := NewMockRuleService(ctrl)
+
+	handler := NewHandler(mockService)
+	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules/invalid-uuid/draft", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestDraftRuleHandler_ServiceError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	app := fiber.New()
+	ruleID := testutil.MustDeterministicUUID(1)
+
+	mockService := NewMockRuleService(ctrl)
+
+	mockService.EXPECT().
+		DraftRule(gomock.Any(), ruleID).
+		Return(nil, model.NewInvalidTransitionError(model.RuleStatusActive, model.RuleStatusDraft))
+
+	handler := NewHandler(mockService)
+	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/draft", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestDraftRuleHandler_NotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	app := fiber.New()
+	ruleID := testutil.MustDeterministicUUID(1)
+
+	mockService := NewMockRuleService(ctrl)
+
+	mockService.EXPECT().
+		DraftRule(gomock.Any(), ruleID).
+		Return(nil, constant.ErrRuleNotFound)
+
+	handler := NewHandler(mockService)
+	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/draft", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestDraftRuleHandler_InternalError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	app := fiber.New()
+	ruleID := testutil.MustDeterministicUUID(1)
+
+	mockService := NewMockRuleService(ctrl)
+
+	mockService.EXPECT().
+		DraftRule(gomock.Any(), ruleID).
+		Return(nil, errors.New("database connection failed"))
+
+	handler := NewHandler(mockService)
+	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/draft", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+}
