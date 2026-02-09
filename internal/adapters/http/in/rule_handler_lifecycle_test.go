@@ -72,6 +72,13 @@ func TestActivateRuleHandler_InvalidUUID(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0007", body["code"])
+	assert.Equal(t, "Invalid Path Parameter", body["title"])
+	assert.Equal(t, "Invalid rule ID format", body["message"])
 }
 
 func TestActivateRuleHandler_ServiceError(t *testing.T) {
@@ -95,6 +102,13 @@ func TestActivateRuleHandler_ServiceError(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0102", body["code"])
+	assert.Equal(t, "Invalid State Transition", body["title"])
+	assert.Contains(t, body["message"], "DELETED to ACTIVE")
 }
 
 func TestActivateRuleHandler_NotFound(t *testing.T) {
@@ -118,6 +132,13 @@ func TestActivateRuleHandler_NotFound(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0100", body["code"])
+	assert.Equal(t, "Not Found", body["title"])
+	assert.Equal(t, "Rule not found", body["message"])
 }
 
 func TestActivateRuleHandler_InternalError(t *testing.T) {
@@ -141,6 +162,13 @@ func TestActivateRuleHandler_InternalError(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0004", body["code"])
+	assert.Equal(t, "Internal Server Error", body["title"])
+	assert.Equal(t, "An unexpected error occurred", body["message"])
 }
 
 func TestDeactivateRuleHandler_Success(t *testing.T) {
@@ -194,6 +222,13 @@ func TestDeactivateRuleHandler_InvalidUUID(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0007", body["code"])
+	assert.Equal(t, "Invalid Path Parameter", body["title"])
+	assert.Equal(t, "Invalid rule ID format", body["message"])
 }
 
 func TestDeactivateRuleHandler_ServiceError(t *testing.T) {
@@ -217,6 +252,13 @@ func TestDeactivateRuleHandler_ServiceError(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0102", body["code"])
+	assert.Equal(t, "Invalid State Transition", body["title"])
+	assert.Contains(t, body["message"], "DELETED to INACTIVE")
 }
 
 func TestDeactivateRuleHandler_NotFound(t *testing.T) {
@@ -240,6 +282,13 @@ func TestDeactivateRuleHandler_NotFound(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0100", body["code"])
+	assert.Equal(t, "Not Found", body["title"])
+	assert.Equal(t, "Rule not found", body["message"])
 }
 
 func TestDeactivateRuleHandler_InternalError(t *testing.T) {
@@ -263,6 +312,13 @@ func TestDeactivateRuleHandler_InternalError(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0004", body["code"])
+	assert.Equal(t, "Internal Server Error", body["title"])
+	assert.Equal(t, "An unexpected error occurred", body["message"])
 }
 
 func TestDeleteRuleHandler_Success(t *testing.T) {
@@ -304,6 +360,13 @@ func TestDeleteRuleHandler_InvalidUUID(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0007", body["code"])
+	assert.Equal(t, "Invalid Path Parameter", body["title"])
+	assert.Equal(t, "Invalid rule ID format", body["message"])
 }
 
 func TestDeleteRuleHandler_NotFound(t *testing.T) {
@@ -327,6 +390,13 @@ func TestDeleteRuleHandler_NotFound(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0100", body["code"])
+	assert.Equal(t, "Not Found", body["title"])
+	assert.Equal(t, "Rule not found", body["message"])
 }
 
 func TestDeleteRuleHandler_InvalidTransition(t *testing.T) {
@@ -350,6 +420,13 @@ func TestDeleteRuleHandler_InvalidTransition(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0102", body["code"])
+	assert.Equal(t, "Invalid State Transition", body["title"])
+	assert.Contains(t, body["message"], "ACTIVE to DELETED")
 }
 
 func TestDeleteRuleHandler_InternalError(t *testing.T) {
@@ -373,6 +450,13 @@ func TestDeleteRuleHandler_InternalError(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0004", body["code"])
+	assert.Equal(t, "Internal Server Error", body["title"])
+	assert.Equal(t, "An unexpected error occurred", body["message"])
 }
 
 func TestDraftRuleHandler_Success(t *testing.T) {
@@ -426,6 +510,13 @@ func TestDraftRuleHandler_InvalidUUID(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0007", body["code"])
+	assert.Equal(t, "Invalid Path Parameter", body["title"])
+	assert.Equal(t, "Invalid rule ID format", body["message"])
 }
 
 func TestDraftRuleHandler_ServiceError(t *testing.T) {
@@ -449,6 +540,13 @@ func TestDraftRuleHandler_ServiceError(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0102", body["code"])
+	assert.Equal(t, "Invalid State Transition", body["title"])
+	assert.Contains(t, body["message"], "ACTIVE to DRAFT")
 }
 
 func TestDraftRuleHandler_NotFound(t *testing.T) {
@@ -472,6 +570,13 @@ func TestDraftRuleHandler_NotFound(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0100", body["code"])
+	assert.Equal(t, "Not Found", body["title"])
+	assert.Equal(t, "Rule not found", body["message"])
 }
 
 func TestDraftRuleHandler_InternalError(t *testing.T) {
@@ -495,4 +600,11 @@ func TestDraftRuleHandler_InternalError(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+	var body map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	require.NoError(t, err)
+	assert.Equal(t, "TRC-0004", body["code"])
+	assert.Equal(t, "Internal Server Error", body["title"])
+	assert.Equal(t, "An unexpected error occurred", body["message"])
 }

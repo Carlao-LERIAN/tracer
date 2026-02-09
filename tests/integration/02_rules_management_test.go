@@ -4270,21 +4270,21 @@ func TestDraftRule_2_8_1_DraftsInactiveRule(t *testing.T) {
 		testutil.CleanupRule(t, ruleID)
 	})
 
-	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
 	require.NoError(t, err)
-	req2.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("X-API-Key", apiKey)
 
-	resp2, err := testutil.HTTPClient.Do(req2)
+	resp, err := testutil.HTTPClient.Do(req)
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+	defer resp.Body.Close()
 
-	respBody2, err := io.ReadAll(resp2.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, resp2.StatusCode, "Response: %s", string(respBody2))
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(respBody))
 
 	var result map[string]any
-	err = json.Unmarshal(respBody2, &result)
+	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
 	assert.Equal(t, ruleID, result["ruleId"])
@@ -4323,16 +4323,16 @@ func TestDraftRule_2_8_2_RejectsDraftOfActiveRule(t *testing.T) {
 		testutil.CleanupRule(t, ruleID)
 	})
 
-	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
 	require.NoError(t, err)
-	req2.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("X-API-Key", apiKey)
 
-	resp2, err := testutil.HTTPClient.Do(req2)
+	resp, err := testutil.HTTPClient.Do(req)
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+	defer resp.Body.Close()
 
 	// ACTIVE → DRAFT is not a valid transition
-	assert.Equal(t, http.StatusBadRequest, resp2.StatusCode,
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"Draft from ACTIVE should return 400 - invalid transition")
 }
 
@@ -4347,21 +4347,21 @@ func TestDraftRule_2_8_3_IdempotentDraftOfDraftRule(t *testing.T) {
 	})
 
 	// Rule is already in DRAFT status after creation
-	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
 	require.NoError(t, err)
-	req2.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("X-API-Key", apiKey)
 
-	resp2, err := testutil.HTTPClient.Do(req2)
+	resp, err := testutil.HTTPClient.Do(req)
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+	defer resp.Body.Close()
 
-	respBody2, err := io.ReadAll(resp2.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, resp2.StatusCode, "Response: %s", string(respBody2))
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(respBody))
 
 	var result map[string]any
-	err = json.Unmarshal(respBody2, &result)
+	err = json.Unmarshal(respBody, &result)
 	require.NoError(t, err)
 
 	assert.Equal(t, ruleID, result["ruleId"])
@@ -4373,23 +4373,23 @@ func TestDraftRule_2_8_4_RejectsInvalidUUIDInPath(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
-	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/invalid-uuid/draft", nil)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/invalid-uuid/draft", nil)
 	require.NoError(t, err)
-	req2.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("X-API-Key", apiKey)
 
-	resp2, err := testutil.HTTPClient.Do(req2)
+	resp, err := testutil.HTTPClient.Do(req)
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+	defer resp.Body.Close()
 
-	respBody2, err := io.ReadAll(resp2.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusBadRequest, resp2.StatusCode, "Response: %s", string(respBody2))
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
 
-	errResp2 := testutil.ParseErrorResponse(t, respBody2)
-	assert.Equal(t, "TRC-0007", errResp2.Code) // Invalid path parameter (UUID format)
-	assert.Equal(t, "Invalid Path Parameter", errResp2.Title)
-	assert.Equal(t, "Invalid rule ID format", errResp2.Message)
+	errResp := testutil.ParseErrorResponse(t, respBody)
+	assert.Equal(t, "TRC-0007", errResp.Code) // Invalid path parameter (UUID format)
+	assert.Equal(t, "Invalid Path Parameter", errResp.Title)
+	assert.Equal(t, "Invalid rule ID format", errResp.Message)
 }
 
 // TestDraftRule_2_8_5_Returns404ForNonExistentRuleID verifies error handling for missing resource.
@@ -4397,23 +4397,23 @@ func TestDraftRule_2_8_5_Returns404ForNonExistentRuleID(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
-	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/550e8400-e29b-41d4-a716-999999999999/draft", nil)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/550e8400-e29b-41d4-a716-999999999999/draft", nil)
 	require.NoError(t, err)
-	req2.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("X-API-Key", apiKey)
 
-	resp2, err := testutil.HTTPClient.Do(req2)
+	resp, err := testutil.HTTPClient.Do(req)
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+	defer resp.Body.Close()
 
-	respBody2, err := io.ReadAll(resp2.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusNotFound, resp2.StatusCode, "Response: %s", string(respBody2))
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Response: %s", string(respBody))
 
-	errResp2 := testutil.ParseErrorResponse(t, respBody2)
-	assert.Equal(t, "TRC-0100", errResp2.Code) // Rule not found
-	assert.Equal(t, "Not Found", errResp2.Title)
-	assert.Equal(t, "Rule not found", errResp2.Message)
+	errResp := testutil.ParseErrorResponse(t, respBody)
+	assert.Equal(t, "TRC-0100", errResp.Code) // Rule not found
+	assert.Equal(t, "Not Found", errResp.Title)
+	assert.Equal(t, "Rule not found", errResp.Message)
 }
 
 // TestDraftRule_2_8_6_WithoutAuthenticationReturns401 verifies authentication requirement for draft.
@@ -4427,22 +4427,22 @@ func TestDraftRule_2_8_6_WithoutAuthenticationReturns401(t *testing.T) {
 		testutil.CleanupRule(t, ruleID)
 	})
 
-	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
 	require.NoError(t, err)
 	// No X-API-Key header
 
-	resp2, err := testutil.HTTPClient.Do(req2)
+	resp, err := testutil.HTTPClient.Do(req)
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusUnauthorized, resp2.StatusCode)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
-	respBody2, err := io.ReadAll(resp2.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	errResp2 := testutil.ParseErrorResponse(t, respBody2)
-	assert.Equal(t, "Unauthenticated", errResp2.Code, "Error code should be Unauthenticated for missing API key")
-	assert.Equal(t, "Unauthorized", errResp2.Title, "Error title should be Unauthorized")
-	assert.Equal(t, "API Key missing or invalid", errResp2.Message, "Error message should indicate API key issue")
+	errResp := testutil.ParseErrorResponse(t, respBody)
+	assert.Equal(t, "Unauthenticated", errResp.Code, "Error code should be Unauthenticated for missing API key")
+	assert.Equal(t, "Unauthorized", errResp.Title, "Error title should be Unauthorized")
+	assert.Equal(t, "API Key missing or invalid", errResp.Message, "Error message should indicate API key issue")
 }
 
 // TestDraftRule_2_8_7_RejectsDraftOfDeletedRule verifies DELETED rules return 404.
@@ -4455,22 +4455,22 @@ func TestDraftRule_2_8_7_RejectsDraftOfDeletedRule(t *testing.T) {
 	testutil.DeactivateRule(t, ruleID)
 	testutil.DeleteRuleViaAPI(t, ruleID)
 
-	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
 	require.NoError(t, err)
-	req2.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("X-API-Key", apiKey)
 
-	resp2, err := testutil.HTTPClient.Do(req2)
+	resp, err := testutil.HTTPClient.Do(req)
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+	defer resp.Body.Close()
 
-	respBody2, err := io.ReadAll(resp2.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	// Soft-deleted rules are filtered by the repository, returning 404 (not found)
-	assert.Equal(t, http.StatusNotFound, resp2.StatusCode, "Response: %s", string(respBody2))
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Response: %s", string(respBody))
 
-	errResp2 := testutil.ParseErrorResponse(t, respBody2)
-	assert.Equal(t, "TRC-0100", errResp2.Code) // Rule not found
-	assert.Equal(t, "Not Found", errResp2.Title)
-	assert.Equal(t, "Rule not found", errResp2.Message)
+	errResp := testutil.ParseErrorResponse(t, respBody)
+	assert.Equal(t, "TRC-0100", errResp.Code) // Rule not found
+	assert.Equal(t, "Not Found", errResp.Title)
+	assert.Equal(t, "Rule not found", errResp.Message)
 }
