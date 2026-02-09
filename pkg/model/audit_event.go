@@ -43,6 +43,7 @@ const (
 	AuditEventRuleUpdated     AuditEventType = "RULE_UPDATED"
 	AuditEventRuleActivated   AuditEventType = "RULE_ACTIVATED"
 	AuditEventRuleDeactivated AuditEventType = "RULE_DEACTIVATED"
+	AuditEventRuleDrafted     AuditEventType = "RULE_DRAFTED"
 	AuditEventRuleDeleted     AuditEventType = "RULE_DELETED"
 
 	// Limit lifecycle events
@@ -57,7 +58,7 @@ const (
 func (t AuditEventType) IsValid() bool {
 	switch t {
 	case AuditEventTransactionValidated,
-		AuditEventRuleCreated, AuditEventRuleUpdated, AuditEventRuleActivated, AuditEventRuleDeactivated, AuditEventRuleDeleted,
+		AuditEventRuleCreated, AuditEventRuleUpdated, AuditEventRuleActivated, AuditEventRuleDeactivated, AuditEventRuleDrafted, AuditEventRuleDeleted,
 		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated:
 		return true
 	default:
@@ -75,12 +76,13 @@ const (
 	AuditActionDelete     AuditAction = "DELETE"
 	AuditActionActivate   AuditAction = "ACTIVATE"
 	AuditActionDeactivate AuditAction = "DEACTIVATE"
+	AuditActionDraft      AuditAction = "DRAFT"
 )
 
 // IsValid checks if the AuditAction is a valid enum value.
 func (a AuditAction) IsValid() bool {
 	switch a {
-	case AuditActionValidate, AuditActionCreate, AuditActionUpdate, AuditActionDelete, AuditActionActivate, AuditActionDeactivate:
+	case AuditActionValidate, AuditActionCreate, AuditActionUpdate, AuditActionDelete, AuditActionActivate, AuditActionDeactivate, AuditActionDraft:
 		return true
 	default:
 		return false
