@@ -4334,6 +4334,25 @@ func TestDraftRule_2_8_2_RejectsDraftOfActiveRule(t *testing.T) {
 	// ACTIVE → DRAFT is not a valid transition
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"Draft from ACTIVE should return 400 - invalid transition")
+
+	// Verify state was NOT mutated
+	getReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules/"+ruleID, nil)
+	require.NoError(t, err)
+	getReq.Header.Set("X-API-Key", apiKey)
+
+	getResp, err := testutil.HTTPClient.Do(getReq)
+	require.NoError(t, err)
+	defer getResp.Body.Close()
+
+	getRespBody, err := io.ReadAll(getResp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, getResp.StatusCode, "Response: %s", string(getRespBody))
+
+	var result map[string]any
+	err = json.Unmarshal(getRespBody, &result)
+	require.NoError(t, err)
+
+	assert.Equal(t, "ACTIVE", result["status"], "Rule should remain ACTIVE after rejected draft transition")
 }
 
 // TestDraftRule_2_8_3_IdempotentDraftOfDraftRule verifies drafting a DRAFT rule succeeds (no-op).
