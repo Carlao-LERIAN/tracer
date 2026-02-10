@@ -2833,3 +2833,178 @@ func TestAuditEvents_11_6_3_CombinesMultipleJSONBFilters(t *testing.T) {
 		assert.True(t, segmentFound, "Should match segmentId in account or segment")
 	}
 }
+
+// TestAuditEvents_11_2_14_FiltersByEventTypeRuleDrafted tests filtering by eventType=RULE_DRAFTED.
+func TestAuditEvents_11_2_14_FiltersByEventTypeRuleDrafted(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	// Create a rule (starts in DRAFT)
+	ruleName := "draft-filter-evt-" + testutil.MustDeterministicUUID(7041).String()[:8]
+	ruleReq := testutil.RuleRequest{
+		Name:       ruleName,
+		Expression: "true",
+		Action:     "ALLOW",
+	}
+	body, err := json.Marshal(ruleReq)
+	require.NoError(t, err)
+
+	createReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+	require.NoError(t, err)
+	createReq.Header.Set("X-API-Key", apiKey)
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := testutil.HTTPClient.Do(createReq)
+	require.NoError(t, err)
+	defer createResp.Body.Close()
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+
+	var rule testutil.RuleResponse
+	err = json.NewDecoder(createResp.Body).Decode(&rule)
+	require.NoError(t, err)
+	require.NotEmpty(t, rule.ID)
+	defer testutil.CleanupRule(t, rule.ID)
+
+	// Activate rule (DRAFT → ACTIVE)
+	activateReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+rule.ID+"/activate", nil)
+	require.NoError(t, err)
+	activateReq.Header.Set("X-API-Key", apiKey)
+	activateResp, err := testutil.HTTPClient.Do(activateReq)
+	require.NoError(t, err)
+	activateResp.Body.Close()
+	require.Equal(t, http.StatusOK, activateResp.StatusCode)
+
+	// Deactivate rule (ACTIVE → INACTIVE)
+	deactivateReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+rule.ID+"/deactivate", nil)
+	require.NoError(t, err)
+	deactivateReq.Header.Set("X-API-Key", apiKey)
+	deactivateResp, err := testutil.HTTPClient.Do(deactivateReq)
+	require.NoError(t, err)
+	deactivateResp.Body.Close()
+	require.Equal(t, http.StatusOK, deactivateResp.StatusCode)
+
+	// Draft rule (INACTIVE → DRAFT) — generates RULE_DRAFTED event
+	draftReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+rule.ID+"/draft", nil)
+	require.NoError(t, err)
+	draftReq.Header.Set("X-API-Key", apiKey)
+	draftResp, err := testutil.HTTPClient.Do(draftReq)
+	require.NoError(t, err)
+	draftResp.Body.Close()
+	require.Equal(t, http.StatusOK, draftResp.StatusCode)
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Filter by eventType=RULE_DRAFTED scoped to this resource
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?eventType=RULE_DRAFTED&resourceId="+rule.ID, nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result struct {
+		AuditEvents []map[string]any `json:"auditEvents"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, result.AuditEvents, "Should find RULE_DRAFTED event")
+
+	for _, event := range result.AuditEvents {
+		assert.Equal(t, "RULE_DRAFTED", event["eventType"])
+	}
+
+	// Verify before/after states in the first event
+	event := result.AuditEvents[0]
+	ctx := event["context"].(map[string]any)
+	before := ctx["before"].(map[string]any)
+	after := ctx["after"].(map[string]any)
+
+	assert.Equal(t, "INACTIVE", before["status"])
+	assert.Equal(t, "DRAFT", after["status"])
+}
+
+// TestAuditEvents_11_2_15_FiltersByActionDraft tests filtering by action=DRAFT.
+func TestAuditEvents_11_2_15_FiltersByActionDraft(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	// Create a rule (starts in DRAFT)
+	ruleName := "draft-filter-act-" + testutil.MustDeterministicUUID(7042).String()[:8]
+	ruleReq := testutil.RuleRequest{
+		Name:       ruleName,
+		Expression: "true",
+		Action:     "ALLOW",
+	}
+	body, err := json.Marshal(ruleReq)
+	require.NoError(t, err)
+
+	createReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+	require.NoError(t, err)
+	createReq.Header.Set("X-API-Key", apiKey)
+	createReq.Header.Set("Content-Type", "application/json")
+
+	createResp, err := testutil.HTTPClient.Do(createReq)
+	require.NoError(t, err)
+	defer createResp.Body.Close()
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+
+	var rule testutil.RuleResponse
+	err = json.NewDecoder(createResp.Body).Decode(&rule)
+	require.NoError(t, err)
+	require.NotEmpty(t, rule.ID)
+	defer testutil.CleanupRule(t, rule.ID)
+
+	// Activate rule (DRAFT → ACTIVE)
+	activateReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+rule.ID+"/activate", nil)
+	require.NoError(t, err)
+	activateReq.Header.Set("X-API-Key", apiKey)
+	activateResp, err := testutil.HTTPClient.Do(activateReq)
+	require.NoError(t, err)
+	activateResp.Body.Close()
+	require.Equal(t, http.StatusOK, activateResp.StatusCode)
+
+	// Deactivate rule (ACTIVE → INACTIVE)
+	deactivateReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+rule.ID+"/deactivate", nil)
+	require.NoError(t, err)
+	deactivateReq.Header.Set("X-API-Key", apiKey)
+	deactivateResp, err := testutil.HTTPClient.Do(deactivateReq)
+	require.NoError(t, err)
+	deactivateResp.Body.Close()
+	require.Equal(t, http.StatusOK, deactivateResp.StatusCode)
+
+	// Draft rule (INACTIVE → DRAFT) — generates event with action=DRAFT
+	draftReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+rule.ID+"/draft", nil)
+	require.NoError(t, err)
+	draftReq.Header.Set("X-API-Key", apiKey)
+	draftResp, err := testutil.HTTPClient.Do(draftReq)
+	require.NoError(t, err)
+	draftResp.Body.Close()
+	require.Equal(t, http.StatusOK, draftResp.StatusCode)
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Filter by action=DRAFT scoped to this resource
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?action=DRAFT&resourceId="+rule.ID, nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result struct {
+		AuditEvents []map[string]any `json:"auditEvents"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, result.AuditEvents, "Should find event with action=DRAFT")
+
+	for _, event := range result.AuditEvents {
+		assert.Equal(t, "DRAFT", event["action"])
+	}
+}
