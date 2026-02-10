@@ -60,7 +60,7 @@ func validateAuditEventType(fl validator.FieldLevel) bool {
 		model.AuditEventRuleDrafted, model.AuditEventRuleDeleted,
 		model.AuditEventLimitCreated, model.AuditEventLimitUpdated,
 		model.AuditEventLimitActivated, model.AuditEventLimitDeactivated,
-		model.AuditEventLimitDeleted:
+		model.AuditEventLimitDrafted, model.AuditEventLimitDeleted:
 		return true
 	default:
 		return false
