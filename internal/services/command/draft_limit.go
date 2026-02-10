@@ -30,12 +30,21 @@ type DraftLimitCommand struct {
 }
 
 // NewDraftLimitCommand creates a new DraftLimitCommand with dependencies.
-func NewDraftLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) *DraftLimitCommand {
+// Returns an error if repo or clk is nil to catch invalid dependency injection at construction time.
+func NewDraftLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) (*DraftLimitCommand, error) {
+	if repo == nil {
+		return nil, ErrNilLimitRepository
+	}
+
+	if clk == nil {
+		return nil, ErrNilClock
+	}
+
 	return &DraftLimitCommand{
 		repo:        repo,
 		clock:       clk,
 		auditWriter: auditWriter,
-	}
+	}, nil
 }
 
 // Execute transitions a limit to DRAFT status.

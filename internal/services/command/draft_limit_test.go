@@ -22,14 +22,34 @@ import (
 	"tracer/pkg/model"
 )
 
+func TestNewDraftLimitCommand_NilRepository(t *testing.T) {
+	cmd, err := NewDraftLimitCommand(nil, testutil.NewDefaultMockClock(), nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNilLimitRepository)
+	assert.Nil(t, cmd)
+}
+
+func TestNewDraftLimitCommand_NilClock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockRepo := NewMockLimitRepository(ctrl)
+	cmd, err := NewDraftLimitCommand(mockRepo, nil, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNilClock)
+	assert.Nil(t, cmd)
+}
+
 func TestNewDraftLimitCommand(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 	// No audit expected - constructor only
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, err := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
+	require.NoError(t, err)
 	assert.NotNil(t, cmd)
 	assert.Equal(t, mockRepo, cmd.repo)
 	assert.NotNil(t, cmd.clock)
@@ -86,7 +106,8 @@ func TestDraftLimitCommand_Execute_Success(t *testing.T) {
 		Times(1).
 		Return(nil)
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -138,7 +159,8 @@ func TestDraftLimitCommand_Execute_AlreadyDraft_Idempotent(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -166,7 +188,8 @@ func TestDraftLimitCommand_Execute_LimitNotFound(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -205,7 +228,8 @@ func TestDraftLimitCommand_Execute_InvalidTransition_FromActive(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -244,7 +268,8 @@ func TestDraftLimitCommand_Execute_InvalidTransition_FromDeleted(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -271,7 +296,8 @@ func TestDraftLimitCommand_Execute_GetByIDError(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -315,7 +341,8 @@ func TestDraftLimitCommand_Execute_UpdateStatusError(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -336,7 +363,8 @@ func TestDraftLimitCommand_Execute_NilUUID(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(context.Background(), uuid.Nil)
 
@@ -380,7 +408,8 @@ func TestDraftLimitCommand_Execute_AuditWriteFailure(t *testing.T) {
 		Times(1).
 		Return(errors.New("audit write failed"))
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -408,7 +437,8 @@ func TestDraftLimitCommand_Execute_NilLimitFromRepo(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -431,7 +461,8 @@ func TestDraftLimitCommand_Execute_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 	result, err := cmd.Execute(ctx, testutil.MustDeterministicUUID(115))
 
 	require.Error(t, err)

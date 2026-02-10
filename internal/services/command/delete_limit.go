@@ -28,12 +28,21 @@ type DeleteLimitCommand struct {
 }
 
 // NewDeleteLimitCommand creates a new DeleteLimitCommand with dependencies.
-func NewDeleteLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) *DeleteLimitCommand {
+// Returns an error if repo or clk is nil to catch invalid dependency injection at construction time.
+func NewDeleteLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) (*DeleteLimitCommand, error) {
+	if repo == nil {
+		return nil, ErrNilLimitRepository
+	}
+
+	if clk == nil {
+		return nil, ErrNilClock
+	}
+
 	return &DeleteLimitCommand{
 		repo:        repo,
 		clock:       clk,
 		auditWriter: auditWriter,
-	}
+	}, nil
 }
 
 // Execute soft-deletes a limit by setting status to DELETED.

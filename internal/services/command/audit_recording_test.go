@@ -237,7 +237,8 @@ func TestAuditEventRecording_ActivateLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd := NewActivateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewActivateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 	_, err := cmd.Execute(context.Background(), limitID)
 	require.NoError(t, err)
 }
@@ -265,7 +266,8 @@ func TestAuditEventRecording_DeactivateLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd := NewDeactivateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDeactivateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 	_, err := cmd.Execute(context.Background(), limitID)
 	require.NoError(t, err)
 }
@@ -324,7 +326,8 @@ func TestAuditEventRecording_DeleteLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 	err := cmd.Execute(context.Background(), limitID)
 	require.NoError(t, err)
 }

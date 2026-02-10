@@ -483,10 +483,26 @@ func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter 
 		return nil, fmt.Errorf("failed to create update limit command: %w", err)
 	}
 
-	activateLimitCmd := command.NewActivateLimitCommand(limitRepo, clk, auditWriter)
-	deactivateLimitCmd := command.NewDeactivateLimitCommand(limitRepo, clk, auditWriter)
-	draftLimitCmd := command.NewDraftLimitCommand(limitRepo, clk, auditWriter)
-	deleteLimitCmd := command.NewDeleteLimitCommand(limitRepo, clk, auditWriter)
+	activateLimitCmd, err := command.NewActivateLimitCommand(limitRepo, clk, auditWriter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create activate limit command: %w", err)
+	}
+
+	deactivateLimitCmd, err := command.NewDeactivateLimitCommand(limitRepo, clk, auditWriter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create deactivate limit command: %w", err)
+	}
+
+	draftLimitCmd, err := command.NewDraftLimitCommand(limitRepo, clk, auditWriter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create draft limit command: %w", err)
+	}
+
+	deleteLimitCmd, err := command.NewDeleteLimitCommand(limitRepo, clk, auditWriter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create delete limit command: %w", err)
+	}
+
 	getLimitQuery := query.NewGetLimitQuery(limitRepo)
 
 	listLimitsQuery, err := query.NewListLimitsQuery(limitRepo)

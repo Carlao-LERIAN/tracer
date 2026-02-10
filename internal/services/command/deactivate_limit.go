@@ -28,12 +28,21 @@ type DeactivateLimitCommand struct {
 }
 
 // NewDeactivateLimitCommand creates a new DeactivateLimitCommand with dependencies.
-func NewDeactivateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) *DeactivateLimitCommand {
+// Returns an error if repo or clk is nil to catch invalid dependency injection at construction time.
+func NewDeactivateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) (*DeactivateLimitCommand, error) {
+	if repo == nil {
+		return nil, ErrNilLimitRepository
+	}
+
+	if clk == nil {
+		return nil, ErrNilClock
+	}
+
 	return &DeactivateLimitCommand{
 		repo:        repo,
 		clock:       clk,
 		auditWriter: auditWriter,
-	}
+	}, nil
 }
 
 // Execute deactivates an active limit.
