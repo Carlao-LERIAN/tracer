@@ -102,6 +102,26 @@ test:
 # Test Suite Aliases
 #-------------------------------------------------------
 
+# Quick test coverage verification
+# Runs a fast coverage check without generating detailed reports
+# Used primarily in CI/CD pipelines and pre-commit hooks
+.PHONY: check-tests
+check-tests:
+	$(call title1,"Verifying test coverage")
+	@if find . -name "*.go" -type f | grep -q .; then \
+		echo "$(CYAN)Running test coverage check...$(NC)"; \
+		go test -coverprofile=coverage.tmp ./... > /dev/null 2>&1; \
+		if [ -f coverage.tmp ]; then \
+			coverage=$$(go tool cover -func=coverage.tmp | grep total | awk '{print $$3}'); \
+			echo "$(CYAN)Test coverage: $(GREEN)$$coverage$(NC)"; \
+			rm coverage.tmp; \
+		else \
+			echo "$(YELLOW)No coverage data generated$(NC)"; \
+		fi; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping test coverage check$(NC)"; \
+	fi
+
 # Unit tests
 .PHONY: test-unit
 test-unit:
