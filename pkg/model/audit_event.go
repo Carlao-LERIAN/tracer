@@ -52,6 +52,7 @@ const (
 	AuditEventLimitDeleted     AuditEventType = "LIMIT_DELETED"
 	AuditEventLimitActivated   AuditEventType = "LIMIT_ACTIVATED"
 	AuditEventLimitDeactivated AuditEventType = "LIMIT_DEACTIVATED"
+	AuditEventLimitDrafted     AuditEventType = "LIMIT_DRAFTED"
 )
 
 // IsValid checks if the AuditEventType is a valid enum value.
@@ -59,7 +60,7 @@ func (t AuditEventType) IsValid() bool {
 	switch t {
 	case AuditEventTransactionValidated,
 		AuditEventRuleCreated, AuditEventRuleUpdated, AuditEventRuleActivated, AuditEventRuleDeactivated, AuditEventRuleDrafted, AuditEventRuleDeleted,
-		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated:
+		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated, AuditEventLimitDrafted:
 		return true
 	default:
 		return false
