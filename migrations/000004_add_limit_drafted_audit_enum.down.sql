@@ -8,8 +8,6 @@
 --
 -- Note: This rollback preserves RULE_DRAFTED and DRAFT (added in migration 000003).
 
-BEGIN;
-
 -- Step 1: Rename current enum type
 ALTER TYPE audit_event_type_enum RENAME TO audit_event_type_enum_old;
 
@@ -28,4 +26,3 @@ ALTER TABLE audit_events
 -- Step 4: Drop old enum type
 DROP TYPE audit_event_type_enum_old;
 
-COMMIT;

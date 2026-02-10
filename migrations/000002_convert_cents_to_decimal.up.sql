@@ -10,8 +10,6 @@
 -- reviewed and updated manually after this migration. This migration only handles
 -- the known seed data patterns.
 
-BEGIN;
-
 -- ============================================================================
 -- 1. Convert monetary columns from BIGINT (cents) to DECIMAL (currency value)
 -- ============================================================================
@@ -58,4 +56,3 @@ UPDATE rules SET description = 'Block transactions above $10,000.00'
 UPDATE rules SET description = 'Auto-approve transactions below $1,000.00'
     WHERE description = 'Auto-approve transactions below $1,000 (100000 cents)';
 
-COMMIT;

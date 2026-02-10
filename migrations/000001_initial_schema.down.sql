@@ -3,8 +3,6 @@
 -- Description: Drop all MVP tables
 -- ============================================
 
-BEGIN;
-
 -- Drop audit events
 DROP TRIGGER IF EXISTS audit_events_hash_chain ON audit_events;
 DROP TRIGGER IF EXISTS prevent_audit_event_truncate_trigger ON audit_events;
@@ -39,4 +37,3 @@ DROP TYPE IF EXISTS audit_action_enum;
 DROP TYPE IF EXISTS audit_result_enum;
 DROP TYPE IF EXISTS resource_type_enum;
 
-COMMIT;
