@@ -2635,9 +2635,21 @@ func (s *TestContainerSuite) TearDownSuite() {
 ### Test Commands
 
 ```bash
-make test                # Run unit tests
-make test-integration    # Run integration tests (requires running service)
-make cover-html          # Generate HTML coverage report
+# Test Commands
+make test                # Run all tests
+make test-unit           # Run unit tests only
+make test-integration    # Run integration tests (with testcontainers)
+make test-all            # Run all tests (unit + integration)
+make test-bench          # Run benchmark tests
+
+# Coverage Commands
+make coverage-unit       # Unit test coverage (uses .ignorecoverunit)
+make coverage-integration # Integration test coverage
+make coverage            # All coverage targets
+
+# Security Commands
+make sec                 # Run security checks (gosec + govulncheck)
+make sec SARIF=1         # Generate SARIF output for GitHub Security
 ```
 
 ---

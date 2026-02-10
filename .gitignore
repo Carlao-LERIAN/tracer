@@ -41,6 +41,10 @@ go.work.sum
 
 .bin/
 
+# Artifacts (build outputs, coverage, reports)
+artifacts/
+reports/
+
 # Logs
 *.log
 logs/
