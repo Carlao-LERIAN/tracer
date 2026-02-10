@@ -13,14 +13,18 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/shopspring/decimal"
 
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/contextutil"
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
 )
 
-// ErrNilLimitRepository is returned when a nil LimitRepository is passed to NewCreateLimitCommand.
-var ErrNilLimitRepository = errors.New("nil LimitRepository passed to NewCreateLimitCommand")
+// ErrNilLimitRepository is returned when a nil LimitRepository is passed to a limit command constructor.
+var ErrNilLimitRepository = errors.New("nil LimitRepository passed to limit command constructor")
+
+// ErrNilClock is returned when a nil Clock is passed to a command constructor.
+var ErrNilClock = errors.New("nil Clock passed to command constructor")
 
 // CreateLimitInput defines input for creating a limit.
 //
@@ -44,18 +48,24 @@ type CreateLimitInput struct {
 // CreateLimitCommand handles limit creation.
 type CreateLimitCommand struct {
 	repo        LimitRepository
+	clock       clock.Clock
 	auditWriter AuditWriter
 }
 
 // NewCreateLimitCommand creates a new CreateLimitCommand with dependencies.
 // Returns an error if repo is nil to catch invalid dependency injection at construction time.
-func NewCreateLimitCommand(repo LimitRepository, auditWriter AuditWriter) (*CreateLimitCommand, error) {
+func NewCreateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) (*CreateLimitCommand, error) {
 	if repo == nil {
 		return nil, ErrNilLimitRepository
 	}
 
+	if clk == nil {
+		return nil, ErrNilClock
+	}
+
 	return &CreateLimitCommand{
 		repo:        repo,
+		clock:       clk,
 		auditWriter: auditWriter,
 	}, nil
 }
@@ -101,6 +111,8 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	}
 
 	// Create domain entity via model.NewLimit (handles resetAt calculation and validation)
+	now := c.clock.Now()
+
 	limit, err := model.NewLimit(
 		normalizedInput.Name,
 		normalizedInput.LimitType,
@@ -108,6 +120,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 		normalizedInput.Currency,
 		normalizedInput.Scopes,
 		normalizedInput.Description,
+		now,
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create limit entity", err)

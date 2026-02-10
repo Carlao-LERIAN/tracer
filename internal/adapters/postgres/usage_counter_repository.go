@@ -170,7 +170,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 	}
 
 	// Counter doesn't exist, create new one
-	newCounter, err := model.NewUsageCounter(limitID, scopeKey, periodKey)
+	newCounter, err := model.NewUsageCounter(limitID, scopeKey, periodKey, time.Now())
 	if err != nil {
 		libOtel.HandleSpanBusinessErrorEvent(&span, "Failed to create usage counter model", err)
 		return nil, err

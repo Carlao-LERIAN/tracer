@@ -205,7 +205,7 @@ func TestAuditEventRecording_CreateLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd, err := NewCreateLimitCommand(mockRepo, auditWriter)
+	cmd, err := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 	require.NoError(t, err)
 	_, err = cmd.Execute(context.Background(), &CreateLimitInput{
 		Name: "Test", LimitType: model.LimitTypeDaily, MaxAmount: decimal.RequireFromString("1000"),
@@ -237,7 +237,8 @@ func TestAuditEventRecording_ActivateLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd := NewActivateLimitCommand(mockRepo, auditWriter)
+	cmd, cmdErr := NewActivateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 	_, err := cmd.Execute(context.Background(), limitID)
 	require.NoError(t, err)
 }
@@ -265,7 +266,8 @@ func TestAuditEventRecording_DeactivateLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd := NewDeactivateLimitCommand(mockRepo, auditWriter)
+	cmd, cmdErr := NewDeactivateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 	_, err := cmd.Execute(context.Background(), limitID)
 	require.NoError(t, err)
 }
@@ -293,7 +295,8 @@ func TestAuditEventRecording_UpdateLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd := NewUpdateLimitCommand(mockRepo, auditWriter)
+	cmd, cmdErr := NewUpdateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 	_, err := cmd.Execute(context.Background(), limitID, &UpdateLimitInput{
 		MaxAmount: testutil.Ptr(decimal.RequireFromString("1000")),
 	})
@@ -323,7 +326,8 @@ func TestAuditEventRecording_DeleteLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd, cmdErr := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 	err := cmd.Execute(context.Background(), limitID)
 	require.NoError(t, err)
 }

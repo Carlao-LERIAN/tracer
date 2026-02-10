@@ -400,6 +400,7 @@ func TestAuditEventType_IsValid(t *testing.T) {
 			AuditEventLimitUpdated,
 			AuditEventLimitActivated,
 			AuditEventLimitDeactivated,
+			AuditEventLimitDrafted,
 			AuditEventLimitDeleted,
 			AuditEventTransactionValidated,
 		}

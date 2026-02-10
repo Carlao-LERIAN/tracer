@@ -26,10 +26,30 @@ func TestNewUpdateLimitCommand(t *testing.T) {
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 	// No audit expected - constructor only
-	cmd := NewUpdateLimitCommand(mockRepo, auditWriter)
+	cmd, err := NewUpdateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
+	require.NoError(t, err)
 	assert.NotNil(t, cmd)
 	assert.Equal(t, mockRepo, cmd.repo)
+}
+
+func TestNewUpdateLimitCommand_NilRepository(t *testing.T) {
+	cmd, err := NewUpdateLimitCommand(nil, testutil.NewDefaultMockClock(), nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNilLimitRepository)
+	assert.Nil(t, cmd)
+}
+
+func TestNewUpdateLimitCommand_NilClock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockRepo := NewMockLimitRepository(ctrl)
+	cmd, err := NewUpdateLimitCommand(mockRepo, nil, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNilClock)
+	assert.Nil(t, cmd)
 }
 
 func TestUpdateLimitCommand_Execute(t *testing.T) {
@@ -332,7 +352,8 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 					Return(nil)
 			}
 
-			cmd := NewUpdateLimitCommand(mockRepo, auditWriter)
+			cmd, cmdErr := NewUpdateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+			require.NoError(t, cmdErr)
 			result, err := cmd.Execute(context.Background(), tc.limitID, tc.input)
 
 			if tc.expectError {

@@ -171,6 +171,7 @@ func validateScopes(scopes []Scope) error {
 // maxAmount is a decimal value (e.g., 1000.00).
 // Scopes ordering is preserved: the returned Limit.Scopes maintains the same order as the input.
 // Name and description are trimmed of leading/trailing whitespace before storage.
+// The caller provides the current timestamp (createdAt) to enable deterministic testing via clock injection.
 func NewLimit(
 	name string,
 	limitType LimitType,
@@ -178,8 +179,9 @@ func NewLimit(
 	currency string,
 	scopes []Scope,
 	description *string,
+	createdAt time.Time,
 ) (*Limit, error) {
-	now := time.Now().UTC()
+	now := createdAt.UTC()
 	resetAt := CalculateResetAt(limitType, now)
 
 	// Normalize textual inputs
@@ -267,11 +269,13 @@ func validateDescription(description *string) error {
 // Update modifies limit fields. Only non-nil parameters are updated.
 // maxAmount is a decimal value (e.g., 1000.00).
 // Name and description are trimmed of leading/trailing whitespace before storage.
+// The caller provides the current timestamp (now) to enable deterministic testing via clock injection.
 func (l *Limit) Update(
 	name *string,
 	maxAmount *decimal.Decimal,
 	description *string,
 	scopes *[]Scope,
+	now time.Time,
 ) error {
 	updated := false
 
@@ -315,7 +319,7 @@ func (l *Limit) Update(
 	}
 
 	if updated {
-		l.UpdatedAt = time.Now().UTC()
+		l.UpdatedAt = now.UTC()
 	}
 
 	return nil
@@ -337,7 +341,8 @@ var validStatusTransitions = map[LimitStatus][]LimitStatus{
 // SetStatus changes the limit status with transition validation.
 // Idempotent: same-status transitions are no-ops (return nil without updating timestamp).
 // DELETED is a terminal state and cannot be transitioned from.
-func (l *Limit) SetStatus(status LimitStatus) error {
+// The caller provides the current timestamp (now) to enable deterministic testing via clock injection.
+func (l *Limit) SetStatus(status LimitStatus, now time.Time) error {
 	if !status.IsValid() {
 		return constant.ErrLimitInvalidStatusChange
 	}
@@ -363,13 +368,13 @@ func (l *Limit) SetStatus(status LimitStatus) error {
 		return constant.ErrLimitInvalidStatusChange
 	}
 
-	now := time.Now().UTC()
 	l.Status = status
-	l.UpdatedAt = now
+	l.UpdatedAt = now.UTC()
 
 	// Maintain DeletedAt invariant: set when DELETED, clear otherwise
 	if status == LimitStatusDeleted {
-		l.DeletedAt = &now
+		utcNow := now.UTC()
+		l.DeletedAt = &utcNow
 	} else {
 		l.DeletedAt = nil
 	}
@@ -433,6 +438,7 @@ func NewUsageCounter(
 	limitID uuid.UUID,
 	scopeKey string,
 	periodKey string,
+	createdAt time.Time,
 ) (*UsageCounter, error) {
 	if limitID == uuid.Nil {
 		return nil, constant.ErrUsageCounterLimitIDRequired
@@ -454,14 +460,14 @@ func NewUsageCounter(
 		ScopeKey:      normalizedScopeKey,
 		PeriodKey:     normalizedPeriodKey,
 		CurrentUsage:  decimal.Zero,
-		LastUpdatedAt: time.Now().UTC(),
+		LastUpdatedAt: createdAt.UTC(),
 	}, nil
 }
 
 // Increment adds amount to current usage.
 // amount is a decimal value.
 // Returns constant.ErrUsageCounterIncrementNonNegative if amount < 0.
-func (u *UsageCounter) Increment(amount decimal.Decimal) error {
+func (u *UsageCounter) Increment(amount decimal.Decimal, now time.Time) error {
 	if amount.IsNegative() {
 		return constant.ErrUsageCounterIncrementNonNegative
 	}
@@ -471,7 +477,7 @@ func (u *UsageCounter) Increment(amount decimal.Decimal) error {
 	}
 
 	u.CurrentUsage = u.CurrentUsage.Add(amount)
-	u.LastUpdatedAt = time.Now().UTC()
+	u.LastUpdatedAt = now.UTC()
 
 	return nil
 }

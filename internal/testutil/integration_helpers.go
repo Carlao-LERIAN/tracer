@@ -920,6 +920,28 @@ func ActivateLimit(t *testing.T, limitID string) {
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to activate limit: %s", string(respBody))
 }
 
+// DraftLimit transitions a limit back to DRAFT status by ID.
+// Only INACTIVE limits can transition to DRAFT per state machine.
+func DraftLimit(t *testing.T, limitID string) {
+	t.Helper()
+
+	apiKey := GetAPIKey()
+	baseURL := GetBaseURL()
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits/"+limitID+"/draft", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := HTTPClient.Do(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }() // Intentionally ignored in test helper
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to draft limit: %s", string(respBody))
+}
+
 // CleanupLimit deletes a limit. Called in t.Cleanup() to clean up test data.
 func CleanupLimit(t *testing.T, limitID string) {
 	t.Helper()

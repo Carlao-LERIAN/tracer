@@ -895,6 +895,117 @@ func TestLimitHandler_DeleteLimit(t *testing.T) {
 	}
 }
 
+func TestLimitHandler_DraftLimit(t *testing.T) {
+	validID := testutil.MustDeterministicUUID(65)
+
+	tests := []struct {
+		name           string
+		limitID        string
+		mockSetup      func(ctrl *gomock.Controller) *MockLimitService
+		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
+	}{
+		{
+			name:    "success - transitions limit to draft",
+			limitID: validID.String(),
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					DraftLimit(gomock.Any(), validID).
+					Return(&model.Limit{
+						ID:     validID,
+						Name:   "Test Limit",
+						Status: model.LimitStatusDraft,
+					}, nil)
+
+				return mockService
+			},
+			expectedStatus: http.StatusOK,
+			validateBody: func(t *testing.T, body []byte) {
+				var response map[string]any
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Equal(t, validID.String(), response["limitId"])
+				assert.Equal(t, "Test Limit", response["name"])
+				assert.Equal(t, "DRAFT", response["status"])
+			},
+		},
+		{
+			name:    "error - invalid UUID",
+			limitID: "invalid-uuid",
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				return NewMockLimitService(ctrl)
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:    "error - limit not found",
+			limitID: validID.String(),
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					DraftLimit(gomock.Any(), validID).
+					Return(nil, constant.ErrLimitNotFound)
+
+				return mockService
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:    "error - invalid status transition",
+			limitID: validID.String(),
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					DraftLimit(gomock.Any(), validID).
+					Return(nil, constant.ErrLimitInvalidStatusChange)
+
+				return mockService
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:    "error - internal server error",
+			limitID: validID.String(),
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					DraftLimit(gomock.Any(), validID).
+					Return(nil, errors.New("unexpected error"))
+
+				return mockService
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			mockService := tt.mockSetup(ctrl)
+			handler := NewLimitHandler(mockService)
+
+			app := fiber.New()
+			app.Post("/limits/:id/draft", handler.DraftLimit)
+
+			req := httptest.NewRequest(http.MethodPost, "/limits/"+tt.limitID+"/draft", nil)
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
+			}
+		})
+	}
+}
+
 func TestToCreateLimitServiceInput(t *testing.T) {
 	accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 	txType := model.TransactionTypeCard

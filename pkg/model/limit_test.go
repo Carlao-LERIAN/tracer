@@ -34,6 +34,7 @@ func newTestLimit(t *testing.T) *Limit {
 		"USD",
 		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 		testutil.StringPtr("Test description"),
+		testutil.FixedTime(),
 	)
 	require.NoError(t, err, "newTestLimit: NewLimit failed")
 
@@ -61,9 +62,11 @@ func newTestLimitWithStatus(t *testing.T, status LimitStatus) *Limit {
 		return limit
 	}
 
+	baseTime := testutil.FixedTime()
+
 	if status == LimitStatusDeleted {
 		// DRAFT → DELETED is valid (direct deletion of unwanted drafts)
-		err := limit.SetStatus(LimitStatusDeleted)
+		err := limit.SetStatus(LimitStatusDeleted, baseTime.Add(1*time.Second))
 		require.NoError(t, err, "newTestLimitWithStatus: SetStatus to DELETED failed")
 
 		return limit
@@ -71,11 +74,11 @@ func newTestLimitWithStatus(t *testing.T, status LimitStatus) *Limit {
 
 	if status == LimitStatusInactive {
 		// Must go through ACTIVE first: DRAFT → ACTIVE → INACTIVE
-		err := limit.SetStatus(LimitStatusActive)
+		err := limit.SetStatus(LimitStatusActive, baseTime.Add(1*time.Second))
 		require.NoError(t, err, "newTestLimitWithStatus: SetStatus to ACTIVE failed")
 	}
 
-	err := limit.SetStatus(status)
+	err := limit.SetStatus(status, baseTime.Add(2*time.Second))
 	require.NoError(t, err, "newTestLimitWithStatus: SetStatus failed")
 
 	return limit
@@ -526,7 +529,7 @@ func TestNewLimit(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			limit, err := NewLimit(tc.limitName, tc.limitType, tc.maxAmount, tc.currency, tc.scopes, tc.description)
+			limit, err := NewLimit(tc.limitName, tc.limitType, tc.maxAmount, tc.currency, tc.scopes, tc.description, testutil.FixedTime())
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -580,7 +583,7 @@ func TestNewLimit(t *testing.T) {
 
 	t.Run("does not allow external mutation of scopes slice passed to NewLimit", func(t *testing.T) {
 		scopes := []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(12))}}
-		limit, err := NewLimit("Test Limit", LimitTypeDaily, decimal.RequireFromString("1000"), "USD", scopes, nil)
+		limit, err := NewLimit("Test Limit", LimitTypeDaily, decimal.RequireFromString("1000"), "USD", scopes, nil, testutil.FixedTime())
 		require.NoError(t, err)
 
 		// mutate caller slice after creation
@@ -723,7 +726,7 @@ func TestLimit_Update(t *testing.T) {
 			originalScopes := make([]Scope, len(limit.Scopes))
 			copy(originalScopes, limit.Scopes)
 
-			err := limit.Update(tc.updateName, tc.updateMax, tc.updateDesc, tc.updateScope)
+			err := limit.Update(tc.updateName, tc.updateMax, tc.updateDesc, tc.updateScope, testutil.FixedTime())
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -784,7 +787,7 @@ func TestLimit_Update_NoChanges(t *testing.T) {
 			limit.UpdatedAt = fixedTime
 
 			// Call Update with all nil parameters
-			err := limit.Update(nil, nil, nil, nil)
+			err := limit.Update(nil, nil, nil, nil, testutil.FixedTime())
 
 			require.NoError(t, err)
 			assert.Equal(t, fixedTime, limit.UpdatedAt, "UpdatedAt should not change when no fields are modified")
@@ -846,6 +849,31 @@ func TestLimit_SetStatus(t *testing.T) {
 			expectedErr:   constant.ErrLimitInvalidStatusChange,
 		},
 		{
+			name:          "INACTIVE to DRAFT (recovery)",
+			initialStatus: LimitStatusInactive,
+			newStatus:     LimitStatusDraft,
+			expectedErr:   nil,
+		},
+		{
+			name:           "DRAFT to DRAFT is idempotent no-op",
+			initialStatus:  LimitStatusDraft,
+			newStatus:      LimitStatusDraft,
+			expectedErr:    nil,
+			isIdempotentOp: true,
+		},
+		{
+			name:          "rejects ACTIVE to DRAFT (must deactivate first)",
+			initialStatus: LimitStatusActive,
+			newStatus:     LimitStatusDraft,
+			expectedErr:   constant.ErrLimitInvalidStatusChange,
+		},
+		{
+			name:          "rejects DELETED to DRAFT (terminal state)",
+			initialStatus: LimitStatusDeleted,
+			newStatus:     LimitStatusDraft,
+			expectedErr:   constant.ErrLimitInvalidStatusChange,
+		},
+		{
 			name:          "rejects invalid status",
 			initialStatus: LimitStatusActive,
 			newStatus:     LimitStatus("INVALID"),
@@ -864,7 +892,7 @@ func TestLimit_SetStatus(t *testing.T) {
 			originalStatus := limit.Status
 			originalDeletedAt := limit.DeletedAt
 
-			err := limit.SetStatus(tc.newStatus)
+			err := limit.SetStatus(tc.newStatus, testutil.FixedTime())
 
 			if tc.expectedErr != nil {
 				require.Error(t, err)
@@ -1199,7 +1227,7 @@ func TestNewUsageCounter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			counter, err := NewUsageCounter(tc.limitID, tc.scopeKey, tc.periodKey)
+			counter, err := NewUsageCounter(tc.limitID, tc.scopeKey, tc.periodKey, testutil.FixedTime())
 
 			if tc.expectedErr != nil {
 				require.Error(t, err)
@@ -1235,7 +1263,7 @@ func TestUsageCounter_Increment(t *testing.T) {
 	createCounter := func(t *testing.T) *UsageCounter {
 		t.Helper()
 
-		counter, err := NewUsageCounter(testutil.MustDeterministicUUID(41), "acct:123", "2025-01")
+		counter, err := NewUsageCounter(testutil.MustDeterministicUUID(41), "acct:123", "2025-01", testutil.FixedTime())
 		require.NoError(t, err, "NewUsageCounter failed")
 
 		return counter
@@ -1291,7 +1319,7 @@ func TestUsageCounter_Increment(t *testing.T) {
 			// Capture original state to verify no mutation on error
 			originalUsage := counter.CurrentUsage
 
-			err := counter.Increment(tc.amount)
+			err := counter.Increment(tc.amount, testutil.FixedTime())
 
 			if tc.expectedErr != nil {
 				require.Error(t, err)
@@ -1700,6 +1728,7 @@ func TestNewUsageSnapshot_NearLimitThreshold(t *testing.T) {
 				"USD",
 				[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(80))}},
 				nil,
+				testutil.FixedTime(),
 			)
 			require.NoError(t, err)
 
@@ -1722,6 +1751,7 @@ func TestNewUsageSnapshot_PerTransactionLimit(t *testing.T) {
 		"USD",
 		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(81))}},
 		nil,
+		testutil.FixedTime(),
 	)
 	require.NoError(t, err)
 
@@ -1772,6 +1802,7 @@ func TestNewUsageSnapshot_MonthlyLimit(t *testing.T) {
 		"USD",
 		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(82))}},
 		nil,
+		testutil.FixedTime(),
 	)
 	require.NoError(t, err)
 

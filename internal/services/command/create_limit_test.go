@@ -27,17 +27,28 @@ func TestNewCreateLimitCommand(t *testing.T) {
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 	// No audit expected - constructor only
-	cmd, err := NewCreateLimitCommand(mockRepo, auditWriter)
+	cmd, err := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	require.NoError(t, err)
 	assert.NotNil(t, cmd)
 }
 
 func TestNewCreateLimitCommand_NilRepository(t *testing.T) {
-	cmd, err := NewCreateLimitCommand(nil, nil)
+	cmd, err := NewCreateLimitCommand(nil, testutil.NewDefaultMockClock(), nil)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrNilLimitRepository)
+	assert.Nil(t, cmd)
+}
+
+func TestNewCreateLimitCommand_NilClock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockRepo := NewMockLimitRepository(ctrl)
+	cmd, err := NewCreateLimitCommand(mockRepo, nil, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNilClock)
 	assert.Nil(t, cmd)
 }
 
@@ -401,7 +412,7 @@ func TestCreateLimitCommand_Execute(t *testing.T) {
 					Return(nil)
 			}
 
-			cmd, cmdErr := NewCreateLimitCommand(mockRepo, auditWriter)
+			cmd, cmdErr := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 			require.NoError(t, cmdErr)
 			result, err := cmd.Execute(context.Background(), tc.input)
 
@@ -433,7 +444,7 @@ func TestCreateLimitCommand_Execute_NilInput(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd, cmdErr := NewCreateLimitCommand(mockRepo, auditWriter)
+	cmd, cmdErr := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 	require.NoError(t, cmdErr)
 
 	result, err := cmd.Execute(context.Background(), nil)
@@ -471,7 +482,7 @@ func TestCreateLimitCommand_Execute_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately before Execute
 
-	cmd, cmdErr := NewCreateLimitCommand(mockRepo, auditWriter)
+	cmd, cmdErr := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 	require.NoError(t, cmdErr)
 	result, err := cmd.Execute(ctx, input)
 

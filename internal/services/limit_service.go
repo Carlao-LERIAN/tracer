@@ -24,6 +24,7 @@ type LimitService struct {
 	updateCmd        *command.UpdateLimitCommand
 	activateCmd      *command.ActivateLimitCommand
 	deactivateCmd    *command.DeactivateLimitCommand
+	draftCmd         *command.DraftLimitCommand
 	deleteCmd        *command.DeleteLimitCommand
 	getQuery         *query.GetLimitQuery
 	listQuery        *query.ListLimitsQuery
@@ -36,6 +37,7 @@ func NewLimitService(
 	updateCmd *command.UpdateLimitCommand,
 	activateCmd *command.ActivateLimitCommand,
 	deactivateCmd *command.DeactivateLimitCommand,
+	draftCmd *command.DraftLimitCommand,
 	deleteCmd *command.DeleteLimitCommand,
 	getQuery *query.GetLimitQuery,
 	listQuery *query.ListLimitsQuery,
@@ -46,6 +48,7 @@ func NewLimitService(
 		updateCmd:        updateCmd,
 		activateCmd:      activateCmd,
 		deactivateCmd:    deactivateCmd,
+		draftCmd:         draftCmd,
 		deleteCmd:        deleteCmd,
 		getQuery:         getQuery,
 		listQuery:        listQuery,
@@ -71,6 +74,11 @@ func (s *LimitService) ActivateLimit(ctx context.Context, id uuid.UUID) (*model.
 // DeactivateLimit deactivates an active limit.
 func (s *LimitService) DeactivateLimit(ctx context.Context, id uuid.UUID) (*model.Limit, error) {
 	return s.deactivateCmd.Execute(ctx, id)
+}
+
+// DraftLimit transitions a limit to draft (INACTIVE -> DRAFT).
+func (s *LimitService) DraftLimit(ctx context.Context, id uuid.UUID) (*model.Limit, error) {
+	return s.draftCmd.Execute(ctx, id)
 }
 
 // DeleteLimit soft-deletes a limit.

@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
 
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/contextutil"
 	"tracer/pkg/logging"
@@ -22,15 +23,26 @@ import (
 // ActivateLimitCommand handles limit activation (INACTIVE → ACTIVE).
 type ActivateLimitCommand struct {
 	repo        LimitRepository
+	clock       clock.Clock
 	auditWriter AuditWriter
 }
 
 // NewActivateLimitCommand creates a new ActivateLimitCommand with dependencies.
-func NewActivateLimitCommand(repo LimitRepository, auditWriter AuditWriter) *ActivateLimitCommand {
+// Returns an error if repo or clk is nil to catch invalid dependency injection at construction time.
+func NewActivateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) (*ActivateLimitCommand, error) {
+	if repo == nil {
+		return nil, ErrNilLimitRepository
+	}
+
+	if clk == nil {
+		return nil, ErrNilClock
+	}
+
 	return &ActivateLimitCommand{
 		repo:        repo,
+		clock:       clk,
 		auditWriter: auditWriter,
-	}
+	}, nil
 }
 
 // Execute activates an inactive limit.
@@ -125,7 +137,7 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mode
 	originalStatus := limit.Status
 
 	// Use domain model's SetStatus for transition validation
-	if err := limit.SetStatus(model.LimitStatusActive); err != nil {
+	if err := limit.SetStatus(model.LimitStatusActive, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
 		logger.WithFields(
 			"operation", "service.limit.activate",

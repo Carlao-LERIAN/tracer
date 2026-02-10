@@ -34,6 +34,7 @@ type LimitService interface {
 	UpdateLimit(ctx context.Context, id uuid.UUID, input *command.UpdateLimitInput) (*model.Limit, error)
 	ActivateLimit(ctx context.Context, id uuid.UUID) (*model.Limit, error)
 	DeactivateLimit(ctx context.Context, id uuid.UUID) (*model.Limit, error)
+	DraftLimit(ctx context.Context, id uuid.UUID) (*model.Limit, error)
 	DeleteLimit(ctx context.Context, id uuid.UUID) error
 	GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*model.UsageSnapshot, error)
 }
@@ -457,6 +458,58 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 		"operation", "handler.limit.deactivate",
 		"limit.id", id.String(),
 	).Info("Limit deactivated")
+
+	return libHTTP.OK(c, limit)
+}
+
+// DraftLimit godoc
+//
+//	@Summary		Transition a limit back to draft
+//	@Description	Transitions a limit from INACTIVE to DRAFT status. Allows re-editing a previously deactivated limit.
+//	@ID				draftLimit
+//	@Tags			limits
+//	@Accept			json
+//	@Produce		json
+//	@Security		ApiKeyAuth
+//	@Param			id			path		string				true	"Limit ID (UUID)"	Format(uuid)
+//	@Success		200			{object}	model.Limit			"Limit transitioned to draft successfully"
+//	@Failure		400			{object}	api.ErrorResponse	"Invalid limit ID or transition"
+//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
+//	@Failure		404			{object}	api.ErrorResponse	"Limit not found"
+//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
+//	@Router			/v1/limits/{id}/draft [post]
+func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.limit.draft")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	idParam := c.Params("id")
+
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid limit ID", err)
+
+		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
+	}
+
+	logger.WithFields(
+		"operation", "handler.limit.draft",
+		"limit.id", id.String(),
+	).Info("Transitioning limit to draft")
+
+	limit, err := h.service.DraftLimit(ctx, id)
+	if err != nil {
+		return handleLimitServiceError(c, &span, err)
+	}
+
+	logger.WithFields(
+		"operation", "handler.limit.draft",
+		"limit.id", id.String(),
+	).Info("Limit transitioned to draft")
 
 	return libHTTP.OK(c, limit)
 }

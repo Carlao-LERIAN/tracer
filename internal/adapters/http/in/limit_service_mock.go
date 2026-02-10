@@ -102,6 +102,21 @@ func (mr *MockLimitServiceMockRecorder) DeleteLimit(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLimit", reflect.TypeOf((*MockLimitService)(nil).DeleteLimit), ctx, id)
 }
 
+// DraftLimit mocks base method.
+func (m *MockLimitService) DraftLimit(ctx context.Context, id uuid.UUID) (*model.Limit, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DraftLimit", ctx, id)
+	ret0, _ := ret[0].(*model.Limit)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DraftLimit indicates an expected call of DraftLimit.
+func (mr *MockLimitServiceMockRecorder) DraftLimit(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DraftLimit", reflect.TypeOf((*MockLimitService)(nil).DraftLimit), ctx, id)
+}
+
 // GetLimit mocks base method.
 func (m *MockLimitService) GetLimit(ctx context.Context, id uuid.UUID) (*model.Limit, error) {
 	m.ctrl.T.Helper()

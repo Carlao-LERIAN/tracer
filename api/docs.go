@@ -117,6 +117,7 @@ const docTemplate = `{
                             "LIMIT_UPDATED",
                             "LIMIT_ACTIVATED",
                             "LIMIT_DEACTIVATED",
+                            "LIMIT_DRAFTED",
                             "LIMIT_DELETED"
                         ],
                         "type": "string",
@@ -864,6 +865,69 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "Limit deactivated successfully",
+                        "schema": {
+                            "$ref": "#/definitions/tracer_pkg_model.Limit"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid limit ID or transition",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Limit not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/limits/{id}/draft": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Transitions a limit from INACTIVE to DRAFT status. Allows re-editing a previously deactivated limit.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "limits"
+                ],
+                "summary": "Transition a limit back to draft",
+                "operationId": "draftLimit",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Limit ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Limit transitioned to draft successfully",
                         "schema": {
                             "$ref": "#/definitions/tracer_pkg_model.Limit"
                         }
@@ -2283,7 +2347,8 @@ const docTemplate = `{
                 "LIMIT_UPDATED",
                 "LIMIT_DELETED",
                 "LIMIT_ACTIVATED",
-                "LIMIT_DEACTIVATED"
+                "LIMIT_DEACTIVATED",
+                "LIMIT_DRAFTED"
             ],
             "x-enum-varnames": [
                 "AuditEventTransactionValidated",
@@ -2297,7 +2362,8 @@ const docTemplate = `{
                 "AuditEventLimitUpdated",
                 "AuditEventLimitDeleted",
                 "AuditEventLimitActivated",
-                "AuditEventLimitDeactivated"
+                "AuditEventLimitDeactivated",
+                "AuditEventLimitDrafted"
             ]
         },
         "tracer_pkg_model.Decision": {

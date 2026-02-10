@@ -154,6 +154,7 @@ func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *
 	api.Delete("/limits/:id", limitHandler.DeleteLimit)
 	api.Post("/limits/:id/activate", limitHandler.ActivateLimit)
 	api.Post("/limits/:id/deactivate", limitHandler.DeactivateLimit)
+	api.Post("/limits/:id/draft", limitHandler.DraftLimit)
 
 	// Transaction Validation endpoints (read-only per SOX/GLBA requirements)
 	transactionValidationHandler := NewTransactionValidationHandler(transactionValidationService)

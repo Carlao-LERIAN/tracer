@@ -20,16 +20,18 @@ import (
 	"tracer/pkg/model"
 )
 
-// DeactivateLimitCommand handles limit deactivation (ACTIVE → INACTIVE).
-type DeactivateLimitCommand struct {
+const opDraftLimit = "service.limit.draft"
+
+// DraftLimitCommand handles limit draft transition (INACTIVE → DRAFT).
+type DraftLimitCommand struct {
 	repo        LimitRepository
 	clock       clock.Clock
 	auditWriter AuditWriter
 }
 
-// NewDeactivateLimitCommand creates a new DeactivateLimitCommand with dependencies.
+// NewDraftLimitCommand creates a new DraftLimitCommand with dependencies.
 // Returns an error if repo or clk is nil to catch invalid dependency injection at construction time.
-func NewDeactivateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) (*DeactivateLimitCommand, error) {
+func NewDraftLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) (*DraftLimitCommand, error) {
 	if repo == nil {
 		return nil, ErrNilLimitRepository
 	}
@@ -38,20 +40,20 @@ func NewDeactivateLimitCommand(repo LimitRepository, clk clock.Clock, auditWrite
 		return nil, ErrNilClock
 	}
 
-	return &DeactivateLimitCommand{
+	return &DraftLimitCommand{
 		repo:        repo,
 		clock:       clk,
 		auditWriter: auditWriter,
 	}, nil
 }
 
-// Execute deactivates an active limit.
-// Idempotent: if already INACTIVE, returns the limit without error.
-// Returns error if limit is not found or transition is invalid (e.g., from DELETED).
-func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.Limit, error) {
+// Execute transitions a limit to DRAFT status.
+// Idempotent: if already DRAFT, returns the limit without error.
+// Returns error if limit is not found or transition is invalid (e.g., from ACTIVE or DELETED).
+func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.Limit, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.limit.deactivate")
+	ctx, span := tracer.Start(ctx, opDraftLimit)
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)
@@ -60,7 +62,7 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 	if ctx.Err() != nil {
 		libOpentelemetry.HandleSpanError(&span, "Context cancelled", ctx.Err())
 		logger.WithFields(
-			"operation", "service.limit.deactivate",
+			"operation", opDraftLimit,
 		).Warn("Context cancelled")
 
 		return nil, ctx.Err()
@@ -70,28 +72,28 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 	if id == uuid.Nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid input: nil UUID", constant.ErrLimitInvalidID)
 		logger.WithFields(
-			"operation", "service.limit.deactivate",
+			"operation", opDraftLimit,
 		).Warn("Invalid input: nil UUID")
 
 		return nil, constant.ErrLimitInvalidID
 	}
 
-	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "deactivate_input", map[string]any{
+	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "draft_input", map[string]any{
 		"limit_id":  id.String(),
-		"operation": "deactivate",
+		"operation": "draft",
 	})
 
 	logger.WithFields(
-		"operation", "service.limit.deactivate",
+		"operation", opDraftLimit,
 		"limit.id", id.String(),
-	).Info("Deactivating limit")
+	).Info("Transitioning limit to draft")
 
 	limit, err := c.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, constant.ErrLimitNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Limit not found", err)
 			logger.WithFields(
-				"operation", "service.limit.deactivate",
+				"operation", opDraftLimit,
 				"limit.id", id.String(),
 			).Warn("Limit not found")
 
@@ -100,7 +102,7 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to get limit from repository", err)
 		logger.WithFields(
-			"operation", "service.limit.deactivate",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
 			"error.message", err.Error(),
 		).Error("Failed to get limit")
@@ -112,46 +114,46 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 	if limit == nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
 		logger.WithFields(
-			"operation", "service.limit.deactivate",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
 		).Warn("Limit not found")
 
 		return nil, constant.ErrLimitNotFound
 	}
 
-	// Capture "before" state for audit
-	beforeState := LimitToMap(limit)
-
-	// Idempotency: if already inactive, return the limit (no-op)
-	if limit.Status == model.LimitStatusInactive {
+	// Idempotency: if already draft, return the limit (no-op)
+	if limit.Status == model.LimitStatusDraft {
 		logger.WithFields(
-			"operation", "service.limit.deactivate",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
-		).Info("Limit already inactive (idempotent no-op)")
+		).Info("Limit already in draft (idempotent no-op)")
 
 		return limit, nil
 	}
+
+	// Capture "before" state for audit (after idempotency check to avoid unnecessary work)
+	beforeState := LimitToMap(limit)
 
 	// Capture original status before mutation for accurate logging
 	originalStatus := limit.Status
 
 	// Use domain model's SetStatus for transition validation
-	if err := limit.SetStatus(model.LimitStatusInactive, c.clock.Now()); err != nil {
+	if err := limit.SetStatus(model.LimitStatusDraft, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
 		logger.WithFields(
-			"operation", "service.limit.deactivate",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
 			"limit.status_from", string(originalStatus),
-			"limit.status_to", "INACTIVE",
+			"limit.status_to", "DRAFT",
 		).Warn("Invalid transition")
 
 		return nil, libCommons.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, err.Error())
 	}
 
-	if err := c.repo.UpdateStatus(ctx, id, model.LimitStatusInactive, limit.UpdatedAt); err != nil {
+	if err := c.repo.UpdateStatus(ctx, id, model.LimitStatusDraft, limit.UpdatedAt); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update limit status", err)
 		logger.WithFields(
-			"operation", "service.limit.deactivate",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
 			"error.message", err.Error(),
 		).Error("Failed to update limit status")
@@ -160,10 +162,10 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 	}
 
 	logger.WithFields(
-		"operation", "service.limit.deactivate",
+		"operation", opDraftLimit,
 		"limit.id", id.String(),
 		"limit.status", string(limit.Status),
-	).Info("Limit deactivated successfully")
+	).Info("Limit transitioned to draft successfully")
 
 	// Record audit event (best-effort)
 	if c.auditWriter != nil {
@@ -172,16 +174,16 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 		afterState := LimitToMap(limit)
 		if err := c.auditWriter.RecordLimitEvent(
 			ctx,
-			model.AuditEventLimitDeactivated,
-			model.AuditActionDeactivate,
+			model.AuditEventLimitDrafted,
+			model.AuditActionDraft,
 			limit.ID,
 			beforeState,
 			afterState,
-			"Limit deactivated via API",
+			"Limit transitioned to draft via API",
 			clientIP,
 		); err != nil {
 			logger.WithFields(
-				"operation", "service.limit.deactivate.audit",
+				"operation", opDraftLimit+".audit",
 				"limit.id", limit.ID.String(),
 				"error", err.Error(),
 			).Warn("Failed to record audit event")
