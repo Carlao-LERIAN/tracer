@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
 
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/contextutil"
 	"tracer/pkg/logging"
@@ -22,13 +23,15 @@ import (
 // DraftLimitCommand handles limit draft transition (INACTIVE → DRAFT).
 type DraftLimitCommand struct {
 	repo        LimitRepository
+	clock       clock.Clock
 	auditWriter AuditWriter
 }
 
 // NewDraftLimitCommand creates a new DraftLimitCommand with dependencies.
-func NewDraftLimitCommand(repo LimitRepository, auditWriter AuditWriter) *DraftLimitCommand {
+func NewDraftLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) *DraftLimitCommand {
 	return &DraftLimitCommand{
 		repo:        repo,
+		clock:       clk,
 		auditWriter: auditWriter,
 	}
 }
@@ -107,9 +110,6 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 		return nil, constant.ErrLimitNotFound
 	}
 
-	// Capture "before" state for audit
-	beforeState := LimitToMap(limit)
-
 	// Idempotency: if already draft, return the limit (no-op)
 	if limit.Status == model.LimitStatusDraft {
 		logger.WithFields(
@@ -120,11 +120,14 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 		return limit, nil
 	}
 
+	// Capture "before" state for audit (after idempotency check to avoid unnecessary work)
+	beforeState := LimitToMap(limit)
+
 	// Capture original status before mutation for accurate logging
 	originalStatus := limit.Status
 
 	// Use domain model's SetStatus for transition validation
-	if err := limit.SetStatus(model.LimitStatusDraft); err != nil {
+	if err := limit.SetStatus(model.LimitStatusDraft, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
 		logger.WithFields(
 			"operation", "service.limit.draft",

@@ -27,7 +27,7 @@ func TestNewDeleteLimitCommand(t *testing.T) {
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 	// No audit expected - constructor only
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	assert.NotNil(t, cmd)
 	assert.Equal(t, mockRepo, cmd.repo)
@@ -69,7 +69,7 @@ func TestDeleteLimitCommand_Execute_InvalidTransition_FromActive(t *testing.T) {
 		).
 		Times(0)
 
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	err := cmd.Execute(ctx, limitID)
 
@@ -122,7 +122,7 @@ func TestDeleteLimitCommand_Execute_Success_FromInactive(t *testing.T) {
 		Times(1).
 		Return(nil)
 
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	err := cmd.Execute(ctx, limitID)
 
@@ -160,7 +160,7 @@ func TestDeleteLimitCommand_Execute_AlreadyDeleted_Idempotent(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	err := cmd.Execute(ctx, limitID)
 
@@ -184,7 +184,7 @@ func TestDeleteLimitCommand_Execute_LimitNotFound(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	err := cmd.Execute(ctx, limitID)
 
@@ -210,7 +210,7 @@ func TestDeleteLimitCommand_Execute_GetByIDError(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	err := cmd.Execute(ctx, limitID)
 
@@ -254,7 +254,7 @@ func TestDeleteLimitCommand_Execute_UpdateStatusError(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	err := cmd.Execute(ctx, limitID)
 
@@ -274,7 +274,7 @@ func TestDeleteLimitCommand_Execute_NilUUID(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	err := cmd.Execute(context.Background(), uuid.Nil)
 
@@ -296,7 +296,7 @@ func TestDeleteLimitCommand_Execute_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	cmd := NewDeleteLimitCommand(mockRepo, auditWriter)
+	cmd := NewDeleteLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 	err := cmd.Execute(ctx, testutil.MustDeterministicUUID(60))
 
 	require.Error(t, err)

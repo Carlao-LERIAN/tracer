@@ -28,10 +28,11 @@ func TestNewDraftLimitCommand(t *testing.T) {
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 	// No audit expected - constructor only
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	assert.NotNil(t, cmd)
 	assert.Equal(t, mockRepo, cmd.repo)
+	assert.NotNil(t, cmd.clock)
 	assert.Equal(t, auditWriter, cmd.auditWriter)
 }
 
@@ -73,19 +74,19 @@ func TestDraftLimitCommand_Execute_Success(t *testing.T) {
 	// Audit event should be called exactly once with specific parameters
 	auditWriter.EXPECT().
 		RecordLimitEvent(
-			gomock.Any(),                    // ctx
-			model.AuditEventLimitDrafted,    // eventType
-			model.AuditActionDraft,          // action
-			limitID,                         // limitID
-			gomock.Any(),                    // beforeState
-			gomock.Any(),                    // afterState
+			gomock.Any(),                          // ctx
+			model.AuditEventLimitDrafted,          // eventType
+			model.AuditActionDraft,                // action
+			limitID,                               // limitID
+			gomock.Any(),                          // beforeState
+			gomock.Any(),                          // afterState
 			"Limit transitioned to draft via API", // description
-			gomock.Any(),                    // clientIP
+			gomock.Any(),                          // clientIP
 		).
 		Times(1).
 		Return(nil)
 
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -137,7 +138,7 @@ func TestDraftLimitCommand_Execute_AlreadyDraft_Idempotent(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -164,7 +165,7 @@ func TestDraftLimitCommand_Execute_LimitNotFound(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -203,7 +204,7 @@ func TestDraftLimitCommand_Execute_InvalidTransition_FromActive(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -242,7 +243,7 @@ func TestDraftLimitCommand_Execute_InvalidTransition_FromDeleted(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -269,7 +270,7 @@ func TestDraftLimitCommand_Execute_GetByIDError(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -313,7 +314,7 @@ func TestDraftLimitCommand_Execute_UpdateStatusError(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	result, err := cmd.Execute(ctx, limitID)
 
@@ -334,12 +335,83 @@ func TestDraftLimitCommand_Execute_NilUUID(t *testing.T) {
 		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	result, err := cmd.Execute(context.Background(), uuid.Nil)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, constant.ErrLimitInvalidID)
+	assert.Nil(t, result)
+}
+
+func TestDraftLimitCommand_Execute_AuditWriteFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	ctx := context.Background()
+	limitID := testutil.MustDeterministicUUID(112)
+
+	inactiveLimit := &model.Limit{
+		ID:        limitID,
+		Name:      "Test Limit",
+		LimitType: model.LimitTypeDaily,
+		MaxAmount: decimal.RequireFromString("1000"),
+		Currency:  "USD",
+		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(113))}},
+		Status:    model.LimitStatusInactive,
+		CreatedAt: testutil.FixedTime(),
+		UpdatedAt: testutil.FixedTime(),
+	}
+
+	mockRepo := NewMockLimitRepository(ctrl)
+	auditWriter := NewMockAuditWriter(ctrl)
+
+	mockRepo.EXPECT().
+		GetByID(gomock.Any(), limitID).
+		Return(inactiveLimit, nil)
+	mockRepo.EXPECT().
+		UpdateStatus(gomock.Any(), limitID, model.LimitStatusDraft, gomock.AssignableToTypeOf(time.Time{})).
+		Return(nil)
+
+	// Audit fails but operation should still succeed (best-effort audit)
+	auditWriter.EXPECT().
+		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(1).
+		Return(errors.New("audit write failed"))
+
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+
+	result, err := cmd.Execute(ctx, limitID)
+
+	require.NoError(t, err, "operation should succeed even when audit write fails")
+	require.NotNil(t, result)
+	assert.Equal(t, limitID, result.ID)
+	assert.Equal(t, model.LimitStatusDraft, result.Status)
+}
+
+func TestDraftLimitCommand_Execute_NilLimitFromRepo(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	ctx := context.Background()
+	limitID := testutil.MustDeterministicUUID(114)
+
+	mockRepo := NewMockLimitRepository(ctrl)
+	auditWriter := NewMockAuditWriter(ctrl)
+
+	// Repo returns (nil, nil) — defensive guard should catch this
+	mockRepo.EXPECT().
+		GetByID(gomock.Any(), limitID).
+		Return(nil, nil)
+	// No audit event expected - nil limit treated as not found
+	auditWriter.EXPECT().
+		RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+
+	result, err := cmd.Execute(ctx, limitID)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, constant.ErrLimitNotFound, "nil limit should be treated as not found")
 	assert.Nil(t, result)
 }
 
@@ -357,7 +429,7 @@ func TestDraftLimitCommand_Execute_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	cmd := NewDraftLimitCommand(mockRepo, auditWriter)
+	cmd := NewDraftLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 	result, err := cmd.Execute(ctx, testutil.MustDeterministicUUID(115))
 
 	require.Error(t, err)

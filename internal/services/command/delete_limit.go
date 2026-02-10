@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
 
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/contextutil"
 	"tracer/pkg/logging"
@@ -22,13 +23,15 @@ import (
 // DeleteLimitCommand handles limit deletion (soft-delete).
 type DeleteLimitCommand struct {
 	repo        LimitRepository
+	clock       clock.Clock
 	auditWriter AuditWriter
 }
 
 // NewDeleteLimitCommand creates a new DeleteLimitCommand with dependencies.
-func NewDeleteLimitCommand(repo LimitRepository, auditWriter AuditWriter) *DeleteLimitCommand {
+func NewDeleteLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) *DeleteLimitCommand {
 	return &DeleteLimitCommand{
 		repo:        repo,
+		clock:       clk,
 		auditWriter: auditWriter,
 	}
 }
@@ -128,7 +131,7 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 	// Validate transition via model.Limit.SetStatus which enforces allowed transitions:
 	// ACTIVE → DELETED and INACTIVE → DELETED are valid; DELETED → DELETED is handled
 	// above as idempotent. See model.LimitStatus and model.Limit.SetStatus for rules.
-	if err := limit.SetStatus(model.LimitStatusDeleted); err != nil {
+	if err := limit.SetStatus(model.LimitStatusDeleted, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
 		logger.WithFields(
 			"operation", "service.limit.delete",

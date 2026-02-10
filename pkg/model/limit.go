@@ -337,7 +337,8 @@ var validStatusTransitions = map[LimitStatus][]LimitStatus{
 // SetStatus changes the limit status with transition validation.
 // Idempotent: same-status transitions are no-ops (return nil without updating timestamp).
 // DELETED is a terminal state and cannot be transitioned from.
-func (l *Limit) SetStatus(status LimitStatus) error {
+// The caller provides the current timestamp (now) to enable deterministic testing via clock injection.
+func (l *Limit) SetStatus(status LimitStatus, now time.Time) error {
 	if !status.IsValid() {
 		return constant.ErrLimitInvalidStatusChange
 	}
@@ -363,7 +364,6 @@ func (l *Limit) SetStatus(status LimitStatus) error {
 		return constant.ErrLimitInvalidStatusChange
 	}
 
-	now := time.Now().UTC()
 	l.Status = status
 	l.UpdatedAt = now
 

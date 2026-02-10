@@ -472,11 +472,12 @@ func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter 
 		return nil, fmt.Errorf("failed to create limit command: %w", err)
 	}
 
+	clk := clock.New()
 	updateLimitCmd := command.NewUpdateLimitCommand(limitRepo, auditWriter)
-	activateLimitCmd := command.NewActivateLimitCommand(limitRepo, auditWriter)
-	deactivateLimitCmd := command.NewDeactivateLimitCommand(limitRepo, auditWriter)
-	draftLimitCmd := command.NewDraftLimitCommand(limitRepo, auditWriter)
-	deleteLimitCmd := command.NewDeleteLimitCommand(limitRepo, auditWriter)
+	activateLimitCmd := command.NewActivateLimitCommand(limitRepo, clk, auditWriter)
+	deactivateLimitCmd := command.NewDeactivateLimitCommand(limitRepo, clk, auditWriter)
+	draftLimitCmd := command.NewDraftLimitCommand(limitRepo, clk, auditWriter)
+	deleteLimitCmd := command.NewDeleteLimitCommand(limitRepo, clk, auditWriter)
 	getLimitQuery := query.NewGetLimitQuery(limitRepo)
 
 	listLimitsQuery, err := query.NewListLimitsQuery(limitRepo)

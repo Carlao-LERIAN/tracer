@@ -13,6 +13,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
 
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/contextutil"
 	"tracer/pkg/logging"
@@ -22,13 +23,15 @@ import (
 // DeactivateLimitCommand handles limit deactivation (ACTIVE → INACTIVE).
 type DeactivateLimitCommand struct {
 	repo        LimitRepository
+	clock       clock.Clock
 	auditWriter AuditWriter
 }
 
 // NewDeactivateLimitCommand creates a new DeactivateLimitCommand with dependencies.
-func NewDeactivateLimitCommand(repo LimitRepository, auditWriter AuditWriter) *DeactivateLimitCommand {
+func NewDeactivateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) *DeactivateLimitCommand {
 	return &DeactivateLimitCommand{
 		repo:        repo,
+		clock:       clk,
 		auditWriter: auditWriter,
 	}
 }
@@ -124,7 +127,7 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 	originalStatus := limit.Status
 
 	// Use domain model's SetStatus for transition validation
-	if err := limit.SetStatus(model.LimitStatusInactive); err != nil {
+	if err := limit.SetStatus(model.LimitStatusInactive, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
 		logger.WithFields(
 			"operation", "service.limit.deactivate",

@@ -63,7 +63,7 @@ func newTestLimitWithStatus(t *testing.T, status LimitStatus) *Limit {
 
 	if status == LimitStatusDeleted {
 		// DRAFT → DELETED is valid (direct deletion of unwanted drafts)
-		err := limit.SetStatus(LimitStatusDeleted)
+		err := limit.SetStatus(LimitStatusDeleted, time.Now().UTC())
 		require.NoError(t, err, "newTestLimitWithStatus: SetStatus to DELETED failed")
 
 		return limit
@@ -71,11 +71,11 @@ func newTestLimitWithStatus(t *testing.T, status LimitStatus) *Limit {
 
 	if status == LimitStatusInactive {
 		// Must go through ACTIVE first: DRAFT → ACTIVE → INACTIVE
-		err := limit.SetStatus(LimitStatusActive)
+		err := limit.SetStatus(LimitStatusActive, time.Now().UTC())
 		require.NoError(t, err, "newTestLimitWithStatus: SetStatus to ACTIVE failed")
 	}
 
-	err := limit.SetStatus(status)
+	err := limit.SetStatus(status, time.Now().UTC())
 	require.NoError(t, err, "newTestLimitWithStatus: SetStatus failed")
 
 	return limit
@@ -864,7 +864,7 @@ func TestLimit_SetStatus(t *testing.T) {
 			originalStatus := limit.Status
 			originalDeletedAt := limit.DeletedAt
 
-			err := limit.SetStatus(tc.newStatus)
+			err := limit.SetStatus(tc.newStatus, time.Now().UTC())
 
 			if tc.expectedErr != nil {
 				require.Error(t, err)
