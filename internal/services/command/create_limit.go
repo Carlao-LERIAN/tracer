@@ -20,8 +20,8 @@ import (
 	"tracer/pkg/model"
 )
 
-// ErrNilLimitRepository is returned when a nil LimitRepository is passed to NewCreateLimitCommand.
-var ErrNilLimitRepository = errors.New("nil LimitRepository passed to NewCreateLimitCommand")
+// ErrNilLimitRepository is returned when a nil LimitRepository is passed to a limit command constructor.
+var ErrNilLimitRepository = errors.New("nil LimitRepository passed to limit command constructor")
 
 // ErrNilClock is returned when a nil Clock is passed to a command constructor.
 var ErrNilClock = errors.New("nil Clock passed to command constructor")
