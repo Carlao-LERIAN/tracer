@@ -865,7 +865,7 @@ func TestLimit_SetStatus(t *testing.T) {
 			originalStatus := limit.Status
 			originalDeletedAt := limit.DeletedAt
 
-			err := limit.SetStatus(tc.newStatus, time.Now().UTC())
+			err := limit.SetStatus(tc.newStatus, testutil.FixedTime())
 
 			if tc.expectedErr != nil {
 				require.Error(t, err)
