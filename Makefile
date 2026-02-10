@@ -12,8 +12,6 @@ $(shell mkdir -p $(ARTIFACTS_DIR))
 # Test reports directory (used by mk/tests.mk)
 TEST_REPORTS_DIR ?= ./reports
 
-# Define the root directory of the project
-ROOT_DIR := $(shell pwd)
 DOCKER_CMD := $(shell \
 	if [ "$(shell printf '%s\n' "$(DOCKER_MIN_VERSION)" "$(DOCKER_VERSION)" | sort -V | head -n1)" = "$(DOCKER_MIN_VERSION)" ]; then \
 		echo "docker compose"; \
@@ -23,17 +21,16 @@ DOCKER_CMD := $(shell \
 )
 
 # Include shared color definitions and utility functions
-include $(ROOT_DIR)/pkg/shell/makefile_colors.mk
-include $(ROOT_DIR)/pkg/shell/makefile_utils.mk
+include pkg/shell/makefile_colors.mk
+include pkg/shell/makefile_utils.mk
 
 # Include modular makefiles
-MK_DIR := $(abspath mk)
-include $(MK_DIR)/database.mk
-include $(MK_DIR)/docker.mk
-include $(MK_DIR)/docs.mk
-include $(MK_DIR)/quality.mk
-include $(MK_DIR)/security.mk
-include $(MK_DIR)/tests.mk
+include mk/database.mk
+include mk/docker.mk
+include mk/docs.mk
+include mk/quality.mk
+include mk/security.mk
+include mk/tests.mk
 
 #-------------------------------------------------------
 # Core Commands
@@ -53,7 +50,7 @@ help:
 	@echo ""
 	@echo "$(BOLD)Test Suite Aliases:$(NC)"
 	@echo "  make test-unit                   - Run Go unit tests"
-	@echo "  make test-integration            - Run integration tests with testcontainers (RUN=<test>, CHAOS=1)"
+	@echo "  make test-integration            - Run integration tests with testcontainers (RUN=<test>)"
 	@echo "  make test-all                    - Run all tests (unit + integration)"
 	@echo "  make test-bench                  - Run benchmark tests (BENCH=pattern, BENCH_PKG=./path)"
 	@echo ""
