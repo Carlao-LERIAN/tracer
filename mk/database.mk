@@ -40,6 +40,9 @@ MIGRATIONS_FUNCTIONS_PATH ?= ${MIGRATIONS_PATH}/functions
 # If DATABASE_URL contains '?', use '&', otherwise use '?'
 MIGRATIONS_FUNCTIONS_DB_URL := $(if $(findstring ?,$(DATABASE_URL)),$(DATABASE_URL)&x-migrations-table=schema_migrations_functions,$(DATABASE_URL)?x-migrations-table=schema_migrations_functions)
 
+# Path to the installed migrate binary
+MIGRATE_BIN := $(or $(GOBIN),$(shell go env GOPATH)/bin)/migrate
+
 #-------------------------------------------------------
 # Commands (alphabetically ordered)
 #-------------------------------------------------------
@@ -49,12 +52,12 @@ MIGRATIONS_FUNCTIONS_DB_URL := $(if $(findstring ?,$(DATABASE_URL)),$(DATABASE_U
 .PHONY: migrate
 migrate:
 	$(call title1,"Applying database migrations")
-	@if ! command -v migrate >/dev/null 2>&1; then \
+	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) up
-	@migrate -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) up
+	@$(MIGRATE_BIN) -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) up
+	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) up
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Migrations applied successfully$(GREEN) ✔️$(NC)"
 
 # Rollback the last migration
@@ -62,11 +65,11 @@ migrate:
 .PHONY: migrate-down
 migrate-down:
 	$(call title1,"Rolling back last migration")
-	@if ! command -v migrate >/dev/null 2>&1; then \
+	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) down 1
+	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) down 1
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Last migration rolled back successfully$(GREEN) ✔️$(NC)"
 
 # Rollback ALL migrations (DESTRUCTIVE - requires confirmation)
@@ -85,8 +88,8 @@ migrate-down-all:
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) down -all
-	@migrate -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) down -all
+	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) down -all
+	@$(MIGRATE_BIN) -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) down -all
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All migrations rolled back successfully$(GREEN) ✔️$(NC)"
 
 # Force set migration version (use with caution)
@@ -103,7 +106,7 @@ migrate-force:
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) force $(VERSION)
+	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) force $(VERSION)
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Migration version forced to $(VERSION)$(GREEN) ✔️$(NC)"
 
 # Show current migration version
@@ -115,8 +118,8 @@ migrate-version:
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) version
-	@migrate -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) version
+	@$(MIGRATE_BIN) -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) version
+	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) version
 
 # Load development seed data into database
 # Requires: ./migrations/seeds/001_dev_data.sql
