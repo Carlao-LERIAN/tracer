@@ -78,6 +78,7 @@ paths:
           - LIMIT_UPDATED
           - LIMIT_ACTIVATED
           - LIMIT_DEACTIVATED
+          - LIMIT_DRAFTED
           - LIMIT_DELETED
           type: string
       - description: Filter by action
@@ -691,6 +692,55 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Deactivate a spending limit
+      tags:
+      - limits
+  /v1/limits/{id}/draft:
+    post:
+      description: Transitions a limit from INACTIVE to DRAFT status. Allows re-editing
+        a previously deactivated limit.
+      operationId: draftLimit
+      parameters:
+      - description: Limit ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/tracer_pkg_model.Limit'
+          description: Limit transitioned to draft successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid limit ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Transition a limit back to draft
       tags:
       - limits
   /v1/limits/{id}/usage:
@@ -2038,6 +2088,7 @@ components:
       - LIMIT_DELETED
       - LIMIT_ACTIVATED
       - LIMIT_DEACTIVATED
+      - LIMIT_DRAFTED
       type: string
       x-enum-varnames:
       - AuditEventTransactionValidated
@@ -2052,6 +2103,7 @@ components:
       - AuditEventLimitDeleted
       - AuditEventLimitActivated
       - AuditEventLimitDeactivated
+      - AuditEventLimitDrafted
     tracer_pkg_model.Decision:
       enum:
       - ALLOW

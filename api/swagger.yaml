@@ -323,6 +323,7 @@ definitions:
     - LIMIT_DELETED
     - LIMIT_ACTIVATED
     - LIMIT_DEACTIVATED
+    - LIMIT_DRAFTED
     type: string
     x-enum-varnames:
     - AuditEventTransactionValidated
@@ -337,6 +338,7 @@ definitions:
     - AuditEventLimitDeleted
     - AuditEventLimitActivated
     - AuditEventLimitDeactivated
+    - AuditEventLimitDrafted
   tracer_pkg_model.Decision:
     enum:
     - ALLOW
@@ -811,6 +813,7 @@ paths:
         - LIMIT_UPDATED
         - LIMIT_ACTIVATED
         - LIMIT_DEACTIVATED
+        - LIMIT_DRAFTED
         - LIMIT_DELETED
         in: query
         name: eventType
@@ -1338,6 +1341,48 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Deactivate a spending limit
+      tags:
+      - limits
+  /v1/limits/{id}/draft:
+    post:
+      consumes:
+      - application/json
+      description: Transitions a limit from INACTIVE to DRAFT status. Allows re-editing
+        a previously deactivated limit.
+      operationId: draftLimit
+      parameters:
+      - description: Limit ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Limit transitioned to draft successfully
+          schema:
+            $ref: '#/definitions/tracer_pkg_model.Limit'
+        "400":
+          description: Invalid limit ID or transition
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Limit not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Transition a limit back to draft
       tags:
       - limits
   /v1/limits/{id}/usage:
