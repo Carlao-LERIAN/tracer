@@ -18,6 +18,25 @@ import (
 	"tracer/pkg/model"
 )
 
+func TestNewDraftRuleService_NilRepository(t *testing.T) {
+	svc, err := NewDraftRuleService(nil, testutil.NewDefaultMockClock(), nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNilRuleRepository)
+	assert.Nil(t, svc)
+}
+
+func TestNewDraftRuleService_NilClock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockRepo := NewMockRuleRepository(ctrl)
+	svc, err := NewDraftRuleService(mockRepo, nil, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNilClock)
+	assert.Nil(t, svc)
+}
+
 func TestDraftRule_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -60,7 +79,8 @@ func TestDraftRule_Success(t *testing.T) {
 		gomock.Any(),                                // clientIP (may be 0.0.0.0 from context)
 	).Return(nil).Times(1)
 
-	service := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, svcErr)
 
 	result, err := service.Execute(ctx, ruleID)
 
@@ -104,7 +124,8 @@ func TestDraftRule_Success_AuditWriteFails(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Return(errors.New("audit write failed")).Times(1)
 
-	service := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, svcErr)
 
 	result, err := service.Execute(ctx, ruleID)
 
@@ -142,7 +163,8 @@ func TestDraftRule_FromActive_InvalidTransition(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, svcErr)
 
 	_, err := service.Execute(ctx, ruleID)
 
@@ -170,7 +192,8 @@ func TestDraftRule_RuleNotFound(t *testing.T) {
 	// No audit event expected - rule not found
 	auditWriter.EXPECT().RecordRuleEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
-	service := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, svcErr)
 
 	_, err := service.Execute(ctx, ruleID)
 
@@ -203,7 +226,8 @@ func TestDraftRule_AlreadyDraft_Idempotent(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, svcErr)
 
 	result, err := service.Execute(ctx, ruleID)
 
@@ -239,7 +263,8 @@ func TestDraftRule_InvalidTransition(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, svcErr)
 
 	_, err := service.Execute(ctx, ruleID)
 
@@ -270,7 +295,8 @@ func TestDraftRule_GetByIDError(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, svcErr)
 
 	_, err := service.Execute(ctx, ruleID)
 
@@ -306,7 +332,8 @@ func TestDraftRule_UpdateError(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, svcErr)
 
 	_, err := service.Execute(ctx, ruleID)
 

@@ -146,6 +146,7 @@ func TestDraftLimitCommand_Execute_AlreadyDraft_Idempotent(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, limitID, result.ID)
 	assert.Equal(t, model.LimitStatusDraft, result.Status, "Status should remain DRAFT")
+	assert.Equal(t, now, result.UpdatedAt, "UpdatedAt should remain unchanged for idempotent no-op")
 }
 
 func TestDraftLimitCommand_Execute_LimitNotFound(t *testing.T) {
@@ -349,6 +350,7 @@ func TestDraftLimitCommand_Execute_AuditWriteFailure(t *testing.T) {
 
 	ctx := context.Background()
 	limitID := testutil.MustDeterministicUUID(112)
+	now := testutil.FixedTime()
 
 	inactiveLimit := &model.Limit{
 		ID:        limitID,
@@ -358,8 +360,8 @@ func TestDraftLimitCommand_Execute_AuditWriteFailure(t *testing.T) {
 		Currency:  "USD",
 		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(113))}},
 		Status:    model.LimitStatusInactive,
-		CreatedAt: testutil.FixedTime(),
-		UpdatedAt: testutil.FixedTime(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	mockRepo := NewMockLimitRepository(ctrl)

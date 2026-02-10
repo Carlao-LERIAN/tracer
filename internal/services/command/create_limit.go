@@ -23,6 +23,9 @@ import (
 // ErrNilLimitRepository is returned when a nil LimitRepository is passed to NewCreateLimitCommand.
 var ErrNilLimitRepository = errors.New("nil LimitRepository passed to NewCreateLimitCommand")
 
+// ErrNilClock is returned when a nil Clock is passed to a command constructor.
+var ErrNilClock = errors.New("nil Clock passed to command constructor")
+
 // CreateLimitInput defines input for creating a limit.
 //
 // ARCHITECTURE NOTE: This struct intentionally mirrors in.CreateLimitInput from the HTTP layer.
@@ -54,6 +57,10 @@ type CreateLimitCommand struct {
 func NewCreateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) (*CreateLimitCommand, error) {
 	if repo == nil {
 		return nil, ErrNilLimitRepository
+	}
+
+	if clk == nil {
+		return nil, ErrNilClock
 	}
 
 	return &CreateLimitCommand{

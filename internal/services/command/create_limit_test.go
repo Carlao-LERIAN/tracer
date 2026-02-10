@@ -41,6 +41,17 @@ func TestNewCreateLimitCommand_NilRepository(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
+func TestNewCreateLimitCommand_NilClock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockRepo := NewMockLimitRepository(ctrl)
+	cmd, err := NewCreateLimitCommand(mockRepo, nil, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNilClock)
+	assert.Nil(t, cmd)
+}
+
 func TestCreateLimitCommand_Execute(t *testing.T) {
 	validScope := model.Scope{
 		AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1)),

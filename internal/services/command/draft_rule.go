@@ -20,6 +20,9 @@ import (
 	"tracer/pkg/model"
 )
 
+// ErrNilRuleRepository is returned when a nil RuleRepository is passed to a rule command constructor.
+var ErrNilRuleRepository = errors.New("nil RuleRepository passed to rule command constructor")
+
 // DraftRuleService handles rule draft transition (INACTIVE → DRAFT).
 type DraftRuleService struct {
 	repository  RuleRepository
@@ -27,13 +30,22 @@ type DraftRuleService struct {
 	auditWriter AuditWriter
 }
 
-// NewDraftRuleService creates a new DraftRuleService.
-func NewDraftRuleService(repository RuleRepository, clk clock.Clock, auditWriter AuditWriter) *DraftRuleService {
+// NewDraftRuleService creates a new DraftRuleService with dependencies.
+// Returns an error if repository or clk is nil to catch invalid dependency injection at construction time.
+func NewDraftRuleService(repository RuleRepository, clk clock.Clock, auditWriter AuditWriter) (*DraftRuleService, error) {
+	if repository == nil {
+		return nil, ErrNilRuleRepository
+	}
+
+	if clk == nil {
+		return nil, ErrNilClock
+	}
+
 	return &DraftRuleService{
 		repository:  repository,
 		clock:       clk,
 		auditWriter: auditWriter,
-	}
+	}, nil
 }
 
 // Execute transitions a rule to DRAFT status.

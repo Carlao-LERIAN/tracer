@@ -416,7 +416,11 @@ func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, aud
 	}
 
 	deactivateRuleCmd := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter)
-	draftRuleCmd := command.NewDraftRuleService(ruleRepo, clk, auditWriter)
+
+	draftRuleCmd, err := command.NewDraftRuleService(ruleRepo, clk, auditWriter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create draft rule service: %w", err)
+	}
 
 	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter)
 	if err != nil {
@@ -474,7 +478,11 @@ func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter 
 		return nil, fmt.Errorf("failed to create limit command: %w", err)
 	}
 
-	updateLimitCmd := command.NewUpdateLimitCommand(limitRepo, clk, auditWriter)
+	updateLimitCmd, err := command.NewUpdateLimitCommand(limitRepo, clk, auditWriter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create update limit command: %w", err)
+	}
+
 	activateLimitCmd := command.NewActivateLimitCommand(limitRepo, clk, auditWriter)
 	deactivateLimitCmd := command.NewDeactivateLimitCommand(limitRepo, clk, auditWriter)
 	draftLimitCmd := command.NewDraftLimitCommand(limitRepo, clk, auditWriter)

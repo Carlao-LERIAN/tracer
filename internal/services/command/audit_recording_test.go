@@ -293,7 +293,8 @@ func TestAuditEventRecording_UpdateLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd := NewUpdateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	cmd, cmdErr := NewUpdateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	require.NoError(t, cmdErr)
 	_, err := cmd.Execute(context.Background(), limitID, &UpdateLimitInput{
 		MaxAmount: testutil.Ptr(decimal.RequireFromString("1000")),
 	})
