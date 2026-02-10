@@ -1,7 +1,5 @@
 -- Rollback: Convert monetary amounts from DECIMAL back to BIGINT (cents)
 
-BEGIN;
-
 -- ============================================================================
 -- 1. Revert rule descriptions
 -- ============================================================================
@@ -38,4 +36,3 @@ ALTER TABLE usage_counters
 ALTER TABLE transaction_validations
     ALTER COLUMN amount TYPE BIGINT USING ROUND(amount * 100)::BIGINT;
 
-COMMIT;

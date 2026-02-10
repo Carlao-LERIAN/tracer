@@ -8,8 +8,6 @@
 -- 'RULE_DRAFTED' or 'DRAFT' values. Delete or update those rows before running
 -- this rollback.
 
-BEGIN;
-
 -- Step 1: Rename current enum types
 ALTER TYPE audit_event_type_enum RENAME TO audit_event_type_enum_old;
 ALTER TYPE audit_action_enum RENAME TO audit_action_enum_old;
@@ -32,4 +30,3 @@ ALTER TABLE audit_events
 DROP TYPE audit_event_type_enum_old;
 DROP TYPE audit_action_enum_old;
 
-COMMIT;

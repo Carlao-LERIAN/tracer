@@ -4,8 +4,6 @@
 -- Date: 2025-12-28
 -- ============================================
 
-BEGIN;
-
 -- Enable pgcrypto extension for SHA-256 hashing in audit functions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -317,4 +315,3 @@ CREATE TRIGGER prevent_audit_event_truncate_trigger
     FOR EACH STATEMENT
     EXECUTE FUNCTION prevent_truncate();
 
-COMMIT;
