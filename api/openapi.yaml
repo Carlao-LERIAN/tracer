@@ -72,6 +72,7 @@ paths:
           - RULE_UPDATED
           - RULE_ACTIVATED
           - RULE_DEACTIVATED
+          - RULE_DRAFTED
           - RULE_DELETED
           - LIMIT_CREATED
           - LIMIT_UPDATED
@@ -90,6 +91,7 @@ paths:
           - DELETE
           - ACTIVATE
           - DEACTIVATE
+          - DRAFT
           type: string
       - description: Filter by result
         in: query
@@ -1128,6 +1130,55 @@ paths:
       summary: Deactivate a fraud rule
       tags:
       - rules
+  /v1/rules/{id}/draft:
+    post:
+      description: Transitions a rule from INACTIVE to DRAFT status. Allows re-editing
+        a previously deactivated rule.
+      operationId: draftRule
+      parameters:
+      - description: Rule ID (UUID)
+        in: path
+        name: id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/tracer_pkg_model.Rule'
+          description: Rule transitioned to draft successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Invalid rule ID or transition
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Rule not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal server error
+      security:
+      - ApiKeyAuth: []
+      summary: Transition a rule back to draft
+      tags:
+      - rules
   /v1/validations:
     get:
       description: Lists transaction validation records with cursor-based pagination
@@ -1980,6 +2031,7 @@ components:
       - RULE_UPDATED
       - RULE_ACTIVATED
       - RULE_DEACTIVATED
+      - RULE_DRAFTED
       - RULE_DELETED
       - LIMIT_CREATED
       - LIMIT_UPDATED
@@ -1993,6 +2045,7 @@ components:
       - AuditEventRuleUpdated
       - AuditEventRuleActivated
       - AuditEventRuleDeactivated
+      - AuditEventRuleDrafted
       - AuditEventRuleDeleted
       - AuditEventLimitCreated
       - AuditEventLimitUpdated

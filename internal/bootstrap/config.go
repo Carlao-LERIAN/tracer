@@ -416,6 +416,7 @@ func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, aud
 	}
 
 	deactivateRuleCmd := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter)
+	draftRuleCmd := command.NewDraftRuleService(ruleRepo, clk, auditWriter)
 
 	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter)
 	if err != nil {
@@ -425,7 +426,7 @@ func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, aud
 	getRuleQuery := query.NewGetRuleQuery(ruleRepo)
 	listRulesQuery := query.NewListRulesQuery(ruleRepo)
 
-	return services.NewRuleService(createRuleCmd, updateRuleCmd, activateRuleCmd, deactivateRuleCmd, deleteRuleCmd, getRuleQuery, listRulesQuery), nil
+	return services.NewRuleService(createRuleCmd, updateRuleCmd, activateRuleCmd, deactivateRuleCmd, draftRuleCmd, deleteRuleCmd, getRuleQuery, listRulesQuery), nil
 }
 
 // initEvaluateRulesQuery creates the rule evaluation query with all its dependencies.

@@ -394,6 +394,7 @@ func TestAuditEventType_IsValid(t *testing.T) {
 			AuditEventRuleUpdated,
 			AuditEventRuleActivated,
 			AuditEventRuleDeactivated,
+			AuditEventRuleDrafted,
 			AuditEventRuleDeleted,
 			AuditEventLimitCreated,
 			AuditEventLimitUpdated,
@@ -436,6 +437,7 @@ func TestAuditAction_IsValid(t *testing.T) {
 			AuditActionDelete,
 			AuditActionActivate,
 			AuditActionDeactivate,
+			AuditActionDraft,
 			AuditActionValidate,
 		}
 

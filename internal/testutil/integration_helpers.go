@@ -575,6 +575,28 @@ func DeactivateRule(t *testing.T, ruleID string) {
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to deactivate rule: %s", string(respBody))
 }
 
+// DraftRule transitions a rule back to DRAFT status by ID.
+// Only INACTIVE rules can transition to DRAFT per state machine.
+func DraftRule(t *testing.T, ruleID string) {
+	t.Helper()
+
+	apiKey := GetAPIKey()
+	baseURL := GetBaseURL()
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules/"+ruleID+"/draft", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := HTTPClient.Do(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }() // Intentionally ignored in test helper
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to draft rule: %s", string(respBody))
+}
+
 // ValidationDetailResponse represents the response from GET /v1/validations/{id}.
 // Fields match model.TransactionValidation for explicit traceability and queryability.
 type ValidationDetailResponse struct {

@@ -102,6 +102,21 @@ func (mr *MockRuleServiceMockRecorder) DeleteRule(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRule", reflect.TypeOf((*MockRuleService)(nil).DeleteRule), ctx, id)
 }
 
+// DraftRule mocks base method.
+func (m *MockRuleService) DraftRule(ctx context.Context, id uuid.UUID) (*model.Rule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DraftRule", ctx, id)
+	ret0, _ := ret[0].(*model.Rule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DraftRule indicates an expected call of DraftRule.
+func (mr *MockRuleServiceMockRecorder) DraftRule(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DraftRule", reflect.TypeOf((*MockRuleService)(nil).DraftRule), ctx, id)
+}
+
 // GetRule mocks base method.
 func (m *MockRuleService) GetRule(ctx context.Context, id uuid.UUID) (*model.Rule, error) {
 	m.ctrl.T.Helper()

@@ -54,8 +54,8 @@ func NewAuditEventHandler(service AuditEventService) *AuditEventHandler {
 //	@Security		ApiKeyAuth
 //	@Param			startDate		query		string	false	"Start date (RFC3339 format)	Format(date-time)"
 //	@Param			endDate			query		string	false	"End date (RFC3339 format)		Format(date-time)"
-//	@Param			eventType		query		string	false	"Filter by event type"	Enums(TRANSACTION_VALIDATED, RULE_CREATED, RULE_UPDATED, RULE_ACTIVATED, RULE_DEACTIVATED, RULE_DELETED, LIMIT_CREATED, LIMIT_UPDATED, LIMIT_ACTIVATED, LIMIT_DEACTIVATED, LIMIT_DELETED)
-//	@Param			action			query		string	false	"Filter by action"	Enums(VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE)
+//	@Param			eventType		query		string	false	"Filter by event type"	Enums(TRANSACTION_VALIDATED, RULE_CREATED, RULE_UPDATED, RULE_ACTIVATED, RULE_DEACTIVATED, RULE_DRAFTED, RULE_DELETED, LIMIT_CREATED, LIMIT_UPDATED, LIMIT_ACTIVATED, LIMIT_DEACTIVATED, LIMIT_DELETED)
+//	@Param			action			query		string	false	"Filter by action"	Enums(VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)
 //	@Param			result			query		string	false	"Filter by result"	Enums(SUCCESS, FAILED, ALLOW, DENY, REVIEW)
 //	@Param			resourceType	query		string	false	"Filter by resource type"	Enums(transaction, rule, limit)
 //	@Param			resourceId		query		string	false	"Filter by resource ID (UUID)"	Format(uuid)

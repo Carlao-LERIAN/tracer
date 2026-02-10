@@ -21,6 +21,7 @@ type RuleService struct {
 	updateCmd     *command.UpdateRuleCommand
 	activateCmd   *command.ActivateRuleService
 	deactivateCmd *command.DeactivateRuleService
+	draftCmd      *command.DraftRuleService
 	deleteCmd     *command.DeleteRuleService
 	getQuery      *query.GetRuleQuery
 	listQuery     *query.ListRulesQuery
@@ -32,6 +33,7 @@ func NewRuleService(
 	updateCmd *command.UpdateRuleCommand,
 	activateCmd *command.ActivateRuleService,
 	deactivateCmd *command.DeactivateRuleService,
+	draftCmd *command.DraftRuleService,
 	deleteCmd *command.DeleteRuleService,
 	getQuery *query.GetRuleQuery,
 	listQuery *query.ListRulesQuery,
@@ -41,6 +43,7 @@ func NewRuleService(
 		updateCmd:     updateCmd,
 		activateCmd:   activateCmd,
 		deactivateCmd: deactivateCmd,
+		draftCmd:      draftCmd,
 		deleteCmd:     deleteCmd,
 		getQuery:      getQuery,
 		listQuery:     listQuery,
@@ -77,6 +80,12 @@ func (s *RuleService) ActivateRule(ctx context.Context, id uuid.UUID) (*model.Ru
 // Returns the updated rule for atomic deactivate-and-return pattern.
 func (s *RuleService) DeactivateRule(ctx context.Context, id uuid.UUID) (*model.Rule, error) {
 	return s.deactivateCmd.Execute(ctx, id)
+}
+
+// DraftRule transitions a rule to draft (INACTIVE → DRAFT).
+// Returns the updated rule for atomic draft-and-return pattern.
+func (s *RuleService) DraftRule(ctx context.Context, id uuid.UUID) (*model.Rule, error) {
+	return s.draftCmd.Execute(ctx, id)
 }
 
 // DeleteRule soft-deletes a rule (INACTIVE → DELETED).

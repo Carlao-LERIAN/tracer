@@ -111,6 +111,7 @@ const docTemplate = `{
                             "RULE_UPDATED",
                             "RULE_ACTIVATED",
                             "RULE_DEACTIVATED",
+                            "RULE_DRAFTED",
                             "RULE_DELETED",
                             "LIMIT_CREATED",
                             "LIMIT_UPDATED",
@@ -130,7 +131,8 @@ const docTemplate = `{
                             "UPDATE",
                             "DELETE",
                             "ACTIVATE",
-                            "DEACTIVATE"
+                            "DEACTIVATE",
+                            "DRAFT"
                         ],
                         "type": "string",
                         "description": "Filter by action",
@@ -1454,6 +1456,69 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/rules/{id}/draft": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Transitions a rule from INACTIVE to DRAFT status. Allows re-editing a previously deactivated rule.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "Transition a rule back to draft",
+                "operationId": "draftRule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Rule ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Rule transitioned to draft successfully",
+                        "schema": {
+                            "$ref": "#/definitions/tracer_pkg_model.Rule"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid rule ID or transition",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Rule not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/validations": {
             "get": {
                 "security": [
@@ -2212,6 +2277,7 @@ const docTemplate = `{
                 "RULE_UPDATED",
                 "RULE_ACTIVATED",
                 "RULE_DEACTIVATED",
+                "RULE_DRAFTED",
                 "RULE_DELETED",
                 "LIMIT_CREATED",
                 "LIMIT_UPDATED",
@@ -2225,6 +2291,7 @@ const docTemplate = `{
                 "AuditEventRuleUpdated",
                 "AuditEventRuleActivated",
                 "AuditEventRuleDeactivated",
+                "AuditEventRuleDrafted",
                 "AuditEventRuleDeleted",
                 "AuditEventLimitCreated",
                 "AuditEventLimitUpdated",

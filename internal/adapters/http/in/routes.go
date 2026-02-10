@@ -142,6 +142,7 @@ func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *
 	api.Delete("/rules/:id", ruleHandler.DeleteRule)
 	api.Post("/rules/:id/activate", ruleHandler.ActivateRule)
 	api.Post("/rules/:id/deactivate", ruleHandler.DeactivateRule)
+	api.Post("/rules/:id/draft", ruleHandler.DraftRule)
 
 	// Limit endpoints
 	limitHandler := NewLimitHandler(limitService)
