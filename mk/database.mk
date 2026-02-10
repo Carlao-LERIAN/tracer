@@ -11,8 +11,11 @@
 #
 # Variables:
 #   - DATABASE_URL: Connection string (default: localhost:5432/tracer)
+#   - POSTGRES_USER: PostgreSQL username for seed operations (default: tracer)
+#   - POSTGRES_DB: PostgreSQL database name for seed operations (default: tracer)
 #   - MIGRATIONS_PATH: Path to migration files (default: ./migrations)
 #   - MIGRATIONS_FUNCTIONS_PATH: Path to function migrations (default: ./migrations/functions)
+#   - MIGRATIONS_FUNCTIONS_DB_URL: Auto-constructed URL with x-migrations-table parameter (internal)
 #   - POSTGRES_SERVICE: Docker service name (from main Makefile)
 #   - DOCKER_CMD: Docker compose command (from main Makefile)
 #   - FORCE: Skip confirmation prompts (0|1, default: 0)
@@ -28,8 +31,14 @@
 
 # Database configuration
 DATABASE_URL ?= postgres://tracer:tracer@localhost:5432/tracer?sslmode=disable
+POSTGRES_USER ?= tracer
+POSTGRES_DB ?= tracer
 MIGRATIONS_PATH ?= ./migrations
 MIGRATIONS_FUNCTIONS_PATH ?= ${MIGRATIONS_PATH}/functions
+
+# Dynamically construct the migrations functions DB URL with the correct separator
+# If DATABASE_URL contains '?', use '&', otherwise use '?'
+MIGRATIONS_FUNCTIONS_DB_URL := $(if $(findstring ?,$(DATABASE_URL)),$(DATABASE_URL)&x-migrations-table=schema_migrations_functions,$(DATABASE_URL)?x-migrations-table=schema_migrations_functions)
 
 #-------------------------------------------------------
 # Commands (alphabetically ordered)
@@ -44,7 +53,7 @@ migrate:
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate -database "$(DATABASE_URL)&x-migrations-table=schema_migrations_functions" -path $(MIGRATIONS_FUNCTIONS_PATH) up
+	@migrate -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) up
 	@migrate -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) up
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Migrations applied successfully$(GREEN) ✔️$(NC)"
 
@@ -77,7 +86,7 @@ migrate-down-all:
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
 	@migrate -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) down -all
-	@migrate -database "$(DATABASE_URL)&x-migrations-table=schema_migrations_functions" -path $(MIGRATIONS_FUNCTIONS_PATH) down -all
+	@migrate -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) down -all
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All migrations rolled back successfully$(GREEN) ✔️$(NC)"
 
 # Force set migration version (use with caution)
@@ -106,7 +115,7 @@ migrate-version:
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
-	@migrate -database "$(DATABASE_URL)&x-migrations-table=schema_migrations_functions" -path $(MIGRATIONS_FUNCTIONS_PATH) version
+	@migrate -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) version
 	@migrate -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) version
 
 # Load development seed data into database
@@ -119,7 +128,7 @@ seed:
 		echo "$(YELLOW)No seed file found at $(MIGRATIONS_PATH)/seeds/001_dev_data.sql$(NC)"; \
 		echo "$(YELLOW)Skipping seed data loading$(NC)"; \
 	else \
-		$(DOCKER_CMD) -f docker-compose.yml exec -T $(POSTGRES_SERVICE) psql -U tracer -d tracer < $(MIGRATIONS_PATH)/seeds/001_dev_data.sql; \
+		$(DOCKER_CMD) -f docker-compose.yml exec -T $(POSTGRES_SERVICE) psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) < $(MIGRATIONS_PATH)/seeds/001_dev_data.sql; \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Seed data loaded successfully$(GREEN) ✔️$(NC)"; \
 	fi
 
@@ -133,6 +142,6 @@ seed-down:
 		echo "$(YELLOW)No seed rollback file found at $(MIGRATIONS_PATH)/seeds/001_dev_data.down.sql$(NC)"; \
 		echo "$(YELLOW)Skipping seed data removal$(NC)"; \
 	else \
-		$(DOCKER_CMD) -f docker-compose.yml exec -T $(POSTGRES_SERVICE) psql -U tracer -d tracer < $(MIGRATIONS_PATH)/seeds/001_dev_data.down.sql; \
+		$(DOCKER_CMD) -f docker-compose.yml exec -T $(POSTGRES_SERVICE) psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) < $(MIGRATIONS_PATH)/seeds/001_dev_data.down.sql; \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) Seed data removed successfully$(GREEN) ✔️$(NC)"; \
 	fi
