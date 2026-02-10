@@ -438,6 +438,7 @@ func NewUsageCounter(
 	limitID uuid.UUID,
 	scopeKey string,
 	periodKey string,
+	createdAt time.Time,
 ) (*UsageCounter, error) {
 	if limitID == uuid.Nil {
 		return nil, constant.ErrUsageCounterLimitIDRequired
@@ -459,14 +460,14 @@ func NewUsageCounter(
 		ScopeKey:      normalizedScopeKey,
 		PeriodKey:     normalizedPeriodKey,
 		CurrentUsage:  decimal.Zero,
-		LastUpdatedAt: time.Now().UTC(),
+		LastUpdatedAt: createdAt.UTC(),
 	}, nil
 }
 
 // Increment adds amount to current usage.
 // amount is a decimal value.
 // Returns constant.ErrUsageCounterIncrementNonNegative if amount < 0.
-func (u *UsageCounter) Increment(amount decimal.Decimal) error {
+func (u *UsageCounter) Increment(amount decimal.Decimal, now time.Time) error {
 	if amount.IsNegative() {
 		return constant.ErrUsageCounterIncrementNonNegative
 	}
@@ -476,7 +477,7 @@ func (u *UsageCounter) Increment(amount decimal.Decimal) error {
 	}
 
 	u.CurrentUsage = u.CurrentUsage.Add(amount)
-	u.LastUpdatedAt = time.Now().UTC()
+	u.LastUpdatedAt = now.UTC()
 
 	return nil
 }

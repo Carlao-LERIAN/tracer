@@ -1227,7 +1227,7 @@ func TestNewUsageCounter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			counter, err := NewUsageCounter(tc.limitID, tc.scopeKey, tc.periodKey)
+			counter, err := NewUsageCounter(tc.limitID, tc.scopeKey, tc.periodKey, testutil.FixedTime())
 
 			if tc.expectedErr != nil {
 				require.Error(t, err)
@@ -1263,7 +1263,7 @@ func TestUsageCounter_Increment(t *testing.T) {
 	createCounter := func(t *testing.T) *UsageCounter {
 		t.Helper()
 
-		counter, err := NewUsageCounter(testutil.MustDeterministicUUID(41), "acct:123", "2025-01")
+		counter, err := NewUsageCounter(testutil.MustDeterministicUUID(41), "acct:123", "2025-01", testutil.FixedTime())
 		require.NoError(t, err, "NewUsageCounter failed")
 
 		return counter
@@ -1319,7 +1319,7 @@ func TestUsageCounter_Increment(t *testing.T) {
 			// Capture original state to verify no mutation on error
 			originalUsage := counter.CurrentUsage
 
-			err := counter.Increment(tc.amount)
+			err := counter.Increment(tc.amount, testutil.FixedTime())
 
 			if tc.expectedErr != nil {
 				require.Error(t, err)
