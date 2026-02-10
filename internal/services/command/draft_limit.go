@@ -20,6 +20,8 @@ import (
 	"tracer/pkg/model"
 )
 
+const opDraftLimit = "service.limit.draft"
+
 // DraftLimitCommand handles limit draft transition (INACTIVE → DRAFT).
 type DraftLimitCommand struct {
 	repo        LimitRepository
@@ -42,7 +44,7 @@ func NewDraftLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter Aud
 func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.Limit, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.limit.draft")
+	ctx, span := tracer.Start(ctx, opDraftLimit)
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)
@@ -51,7 +53,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if ctx.Err() != nil {
 		libOpentelemetry.HandleSpanError(&span, "Context cancelled", ctx.Err())
 		logger.WithFields(
-			"operation", "service.limit.draft",
+			"operation", opDraftLimit,
 		).Warn("Context cancelled")
 
 		return nil, ctx.Err()
@@ -61,7 +63,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if id == uuid.Nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid input: nil UUID", constant.ErrLimitInvalidID)
 		logger.WithFields(
-			"operation", "service.limit.draft",
+			"operation", opDraftLimit,
 		).Warn("Invalid input: nil UUID")
 
 		return nil, constant.ErrLimitInvalidID
@@ -73,7 +75,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	})
 
 	logger.WithFields(
-		"operation", "service.limit.draft",
+		"operation", opDraftLimit,
 		"limit.id", id.String(),
 	).Info("Transitioning limit to draft")
 
@@ -82,7 +84,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 		if errors.Is(err, constant.ErrLimitNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Limit not found", err)
 			logger.WithFields(
-				"operation", "service.limit.draft",
+				"operation", opDraftLimit,
 				"limit.id", id.String(),
 			).Warn("Limit not found")
 
@@ -91,7 +93,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to get limit from repository", err)
 		logger.WithFields(
-			"operation", "service.limit.draft",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
 			"error.message", err.Error(),
 		).Error("Failed to get limit")
@@ -103,7 +105,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if limit == nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
 		logger.WithFields(
-			"operation", "service.limit.draft",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
 		).Warn("Limit not found")
 
@@ -113,7 +115,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	// Idempotency: if already draft, return the limit (no-op)
 	if limit.Status == model.LimitStatusDraft {
 		logger.WithFields(
-			"operation", "service.limit.draft",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
 		).Info("Limit already in draft (idempotent no-op)")
 
@@ -130,7 +132,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if err := limit.SetStatus(model.LimitStatusDraft, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
 		logger.WithFields(
-			"operation", "service.limit.draft",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
 			"limit.status_from", string(originalStatus),
 			"limit.status_to", "DRAFT",
@@ -142,7 +144,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if err := c.repo.UpdateStatus(ctx, id, model.LimitStatusDraft, limit.UpdatedAt); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update limit status", err)
 		logger.WithFields(
-			"operation", "service.limit.draft",
+			"operation", opDraftLimit,
 			"limit.id", id.String(),
 			"error.message", err.Error(),
 		).Error("Failed to update limit status")
@@ -151,7 +153,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	}
 
 	logger.WithFields(
-		"operation", "service.limit.draft",
+		"operation", opDraftLimit,
 		"limit.id", id.String(),
 		"limit.status", string(limit.Status),
 	).Info("Limit transitioned to draft successfully")
@@ -172,7 +174,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 			clientIP,
 		); err != nil {
 			logger.WithFields(
-				"operation", "service.limit.draft.audit",
+				"operation", opDraftLimit+".audit",
 				"limit.id", limit.ID.String(),
 				"error", err.Error(),
 			).Warn("Failed to record audit event")
