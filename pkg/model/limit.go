@@ -369,11 +369,12 @@ func (l *Limit) SetStatus(status LimitStatus, now time.Time) error {
 	}
 
 	l.Status = status
-	l.UpdatedAt = now
+	l.UpdatedAt = now.UTC()
 
 	// Maintain DeletedAt invariant: set when DELETED, clear otherwise
 	if status == LimitStatusDeleted {
-		l.DeletedAt = &now
+		utcNow := now.UTC()
+		l.DeletedAt = &utcNow
 	} else {
 		l.DeletedAt = nil
 	}

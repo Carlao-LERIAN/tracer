@@ -283,19 +283,20 @@ func (r *Rule) SetStatus(status RuleStatus, now time.Time) error {
 	}
 
 	// Update status and maintain timestamp invariants
+	utcNow := now.UTC()
 	r.Status = status
-	r.UpdatedAt = now
+	r.UpdatedAt = utcNow
 
 	switch status {
 	case RuleStatusActive:
-		r.ActivatedAt = &now
+		r.ActivatedAt = &utcNow
 		r.DeactivatedAt = nil
 		r.DeletedAt = nil
 	case RuleStatusInactive:
-		r.DeactivatedAt = &now
+		r.DeactivatedAt = &utcNow
 		r.DeletedAt = nil
 	case RuleStatusDeleted:
-		r.DeletedAt = &now
+		r.DeletedAt = &utcNow
 	case RuleStatusDraft:
 		r.ActivatedAt = nil
 		r.DeactivatedAt = nil
