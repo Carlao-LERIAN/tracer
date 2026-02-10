@@ -136,44 +136,49 @@ func TestDraftRule_Success_AuditWriteFails(t *testing.T) {
 	assert.Equal(t, model.RuleStatusDraft, result.Status)
 }
 
-func TestDraftRule_FromActive_InvalidTransition(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	ctx := context.Background()
-	ruleID := testutil.MustDeterministicUUID(1)
-
-	inputRule := &model.Rule{
-		ID:         ruleID,
-		Name:       "Test Rule",
-		Status:     model.RuleStatusActive,
-		Expression: "amount > 1000",
+func TestDraftRule_InvalidTransitions(t *testing.T) {
+	tests := []struct {
+		name       string
+		fromStatus model.RuleStatus
+	}{
+		{"from ACTIVE", model.RuleStatusActive},
+		{"from DELETED", model.RuleStatusDeleted},
 	}
 
-	mockRepo := NewMockRuleRepository(ctrl)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
 
-	mockRepo.EXPECT().
-		GetByID(gomock.Any(), ruleID).
-		Return(inputRule, nil)
-	// No Update call expected - invalid transition
+			ruleID := testutil.MustDeterministicUUID(1)
 
-	auditWriter := NewMockAuditWriter(ctrl)
-	// No audit event expected - invalid transition error
-	auditWriter.EXPECT().RecordRuleEvent(
-		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
-	).Times(0)
+			mockRepo := NewMockRuleRepository(ctrl)
+			mockRepo.EXPECT().
+				GetByID(gomock.Any(), ruleID).
+				Return(&model.Rule{
+					ID:         ruleID,
+					Name:       "Test Rule",
+					Status:     tc.fromStatus,
+					Expression: "amount > 1000",
+				}, nil)
 
-	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
-	require.NoError(t, svcErr)
+			auditWriter := NewMockAuditWriter(ctrl)
+			auditWriter.EXPECT().RecordRuleEvent(
+				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+			).Times(0)
 
-	_, err := service.Execute(ctx, ruleID)
+			service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+			require.NoError(t, svcErr)
 
-	// ACTIVE → DRAFT is not a valid transition (ACTIVE can only go to INACTIVE)
-	require.Error(t, err)
-	var transitionErr *model.InvalidTransitionError
-	require.True(t, errors.As(err, &transitionErr), "should be an InvalidTransitionError")
-	assert.Equal(t, model.RuleStatusActive, transitionErr.From)
-	assert.Equal(t, model.RuleStatusDraft, transitionErr.To)
+			_, err := service.Execute(context.Background(), ruleID)
+
+			require.Error(t, err)
+			var transitionErr *model.InvalidTransitionError
+			require.True(t, errors.As(err, &transitionErr), "should be an InvalidTransitionError")
+			assert.Equal(t, tc.fromStatus, transitionErr.From)
+			assert.Equal(t, model.RuleStatusDraft, transitionErr.To)
+		})
+	}
 }
 
 func TestDraftRule_RuleNotFound(t *testing.T) {
@@ -235,45 +240,6 @@ func TestDraftRule_AlreadyDraft_Idempotent(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, ruleID, result.ID)
 	assert.Equal(t, model.RuleStatusDraft, result.Status, "Status should remain DRAFT")
-}
-
-func TestDraftRule_InvalidTransition(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	ctx := context.Background()
-	ruleID := testutil.MustDeterministicUUID(1)
-
-	inputRule := &model.Rule{
-		ID:         ruleID,
-		Name:       "Test Rule",
-		Status:     model.RuleStatusDeleted,
-		Expression: "amount > 1000",
-	}
-
-	mockRepo := NewMockRuleRepository(ctrl)
-
-	mockRepo.EXPECT().
-		GetByID(gomock.Any(), ruleID).
-		Return(inputRule, nil)
-
-	auditWriter := NewMockAuditWriter(ctrl)
-	// No audit event expected - invalid transition error
-	auditWriter.EXPECT().RecordRuleEvent(
-		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
-	).Times(0)
-
-	service, svcErr := NewDraftRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
-	require.NoError(t, svcErr)
-
-	_, err := service.Execute(ctx, ruleID)
-
-	require.Error(t, err)
-	// Verify the error is the typed InvalidTransitionError with correct From/To
-	var transitionErr *model.InvalidTransitionError
-	require.True(t, errors.As(err, &transitionErr), "should be an InvalidTransitionError")
-	assert.Equal(t, model.RuleStatusDeleted, transitionErr.From)
-	assert.Equal(t, model.RuleStatusDraft, transitionErr.To)
 }
 
 func TestDraftRule_GetByIDError(t *testing.T) {
