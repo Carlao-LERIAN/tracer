@@ -847,6 +847,31 @@ func TestLimit_SetStatus(t *testing.T) {
 			expectedErr:   constant.ErrLimitInvalidStatusChange,
 		},
 		{
+			name:          "INACTIVE to DRAFT (recovery)",
+			initialStatus: LimitStatusInactive,
+			newStatus:     LimitStatusDraft,
+			expectedErr:   nil,
+		},
+		{
+			name:           "DRAFT to DRAFT is idempotent no-op",
+			initialStatus:  LimitStatusDraft,
+			newStatus:      LimitStatusDraft,
+			expectedErr:    nil,
+			isIdempotentOp: true,
+		},
+		{
+			name:          "rejects ACTIVE to DRAFT (must deactivate first)",
+			initialStatus: LimitStatusActive,
+			newStatus:     LimitStatusDraft,
+			expectedErr:   constant.ErrLimitInvalidStatusChange,
+		},
+		{
+			name:          "rejects DELETED to DRAFT (terminal state)",
+			initialStatus: LimitStatusDeleted,
+			newStatus:     LimitStatusDraft,
+			expectedErr:   constant.ErrLimitInvalidStatusChange,
+		},
+		{
 			name:          "rejects invalid status",
 			initialStatus: LimitStatusActive,
 			newStatus:     LimitStatus("INVALID"),
