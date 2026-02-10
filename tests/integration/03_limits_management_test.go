@@ -3706,3 +3706,183 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// Draft Limit Tests
+// =============================================================================
+
+func TestLimits_DraftLimit_Success(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	// Create a limit (starts as DRAFT), activate it, then deactivate to INACTIVE
+	limitID := createTestLimit(t)
+	t.Cleanup(func() {
+		cleanupLimit(t, limitID)
+	})
+
+	// DRAFT → ACTIVE
+	testutil.ActivateLimit(t, limitID)
+
+	// ACTIVE → INACTIVE
+	deactivateReq, err := http.NewRequest("POST", baseURL+"/v1/limits/"+limitID+"/deactivate", nil)
+	require.NoError(t, err)
+	deactivateReq.Header.Set("X-API-Key", apiKey)
+
+	deactivateResp, err := testutil.HTTPClient.Do(deactivateReq)
+	require.NoError(t, err)
+	deactivateResp.Body.Close()
+	require.Equal(t, http.StatusOK, deactivateResp.StatusCode)
+
+	// INACTIVE → DRAFT
+	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+limitID+"/draft", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "Draft should return 200: %s", string(respBody))
+
+	var limit limitResponse
+	err = json.Unmarshal(respBody, &limit)
+	require.NoError(t, err)
+
+	assert.Equal(t, "DRAFT", limit.Status, "Status should be DRAFT after drafting")
+}
+
+func TestLimits_DraftLimit_Idempotent(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	// Create a limit (starts as DRAFT)
+	limitID := createTestLimit(t)
+	t.Cleanup(func() {
+		cleanupLimit(t, limitID)
+	})
+
+	// Draft a DRAFT limit (idempotent no-op)
+	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+limitID+"/draft", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "Idempotent draft should return 200: %s", string(respBody))
+
+	var limit limitResponse
+	err = json.Unmarshal(respBody, &limit)
+	require.NoError(t, err)
+
+	assert.Equal(t, "DRAFT", limit.Status, "Status should remain DRAFT")
+}
+
+func TestLimits_DraftLimit_RejectsActiveLimit(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	// Create and activate a limit
+	limitID := createTestLimit(t)
+	t.Cleanup(func() {
+		cleanupLimit(t, limitID)
+	})
+
+	testutil.ActivateLimit(t, limitID)
+
+	// Try to draft an ACTIVE limit (invalid transition)
+	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+limitID+"/draft", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "ACTIVE → DRAFT should be rejected")
+}
+
+func TestLimits_DraftLimit_RejectsDeletedLimit(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	// Create and delete a limit (DRAFT → DELETED)
+	limitID := createTestLimit(t)
+
+	deleteReq, err := http.NewRequest("DELETE", baseURL+"/v1/limits/"+limitID, nil)
+	require.NoError(t, err)
+	deleteReq.Header.Set("X-API-Key", apiKey)
+
+	deleteResp, err := testutil.HTTPClient.Do(deleteReq)
+	require.NoError(t, err)
+	deleteResp.Body.Close()
+	require.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
+
+	// Try to draft a DELETED limit
+	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+limitID+"/draft", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// Soft-deleted limits are filtered by GetByID (WHERE deleted_at IS NULL), so they return 404
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "DELETED limit should return 404")
+}
+
+func TestLimits_DraftLimit_InvalidUUID(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	req, err := http.NewRequest("POST", baseURL+"/v1/limits/not-a-uuid/draft", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Invalid UUID should return 400")
+}
+
+func TestLimits_DraftLimit_NotFound(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	nonExistentID := uuid.New().String()
+
+	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+nonExistentID+"/draft", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "Non-existent limit should return 404")
+}
+
+func TestLimits_DraftLimit_WithoutAuthentication(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+
+	limitID := uuid.New().String()
+
+	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+limitID+"/draft", nil)
+	require.NoError(t, err)
+	// No X-API-Key header
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "Missing API key should return 401")
+}
