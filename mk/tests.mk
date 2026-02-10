@@ -9,15 +9,15 @@ TEST_HEALTH_WAIT ?= 60
 # PKG: specific package to test (e.g., ./internal/...)
 # Usage: make test-integration RUN=TestIntegration_PostgresRepo_Create
 #        make test-integration PKG=./internal/...
-#        make test-integration RUN=TestIntegration_Chaos_Database PKG=./internal/... CHAOS=1
 RUN ?=
 PKG ?=
 
-# Computed run pattern: uses RUN if set, otherwise defaults to '^TestIntegration'
+# Computed run flag: only adds -run when RUN is explicitly set.
+# Package discovery + build tag `integration` already isolate the right tests.
 ifeq ($(RUN),)
-  RUN_PATTERN := ^TestIntegration
+  RUN_FLAG :=
 else
-  RUN_PATTERN := $(RUN)
+  RUN_FLAG := -run '$(RUN)'
 endif
 
 # Low-resource mode for limited machines (sets -p=1 -parallel=1, disables -race)
@@ -233,14 +233,7 @@ test-bench:
 #
 # Requirements:
 #   - Test files must follow the naming convention: *_integration_test.go
-#   - Test functions must start with TestIntegration_ (e.g., TestIntegration_MyFeature_Works)
-#   - Chaos tests use TestIntegration_Chaos_ prefix (e.g., TestIntegration_Chaos_Database_NetworkPartition)
-#
-# Chaos tests (CHAOS=1):
-#   Chaos tests are included in integration test files but skip themselves by default.
-#   To run chaos tests alongside integration tests, set CHAOS=1:
-#     make test-integration CHAOS=1
-#   This enables network chaos injection, container restarts, and other failure scenarios.
+#   - Test files must use the build tag: //go:build integration
 .PHONY: test-integration
 test-integration:
 	$(call title1,"Running integration tests with testcontainers")
@@ -269,31 +262,26 @@ test-integration:
 	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
 	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
 	  fi; \
-	  if [ "$(CHAOS)" = "1" ]; then \
-	    echo "CHAOS=1: Chaos tests (TestIntegration_Chaos_*) will run"; \
-	  else \
-	    echo "Chaos tests will be skipped (set CHAOS=1 to include them)"; \
-	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum"; \
-	    CHAOS=$(CHAOS) gotestsum --format testname -- \
+	    gotestsum --format testname -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '$(RUN_PATTERN)' $$pkgs || { \
+	      $(RUN_FLAG) $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
-	        CHAOS=$(CHAOS) gotestsum --format testname -- \
+	        gotestsum --format testname -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          -run '$(RUN_PATTERN)' $$pkgs; \
+	          $(RUN_FLAG) $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
 	    }; \
 	  else \
-	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	    go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '$(RUN_PATTERN)' $$pkgs; \
+	      $(RUN_FLAG) $$pkgs; \
 	  fi; \
 	fi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Integration tests completed successfully$(GREEN) ✔️$(NC)"
@@ -304,10 +292,6 @@ test-integration:
 # testcontainers can overwhelm Docker when creating many containers in parallel.
 # This prevents transient failures like "port not found" or container timeouts.
 #
-# Chaos tests (CHAOS=1):
-#   Chaos tests (TestIntegration_Chaos_*) skip themselves by default.
-#   To include chaos tests in coverage, set CHAOS=1:
-#     make coverage-integration CHAOS=1
 .PHONY: coverage-integration
 coverage-integration:
 	$(call title1,"Running integration tests with testcontainers (coverage enabled)")
@@ -336,33 +320,28 @@ coverage-integration:
 	  if [ "$(LOW_RESOURCE)" = "1" ]; then \
 	    echo "LOW_RESOURCE mode: -parallel=1, race detector disabled"; \
 	  fi; \
-	  if [ "$(CHAOS)" = "1" ]; then \
-	    echo "CHAOS=1: Chaos tests (TestIntegration_Chaos_*) will run"; \
-	  else \
-	    echo "Chaos tests will be skipped (set CHAOS=1 to include them)"; \
-	  fi; \
 	  if [ -n "$(GOTESTSUM)" ]; then \
 	    echo "Running testcontainers integration tests with gotestsum (coverage enabled)"; \
-	    CHAOS=$(CHAOS) gotestsum --format testname -- \
+	    gotestsum --format testname -- \
 	      -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	      $(RUN_FLAG) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs || { \
 	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	        echo "Retrying integ tests once..."; \
-	        CHAOS=$(CHAOS) gotestsum --format testname -- \
+	        gotestsum --format testname -- \
 	          -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	          -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	          -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	          $(RUN_FLAG) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	          $$pkgs; \
 	      else \
 	        exit 1; \
 	      fi; \
 	    }; \
 	  else \
-	    CHAOS=$(CHAOS) go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
+	    go test -tags=integration -v $(LOW_RES_RACE_FLAG) -count=1 -timeout 600s $(GO_TEST_LDFLAGS) \
 	      -p 1 $(LOW_RES_PARALLEL_FLAG) \
-	      -run '$(RUN_PATTERN)' -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
+	      $(RUN_FLAG) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/integration_coverage.out \
 	      $$pkgs; \
 	  fi; \
 	  echo "----------------------------------------"; \
@@ -380,7 +359,6 @@ coverage:
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All coverage reports generated$(GREEN) ✔️$(NC)"
 
 # Run all tests (excludes native fuzz engine which runs indefinitely)
-# To include chaos tests: make test-all CHAOS=1
 .PHONY: test-all
 test-all:
 	$(call title1,"Running all tests")
