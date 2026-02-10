@@ -903,6 +903,7 @@ func TestLimitHandler_DraftLimit(t *testing.T) {
 		limitID        string
 		mockSetup      func(ctrl *gomock.Controller) *MockLimitService
 		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:    "success - transitions limit to draft",
@@ -920,6 +921,14 @@ func TestLimitHandler_DraftLimit(t *testing.T) {
 				return mockService
 			},
 			expectedStatus: http.StatusOK,
+			validateBody: func(t *testing.T, body []byte) {
+				var response map[string]any
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Equal(t, validID.String(), response["limitId"])
+				assert.Equal(t, "Test Limit", response["name"])
+				assert.Equal(t, "DRAFT", response["status"])
+			},
 		},
 		{
 			name:    "error - invalid UUID",
@@ -987,6 +996,12 @@ func TestLimitHandler_DraftLimit(t *testing.T) {
 			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
+			}
 		})
 	}
 }
