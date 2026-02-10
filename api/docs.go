@@ -111,6 +111,7 @@ const docTemplate = `{
                             "RULE_UPDATED",
                             "RULE_ACTIVATED",
                             "RULE_DEACTIVATED",
+                            "RULE_DRAFTED",
                             "RULE_DELETED",
                             "LIMIT_CREATED",
                             "LIMIT_UPDATED",
@@ -130,7 +131,8 @@ const docTemplate = `{
                             "UPDATE",
                             "DELETE",
                             "ACTIVATE",
-                            "DEACTIVATE"
+                            "DEACTIVATE",
+                            "DRAFT"
                         ],
                         "type": "string",
                         "description": "Filter by action",

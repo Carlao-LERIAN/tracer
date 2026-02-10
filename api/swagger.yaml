@@ -805,6 +805,7 @@ paths:
         - RULE_UPDATED
         - RULE_ACTIVATED
         - RULE_DEACTIVATED
+        - RULE_DRAFTED
         - RULE_DELETED
         - LIMIT_CREATED
         - LIMIT_UPDATED
@@ -822,6 +823,7 @@ paths:
         - DELETE
         - ACTIVATE
         - DEACTIVATE
+        - DRAFT
         in: query
         name: action
         type: string
