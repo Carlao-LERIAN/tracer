@@ -17,6 +17,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/contextutil"
 	"tracer/pkg/logging"
@@ -46,13 +47,15 @@ type UpdateLimitInput struct {
 // UpdateLimitCommand handles limit updates.
 type UpdateLimitCommand struct {
 	repo        LimitRepository
+	clock       clock.Clock
 	auditWriter AuditWriter
 }
 
 // NewUpdateLimitCommand creates a new UpdateLimitCommand with dependencies.
-func NewUpdateLimitCommand(repo LimitRepository, auditWriter AuditWriter) *UpdateLimitCommand {
+func NewUpdateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter AuditWriter) *UpdateLimitCommand {
 	return &UpdateLimitCommand{
 		repo:        repo,
+		clock:       clk,
 		auditWriter: auditWriter,
 	}
 }
@@ -126,7 +129,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		return limit, nil
 	}
 
-	if err := limit.Update(normalizedInput.Name, normalizedInput.MaxAmount, normalizedInput.Description, normalizedInput.Scopes); err != nil {
+	if err := limit.Update(normalizedInput.Name, normalizedInput.MaxAmount, normalizedInput.Description, normalizedInput.Scopes, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Update validation failed", err)
 		logger.WithFields(
 			"operation", "service.limit.update",

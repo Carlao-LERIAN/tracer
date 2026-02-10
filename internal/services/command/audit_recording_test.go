@@ -205,7 +205,7 @@ func TestAuditEventRecording_CreateLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd, err := NewCreateLimitCommand(mockRepo, auditWriter)
+	cmd, err := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 	require.NoError(t, err)
 	_, err = cmd.Execute(context.Background(), &CreateLimitInput{
 		Name: "Test", LimitType: model.LimitTypeDaily, MaxAmount: decimal.RequireFromString("1000"),
@@ -293,7 +293,7 @@ func TestAuditEventRecording_UpdateLimit(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	cmd := NewUpdateLimitCommand(mockRepo, auditWriter)
+	cmd := NewUpdateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 	_, err := cmd.Execute(context.Background(), limitID, &UpdateLimitInput{
 		MaxAmount: testutil.Ptr(decimal.RequireFromString("1000")),
 	})

@@ -171,6 +171,7 @@ func validateScopes(scopes []Scope) error {
 // maxAmount is a decimal value (e.g., 1000.00).
 // Scopes ordering is preserved: the returned Limit.Scopes maintains the same order as the input.
 // Name and description are trimmed of leading/trailing whitespace before storage.
+// The caller provides the current timestamp (createdAt) to enable deterministic testing via clock injection.
 func NewLimit(
 	name string,
 	limitType LimitType,
@@ -178,8 +179,9 @@ func NewLimit(
 	currency string,
 	scopes []Scope,
 	description *string,
+	createdAt time.Time,
 ) (*Limit, error) {
-	now := time.Now().UTC()
+	now := createdAt.UTC()
 	resetAt := CalculateResetAt(limitType, now)
 
 	// Normalize textual inputs
@@ -267,11 +269,13 @@ func validateDescription(description *string) error {
 // Update modifies limit fields. Only non-nil parameters are updated.
 // maxAmount is a decimal value (e.g., 1000.00).
 // Name and description are trimmed of leading/trailing whitespace before storage.
+// The caller provides the current timestamp (now) to enable deterministic testing via clock injection.
 func (l *Limit) Update(
 	name *string,
 	maxAmount *decimal.Decimal,
 	description *string,
 	scopes *[]Scope,
+	now time.Time,
 ) error {
 	updated := false
 
@@ -315,7 +319,7 @@ func (l *Limit) Update(
 	}
 
 	if updated {
-		l.UpdatedAt = time.Now().UTC()
+		l.UpdatedAt = now.UTC()
 	}
 
 	return nil

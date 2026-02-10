@@ -34,6 +34,7 @@ func newTestLimit(t *testing.T) *Limit {
 		"USD",
 		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1))}},
 		testutil.StringPtr("Test description"),
+		testutil.FixedTime(),
 	)
 	require.NoError(t, err, "newTestLimit: NewLimit failed")
 
@@ -526,7 +527,7 @@ func TestNewLimit(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			limit, err := NewLimit(tc.limitName, tc.limitType, tc.maxAmount, tc.currency, tc.scopes, tc.description)
+			limit, err := NewLimit(tc.limitName, tc.limitType, tc.maxAmount, tc.currency, tc.scopes, tc.description, testutil.FixedTime())
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -580,7 +581,7 @@ func TestNewLimit(t *testing.T) {
 
 	t.Run("does not allow external mutation of scopes slice passed to NewLimit", func(t *testing.T) {
 		scopes := []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(12))}}
-		limit, err := NewLimit("Test Limit", LimitTypeDaily, decimal.RequireFromString("1000"), "USD", scopes, nil)
+		limit, err := NewLimit("Test Limit", LimitTypeDaily, decimal.RequireFromString("1000"), "USD", scopes, nil, testutil.FixedTime())
 		require.NoError(t, err)
 
 		// mutate caller slice after creation
@@ -723,7 +724,7 @@ func TestLimit_Update(t *testing.T) {
 			originalScopes := make([]Scope, len(limit.Scopes))
 			copy(originalScopes, limit.Scopes)
 
-			err := limit.Update(tc.updateName, tc.updateMax, tc.updateDesc, tc.updateScope)
+			err := limit.Update(tc.updateName, tc.updateMax, tc.updateDesc, tc.updateScope, testutil.FixedTime())
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -784,7 +785,7 @@ func TestLimit_Update_NoChanges(t *testing.T) {
 			limit.UpdatedAt = fixedTime
 
 			// Call Update with all nil parameters
-			err := limit.Update(nil, nil, nil, nil)
+			err := limit.Update(nil, nil, nil, nil, testutil.FixedTime())
 
 			require.NoError(t, err)
 			assert.Equal(t, fixedTime, limit.UpdatedAt, "UpdatedAt should not change when no fields are modified")
@@ -1700,6 +1701,7 @@ func TestNewUsageSnapshot_NearLimitThreshold(t *testing.T) {
 				"USD",
 				[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(80))}},
 				nil,
+				testutil.FixedTime(),
 			)
 			require.NoError(t, err)
 
@@ -1722,6 +1724,7 @@ func TestNewUsageSnapshot_PerTransactionLimit(t *testing.T) {
 		"USD",
 		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(81))}},
 		nil,
+		testutil.FixedTime(),
 	)
 	require.NoError(t, err)
 
@@ -1772,6 +1775,7 @@ func TestNewUsageSnapshot_MonthlyLimit(t *testing.T) {
 		"USD",
 		[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(82))}},
 		nil,
+		testutil.FixedTime(),
 	)
 	require.NoError(t, err)
 

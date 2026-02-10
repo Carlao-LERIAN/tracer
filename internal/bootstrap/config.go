@@ -467,13 +467,14 @@ func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter 
 	usageCounterRepo := postgres.NewUsageCounterRepository(postgresConn)
 
 	// Inject audit writer into all Limit commands for SOX/GLBA compliance
-	createLimitCmd, err := command.NewCreateLimitCommand(limitRepo, auditWriter)
+	clk := clock.New()
+
+	createLimitCmd, err := command.NewCreateLimitCommand(limitRepo, clk, auditWriter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create limit command: %w", err)
 	}
 
-	clk := clock.New()
-	updateLimitCmd := command.NewUpdateLimitCommand(limitRepo, auditWriter)
+	updateLimitCmd := command.NewUpdateLimitCommand(limitRepo, clk, auditWriter)
 	activateLimitCmd := command.NewActivateLimitCommand(limitRepo, clk, auditWriter)
 	deactivateLimitCmd := command.NewDeactivateLimitCommand(limitRepo, clk, auditWriter)
 	draftLimitCmd := command.NewDraftLimitCommand(limitRepo, clk, auditWriter)

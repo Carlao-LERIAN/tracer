@@ -26,7 +26,7 @@ func TestNewUpdateLimitCommand(t *testing.T) {
 	mockRepo := NewMockLimitRepository(ctrl)
 	auditWriter := NewMockAuditWriter(ctrl)
 	// No audit expected - constructor only
-	cmd := NewUpdateLimitCommand(mockRepo, auditWriter)
+	cmd := NewUpdateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 
 	assert.NotNil(t, cmd)
 	assert.Equal(t, mockRepo, cmd.repo)
@@ -332,7 +332,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 					Return(nil)
 			}
 
-			cmd := NewUpdateLimitCommand(mockRepo, auditWriter)
+			cmd := NewUpdateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
 			result, err := cmd.Execute(context.Background(), tc.limitID, tc.input)
 
 			if tc.expectError {
