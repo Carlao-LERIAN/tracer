@@ -111,15 +111,15 @@ var (
 	// =============================================================================
 	// Audit Event Errors (TRC-0140 to TRC-0159)
 	// =============================================================================
-	ErrAuditEventNotFound             = errors.New("TRC-0140") // audit event not found
-	ErrInvalidAuditEventFilters       = errors.New("TRC-0141") // invalid audit event filter parameters
-	ErrAuditEventInvalidType          = errors.New("TRC-0142") // invalid audit event type
-	ErrAuditEventInvalidAction        = errors.New("TRC-0143") // invalid audit action
-	ErrAuditEventInvalidResult        = errors.New("TRC-0144") // invalid audit result
-	ErrAuditEventResourceIDRequired   = errors.New("TRC-0145") // resource ID is required
-	ErrAuditEventInvalidResourceType  = errors.New("TRC-0146") // invalid resource type
-	ErrAuditEventActorIDRequired      = errors.New("TRC-0147") // actor ID is required
-	ErrAuditEventActorTypeInvalid     = errors.New("TRC-0148") // actor type must be 'user' or 'system'
+	ErrAuditEventNotFound            = errors.New("TRC-0140") // audit event not found
+	ErrInvalidAuditEventFilters      = errors.New("TRC-0141") // invalid audit event filter parameters
+	ErrAuditEventInvalidType         = errors.New("TRC-0142") // invalid audit event type
+	ErrAuditEventInvalidAction       = errors.New("TRC-0143") // invalid audit action
+	ErrAuditEventInvalidResult       = errors.New("TRC-0144") // invalid audit result
+	ErrAuditEventResourceIDRequired  = errors.New("TRC-0145") // resource ID is required
+	ErrAuditEventInvalidResourceType = errors.New("TRC-0146") // invalid resource type
+	ErrAuditEventActorIDRequired     = errors.New("TRC-0147") // actor ID is required
+	ErrAuditEventActorTypeInvalid    = errors.New("TRC-0148") // actor type must be 'user' or 'system'
 
 	// =============================================================================
 	// UsageCounter Errors (TRC-0160 to TRC-0179)
@@ -136,11 +136,11 @@ var (
 	// =============================================================================
 	// CheckLimits Errors (TRC-0180 to TRC-0199)
 	// =============================================================================
-	ErrCheckLimitsInvalidAmount    = errors.New("TRC-0180") // check limits amount must be positive
-	ErrCheckLimitsInvalidCurrency  = errors.New("TRC-0181") // check limits currency must be valid ISO 4217
-	ErrCheckLimitsUnknownLimitType = errors.New("TRC-0183") // unknown limit type for period key calculation
-	ErrCheckLimitsInvalidTimestamp = errors.New("TRC-0184") // check limits timestamp must not be zero
-	ErrCheckLimitsNilInput         = errors.New("TRC-0185") // check limits input cannot be nil
+	ErrCheckLimitsInvalidAmount          = errors.New("TRC-0180") // check limits amount must be positive
+	ErrCheckLimitsInvalidCurrency        = errors.New("TRC-0181") // check limits currency must be valid ISO 4217
+	ErrCheckLimitsUnknownLimitType       = errors.New("TRC-0183") // unknown limit type for period key calculation
+	ErrCheckLimitsInvalidTimestamp       = errors.New("TRC-0184") // check limits timestamp must not be zero
+	ErrCheckLimitsNilInput               = errors.New("TRC-0185") // check limits input cannot be nil
 	ErrCheckLimitsInvalidAccountID       = errors.New("TRC-0186") // check limits accountId is required
 	ErrCheckLimitsInvalidTransactionType = errors.New("TRC-0187") // check limits transactionType must be valid
 	ErrCheckLimitsInvalidSubType         = errors.New("TRC-0188") // check limits subType exceeds maximum length
@@ -154,17 +154,17 @@ var (
 	// =============================================================================
 	// Validation Request Errors (TRC-0220 to TRC-0249)
 	// =============================================================================
-	ErrValidationRequestIDRequired      = errors.New("TRC-0220") // requestId is required
-	ErrValidationInvalidTransactionType = errors.New("TRC-0221") // invalid transactionType
-	ErrValidationAmountNonPositive      = errors.New("TRC-0222") // amount must be positive
-	ErrValidationCurrencyRequired       = errors.New("TRC-0223") // currency is required
-	ErrValidationInvalidCurrency        = errors.New("TRC-0224") // currency must be valid ISO 4217
-	ErrValidationTimestampRequired      = errors.New("TRC-0225") // timestamp is required
-	ErrValidationTimestampFuture        = errors.New("TRC-0226") // timestamp cannot be in the future
-	ErrValidationAccountRequired        = errors.New("TRC-0227") // account is required
-	ErrValidationTimeout                = errors.New("TRC-0229") // validation timeout
-	ErrValidationSegmentIDRequired      = errors.New("TRC-0230") // segmentId is required when segment is provided
-	ErrValidationPortfolioIDRequired    = errors.New("TRC-0231") // portfolioId is required when portfolio is provided
+	ErrValidationRequestIDRequired       = errors.New("TRC-0220") // requestId is required
+	ErrValidationInvalidTransactionType  = errors.New("TRC-0221") // invalid transactionType
+	ErrValidationAmountNonPositive       = errors.New("TRC-0222") // amount must be positive
+	ErrValidationCurrencyRequired        = errors.New("TRC-0223") // currency is required
+	ErrValidationInvalidCurrency         = errors.New("TRC-0224") // currency must be valid ISO 4217
+	ErrValidationTimestampRequired       = errors.New("TRC-0225") // timestamp is required
+	ErrValidationTimestampFuture         = errors.New("TRC-0226") // timestamp cannot be in the future
+	ErrValidationAccountRequired         = errors.New("TRC-0227") // account is required
+	ErrValidationTimeout                 = errors.New("TRC-0229") // validation timeout
+	ErrValidationSegmentIDRequired       = errors.New("TRC-0230") // segmentId is required when segment is provided
+	ErrValidationPortfolioIDRequired     = errors.New("TRC-0231") // portfolioId is required when portfolio is provided
 	ErrValidationSubTypeTooLong          = errors.New("TRC-0232") // subType exceeds maximum length of 50 characters
 	ErrValidationInvalidAccountType      = errors.New("TRC-0233") // account.type must be checking, savings, or credit
 	ErrValidationInvalidAccountStatus    = errors.New("TRC-0234") // account.status must be active, suspended, or closed
@@ -188,12 +188,12 @@ var (
 
 // Error code constants for HTTP responses.
 const (
-	CodeBadRequest            = "TRC-0003"
-	CodeInternalServer        = "TRC-0004"
-	CodePayloadTooLarge       = "TRC-0011"
-	CodeContextCancelled      = "TRC-0012"
-	CodeRuleEvaluationError   = "TRC-0103"
-	CodeLimitCheckError       = "TRC-0136"
-	CodeValidationTimeout     = "TRC-0229"
+	CodeBadRequest             = "TRC-0003"
+	CodeInternalServer         = "TRC-0004"
+	CodePayloadTooLarge        = "TRC-0011"
+	CodeContextCancelled       = "TRC-0012"
+	CodeRuleEvaluationError    = "TRC-0103"
+	CodeLimitCheckError        = "TRC-0136"
+	CodeValidationTimeout      = "TRC-0229"
 	CodeListValidationsTimeout = "TRC-0252"
 )

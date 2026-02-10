@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/shopspring/decimal"
+
 	"tracer/internal/testutil"
 	"tracer/pkg/model"
 )
@@ -46,7 +48,7 @@ func TestLimitPostgreSQLModel_ToEntity(t *testing.T) {
 				Name:        "Test Limit",
 				Description: sql.NullString{Valid: false},
 				LimitType:   "DAILY",
-				MaxAmount:   100000,
+				MaxAmount:   decimal.RequireFromString("1000"),
 				Currency:    "BRL",
 				Scopes:      "[]",
 				Status:      "DRAFT",
@@ -60,7 +62,7 @@ func TestLimitPostgreSQLModel_ToEntity(t *testing.T) {
 				Name:        "Test Limit",
 				Description: nil,
 				LimitType:   model.LimitTypeDaily,
-				MaxAmount:   100000,
+				MaxAmount:   decimal.RequireFromString("1000"),
 				Currency:    "BRL",
 				Scopes:      []model.Scope{},
 				Status:      model.LimitStatusDraft,
@@ -77,7 +79,7 @@ func TestLimitPostgreSQLModel_ToEntity(t *testing.T) {
 				Name:        "Full Limit",
 				Description: sql.NullString{String: "A detailed description", Valid: true},
 				LimitType:   "MONTHLY",
-				MaxAmount:   500000,
+				MaxAmount:   decimal.RequireFromString("5000"),
 				Currency:    "USD",
 				Scopes:      `[{"accountId":"` + testAccountID.String() + `","segmentId":"` + testSegmentID.String() + `"}]`,
 				Status:      "ACTIVE",
@@ -91,7 +93,7 @@ func TestLimitPostgreSQLModel_ToEntity(t *testing.T) {
 				Name:        "Full Limit",
 				Description: testutil.StringPtr("A detailed description"),
 				LimitType:   model.LimitTypeMonthly,
-				MaxAmount:   500000,
+				MaxAmount:   decimal.RequireFromString("5000"),
 				Currency:    "USD",
 				Scopes:      []model.Scope{{AccountID: &testAccountID, SegmentID: &testSegmentID}},
 				Status:      model.LimitStatusActive,
@@ -108,7 +110,7 @@ func TestLimitPostgreSQLModel_ToEntity(t *testing.T) {
 				Name:        "Deleted Limit",
 				Description: sql.NullString{Valid: false},
 				LimitType:   "PER_TRANSACTION",
-				MaxAmount:   10000,
+				MaxAmount:   decimal.RequireFromString("100"),
 				Currency:    "EUR",
 				Scopes:      "[]",
 				Status:      "DELETED",
@@ -122,7 +124,7 @@ func TestLimitPostgreSQLModel_ToEntity(t *testing.T) {
 				Name:        "Deleted Limit",
 				Description: nil,
 				LimitType:   model.LimitTypePerTransaction,
-				MaxAmount:   10000,
+				MaxAmount:   decimal.RequireFromString("100"),
 				Currency:    "EUR",
 				Scopes:      []model.Scope{},
 				Status:      model.LimitStatusDeleted,
@@ -139,7 +141,7 @@ func TestLimitPostgreSQLModel_ToEntity(t *testing.T) {
 				Name:        "Scoped Limit",
 				Description: sql.NullString{Valid: false},
 				LimitType:   "DAILY",
-				MaxAmount:   50000,
+				MaxAmount:   decimal.RequireFromString("500"),
 				Currency:    "BRL",
 				Scopes: `[
 					{"accountId":"` + testAccountID.String() + `","merchantId":"` + testMerchantID.String() + `","transactionType":"CARD","subType":"debit"},
@@ -156,7 +158,7 @@ func TestLimitPostgreSQLModel_ToEntity(t *testing.T) {
 				Name:        "Scoped Limit",
 				Description: nil,
 				LimitType:   model.LimitTypeDaily,
-				MaxAmount:   50000,
+				MaxAmount:   decimal.RequireFromString("500"),
 				Currency:    "BRL",
 				Scopes: []model.Scope{
 					{AccountID: &testAccountID, MerchantID: &testMerchantID, TransactionType: &cardType, SubType: &subType},
@@ -231,7 +233,7 @@ func TestLimitPostgreSQLModel_FromEntity(t *testing.T) {
 				Name:        "Simple Limit",
 				Description: nil,
 				LimitType:   model.LimitTypeDaily,
-				MaxAmount:   100000,
+				MaxAmount:   decimal.RequireFromString("1000"),
 				Currency:    "BRL",
 				Scopes:      []model.Scope{},
 				Status:      model.LimitStatusDraft,
@@ -246,7 +248,7 @@ func TestLimitPostgreSQLModel_FromEntity(t *testing.T) {
 				assert.Equal(t, "Simple Limit", dbModel.Name)
 				assert.False(t, dbModel.Description.Valid, "Description should be invalid for nil")
 				assert.Equal(t, "DAILY", dbModel.LimitType)
-				assert.Equal(t, int64(100000), dbModel.MaxAmount)
+				assert.True(t, decimal.RequireFromString("1000").Equal(dbModel.MaxAmount), "MaxAmount should be 1000")
 				assert.Equal(t, "BRL", dbModel.Currency)
 				assert.Equal(t, "DRAFT", dbModel.Status)
 				assert.Equal(t, fixedTime, dbModel.CreatedAt)
@@ -264,7 +266,7 @@ func TestLimitPostgreSQLModel_FromEntity(t *testing.T) {
 				Name:        "Full Entity",
 				Description: testutil.StringPtr("Complete limit with all fields"),
 				LimitType:   model.LimitTypeMonthly,
-				MaxAmount:   500000,
+				MaxAmount:   decimal.RequireFromString("5000"),
 				Currency:    "USD",
 				Scopes:      []model.Scope{{AccountID: &testAccountID, SegmentID: &testSegmentID}},
 				Status:      model.LimitStatusActive,
@@ -280,7 +282,7 @@ func TestLimitPostgreSQLModel_FromEntity(t *testing.T) {
 				assert.True(t, dbModel.Description.Valid, "Description should be valid when set")
 				assert.Equal(t, "Complete limit with all fields", dbModel.Description.String)
 				assert.Equal(t, "MONTHLY", dbModel.LimitType)
-				assert.Equal(t, int64(500000), dbModel.MaxAmount)
+				assert.True(t, decimal.RequireFromString("5000").Equal(dbModel.MaxAmount), "MaxAmount should be 5000")
 				assert.Equal(t, "USD", dbModel.Currency)
 				assert.Equal(t, "ACTIVE", dbModel.Status)
 				assert.Equal(t, fixedTime, dbModel.CreatedAt)
@@ -300,7 +302,7 @@ func TestLimitPostgreSQLModel_FromEntity(t *testing.T) {
 				Name:        "Nil Scopes Limit",
 				Description: nil,
 				LimitType:   model.LimitTypePerTransaction,
-				MaxAmount:   10000,
+				MaxAmount:   decimal.RequireFromString("100"),
 				Currency:    "EUR",
 				Scopes:      nil, // Explicitly nil
 				Status:      model.LimitStatusDraft,
@@ -347,7 +349,7 @@ func TestLimitPostgreSQLModel_RoundTrip(t *testing.T) {
 		Name:        "RoundTrip Limit",
 		Description: testutil.StringPtr("Testing round-trip conversion"),
 		LimitType:   model.LimitTypeDaily,
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "BRL",
 		Scopes: []model.Scope{
 			{AccountID: &testAccountID, TransactionType: &cardType},
@@ -406,7 +408,7 @@ func TestLimitPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(30).String(),
 				Name:      "Empty Scopes",
 				LimitType: "DAILY",
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes:    "[]",
 				Status:    "DRAFT",
@@ -428,7 +430,7 @@ func TestLimitPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				Name:        "Whitespace Description",
 				Description: sql.NullString{String: "  Description with spaces  ", Valid: true},
 				LimitType:   "MONTHLY",
-				MaxAmount:   200000,
+				MaxAmount:   decimal.RequireFromString("2000"),
 				Currency:    "USD",
 				Scopes:      "[]",
 				Status:      "DRAFT",
@@ -450,7 +452,7 @@ func TestLimitPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(32).String(),
 				Name:      "Per Transaction Limit",
 				LimitType: "PER_TRANSACTION",
-				MaxAmount: 5000,
+				MaxAmount: decimal.RequireFromString("50"),
 				Currency:  "EUR",
 				Scopes:    "[]",
 				Status:    "ACTIVE",
@@ -470,7 +472,7 @@ func TestLimitPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:        testutil.MustDeterministicUUID(33).String(),
 				Name:      "Inactive Limit",
 				LimitType: "DAILY",
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes:    "[]",
 				Status:    "INACTIVE",
@@ -487,15 +489,15 @@ func TestLimitPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 		{
 			name: "returns error for invalid scopes JSON",
 			dbModel: LimitPostgreSQLModel{
-				ID:          testutil.MustDeterministicUUID(34).String(),
-				Name:        "Invalid Scopes",
-				LimitType:   "DAILY",
-				MaxAmount:   10000,
-				Currency:    "BRL",
-				Scopes:      "not-valid-json",
-				Status:      "DRAFT",
-				CreatedAt:   fixedTime,
-				UpdatedAt:   fixedTime,
+				ID:        testutil.MustDeterministicUUID(34).String(),
+				Name:      "Invalid Scopes",
+				LimitType: "DAILY",
+				MaxAmount: decimal.RequireFromString("100"),
+				Currency:  "BRL",
+				Scopes:    "not-valid-json",
+				Status:    "DRAFT",
+				CreatedAt: fixedTime,
+				UpdatedAt: fixedTime,
 			},
 			validate: func(t *testing.T, result *model.Limit, err error) {
 				t.Helper()
@@ -510,7 +512,7 @@ func TestLimitPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:        "not-a-valid-uuid",
 				Name:      "Invalid ID",
 				LimitType: "DAILY",
-				MaxAmount: 10000,
+				MaxAmount: decimal.RequireFromString("100"),
 				Currency:  "BRL",
 				Scopes:    "[]",
 				Status:    "DRAFT",

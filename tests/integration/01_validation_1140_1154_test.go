@@ -17,6 +17,7 @@ import (
 
 	"tracer/internal/testutil"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,18 +30,18 @@ import (
 func TestValidation_1_1_40_MonthlyLimitType(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1000).String()
 
-	// Create and activate MONTHLY limit of 1000000
-	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, 1000000, "MONTHLY")
+	// Create and activate MONTHLY limit of 10000
+	limitID := testutil.CreateLimitWithAccountScopeAndType(t, accountID, "10000", "MONTHLY")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// Consume 900000 of the limit with a first validation
+	// Consume 9000 of the limit with a first validation
 	firstReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(1001).String(),
 		TransactionType:      "PIX",
-		Amount:               900000,
+		Amount:               decimal.RequireFromString("9000"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -57,11 +58,11 @@ func TestValidation_1_1_40_MonthlyLimitType(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ALLOW", firstResult.Decision, "First validation should ALLOW")
 
-	// Now try to exceed the limit with amount 150000 (900000 + 150000 > 1000000)
+	// Now try to exceed the limit with amount 1500 (9000 + 1500 > 10000)
 	secondReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(1002).String(),
 		TransactionType:      "PIX",
-		Amount:               150000,
+		Amount:               decimal.RequireFromString("1500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -97,9 +98,9 @@ func TestValidation_1_1_40_MonthlyLimitType(t *testing.T) {
 
 // Test 1.1.41: Validation with PER_TRANSACTION limit type
 func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
-	// Create and activate PER_TRANSACTION limit of 100000 for CARD transactions
+	// Create and activate PER_TRANSACTION limit of 1000 for CARD transactions
 	transactionType := "CARD"
-	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, 100000)
+	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -112,7 +113,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1011).String(),
 			TransactionType:      "CARD",
-			Amount:               50000,
+			Amount:               decimal.RequireFromString("500"),
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -142,7 +143,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 		}
 		require.NotNil(t, foundLimit, "limitUsageDetails should contain our limit")
 		assert.Equal(t, "PER_TRANSACTION", foundLimit.Period, "period should be PER_TRANSACTION")
-		assert.Equal(t, int64(0), foundLimit.CurrentUsage, "currentUsage should always be 0 for PER_TRANSACTION")
+		assert.True(t, foundLimit.CurrentUsage.IsZero(), "currentUsage should always be 0 for PER_TRANSACTION")
 		assert.False(t, foundLimit.Exceeded, "exceeded should be false")
 	})
 
@@ -151,7 +152,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1012).String(),
 			TransactionType:      "CARD",
-			Amount:               150000,
+			Amount:               decimal.RequireFromString("1500"),
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -181,7 +182,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 		}
 		require.NotNil(t, foundLimit, "limitUsageDetails should contain our limit")
 		assert.Equal(t, "PER_TRANSACTION", foundLimit.Period, "period should be PER_TRANSACTION")
-		assert.Equal(t, int64(0), foundLimit.CurrentUsage, "currentUsage should always be 0 for PER_TRANSACTION")
+		assert.True(t, foundLimit.CurrentUsage.IsZero(), "currentUsage should always be 0 for PER_TRANSACTION")
 		assert.True(t, foundLimit.Exceeded, "exceeded should be true")
 	})
 
@@ -190,7 +191,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1013).String(),
 			TransactionType:      "CARD",
-			Amount:               100000, // Exactly at limit
+			Amount:               decimal.RequireFromString("1000"), // Exactly at limit
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -220,7 +221,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 		}
 		require.NotNil(t, foundLimit, "limitUsageDetails should contain our limit")
 		assert.Equal(t, "PER_TRANSACTION", foundLimit.Period, "period should be PER_TRANSACTION")
-		assert.Equal(t, int64(0), foundLimit.CurrentUsage, "currentUsage should always be 0 for PER_TRANSACTION")
+		assert.True(t, foundLimit.CurrentUsage.IsZero(), "currentUsage should always be 0 for PER_TRANSACTION")
 		assert.False(t, foundLimit.Exceeded, "exceeded should be false at exact boundary")
 	})
 }
@@ -246,7 +247,7 @@ func TestValidation_1_1_42_ScopeMatchingRulesSegment(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1023).String(),
 			TransactionType:      "CARD",
-			Amount:               10000,
+			Amount:               decimal.RequireFromString("100"),
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -275,7 +276,7 @@ func TestValidation_1_1_42_ScopeMatchingRulesSegment(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1024).String(),
 			TransactionType:      "CARD",
-			Amount:               10000,
+			Amount:               decimal.RequireFromString("100"),
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -321,7 +322,7 @@ func TestValidation_1_1_43_ScopeMatchingRulesPortfolio(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1033).String(),
 			TransactionType:      "WIRE",
-			Amount:               100000,
+			Amount:               decimal.RequireFromString("1000"),
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -350,7 +351,7 @@ func TestValidation_1_1_43_ScopeMatchingRulesPortfolio(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1034).String(),
 			TransactionType:      "WIRE",
-			Amount:               100000,
+			Amount:               decimal.RequireFromString("1000"),
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -395,7 +396,7 @@ func TestValidation_1_1_44_ScopeMatchingRulesTransactionType(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1041).String(),
 			TransactionType:      "CRYPTO",
-			Amount:               10000,
+			Amount:               decimal.RequireFromString("100"),
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -421,7 +422,7 @@ func TestValidation_1_1_44_ScopeMatchingRulesTransactionType(t *testing.T) {
 		req := &testutil.ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(1042).String(),
 			TransactionType:      "PIX",
-			Amount:               10000,
+			Amount:               decimal.RequireFromString("100"),
 			Currency:             "BRL",
 			TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 			Account: &testutil.AccountContext{
@@ -449,11 +450,11 @@ func TestValidation_1_1_45_DenyRulePrecedenceOverLimitExceeded(t *testing.T) {
 
 	// Create and activate DENY rule
 	ruleName := "deny-high-value-precedence-" + testutil.MustDeterministicUUID(1204).String()[:8]
-	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 50000", "DENY")
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 500", "DENY")
 	testutil.ActivateRule(t, ruleID)
 
 	// Create and activate a DAILY limit that would also be exceeded
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 
 	t.Cleanup(func() {
@@ -461,11 +462,11 @@ func TestValidation_1_1_45_DenyRulePrecedenceOverLimitExceeded(t *testing.T) {
 		testutil.CleanupLimit(t, limitID)
 	})
 
-	// Consume 50000 of the limit first (amount <= 50000 to avoid DENY rule)
+	// Consume 500 of the limit first (amount <= 500 to avoid DENY rule)
 	firstReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(1051).String(),
 		TransactionType:      "PIX",
-		Amount:               50000, // <= 50000 to avoid DENY rule, will be ALLOWED
+		Amount:               decimal.RequireFromString("500"), // <= 500 to avoid DENY rule, will be ALLOWED
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -486,7 +487,7 @@ func TestValidation_1_1_45_DenyRulePrecedenceOverLimitExceeded(t *testing.T) {
 	secondReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(1052).String(),
 		TransactionType:      "CARD",
-		Amount:               60000, // > 50000 (triggers DENY rule) AND 50000+60000 > 100000 (exceeds limit)
+		Amount:               decimal.RequireFromString("600"), // > 500 (triggers DENY rule) AND 500+600 > 1000 (exceeds limit)
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -514,7 +515,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1060).String()
 
 	// Create and activate a DAILY limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 
 	// Create and activate DENY rule for CARD transactions
@@ -531,7 +532,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	pixReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(1061).String(),
 		TransactionType:      "PIX",
-		Amount:               30000,
+		Amount:               decimal.RequireFromString("300"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -548,14 +549,14 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ALLOW", pixResult.Decision, "PIX validation should be ALLOW")
 
-	// Get the current usage after PIX (should be 30000)
-	var initialUsage int64 = 30000
+	// Get the current usage after PIX (should be 300)
+	initialUsage := decimal.RequireFromString("300")
 
 	// Now send a CARD transaction that will be DENIED
 	cardReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(1062).String(),
 		TransactionType:      "CARD",
-		Amount:               50000,
+		Amount:               decimal.RequireFromString("500"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -578,7 +579,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	checkReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(1063).String(),
 		TransactionType:      "PIX",
-		Amount:               1000,
+		Amount:               decimal.RequireFromString("10"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -605,25 +606,26 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	}
 
 	require.NotNil(t, foundLimit, "limitUsageDetails should contain our limit")
-	// The key check is that the CARD transaction's 50000 was NOT added
-	expectedUsage := initialUsage + 1000 // PIX (30000) + check request (1000)
-	assert.LessOrEqual(t, foundLimit.CurrentUsage, expectedUsage,
-		"Usage should NOT include the DENIED CARD transaction amount; expected around %d, got %d",
+	// The key check is that the CARD transaction's 500 was NOT added
+	expectedUsage := initialUsage.Add(decimal.RequireFromString("10")) // PIX (300) + check request (10)
+	assert.True(t, foundLimit.CurrentUsage.Equal(expectedUsage),
+		"Usage should exclude the DENIED CARD transaction and include the PIX check; expected %s, got %s",
 		expectedUsage, foundLimit.CurrentUsage)
 }
 
-// Test 1.1.47: Validation rejects amount exceeding system maximum
-func TestValidation_1_1_47_RejectsAmountExceedingSystemMax(t *testing.T) {
+// Test 1.1.47: Validation accepts amount exceeding int64 max (decimal.Decimal supports arbitrary precision)
+func TestValidation_1_1_47_AcceptsAmountExceedingInt64Max(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1070).String()
 
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	// 9223372036854775808 is int64 max + 1 (overflow)
+	// 9223372036854775808 is int64 max + 1; decimal.Decimal handles arbitrary precision,
+	// so this value is accepted instead of causing an overflow error.
 	rawJSON := fmt.Sprintf(`{
 		"requestId": "%s",
 		"transactionType": "CARD",
-		"amount": 9223372036854775808,
+		"amount": "9223372036854775808",
 		"currency": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"}
@@ -641,14 +643,8 @@ func TestValidation_1_1_47_RejectsAmountExceedingSystemMax(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
-		"Amount exceeding int64 max should return 400 Bad Request")
-
-	// Verify structured error response
-	errResp := testutil.ParseErrorResponse(t, body)
-	assert.Equal(t, "TRC-0003", errResp.Code, "Error response should have bad request error code")
-	assert.Equal(t, "Bad Request", errResp.Title, "Error response should have bad request error title")
-	assert.Equal(t, "invalid request body", errResp.Message, "Error response should indicate invalid request body")
+	assert.Equal(t, http.StatusOK, resp.StatusCode,
+		"Amount exceeding int64 max should be accepted with decimal.Decimal: %s", string(body))
 }
 
 // Test 1.1.48: Validation with empty metadata object
@@ -659,7 +655,7 @@ func TestValidation_1_1_48_EmptyMetadataObject(t *testing.T) {
 	req := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "CARD",
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -691,7 +687,7 @@ func TestValidation_1_1_49_NullOptionalFields(t *testing.T) {
 		"requestId": "%s",
 		"transactionType": "CARD",
 		"subType": null,
-		"amount": 10000,
+		"amount": "100.00",
 		"currency": "BRL",
 		"transactionTimestamp": "%s",
 		"account": {"accountId": "%s"},
@@ -731,7 +727,7 @@ func TestValidation_1_1_50_VeryOldTimestamp(t *testing.T) {
 	req := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "CARD",
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		TransactionTimestamp: "2020-01-01T00:00:00Z", // Very old timestamp
 		Account: &testutil.AccountContext{
@@ -760,7 +756,7 @@ func TestValidation_1_1_51_LowercaseCurrencyRejected(t *testing.T) {
 	req := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "CARD",
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "brl", // Lowercase currency - ISO 4217 specifies uppercase
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -791,7 +787,7 @@ func TestValidation_1_1_52_UniqueValidationIdPerRequest(t *testing.T) {
 	req := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "CARD",
-		Amount:               10000,
+		Amount:               decimal.RequireFromString("100"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -837,7 +833,7 @@ func TestValidation_1_1_53_NonIdempotentBehavior(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1130).String()
 
 	// Create and activate a DAILY limit
-	limitID := testutil.CreateLimitWithAccountScope(t, accountID, 100000)
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
 	testutil.ActivateLimit(t, limitID)
 	t.Cleanup(func() {
 		testutil.CleanupLimit(t, limitID)
@@ -848,7 +844,7 @@ func TestValidation_1_1_53_NonIdempotentBehavior(t *testing.T) {
 	req := &testutil.ValidationRequest{
 		RequestID:            requestID,
 		TransactionType:      "CARD",
-		Amount:               60000,
+		Amount:               decimal.RequireFromString("600"),
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
@@ -867,7 +863,7 @@ func TestValidation_1_1_53_NonIdempotentBehavior(t *testing.T) {
 
 	assert.Equal(t, "ALLOW", result1.Decision, "First request should be ALLOW")
 
-	// Second request with same payload and requestId - should DENY (limit exceeded: 60000 + 60000 > 100000)
+	// Second request with same payload and requestId - should DENY (limit exceeded: 600 + 600 > 1000)
 	resp2, body2 := testutil.CreateValidation(t, req)
 	defer resp2.Body.Close()
 	require.Equal(t, http.StatusOK, resp2.StatusCode, "Second request should succeed: %s", string(body2))
@@ -890,12 +886,12 @@ func TestValidation_1_1_54_AllRuleActionsMatching(t *testing.T) {
 
 	// Create DENY rule
 	denyRuleName := "deny-all-actions-test-" + testutil.MustDeterministicUUID(1206).String()[:8]
-	denyRuleID := testutil.CreateTestRuleWithExpression(t, denyRuleName, "amount > 10000", "DENY")
+	denyRuleID := testutil.CreateTestRuleWithExpression(t, denyRuleName, "amount > 100", "DENY")
 	testutil.ActivateRule(t, denyRuleID)
 
 	// Create REVIEW rule
 	reviewRuleName := "review-all-actions-test-" + testutil.MustDeterministicUUID(1207).String()[:8]
-	reviewRuleID := testutil.CreateTestRuleWithExpression(t, reviewRuleName, "amount > 5000", "REVIEW")
+	reviewRuleID := testutil.CreateTestRuleWithExpression(t, reviewRuleName, "amount > 50", "REVIEW")
 	testutil.ActivateRule(t, reviewRuleID)
 
 	// Create ALLOW rule
@@ -912,7 +908,7 @@ func TestValidation_1_1_54_AllRuleActionsMatching(t *testing.T) {
 	req := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(1141).String(),
 		TransactionType:      "CARD",
-		Amount:               15000, // Matches all 3 rules
+		Amount:               decimal.RequireFromString("150"), // Matches all 3 rules
 		Currency:             "BRL",
 		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -289,7 +290,7 @@ type ValidationRequest struct {
 	RequestID            string            `json:"requestId,omitempty"`
 	TransactionType      string            `json:"transactionType,omitempty"`
 	SubType              string            `json:"subType,omitempty"`
-	Amount               int64             `json:"amount,omitempty"`
+	Amount               decimal.Decimal   `json:"amount,omitempty"`
 	Currency             string            `json:"currency,omitempty"`
 	TransactionTimestamp string            `json:"transactionTimestamp,omitempty"`
 	Account              *AccountContext   `json:"account,omitempty"`
@@ -331,13 +332,13 @@ type MerchantContext struct {
 
 // LimitUsageDetail represents limit usage information in validation response.
 type LimitUsageDetail struct {
-	LimitID         string `json:"limitId"`
-	LimitAmount     int64  `json:"limitAmount"`
-	CurrentUsage    int64  `json:"currentUsage"`
-	Exceeded        bool   `json:"exceeded"`
-	Period          string `json:"period"`
-	Scope           string `json:"scope"`
-	AttemptedAmount int64  `json:"attemptedAmount"`
+	LimitID         string          `json:"limitId"`
+	LimitAmount     decimal.Decimal `json:"limitAmount"`
+	CurrentUsage    decimal.Decimal `json:"currentUsage"`
+	Exceeded        bool            `json:"exceeded"`
+	Period          string          `json:"period"`
+	Scope           string          `json:"scope"`
+	AttemptedAmount decimal.Decimal `json:"attemptedAmount"`
 }
 
 // ValidationResponse represents the response from transaction validation.
@@ -581,7 +582,7 @@ type ValidationDetailResponse struct {
 	RequestID            string             `json:"requestId"`
 	TransactionType      string             `json:"transactionType"`
 	SubType              *string            `json:"subType,omitempty"`
-	Amount               int64              `json:"amount"`
+	Amount               decimal.Decimal    `json:"amount"`
 	Currency             string             `json:"currency"`
 	TransactionTimestamp string             `json:"transactionTimestamp"`
 	Account              map[string]any     `json:"account"`
@@ -644,19 +645,19 @@ func GetValidationWithoutAuth(t *testing.T, validationID string) (*http.Response
 
 // ValidationSummary represents a summary of a validation record in list responses.
 type ValidationSummary struct {
-	ID               string   `json:"validationId"`
-	Decision         string   `json:"decision"`
-	Reason           string   `json:"reason"`
-	Amount           int64    `json:"amount"`
-	Currency         string   `json:"currency"`
-	TransactionType  string   `json:"transactionType"`
-	AccountID        string   `json:"accountId"`
-	SegmentID        string   `json:"segmentId,omitempty"`
-	PortfolioID      string   `json:"portfolioId,omitempty"`
-	MatchedRuleIDs   []string `json:"matchedRuleIds"`
-	ExceededLimitIDs []string `json:"exceededLimitIds"`
-	ProcessingTimeMs int64    `json:"processingTimeMs"`
-	CreatedAt        string   `json:"createdAt"`
+	ID               string          `json:"validationId"`
+	Decision         string          `json:"decision"`
+	Reason           string          `json:"reason"`
+	Amount           decimal.Decimal `json:"amount"`
+	Currency         string          `json:"currency"`
+	TransactionType  string          `json:"transactionType"`
+	AccountID        string          `json:"accountId"`
+	SegmentID        string          `json:"segmentId,omitempty"`
+	PortfolioID      string          `json:"portfolioId,omitempty"`
+	MatchedRuleIDs   []string        `json:"matchedRuleIds"`
+	ExceededLimitIDs []string        `json:"exceededLimitIds"`
+	ProcessingTimeMs int64           `json:"processingTimeMs"`
+	CreatedAt        string          `json:"createdAt"`
 }
 
 // ListValidationsResponse represents the response from GET /v1/validations.
@@ -754,7 +755,7 @@ type limitScopeInputTransactionType struct {
 type createLimitRequestAccount struct {
 	Name      string                   `json:"name"`
 	LimitType string                   `json:"limitType"`
-	MaxAmount int64                    `json:"maxAmount"`
+	MaxAmount decimal.Decimal          `json:"maxAmount"`
 	Currency  string                   `json:"currency"`
 	Scopes    []limitScopeInputAccount `json:"scopes"`
 }
@@ -763,7 +764,7 @@ type createLimitRequestAccount struct {
 type createLimitRequestTransactionType struct {
 	Name      string                           `json:"name"`
 	LimitType string                           `json:"limitType"`
-	MaxAmount int64                            `json:"maxAmount"`
+	MaxAmount decimal.Decimal                  `json:"maxAmount"`
 	Currency  string                           `json:"currency"`
 	Scopes    []limitScopeInputTransactionType `json:"scopes"`
 }
@@ -775,7 +776,7 @@ type limitResponse struct {
 
 // CreateLimitWithAccountScope creates a DAILY limit with the specified account scope and max amount.
 // Returns the limit ID.
-func CreateLimitWithAccountScope(t *testing.T, accountID string, maxAmount int64) string {
+func CreateLimitWithAccountScope(t *testing.T, accountID string, maxAmount string) string {
 	t.Helper()
 
 	return CreateLimitWithAccountScopeAndType(t, accountID, maxAmount, "DAILY")
@@ -783,7 +784,7 @@ func CreateLimitWithAccountScope(t *testing.T, accountID string, maxAmount int64
 
 // CreateLimitWithAccountScopeAndType creates a limit with the specified account scope, max amount, and limit type.
 // Returns the limit ID.
-func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmount int64, limitType string) string {
+func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmount string, limitType string) string {
 	t.Helper()
 
 	apiKey := GetAPIKey()
@@ -799,7 +800,7 @@ func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmoun
 	reqBody := createLimitRequestAccount{
 		Name:      uniqueName,
 		LimitType: limitType,
-		MaxAmount: maxAmount,
+		MaxAmount: decimal.RequireFromString(maxAmount),
 		Currency:  "BRL",
 		Scopes: []limitScopeInputAccount{
 			{AccountID: &accountID},
@@ -833,7 +834,7 @@ func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmoun
 
 // CreateLimitWithTransactionTypeScope creates a PER_TRANSACTION limit with the specified transaction type scope.
 // Returns the limit ID.
-func CreateLimitWithTransactionTypeScope(t *testing.T, transactionType string, maxAmount int64) string {
+func CreateLimitWithTransactionTypeScope(t *testing.T, transactionType string, maxAmount string) string {
 	t.Helper()
 
 	apiKey := GetAPIKey()
@@ -843,7 +844,7 @@ func CreateLimitWithTransactionTypeScope(t *testing.T, transactionType string, m
 	reqBody := createLimitRequestTransactionType{
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
-		MaxAmount: maxAmount,
+		MaxAmount: decimal.RequireFromString(maxAmount),
 		Currency:  "BRL",
 		Scopes: []limitScopeInputTransactionType{
 			{TransactionType: &transactionType},
@@ -1004,7 +1005,7 @@ func CreateBasicValidationPayload() map[string]any {
 	return map[string]any{
 		"requestId":            MustDeterministicUUID(currentBase).String(),
 		"transactionType":      "CARD",
-		"amount":               10000,
+		"amount":               "100.00",
 		"currency":             "BRL",
 		"transactionTimestamp": FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{

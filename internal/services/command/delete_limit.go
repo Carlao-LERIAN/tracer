@@ -21,7 +21,7 @@ import (
 
 // DeleteLimitCommand handles limit deletion (soft-delete).
 type DeleteLimitCommand struct {
-	repo LimitRepository
+	repo        LimitRepository
 	auditWriter AuditWriter
 }
 

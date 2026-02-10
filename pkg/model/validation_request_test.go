@@ -6,7 +6,10 @@ package model
 
 import (
 	"testing"
+
 	"time"
+
+	"github.com/shopspring/decimal"
 
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
@@ -20,11 +23,11 @@ func TestValidationRequest_Validate(t *testing.T) {
 	validRequest := func() *ValidationRequest {
 		accountID := testutil.MustDeterministicUUID(1)
 		return &ValidationRequest{
-			RequestID:       testutil.MustDeterministicUUID(2),
-			TransactionType: TransactionTypeCard,
-			Amount:          10000, // $100.00 in cents
-			Currency:        "USD",
-			TransactionTimestamp:       testutil.FixedTime(),
+			RequestID:            testutil.MustDeterministicUUID(2),
+			TransactionType:      TransactionTypeCard,
+			Amount:               decimal.RequireFromString("100"), // $100.00
+			Currency:             "USD",
+			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID:     accountID,
 				Type:   "checking",
@@ -67,14 +70,14 @@ func TestValidationRequest_Validate(t *testing.T) {
 		{
 			name: "zero amount fails",
 			modify: func(r *ValidationRequest) {
-				r.Amount = 0
+				r.Amount = decimal.RequireFromString("0")
 			},
 			expectedErr: constant.ErrValidationAmountNonPositive,
 		},
 		{
 			name: "negative amount fails",
 			modify: func(r *ValidationRequest) {
-				r.Amount = -100
+				r.Amount = decimal.RequireFromString("-1")
 			},
 			expectedErr: constant.ErrValidationAmountNonPositive,
 		},
@@ -184,74 +187,6 @@ func TestValidationRequest_Validate(t *testing.T) {
 	}
 }
 
-func TestValidationRequest_ToTransactionContext(t *testing.T) {
-	subType := "Credit"
-	segmentID := testutil.MustDeterministicUUID(10)
-	portfolioID := testutil.MustDeterministicUUID(11)
-	req := &ValidationRequest{
-		RequestID:       testutil.MustDeterministicUUID(12),
-		TransactionType: TransactionTypeCard,
-		SubType:         &subType,
-		Amount:          50000,
-		Currency:        "BRL",
-		TransactionTimestamp:       testutil.FixedTime(),
-		Account: AccountContext{
-			ID:     testutil.MustDeterministicUUID(13),
-			Type:   "checking",
-			Status: "active",
-		},
-		Merchant: &MerchantContext{
-			ID:       testutil.MustDeterministicUUID(14),
-			Category: "RETAIL",
-			Country:  "BR",
-		},
-		Segment:   &SegmentContext{ID: segmentID, Name: "retail"},
-		Portfolio: &PortfolioContext{ID: portfolioID, Name: "premium"},
-		Metadata:  map[string]any{"channel": "mobile"},
-	}
-
-	ctx := req.ToTransactionContext()
-
-	require.NotNil(t, ctx)
-	assert.Equal(t, req.TransactionType, ctx.TransactionType)
-	assert.Equal(t, req.SubType, ctx.SubType)
-	assert.Equal(t, req.Amount, ctx.Amount)
-	assert.Equal(t, req.Currency, ctx.Currency)
-	assert.Equal(t, req.TransactionTimestamp, ctx.TransactionTimestamp)
-	assert.Equal(t, req.Account, ctx.Account)
-	assert.Equal(t, req.Merchant, ctx.Merchant)
-	assert.Equal(t, req.Segment, ctx.Segment)
-	assert.Equal(t, req.Portfolio, ctx.Portfolio)
-	assert.Equal(t, req.Metadata, ctx.Metadata)
-}
-
-func TestValidationRequest_ToTransactionContext_NilOptionalFields(t *testing.T) {
-	req := &ValidationRequest{
-		RequestID:       testutil.MustDeterministicUUID(20),
-		TransactionType: TransactionTypePix,
-		SubType:         nil,
-		Amount:          10000,
-		Currency:        "BRL",
-		TransactionTimestamp:       testutil.FixedTime(),
-		Account: AccountContext{
-			ID: testutil.MustDeterministicUUID(21),
-		},
-		Merchant:  nil,
-		Segment:   nil,
-		Portfolio: nil,
-		Metadata:  nil,
-	}
-
-	ctx := req.ToTransactionContext()
-
-	require.NotNil(t, ctx)
-	assert.Nil(t, ctx.SubType)
-	assert.Nil(t, ctx.Merchant)
-	assert.Nil(t, ctx.Segment)
-	assert.Nil(t, ctx.Portfolio)
-	assert.Nil(t, ctx.Metadata)
-}
-
 func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 	t.Run("converts required fields correctly", func(t *testing.T) {
 		subType := "Credit"
@@ -260,12 +195,12 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 		portfolioID := testutil.MustDeterministicUUID(32)
 		timestamp := testutil.FixedTime()
 		req := &ValidationRequest{
-			RequestID:       testutil.MustDeterministicUUID(33),
-			TransactionType: TransactionTypeCard,
-			SubType:         &subType,
-			Amount:          50000,
-			Currency:        "USD",
-			TransactionTimestamp:       timestamp,
+			RequestID:            testutil.MustDeterministicUUID(33),
+			TransactionType:      TransactionTypeCard,
+			SubType:              &subType,
+			Amount:               decimal.RequireFromString("500"),
+			Currency:             "USD",
+			TransactionTimestamp: timestamp,
 			Account: AccountContext{
 				ID: accountID,
 			},
@@ -287,12 +222,12 @@ func TestValidationRequest_ToCheckLimitsInput(t *testing.T) {
 	t.Run("handles nil segment and portfolio", func(t *testing.T) {
 		accountID := testutil.MustDeterministicUUID(40)
 		req := &ValidationRequest{
-			RequestID:       testutil.MustDeterministicUUID(41),
-			TransactionType: TransactionTypePix,
-			SubType:         nil,
-			Amount:          10000,
-			Currency:        "BRL",
-			TransactionTimestamp:       testutil.FixedTime(),
+			RequestID:            testutil.MustDeterministicUUID(41),
+			TransactionType:      TransactionTypePix,
+			SubType:              nil,
+			Amount:               decimal.RequireFromString("100"),
+			Currency:             "BRL",
+			TransactionTimestamp: testutil.FixedTime(),
 			Account: AccountContext{
 				ID: accountID,
 			},

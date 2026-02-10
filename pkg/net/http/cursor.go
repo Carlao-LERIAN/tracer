@@ -17,11 +17,11 @@ var ErrCursorEmptyID = errors.New("cursor ID is required")
 // Contains all information needed to resume pagination from a specific point,
 // regardless of data changes between requests.
 type Cursor struct {
-	ID         string `json:"id"`         // ID of the last item returned
-	SortValue  string `json:"sv"`         // Value of the sort field for the last item
-	SortBy     string `json:"sb"`         // Field used for sorting (e.g., "created_at", "name")
-	SortOrder  string `json:"so"`         // Sort direction: "ASC" or "DESC"
-	PointsNext bool   `json:"pn"`         // Direction indicator (true = next page, false = previous)
+	ID         string `json:"id"` // ID of the last item returned
+	SortValue  string `json:"sv"` // Value of the sort field for the last item
+	SortBy     string `json:"sb"` // Field used for sorting (e.g., "created_at", "name")
+	SortOrder  string `json:"so"` // Sort direction: "ASC" or "DESC"
+	PointsNext bool   `json:"pn"` // Direction indicator (true = next page, false = previous)
 }
 
 // EncodeCursor encodes a Cursor to a base64 string.

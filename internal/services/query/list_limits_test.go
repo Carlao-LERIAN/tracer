@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -44,7 +45,7 @@ func TestListLimitsQuery_Execute(t *testing.T) {
 			ID:        testutil.MustDeterministicUUID(1),
 			Name:      name,
 			LimitType: limitType,
-			MaxAmount: 100000,
+			MaxAmount: decimal.RequireFromString("1000"),
 			Currency:  "USD",
 			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 			Status:    status,

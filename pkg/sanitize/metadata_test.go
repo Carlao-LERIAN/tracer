@@ -542,7 +542,7 @@ func BenchmarkSanitize(b *testing.B) {
 
 	input := map[string]any{
 		"transaction_id": "txn-123456789",
-		"amount":         10000,
+		"amount":         100,
 		"currency":       "USD",
 		"password":       "secret123",
 		"api_key":        "ak-abcdef",
@@ -552,7 +552,7 @@ func BenchmarkSanitize(b *testing.B) {
 			"name":  "John Doe",
 		},
 		"metadata": map[string]any{
-			"source":    "api",
+			"source":     "api",
 			"auth_token": "tok-123",
 		},
 	}

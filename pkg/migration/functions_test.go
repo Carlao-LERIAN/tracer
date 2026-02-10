@@ -158,12 +158,12 @@ func TestVersion_ReturnsCurrentVersion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		setupMock     func(mock sqlmock.Sqlmock)
-		wantVersion   int
-		wantDirty     bool
-		wantErr       bool
-		errContains   string
+		name        string
+		setupMock   func(mock sqlmock.Sqlmock)
+		wantVersion int
+		wantDirty   bool
+		wantErr     bool
+		errContains string
 	}{
 		{
 			name: "returns version and dirty state",

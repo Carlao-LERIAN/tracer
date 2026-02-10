@@ -34,12 +34,12 @@ func TestCache_GetSet(t *testing.T) {
 	}{
 		{
 			name:        "Success - store and retrieve program",
-			expression:  "amount > 10000",
+			expression:  "amount > 100",
 			description: "Should store and retrieve a compiled program",
 		},
 		{
 			name:        "Success - store complex expression",
-			expression:  `transactionType == "CARD" && amount > 10000`,
+			expression:  `transactionType == "CARD" && amount > 100`,
 			description: "Should store complex expression",
 		},
 	}
@@ -125,7 +125,7 @@ func TestCache_MaxSize_Eviction(t *testing.T) {
 // TestCache_Invalidate tests cache invalidation.
 func TestCache_Invalidate(t *testing.T) {
 	cache := NewCache(DefaultCacheMaxSize)
-	program := createTestProgram("amount > 10000")
+	program := createTestProgram("amount > 100")
 
 	// Add and verify
 	cache.Set(program)
@@ -147,7 +147,7 @@ func TestCache_Invalidate(t *testing.T) {
 // TestCache_InvalidateNonexistent tests invalidating a nonexistent entry.
 func TestCache_InvalidateNonexistent(t *testing.T) {
 	cache := NewCache(DefaultCacheMaxSize)
-	program := createTestProgram("amount > 10000")
+	program := createTestProgram("amount > 100")
 	cache.Set(program)
 
 	initialStats := cache.Stats()
@@ -196,7 +196,7 @@ func TestCache_ConcurrentAccess(t *testing.T) {
 
 // TestHashExpression_Deterministic tests that hash is deterministic.
 func TestHashExpression_Deterministic(t *testing.T) {
-	expression := "amount > 10000 && transactionType == \"CARD\""
+	expression := "amount > 100 && transactionType == \"CARD\""
 
 	hash1 := HashExpression(expression)
 	hash2 := HashExpression(expression)
@@ -209,7 +209,7 @@ func TestHashExpression_Deterministic(t *testing.T) {
 
 // TestHashExpression_Different tests that different expressions produce different hashes.
 func TestHashExpression_Different(t *testing.T) {
-	hash1 := HashExpression("amount > 10000")
+	hash1 := HashExpression("amount > 100")
 	hash2 := HashExpression("amount > 10001")
 
 	assert.NotEqual(t, hash1, hash2, "Different expressions should produce different hashes")
@@ -226,7 +226,7 @@ func TestCache_Stats(t *testing.T) {
 	assert.Equal(t, int64(0), stats.Misses, "Initial misses should be 0")
 
 	// Add a program
-	program := createTestProgram("amount > 10000")
+	program := createTestProgram("amount > 100")
 	cache.Set(program)
 
 	stats = cache.Stats()
@@ -258,7 +258,7 @@ func TestCache_SetNil(t *testing.T) {
 func TestCache_Update(t *testing.T) {
 	cache := NewCache(DefaultCacheMaxSize)
 
-	expression := "amount > 10000"
+	expression := "amount > 100"
 	program1 := createTestProgram(expression)
 	program1.CompileTimeMs = 10
 

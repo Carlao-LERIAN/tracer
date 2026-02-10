@@ -74,7 +74,7 @@ func TestAuditEvent_WithValidationContext(t *testing.T) {
 
 		request := map[string]any{
 			"transactionType": "PIX",
-			"amount":          15000000,
+			"amount":          150000,
 			"currency":        "BRL",
 		}
 
@@ -208,7 +208,7 @@ func TestAuditEvent_GetValidationRequest(t *testing.T) {
 		event := createTestAuditEvent(t)
 		request := map[string]any{
 			"transactionType": "PIX",
-			"amount":          10000,
+			"amount":          100,
 		}
 
 		event.Context = map[string]any{"request": request}

@@ -17,6 +17,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
 	"tracer/internal/services/query"
@@ -482,7 +483,7 @@ type ValidationSummary struct {
 	ID               uuid.UUID             `json:"validationId" swaggertype:"string" format:"uuid"`
 	Decision         model.Decision        `json:"decision"`
 	Reason           string                `json:"reason"`
-	Amount           int64                 `json:"amount"`
+	Amount           decimal.Decimal       `json:"amount" swaggertype:"string" example:"100.00"`
 	Currency         string                `json:"currency"`
 	TransactionType  model.TransactionType `json:"transactionType"`
 	AccountID        uuid.UUID             `json:"accountId" swaggertype:"string" format:"uuid"`

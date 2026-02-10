@@ -17,9 +17,9 @@ import (
 // ClientIPMiddleware extracts the client's IP address and injects it into the request context.
 //
 // The middleware attempts to extract the real client IP by checking headers in the following order:
-//   1. X-Forwarded-For (leftmost IP, as it represents the original client)
-//   2. X-Real-IP (set by some proxies)
-//   3. c.IP() (Fiber's built-in IP extraction, falls back to RemoteAddr)
+//  1. X-Forwarded-For (leftmost IP, as it represents the original client)
+//  2. X-Real-IP (set by some proxies)
+//  3. c.IP() (Fiber's built-in IP extraction, falls back to RemoteAddr)
 //
 // The extracted IP is validated to ensure it's a valid IP address format.
 // If no valid IP is found, defaults to "0.0.0.0".

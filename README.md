@@ -53,7 +53,7 @@
 
 Every transaction submitted to Tracer contains:
 - **Request ID** - Unique identifier for idempotency
-- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (cents), currency, timestamp
+- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (decimal), currency, timestamp
 - **Account context** - Account ID, type, status (required)
 - **Optional contexts** - Segment, portfolio, merchant information
 - **Metadata** - Custom key-value pairs for business rules
@@ -63,13 +63,13 @@ Every transaction submitted to Tracer contains:
 Rules are CEL expressions evaluated against transaction data:
 
 ```cel
-// Example: Deny high-value transactions (amount in cents)
-amount > 1000000
+// Example: Deny high-value transactions (amount in decimal)
+amount > 10000
 
 // Example: Review transactions for premium merchants
 size(merchant) > 0 &&
 merchant["category"] == "5411" &&
-amount > 500000
+amount > 5000
 ```
 
 ### 3. **Spending Limits**
@@ -372,7 +372,7 @@ curl -X POST http://localhost:8080/v1/rules \
   -d '{
     "name": "High-value transaction review",
     "description": "Flag transactions above $10,000 for manual review",
-    "expression": "amount > 1000000",
+    "expression": "amount > 10000.00",
     "action": "REVIEW",
     "scopes": []
   }'
@@ -388,7 +388,7 @@ curl -X POST http://localhost:8080/v1/validations \
   -d '{
     "requestId": "123e4567-e89b-12d3-a456-426614174000",
     "transactionType": "CARD",
-    "amount": 1500000,
+    "amount": "15000.00",
     "currency": "USD",
     "transactionTimestamp": "2026-01-28T10:30:00Z",
     "account": {
@@ -397,7 +397,7 @@ curl -X POST http://localhost:8080/v1/validations \
   }'
 ```
 
-**Note:** `amount` is expressed in smallest currency unit (cents). Example: $15,000.00 = 1500000 cents.
+**Note:** `amount` is a decimal string value. Example: $15,000.00 = "15000.00".
 
 ---
 
@@ -554,7 +554,7 @@ X-API-Key: your-api-key
 {
   "requestId": "123e4567-e89b-12d3-a456-426614174000",
   "transactionType": "CARD",
-  "amount": 500000,
+  "amount": "5000.00",
   "currency": "USD",
   "transactionTimestamp": "2026-01-28T10:30:00Z",
   "account": {
@@ -574,7 +574,7 @@ X-API-Key: your-api-key
   "requestId": "123e4567-e89b-12d3-a456-426614174000",
   "transactionType": "CARD",
   "subType": "debit",
-  "amount": 500000,
+  "amount": "5000.00",
   "currency": "USD",
   "transactionTimestamp": "2026-01-28T10:30:00Z",
   "account": {
@@ -607,7 +607,7 @@ X-API-Key: your-api-key
 ```
 
 **Notes:**
-- `amount` is in smallest currency unit (cents). Example: $5,000.00 = 500000 cents
+- `amount` is a decimal string value. Example: $5,000.00 = "5000.00"
 - `transactionType` must be one of: `CARD`, `WIRE`, `PIX`, `CRYPTO`
 - `account.type` values: `checking`, `savings`, `credit`
 - `account.status` values: `active`, `suspended`, `closed`
@@ -627,11 +627,11 @@ X-API-Key: your-api-key
   "limitUsageDetails": [
     {
       "limitId": "823e4567-e89b-12d3-a456-426614174007",
-      "limitAmount": 10000000,
+      "limitAmount": "100000.00",
       "scope": "account:223e4567-e89b-12d3-a456-426614174001",
       "period": "DAILY",
-      "currentUsage": 500000,
-      "attemptedAmount": 500000,
+      "currentUsage": "5000.00",
+      "attemptedAmount": "5000.00",
       "exceeded": false
     }
   ],

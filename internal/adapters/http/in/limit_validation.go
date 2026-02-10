@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/shopspring/decimal"
 
 	"tracer/internal/services/command"
 	"tracer/pkg/constant"
@@ -85,7 +86,7 @@ type CreateLimitInput struct {
 	Name        string          `json:"name" validate:"required,min=1,max=255"`
 	Description *string         `json:"description,omitempty" validate:"omitempty,max=1000"`
 	LimitType   model.LimitType `json:"limitType" validate:"required,limittype"`
-	MaxAmount   int64           `json:"maxAmount" validate:"required,gt=0" minimum:"1"`
+	MaxAmount   decimal.Decimal `json:"maxAmount" validate:"required" swaggertype:"string" example:"1000.00"`
 	Currency    string          `json:"currency" validate:"required,len=3,uppercase" minLength:"3" maxLength:"3" example:"USD"`
 	Scopes      []model.Scope   `json:"scopes" validate:"required,min=1,max=100,dive,scopenotempty"`
 }
@@ -101,15 +102,20 @@ func (i *CreateLimitInput) Validate() error {
 		return formatLimitValidationError(err)
 	}
 
+	// Custom validation for decimal MaxAmount (validator/v10 gt=0 doesn't work with decimal.Decimal)
+	if i.MaxAmount.LessThanOrEqual(decimal.Zero) {
+		return fmt.Errorf("maxAmount must be greater than 0")
+	}
+
 	return nil
 }
 
 // UpdateLimitInput represents the HTTP request body for updating a limit.
 type UpdateLimitInput struct {
-	Name        *string        `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
-	Description *string        `json:"description,omitempty" validate:"omitempty,max=1000"`
-	MaxAmount   *int64         `json:"maxAmount,omitempty" validate:"omitempty,gt=0" minimum:"1"`
-	Scopes      *[]model.Scope `json:"scopes,omitempty" validate:"omitempty,min=1,max=100,dive,scopenotempty"`
+	Name        *string          `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	Description *string          `json:"description,omitempty" validate:"omitempty,max=1000"`
+	MaxAmount   *decimal.Decimal `json:"maxAmount,omitempty" swaggertype:"string" example:"1000.00"`
+	Scopes      *[]model.Scope   `json:"scopes,omitempty" validate:"omitempty,min=1,max=100,dive,scopenotempty"`
 }
 
 // Validate validates the UpdateLimitInput struct using validator/v10.
@@ -121,6 +127,11 @@ func (i *UpdateLimitInput) Validate() error {
 
 	if err := v.Struct(i); err != nil {
 		return formatLimitValidationError(err)
+	}
+
+	// Custom validation for decimal MaxAmount
+	if i.MaxAmount != nil && i.MaxAmount.LessThanOrEqual(decimal.Zero) {
+		return fmt.Errorf("maxAmount must be greater than 0")
 	}
 
 	return nil

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg/model"
 )
@@ -19,12 +20,12 @@ import (
 // - UUID as string for database storage
 // - All fields are non-nullable for UsageCounter
 type UsageCounterPostgreSQLModel struct {
-	ID            string    `db:"id"`
-	LimitID       string    `db:"limit_id"`
-	ScopeKey      string    `db:"scope_key"`
-	PeriodKey     string    `db:"period_key"`
-	CurrentUsage  int64     `db:"current_usage"`
-	LastUpdatedAt time.Time `db:"last_updated_at"`
+	ID            string          `db:"id"`
+	LimitID       string          `db:"limit_id"`
+	ScopeKey      string          `db:"scope_key"`
+	PeriodKey     string          `db:"period_key"`
+	CurrentUsage  decimal.Decimal `db:"current_usage"`
+	LastUpdatedAt time.Time       `db:"last_updated_at"`
 }
 
 // ToEntity converts the database model to a domain entity.

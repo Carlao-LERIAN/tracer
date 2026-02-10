@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg/model"
 )
@@ -22,25 +23,25 @@ import (
 // - UUID arrays as string for PostgreSQL UUID[] type (matched_rule_ids, evaluated_rule_ids)
 // - Nullable fields using pointers for optional JSONB columns
 type TransactionValidationPostgreSQLModel struct {
-	ID                   string    `db:"id"`
-	RequestID            string    `db:"request_id"`
-	TransactionType      string    `db:"transaction_type"`
-	SubType              *string   `db:"sub_type"`
-	Amount               int64     `db:"amount"`
-	Currency             string    `db:"currency"`
-	TransactionTimestamp time.Time `db:"transaction_timestamp"`
-	Account              string    `db:"account"`   // JSONB
-	Segment              *string   `db:"segment"`   // JSONB (nullable)
-	Portfolio            *string   `db:"portfolio"` // JSONB (nullable)
-	Merchant             *string   `db:"merchant"`  // JSONB (nullable)
-	Metadata             string    `db:"metadata"`  // JSONB
-	Decision             string    `db:"decision"`
-	Reason               string    `db:"reason"`
-	MatchedRuleIds       string    `db:"matched_rule_ids"`    // UUID[] as string
-	EvaluatedRuleIds     string    `db:"evaluated_rule_ids"`  // UUID[] as string
-	LimitUsageDetails    string    `db:"limit_usage_details"` // JSONB
-	ProcessingTimeMs     int64     `db:"processing_time_ms"`
-	CreatedAt            time.Time `db:"created_at"`
+	ID                   string          `db:"id"`
+	RequestID            string          `db:"request_id"`
+	TransactionType      string          `db:"transaction_type"`
+	SubType              *string         `db:"sub_type"`
+	Amount               decimal.Decimal `db:"amount"`
+	Currency             string          `db:"currency"`
+	TransactionTimestamp time.Time       `db:"transaction_timestamp"`
+	Account              string          `db:"account"`   // JSONB
+	Segment              *string         `db:"segment"`   // JSONB (nullable)
+	Portfolio            *string         `db:"portfolio"` // JSONB (nullable)
+	Merchant             *string         `db:"merchant"`  // JSONB (nullable)
+	Metadata             string          `db:"metadata"`  // JSONB
+	Decision             string          `db:"decision"`
+	Reason               string          `db:"reason"`
+	MatchedRuleIds       string          `db:"matched_rule_ids"`    // UUID[] as string
+	EvaluatedRuleIds     string          `db:"evaluated_rule_ids"`  // UUID[] as string
+	LimitUsageDetails    string          `db:"limit_usage_details"` // JSONB
+	ProcessingTimeMs     int64           `db:"processing_time_ms"`
+	CreatedAt            time.Time       `db:"created_at"`
 }
 
 // ToEntity converts the database model to a domain entity.

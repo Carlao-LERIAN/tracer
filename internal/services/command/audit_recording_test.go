@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -207,7 +208,7 @@ func TestAuditEventRecording_CreateLimit(t *testing.T) {
 	cmd, err := NewCreateLimitCommand(mockRepo, auditWriter)
 	require.NoError(t, err)
 	_, err = cmd.Execute(context.Background(), &CreateLimitInput{
-		Name: "Test", LimitType: model.LimitTypeDaily, MaxAmount: 100000,
+		Name: "Test", LimitType: model.LimitTypeDaily, MaxAmount: decimal.RequireFromString("1000"),
 		Currency: "BRL", Scopes: []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(50))}},
 	})
 	require.NoError(t, err)
@@ -277,7 +278,7 @@ func TestAuditEventRecording_UpdateLimit(t *testing.T) {
 
 	limitID := testutil.MustDeterministicUUID(80)
 	mockRepo.EXPECT().GetByID(gomock.Any(), limitID).Return(&model.Limit{
-		ID: limitID, MaxAmount: 50000,
+		ID: limitID, MaxAmount: decimal.RequireFromString("500"),
 	}, nil)
 	mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, l *model.Limit) (*model.Limit, error) { return l, nil })
 
@@ -294,7 +295,7 @@ func TestAuditEventRecording_UpdateLimit(t *testing.T) {
 
 	cmd := NewUpdateLimitCommand(mockRepo, auditWriter)
 	_, err := cmd.Execute(context.Background(), limitID, &UpdateLimitInput{
-		MaxAmount: testutil.Int64Ptr(100000),
+		MaxAmount: testutil.Ptr(decimal.RequireFromString("1000")),
 	})
 	require.NoError(t, err)
 }
@@ -345,7 +346,7 @@ func TestAuditEventRecording_ValidationEvent(t *testing.T) {
 	request := map[string]any{
 		"requestId":       testutil.MustDeterministicUUID(102).String(),
 		"transactionType": "PIX",
-		"amount":          int64(10000),
+		"amount":          decimal.RequireFromString("100"),
 		"currency":        "BRL",
 		"timestamp":       testutil.FixedTime(),
 		"account": map[string]any{
@@ -406,7 +407,7 @@ func TestAuditEventRecording_ValidationEvent(t *testing.T) {
 	assert.NotNil(t, capturedRequest, "request snapshot must be captured")
 	assert.Equal(t, request["requestId"], capturedRequest["requestId"], "requestId must be in snapshot")
 	assert.Equal(t, "PIX", capturedRequest["transactionType"], "transaction type must be in snapshot")
-	assert.Equal(t, int64(10000), capturedRequest["amount"], "amount must be in snapshot")
+	assert.Equal(t, decimal.RequireFromString("100"), capturedRequest["amount"], "amount must be in snapshot")
 	assert.Equal(t, "BRL", capturedRequest["currency"], "currency must be in snapshot")
 	assert.NotNil(t, capturedRequest["account"], "account must be in snapshot")
 

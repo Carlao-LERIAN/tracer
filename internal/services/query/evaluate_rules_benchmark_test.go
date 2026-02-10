@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
 
 	"tracer/internal/testutil"
@@ -298,7 +299,7 @@ func setupBenchmarkData(count int, action model.Decision) ([]*model.Rule, *model
 			ID:         testutil.MustDeterministicUUID(int64(i)),
 			Name:       fmt.Sprintf("Rule %d", i),
 			Action:     action,
-			Expression: "amount > 1000",
+			Expression: "amount > 10",
 			Scopes:     []model.Scope{},
 		}
 	}
@@ -306,7 +307,7 @@ func setupBenchmarkData(count int, action model.Decision) ([]*model.Rule, *model
 	txReq := &model.ValidationRequest{
 		RequestID:       testutil.MustDeterministicUUID(benchmarkRequestIDSeed),
 		TransactionType: model.TransactionTypeCard,
-		Amount:          5000,
+		Amount:          decimal.RequireFromString("50"),
 		Currency:        "USD",
 		Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(benchmarkAccountIDSeed), Type: "checking"},
 	}

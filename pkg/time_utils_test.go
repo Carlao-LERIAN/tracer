@@ -244,5 +244,3 @@ func TestNormalizeDate(t *testing.T) {
 		})
 	}
 }
-
-

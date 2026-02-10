@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -42,7 +43,7 @@ func newEvalTestRequest() *model.ValidationRequest {
 	return &model.ValidationRequest{
 		TransactionType: "PIX",
 		SubType:         &subType,
-		Amount:          150000, // $1500.00 in cents
+		Amount:          decimal.RequireFromString("1500"),
 		Currency:        "BRL",
 		Account: model.AccountContext{
 			ID:     evalTestAccountID,
@@ -71,15 +72,15 @@ func TestEvaluate_Success(t *testing.T) {
 	}{
 		{
 			name:        "Success - amount comparison true",
-			expression:  "amount > 100000",
+			expression:  "amount > 1000",
 			expected:    true,
-			description: "150000 > 100000 should be true",
+			description: "1500 > 1000 should be true",
 		},
 		{
 			name:        "Success - amount comparison false",
-			expression:  "amount > 200000",
+			expression:  "amount > 2000",
 			expected:    false,
-			description: "150000 > 200000 should be false",
+			description: "1500 > 2000 should be false",
 		},
 		{
 			name:        "Success - transaction type check",
@@ -89,9 +90,9 @@ func TestEvaluate_Success(t *testing.T) {
 		},
 		{
 			name:        "Success - complex expression",
-			expression:  `transactionType == "PIX" && amount > 100000`,
+			expression:  `transactionType == "PIX" && amount > 1000`,
 			expected:    true,
-			description: "PIX transaction with amount > 100000",
+			description: "PIX transaction with amount > 1000",
 		},
 		{
 			name:        "Success - currency check",
@@ -129,6 +130,24 @@ func TestEvaluate_Success(t *testing.T) {
 			expected:    true,
 			description: "Metadata channel is mobile",
 		},
+		{
+			name:        "Success - decimal amount comparison",
+			expression:  "amount > 12.34",
+			expected:    true,
+			description: "1500 > 12.34 should be true (cross-type numeric comparison)",
+		},
+		{
+			name:        "Success - fractional threshold boundary true",
+			expression:  "amount > 1499.99",
+			expected:    true,
+			description: "1500 > 1499.99 should be true (fractional boundary)",
+		},
+		{
+			name:        "Success - fractional threshold boundary false",
+			expression:  "amount > 1500.01",
+			expected:    false,
+			description: "1500 > 1500.01 should be false (fractional boundary)",
+		},
 	}
 
 	for _, tc := range tests {
@@ -153,7 +172,7 @@ func TestEvaluate_WithTracing(t *testing.T) {
 	ctx := context.Background()
 
 	adapter := newTestAdapter(t)
-	program := compileForEval(t, adapter, "amount > 100000")
+	program := compileForEval(t, adapter, "amount > 1000")
 	req := newEvalTestRequest()
 
 	result, err := adapter.Evaluate(ctx, program, req)
@@ -200,10 +219,10 @@ func TestEvaluate_NilFields(t *testing.T) {
 	}{
 		{
 			name:       "Success - nil merchant",
-			expression: "amount > 100000",
+			expression: "amount > 1000",
 			req: &model.ValidationRequest{
 				TransactionType: "PIX",
-				Amount:          150000,
+				Amount:          decimal.RequireFromString("1500"),
 				Currency:        "BRL",
 				Account: model.AccountContext{
 					ID:     evalTestAccountID,
@@ -221,7 +240,7 @@ func TestEvaluate_NilFields(t *testing.T) {
 			req: &model.ValidationRequest{
 				TransactionType: "PIX",
 				SubType:         nil,
-				Amount:          150000,
+				Amount:          decimal.RequireFromString("1500"),
 				Currency:        "BRL",
 			},
 			expected:    true,
@@ -230,16 +249,49 @@ func TestEvaluate_NilFields(t *testing.T) {
 		},
 		{
 			name:       "Success - empty metadata",
-			expression: "amount > 100000",
+			expression: "amount > 1000",
 			req: &model.ValidationRequest{
 				TransactionType: "PIX",
-				Amount:          150000,
+				Amount:          decimal.RequireFromString("1500"),
 				Currency:        "BRL",
 				Metadata:        nil,
 			},
 			expected:    true,
 			expectError: false,
 			description: "Should work with nil metadata",
+		},
+		{
+			name:       "Success - fractional amount with nil merchant",
+			expression: "amount > 10.50",
+			req: &model.ValidationRequest{
+				TransactionType: "PIX",
+				Amount:          decimal.RequireFromString("15.75"),
+				Currency:        "BRL",
+				Account: model.AccountContext{
+					ID:     evalTestAccountID,
+					Status: "active",
+				},
+				Merchant: nil,
+			},
+			expected:    true,
+			expectError: false,
+			description: "Should work with fractional amount and nil merchant",
+		},
+		{
+			name:       "Success - cross-type equality with int literal",
+			expression: "amount == 1500",
+			req: &model.ValidationRequest{
+				TransactionType: "PIX",
+				Amount:          decimal.RequireFromString("1500"),
+				Currency:        "BRL",
+				Account: model.AccountContext{
+					ID:     evalTestAccountID,
+					Status: "active",
+				},
+			},
+			expected:    true,
+			expectError: false,
+			description: "DynType amount supports equality with int literals",
 		},
 		{
 			name:        "Error - nil request",

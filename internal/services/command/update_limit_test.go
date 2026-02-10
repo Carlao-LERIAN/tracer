@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -42,7 +43,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			ID:        limitID,
 			Name:      "Original Limit",
 			LimitType: model.LimitTypeDaily,
-			MaxAmount: 100000,
+			MaxAmount: decimal.RequireFromString("1000"),
 			Currency:  "USD",
 			Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 			Status:    model.LimitStatusActive,
@@ -79,7 +80,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			name:    "Success - update maxAmount only",
 			limitID: limitID,
 			input: &UpdateLimitInput{
-				MaxAmount: testutil.Ptr(int64(200000)),
+				MaxAmount: testutil.Ptr(decimal.RequireFromString("2000")),
 			},
 			setupMock: func(m *MockLimitRepository) {
 				m.EXPECT().GetByID(gomock.Any(), limitID).Return(newExistingLimit(), nil)
@@ -87,7 +88,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, limit *model.Limit) {
-				assert.Equal(t, int64(200000), limit.MaxAmount)
+				assert.Equal(t, "2000", limit.MaxAmount.String())
 			},
 		},
 		{
@@ -127,7 +128,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			limitID: limitID,
 			input: &UpdateLimitInput{
 				Name:        testutil.StringPtr("Multi-Update Limit"),
-				MaxAmount:   testutil.Ptr(int64(300000)),
+				MaxAmount:   testutil.Ptr(decimal.RequireFromString("3000")),
 				Description: testutil.StringPtr("New description"),
 			},
 			setupMock: func(m *MockLimitRepository) {
@@ -137,7 +138,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			expectError: false,
 			validate: func(t *testing.T, limit *model.Limit) {
 				assert.Equal(t, "Multi-Update Limit", limit.Name)
-				assert.Equal(t, int64(300000), limit.MaxAmount)
+				assert.Equal(t, "3000", limit.MaxAmount.String())
 			},
 		},
 		{
@@ -177,7 +178,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			name:    "Failure - zero maxAmount",
 			limitID: limitID,
 			input: &UpdateLimitInput{
-				MaxAmount: testutil.Ptr(int64(0)),
+				MaxAmount: testutil.Ptr(decimal.RequireFromString("0")),
 			},
 			setupMock: func(m *MockLimitRepository) {
 				m.EXPECT().GetByID(gomock.Any(), limitID).Return(newExistingLimit(), nil)
@@ -188,7 +189,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 			name:    "Failure - negative maxAmount",
 			limitID: limitID,
 			input: &UpdateLimitInput{
-				MaxAmount: testutil.Ptr(int64(-100)),
+				MaxAmount: testutil.Ptr(decimal.RequireFromString("-1")),
 			},
 			setupMock: func(m *MockLimitRepository) {
 				m.EXPECT().GetByID(gomock.Any(), limitID).Return(newExistingLimit(), nil)
@@ -251,7 +252,7 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 					ID:        limitID,
 					Name:      "Deleted Limit",
 					LimitType: model.LimitTypeDaily,
-					MaxAmount: 100000,
+					MaxAmount: decimal.RequireFromString("1000"),
 					Currency:  "USD",
 					Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(30))}},
 					Status:    model.LimitStatusDeleted,
@@ -318,14 +319,14 @@ func TestUpdateLimitCommand_Execute(t *testing.T) {
 				// Audit event should be called exactly once with specific parameters
 				auditWriter.EXPECT().
 					RecordLimitEvent(
-						gomock.Any(),                  // ctx
-						model.AuditEventLimitUpdated,  // eventType
-						model.AuditActionUpdate,       // action
-						tc.limitID,                    // limitID
-						gomock.Any(),                  // beforeState
-						gomock.Any(),                  // afterState
-						"Limit updated via API",       // description
-						gomock.Any(),                  // clientIP
+						gomock.Any(),                 // ctx
+						model.AuditEventLimitUpdated, // eventType
+						model.AuditActionUpdate,      // action
+						tc.limitID,                   // limitID
+						gomock.Any(),                 // beforeState
+						gomock.Any(),                 // afterState
+						"Limit updated via API",      // description
+						gomock.Any(),                 // clientIP
 					).
 					Times(1).
 					Return(nil)

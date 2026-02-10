@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,7 +44,7 @@ func newExampleRequest() *model.ValidationRequest {
 	return &model.ValidationRequest{
 		TransactionType: "PIX",
 		SubType:         &subType,
-		Amount:          150000, // $1500.00 in cents
+		Amount:          decimal.RequireFromString("1500"),
 		Currency:        "BRL",
 		Account: model.AccountContext{
 			ID:     exampleTestAccountID,
@@ -81,37 +82,79 @@ func TestAmountExpressions(t *testing.T) {
 	tests := []struct {
 		name       string
 		expression string
-		amount     int64
+		amount     string
 		expected   bool
 	}{
 		{
 			name:       "high_value_true",
-			expression: "amount > 100000",
-			amount:     150000,
+			expression: "amount > 1000",
+			amount:     "1500",
 			expected:   true,
 		},
 		{
 			name:       "high_value_false",
-			expression: "amount > 100000",
-			amount:     50000,
+			expression: "amount > 1000",
+			amount:     "500",
 			expected:   false,
 		},
 		{
 			name:       "low_value_true",
-			expression: "amount <= 10000",
-			amount:     5000,
+			expression: "amount <= 100",
+			amount:     "50",
 			expected:   true,
 		},
 		{
 			name:       "range_true",
-			expression: "amount >= 50000 && amount <= 200000",
-			amount:     100000,
+			expression: "amount >= 500 && amount <= 2000",
+			amount:     "1000",
 			expected:   true,
 		},
 		{
 			name:       "range_false_below",
-			expression: "amount >= 50000 && amount <= 200000",
-			amount:     30000,
+			expression: "amount >= 500 && amount <= 2000",
+			amount:     "300",
+			expected:   false,
+		},
+		{
+			name:       "decimal_threshold_true",
+			expression: "amount > 12.34",
+			amount:     "15.50",
+			expected:   true,
+		},
+		{
+			name:       "decimal_threshold_false",
+			expression: "amount > 12.34",
+			amount:     "10.00",
+			expected:   false,
+		},
+		{
+			name:       "exact_decimal_match_true",
+			expression: "amount == 99.99",
+			amount:     "99.99",
+			expected:   true,
+		},
+		{
+			name:       "decimal_range_true",
+			expression: "amount >= 1000.50 && amount <= 5000.75",
+			amount:     "2500.25",
+			expected:   true,
+		},
+		{
+			name:       "boundary_exact_1000",
+			expression: "amount > 1000",
+			amount:     "1000",
+			expected:   false,
+		},
+		{
+			name:       "zero_amount",
+			expression: "amount >= 0",
+			amount:     "0",
+			expected:   true,
+		},
+		{
+			name:       "negative_amount",
+			expression: "amount > 0",
+			amount:     "-10",
 			expected:   false,
 		},
 	}
@@ -119,7 +162,7 @@ func TestAmountExpressions(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := newExampleRequest()
-			req.Amount = tc.amount
+			req.Amount = decimal.RequireFromString(tc.amount)
 
 			program := compileExampleExpression(t, tc.expression)
 			result, err := adapter.Evaluate(context.Background(), program, req)
@@ -430,37 +473,37 @@ func TestCombinedExpressions(t *testing.T) {
 	}{
 		{
 			name:       "high_value_active_true",
-			expression: `amount > 100000 && account["status"] == "active"`,
+			expression: `amount > 1000 && account["status"] == "active"`,
 			modify: func(req *model.ValidationRequest) {
-				req.Amount = 150000
+				req.Amount = decimal.RequireFromString("1500")
 				req.Account.Status = "active"
 			},
 			expected: true,
 		},
 		{
 			name:       "high_value_active_false_amount",
-			expression: `amount > 100000 && account["status"] == "active"`,
+			expression: `amount > 1000 && account["status"] == "active"`,
 			modify: func(req *model.ValidationRequest) {
-				req.Amount = 50000
+				req.Amount = decimal.RequireFromString("500")
 				req.Account.Status = "active"
 			},
 			expected: false,
 		},
 		{
 			name:       "high_value_active_false_status",
-			expression: `amount > 100000 && account["status"] == "active"`,
+			expression: `amount > 1000 && account["status"] == "active"`,
 			modify: func(req *model.ValidationRequest) {
-				req.Amount = 150000
+				req.Amount = decimal.RequireFromString("1500")
 				req.Account.Status = "suspended"
 			},
 			expected: false,
 		},
 		{
 			name:       "full_validation_true",
-			expression: `transactionType == "PIX" && amount > 10000 && account["status"] == "active" && currency == "BRL"`,
+			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && currency == "BRL"`,
 			modify: func(req *model.ValidationRequest) {
 				req.TransactionType = "PIX"
-				req.Amount = 50000
+				req.Amount = decimal.RequireFromString("500")
 				req.Account.Status = "active"
 				req.Currency = "BRL"
 			},
@@ -468,10 +511,10 @@ func TestCombinedExpressions(t *testing.T) {
 		},
 		{
 			name:       "full_validation_false_currency",
-			expression: `transactionType == "PIX" && amount > 10000 && account["status"] == "active" && currency == "BRL"`,
+			expression: `transactionType == "PIX" && amount > 100 && account["status"] == "active" && currency == "BRL"`,
 			modify: func(req *model.ValidationRequest) {
 				req.TransactionType = "PIX"
-				req.Amount = 50000
+				req.Amount = decimal.RequireFromString("500")
 				req.Account.Status = "active"
 				req.Currency = "USD"
 			},
@@ -501,7 +544,7 @@ func TestExpressions_WithNilMerchant(t *testing.T) {
 	req := newExampleRequest()
 	req.Merchant = nil
 
-	program := compileExampleExpression(t, "amount > 100000")
+	program := compileExampleExpression(t, "amount > 1000")
 	result, err := adapter.Evaluate(context.Background(), program, req)
 
 	require.NoError(t, err)

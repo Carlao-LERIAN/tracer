@@ -9,11 +9,13 @@ package cel
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"tracer/pkg/model"
 
 	"github.com/google/cel-go/cel"
+	"github.com/shopspring/decimal"
 )
 
 // CompileError wraps CEL compilation errors with structured issue information.
@@ -100,7 +102,7 @@ func (e *Environment) CELEnv() *cel.Env {
 // Variables are aligned with model.ValidationRequest structure:
 //   - transactionType (string): CARD, WIRE, PIX, CRYPTO
 //   - subType (string): debit, credit, instant, etc. (optional, empty string if nil)
-//   - amount (int): Amount in smallest currency unit (e.g., cents)
+//   - amount (dyn): Decimal amount as float64 — dyn enables cross-type == with int literals
 //   - currency (string): ISO 4217 currency code
 //   - account (map[string]dyn): Account context with id, type, status, metadata
 //   - segment (map[string]dyn): Segment context (optional, empty map if nil)
@@ -110,10 +112,12 @@ func (e *Environment) CELEnv() *cel.Env {
 //   - transactionTimestamp (int): Unix timestamp in nanoseconds
 func NewEnvironment() (*Environment, error) {
 	env, err := cel.NewEnv(
+		cel.CrossTypeNumericComparisons(true),
+
 		// Transaction fields (from ValidationRequest)
 		cel.Variable("transactionType", cel.StringType),
 		cel.Variable("subType", cel.StringType),
-		cel.Variable("amount", cel.IntType),
+		cel.Variable("amount", cel.DynType),
 		cel.Variable("currency", cel.StringType),
 
 		// Context objects (maps for flexible field access)
@@ -135,14 +139,38 @@ func NewEnvironment() (*Environment, error) {
 	return &Environment{env: env}, nil
 }
 
+// maxSafeAmountForFloat64 is the maximum absolute amount that can be safely
+// converted to float64 without losing integer precision (2^53).
+var maxSafeAmountForFloat64 = decimal.NewFromInt(1 << 53)
+
+// validateAmountForCEL checks that the amount can be safely converted to float64
+// for CEL evaluation without precision loss.
+func validateAmountForCEL(amount decimal.Decimal) error {
+	f := amount.InexactFloat64()
+	if math.IsInf(f, 0) || math.IsNaN(f) {
+		return fmt.Errorf("amount %s is outside float64 range for CEL evaluation", amount.String())
+	}
+
+	if amount.Abs().GreaterThan(maxSafeAmountForFloat64) {
+		return fmt.Errorf("amount %s exceeds safe precision for CEL evaluation (max: ±2^53)", amount.String())
+	}
+
+	return nil
+}
+
 // BuildActivation converts a model.ValidationRequest to a CEL activation map.
 // All fields are mapped to their corresponding CEL variable types.
 // Optional fields (subType, merchant) are converted to empty values when nil.
-// Amount is expected in smallest currency unit (e.g., cents).
+// Amount is converted from decimal.Decimal to float64 via InexactFloat64().
+// Returns error if amount exceeds float64 safe precision range (±2^53).
 // TransactionTimestamp is in Unix nanoseconds (use transactionTimestamp / 1000000000 in expressions for seconds).
 func BuildActivation(req *model.ValidationRequest) (map[string]any, error) {
 	if req == nil {
 		return nil, fmt.Errorf("validation request is required")
+	}
+
+	if err := validateAmountForCEL(req.Amount); err != nil {
+		return nil, err
 	}
 
 	activation := make(map[string]any)
@@ -157,8 +185,8 @@ func BuildActivation(req *model.ValidationRequest) (map[string]any, error) {
 		activation["subType"] = ""
 	}
 
-	// Amount (int64, in smallest currency unit)
-	activation["amount"] = req.Amount
+	// Amount (converted to float64 for CEL DynType via InexactFloat64())
+	activation["amount"] = req.Amount.InexactFloat64()
 
 	// Currency (ISO 4217 string)
 	activation["currency"] = req.Currency

@@ -9,12 +9,12 @@ package query
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
@@ -266,7 +266,7 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 				"operation", "service.limit_checker.rollback_usage",
 				"limit_id", detail.LimitID.String(),
 				"counter_id", counter.ID.String(),
-				"amount", input.Amount,
+				"amount", input.Amount.String(),
 				"error", err.Error(),
 			).Warn("Failed to decrement counter for rollback, skipping")
 
@@ -279,7 +279,7 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 			"operation", "service.limit_checker.rollback_usage",
 			"limit_id", detail.LimitID.String(),
 			"counter_id", counter.ID.String(),
-			"amount", input.Amount,
+			"amount", input.Amount.String(),
 		).Info("Rolled back usage for limit")
 	}
 
@@ -397,13 +397,13 @@ func (s *LimitCheckerService) checkSingleLimitWithoutIncrement(ctx context.Conte
 
 	// For PER_TRANSACTION limits, check directly against maxAmount
 	if limit.LimitType == model.LimitTypePerTransaction {
-		exceeded := input.Amount > limit.MaxAmount
+		exceeded := input.Amount.GreaterThan(limit.MaxAmount)
 		detail := &model.LimitUsageDetail{
 			LimitID:         limit.ID,
 			LimitAmount:     limit.MaxAmount,
 			Scope:           formatScopeString(limit.Scopes),
 			Period:          limit.LimitType,
-			CurrentUsage:    0, // PER_TRANSACTION has no persistent usage
+			CurrentUsage:    decimal.Zero, // PER_TRANSACTION has no persistent usage
 			AttemptedAmount: input.Amount,
 			Exceeded:        exceeded,
 			// Internal fields for rollback
@@ -415,8 +415,8 @@ func (s *LimitCheckerService) checkSingleLimitWithoutIncrement(ctx context.Conte
 			"operation", "service.limit_checker.check_single_limit",
 			"limit_id", limit.ID.String(),
 			"limit_type", "PER_TRANSACTION",
-			"max_amount", limit.MaxAmount,
-			"transaction_amount", input.Amount,
+			"max_amount", limit.MaxAmount.String(),
+			"transaction_amount", input.Amount.String(),
 			"exceeded", exceeded,
 		).Info("Checked PER_TRANSACTION limit")
 
@@ -444,28 +444,18 @@ func (s *LimitCheckerService) checkSingleLimitWithoutIncrement(ctx context.Conte
 		return nil, err
 	}
 
-	// Calculate projected usage with overflow protection
-	var projectedUsage int64
-
-	var exceeded bool
-
-	if counter.CurrentUsage > math.MaxInt64-input.Amount {
-		// Overflow would occur - treat as exceeded and cap at MaxInt64
-		exceeded = true
-		projectedUsage = math.MaxInt64
-	} else {
-		projectedUsage = counter.CurrentUsage + input.Amount
-		exceeded = projectedUsage > limit.MaxAmount
-	}
+	// Calculate projected usage
+	projectedUsage := counter.CurrentUsage.Add(input.Amount)
+	exceeded := projectedUsage.GreaterThan(limit.MaxAmount)
 
 	logger.WithFields(
 		"operation", "service.limit_checker.check_single_limit",
 		"limit_id", limit.ID.String(),
 		"limit_type", string(limit.LimitType),
-		"max_amount", limit.MaxAmount,
-		"current_usage", counter.CurrentUsage,
-		"transaction_amount", input.Amount,
-		"projected_usage", projectedUsage,
+		"max_amount", limit.MaxAmount.String(),
+		"current_usage", counter.CurrentUsage.String(),
+		"transaction_amount", input.Amount.String(),
+		"projected_usage", projectedUsage.String(),
 		"exceeded", exceeded,
 	).Info("Checked limit")
 
@@ -474,7 +464,6 @@ func (s *LimitCheckerService) checkSingleLimitWithoutIncrement(ctx context.Conte
 	// regardless of whether the limit was exceeded or the increment was applied.
 	// When exceeded=true, the counter was NOT incremented but CurrentUsage still
 	// shows what the usage would have been if the transaction were allowed.
-	// When overflow would occur, CurrentUsage is capped at MaxInt64.
 	detail := &model.LimitUsageDetail{
 		LimitID:         limit.ID,
 		LimitAmount:     limit.MaxAmount,
@@ -497,7 +486,7 @@ func (s *LimitCheckerService) checkSingleLimitWithoutIncrement(ctx context.Conte
 
 // incrementAllCounters increments all counters after all limits have passed.
 // Only called when no limits are exceeded.
-func (s *LimitCheckerService) incrementAllCounters(ctx context.Context, results []limitCheckResult, amount int64) error {
+func (s *LimitCheckerService) incrementAllCounters(ctx context.Context, results []limitCheckResult, amount decimal.Decimal) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.limit_checker.increment_all_counters")
@@ -520,7 +509,7 @@ func (s *LimitCheckerService) incrementAllCounters(ctx context.Context, results 
 			"operation", "service.limit_checker.increment_all_counters",
 			"limit_id", result.detail.LimitID.String(),
 			"counter_id", result.counterID.String(),
-			"increment_amount", amount,
+			"increment_amount", amount.String(),
 		).Info("Incremented usage counter")
 	}
 

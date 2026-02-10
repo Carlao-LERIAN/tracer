@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -44,7 +45,7 @@ func TestDeleteLimitCommand_Execute_InvalidTransition_FromActive(t *testing.T) {
 		ID:        limitID,
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(2))}},
 		Status:    model.LimitStatusActive,
@@ -88,7 +89,7 @@ func TestDeleteLimitCommand_Execute_Success_FromInactive(t *testing.T) {
 		ID:        limitID,
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11))}},
 		Status:    model.LimitStatusInactive,
@@ -109,10 +110,10 @@ func TestDeleteLimitCommand_Execute_Success_FromInactive(t *testing.T) {
 	// Audit event should be called exactly once with specific parameters
 	auditWriter.EXPECT().
 		RecordLimitEvent(
-			gomock.Any(),                                // ctx (may have trace info)
-			model.AuditEventLimitDeleted,                // eventType
-			model.AuditActionDelete,                     // action
-			limitID,                                     // limitID
+			gomock.Any(),                 // ctx (may have trace info)
+			model.AuditEventLimitDeleted, // eventType
+			model.AuditActionDelete,      // action
+			limitID,                      // limitID
 			gomock.AssignableToTypeOf(map[string]any{}), // beforeState (INACTIVE)
 			gomock.AssignableToTypeOf(map[string]any{}), // afterState (empty map for delete)
 			"Limit deleted via API",                     // description
@@ -139,7 +140,7 @@ func TestDeleteLimitCommand_Execute_AlreadyDeleted_Idempotent(t *testing.T) {
 		ID:        limitID,
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(21))}},
 		Status:    model.LimitStatusDeleted,
@@ -230,7 +231,7 @@ func TestDeleteLimitCommand_Execute_UpdateStatusError(t *testing.T) {
 		ID:        limitID,
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []model.Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(51))}},
 		Status:    model.LimitStatusInactive,

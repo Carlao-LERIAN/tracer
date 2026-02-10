@@ -19,6 +19,7 @@ import (
 	"tracer/internal/testutil"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +31,7 @@ type createLimitRequest struct {
 	Name        string            `json:"name"`
 	Description *string           `json:"description,omitempty"`
 	LimitType   string            `json:"limitType"`
-	MaxAmount   int64             `json:"maxAmount"`
+	MaxAmount   decimal.Decimal   `json:"maxAmount"`
 	Currency    string            `json:"currency"`
 	Scopes      []limitScopeInput `json:"scopes"`
 }
@@ -47,7 +48,7 @@ type limitScopeInput struct {
 type updateLimitRequest struct {
 	Name        *string            `json:"name,omitempty"`
 	Description *string            `json:"description,omitempty"`
-	MaxAmount   *int64             `json:"maxAmount,omitempty"`
+	MaxAmount   *decimal.Decimal   `json:"maxAmount,omitempty"`
 	Scopes      *[]limitScopeInput `json:"scopes,omitempty"`
 }
 
@@ -65,7 +66,7 @@ type limitResponse struct {
 	Name        string               `json:"name"`
 	Description *string              `json:"description,omitempty"`
 	LimitType   string               `json:"limitType"`
-	MaxAmount   int64                `json:"maxAmount"`
+	MaxAmount   decimal.Decimal      `json:"maxAmount"`
 	Currency    string               `json:"currency"`
 	Scopes      []limitScopeResponse `json:"scopes"`
 	Status      string               `json:"status"`
@@ -296,7 +297,7 @@ func TestLimits_CreateLimit_ValidationError_NameTooLong(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      longName,
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
@@ -327,7 +328,7 @@ func TestLimits_CreateLimit_ValidationError_DescriptionTooLong(t *testing.T) {
 		Name:        "Test Limit",
 		Description: &longDesc,
 		LimitType:   "DAILY",
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes:      []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
@@ -355,7 +356,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidCurrency(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "Invalid Currency Limit",
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "INVALID", // Not ISO 4217
 		Scopes:    []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
@@ -383,7 +384,7 @@ func TestLimits_CreateLimit_ValidationError_NegativeMaxAmount(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "Negative Amount Limit",
 		LimitType: "DAILY",
-		MaxAmount: -100,
+		MaxAmount: decimal.RequireFromString("-1"),
 		Currency:  "USD",
 		Scopes:    []limitScopeInput{{TransactionType: testutil.Ptr("CARD")}},
 	}
@@ -680,7 +681,7 @@ func TestLimits_CreateLimit_Success(t *testing.T) {
 		Name:        uniqueName,
 		Description: &description,
 		LimitType:   "DAILY",
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -711,7 +712,7 @@ func TestLimits_CreateLimit_Success(t *testing.T) {
 	assert.NotEmpty(t, limit.ID)
 	assert.Equal(t, uniqueName, limit.Name)
 	assert.Equal(t, "DAILY", limit.LimitType)
-	assert.Equal(t, int64(100000), limit.MaxAmount)
+	assert.True(t, limit.MaxAmount.Equal(decimal.RequireFromString("1000")))
 	assert.Equal(t, "USD", limit.Currency)
 	assert.Equal(t, "DRAFT", limit.Status, "Newly created limits should be DRAFT")
 	assert.NotEmpty(t, limit.CreatedAt)
@@ -730,7 +731,7 @@ func TestLimits_CreateLimit_ValidationError_MissingName(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "", // Empty name should fail validation
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -760,7 +761,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidLimitType(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "Invalid Type Limit",
 		LimitType: "INVALID_TYPE",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -790,7 +791,7 @@ func TestLimits_CreateLimit_ValidationError_EmptyScopes(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "Empty Scopes Limit",
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    []limitScopeInput{}, // Empty scopes should fail
 	}
@@ -982,7 +983,7 @@ func TestLimits_UpdateLimit_Success(t *testing.T) {
 
 	// Update the limit
 	newName := "Updated Limit Name " + testutil.MustDeterministicUUID(3008).String()[:8]
-	newAmount := int64(200000)
+	newAmount := decimal.RequireFromString("2000")
 	updateBody := updateLimitRequest{
 		Name:      &newName,
 		MaxAmount: &newAmount,
@@ -1010,7 +1011,7 @@ func TestLimits_UpdateLimit_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, newName, limit.Name)
-	assert.Equal(t, newAmount, limit.MaxAmount)
+	assert.True(t, limit.MaxAmount.Equal(newAmount))
 }
 
 func TestLimits_UpdateLimit_NotFound(t *testing.T) {
@@ -1385,7 +1386,7 @@ func TestLimits_FullLifecycle(t *testing.T) {
 		Name:        uniqueName,
 		Description: &description,
 		LimitType:   "DAILY",
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -1522,7 +1523,7 @@ func createTestLimit(t *testing.T) string {
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -1602,12 +1603,12 @@ func cleanupLimit(t *testing.T, limitID string) {
 // =============================================================================
 
 type usageSnapshotResponse struct {
-	LimitID            string  `json:"limitId"`
-	CurrentUsage       int64   `json:"currentUsage"`
-	LimitAmount        int64   `json:"limitAmount"`
-	UtilizationPercent float64 `json:"utilizationPercent"`
-	NearLimit          bool    `json:"nearLimit"`
-	ResetAt            *string `json:"resetAt,omitempty"`
+	LimitID            string          `json:"limitId"`
+	CurrentUsage       decimal.Decimal `json:"currentUsage"`
+	LimitAmount        decimal.Decimal `json:"limitAmount"`
+	UtilizationPercent float64         `json:"utilizationPercent"`
+	NearLimit          bool            `json:"nearLimit"`
+	ResetAt            *string         `json:"resetAt,omitempty"`
 }
 
 // =============================================================================
@@ -1624,7 +1625,7 @@ func TestLimits_CreateLimit_Monthly_ResetAtCalculated(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "MONTHLY",
-		MaxAmount: 10000000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "BRL",
 		Scopes: []limitScopeInput{
 			{SegmentID: testutil.Ptr(testutil.MustDeterministicUUID(3012).String())},
@@ -1687,7 +1688,7 @@ func TestLimits_CreateLimit_PerTransaction_ResetAtNull(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "BRL",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -1737,7 +1738,7 @@ func TestLimits_CreateLimit_MultipleScopesArray(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "BRL",
 		Scopes: []limitScopeInput{
 			{AccountID: &accountID},
@@ -1784,7 +1785,7 @@ func TestLimits_CreateLimit_ScopeWithoutFields_BadRequest(t *testing.T) {
 	reqBodyJSON := `{
 		"name": "Empty Scope Fields Test",
 		"limitType": "DAILY",
-		"maxAmount": 100000,
+		"maxAmount": "100000.00",
 		"currency": "BRL",
 		"scopes": [{}]
 	}`
@@ -2057,7 +2058,7 @@ func TestLimits_UpdateLimit_ValidatesPositiveMaxAmount(t *testing.T) {
 	})
 
 	// Try to update with negative maxAmount
-	negativeAmount := int64(-100)
+	negativeAmount := decimal.RequireFromString("-1")
 	updateBody := updateLimitRequest{
 		MaxAmount: &negativeAmount,
 	}
@@ -2151,7 +2152,7 @@ func TestLimits_UpdateLimit_EmptyBody_ReturnsTRC0002(t *testing.T) {
 	assert.Equal(t, originalLimit.Name, fetchedLimit.Name, "name should be unchanged")
 	assert.Equal(t, originalLimit.Description, fetchedLimit.Description, "description should be unchanged")
 	assert.Equal(t, originalLimit.LimitType, fetchedLimit.LimitType, "limitType should be unchanged")
-	assert.Equal(t, originalLimit.MaxAmount, fetchedLimit.MaxAmount, "maxAmount should be unchanged")
+	assert.True(t, originalLimit.MaxAmount.Equal(fetchedLimit.MaxAmount), "maxAmount should be unchanged")
 	assert.Equal(t, originalLimit.Currency, fetchedLimit.Currency, "currency should be unchanged")
 	assert.Equal(t, originalLimit.Status, fetchedLimit.Status, "status should be unchanged")
 	assert.Equal(t, originalLimit.CreatedAt, fetchedLimit.CreatedAt, "createdAt should be unchanged")
@@ -2198,8 +2199,8 @@ func TestLimits_GetUsage_ReturnsAllFields(t *testing.T) {
 	// Verify all expected fields are present
 	assert.NotEmpty(t, usage.LimitID, "limitId should be present")
 	assert.Equal(t, limitID, usage.LimitID, "limitId should match")
-	assert.GreaterOrEqual(t, usage.CurrentUsage, int64(0), "currentUsage should be >= 0")
-	assert.Greater(t, usage.LimitAmount, int64(0), "limitAmount should be > 0")
+	assert.True(t, usage.CurrentUsage.GreaterThanOrEqual(decimal.Zero), "currentUsage should be >= 0")
+	assert.True(t, usage.LimitAmount.GreaterThan(decimal.Zero), "limitAmount should be > 0")
 	assert.GreaterOrEqual(t, usage.UtilizationPercent, float64(0), "utilizationPercent should be >= 0")
 	// nearLimit is a boolean, so no assertion needed for presence
 	// resetAt may be nil for PER_TRANSACTION, but this is DAILY so should be present
@@ -2273,7 +2274,7 @@ func TestLimits_GetUsage_PerTransaction(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
-		MaxAmount: 50000,
+		MaxAmount: decimal.RequireFromString("500"),
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -2323,7 +2324,7 @@ func TestLimits_GetUsage_PerTransaction(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify PER_TRANSACTION specific behavior
-	assert.Equal(t, int64(0), usage.CurrentUsage, "PER_TRANSACTION should have currentUsage=0 (no persistent counter)")
+	assert.True(t, usage.CurrentUsage.IsZero(), "PER_TRANSACTION should have currentUsage=0 (no persistent counter)")
 	assert.Nil(t, usage.ResetAt, "PER_TRANSACTION should have resetAt=null")
 }
 
@@ -2495,7 +2496,7 @@ func TestLimits_DeleteLimit_ExcludedFromList(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -2588,7 +2589,7 @@ func TestLimits_CreateLimit_ValidationError_NameWithXSS(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "<script>alert('xss')</script>",
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -2645,7 +2646,7 @@ func TestLimits_CreateLimit_ValidationError_DescriptionWithXSS(t *testing.T) {
 		Name:        "XSS Test Limit " + testutil.MustDeterministicUUID(3019).String()[:8],
 		Description: &xssDescription,
 		LimitType:   "DAILY",
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -2706,7 +2707,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidScopeUUID(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "Invalid Scope UUID Test " + testutil.MustDeterministicUUID(3020).String()[:8],
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{AccountID: &invalidUUID},
@@ -2738,7 +2739,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidTransactionTypeInScope(t *tes
 	reqBody := createLimitRequest{
 		Name:      "Invalid Transaction Type Test " + testutil.MustDeterministicUUID(3021).String()[:8],
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("INVALID")},
@@ -2821,7 +2822,7 @@ func TestLimits_CreateLimit_ValidationError_ZeroMaxAmount(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "Zero Amount Limit " + testutil.MustDeterministicUUID(3022).String()[:8],
 		LimitType: "DAILY",
-		MaxAmount: 0, // Zero should fail (must be positive)
+		MaxAmount: decimal.RequireFromString("0"), // Zero should fail (must be positive)
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -2853,7 +2854,7 @@ func TestLimits_CreateLimit_ValidationError_EmptyCurrency(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "Empty Currency Limit " + testutil.MustDeterministicUUID(3023).String()[:8],
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "", // Empty should fail
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -2892,7 +2893,7 @@ func TestLimits_CreateLimit_ValidationError_TooManyScopes(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "Too Many Scopes Limit " + testutil.MustDeterministicUUID(3024).String()[:8],
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    scopes,
 	}
@@ -2929,7 +2930,7 @@ func TestLimits_CreateLimit_Success_ExactlyMaxScopes(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      "Max Scopes Limit " + testutil.MustDeterministicUUID(3025).String()[:8],
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes:    scopes,
 	}
@@ -3220,7 +3221,7 @@ func TestLimits_CreateLimit_Boundary_NameExactly255Chars(t *testing.T) {
 	reqBody := createLimitRequest{
 		Name:      exactName,
 		LimitType: "DAILY",
-		MaxAmount: 100000,
+		MaxAmount: decimal.RequireFromString("1000"),
 		Currency:  "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -3268,7 +3269,7 @@ func TestLimits_CreateLimit_Boundary_DescriptionExactly1000Chars(t *testing.T) {
 		Name:        "Boundary Test Limit " + testutil.MustDeterministicUUID(3026).String()[:8],
 		Description: &exactDesc,
 		LimitType:   "DAILY",
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{TransactionType: testutil.Ptr("CARD")},
@@ -3322,7 +3323,7 @@ func TestLimits_CreateLimit_ResponseFields_Complete(t *testing.T) {
 		Name:        uniqueName,
 		Description: &description,
 		LimitType:   "DAILY",
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "USD",
 		Scopes: []limitScopeInput{
 			{AccountID: &accountID, TransactionType: testutil.Ptr("CARD")},
@@ -3364,7 +3365,7 @@ func TestLimits_CreateLimit_ResponseFields_Complete(t *testing.T) {
 	assert.Equal(t, description, *limit.Description, "description should match request")
 
 	assert.Equal(t, "DAILY", limit.LimitType, "limitType should match request")
-	assert.Equal(t, int64(100000), limit.MaxAmount, "maxAmount should match request")
+	assert.True(t, limit.MaxAmount.Equal(decimal.RequireFromString("1000")), "maxAmount should match request")
 	assert.Equal(t, "USD", limit.Currency, "currency should match request")
 
 	// Validate scopes
@@ -3480,7 +3481,7 @@ func TestLimits_GetLimit_ResponseFields_Complete(t *testing.T) {
 		Name:        uniqueName,
 		Description: &description,
 		LimitType:   "MONTHLY",
-		MaxAmount:   500000,
+		MaxAmount:   decimal.RequireFromString("5000"),
 		Currency:    "BRL",
 		Scopes: []limitScopeInput{
 			{AccountID: &accountID},
@@ -3535,7 +3536,7 @@ func TestLimits_GetLimit_ResponseFields_Complete(t *testing.T) {
 	assert.NotNil(t, limit.Description, "description should be present")
 	assert.Equal(t, description, *limit.Description, "description should match")
 	assert.Equal(t, "MONTHLY", limit.LimitType, "limitType should match")
-	assert.Equal(t, int64(500000), limit.MaxAmount, "maxAmount should match")
+	assert.True(t, limit.MaxAmount.Equal(decimal.RequireFromString("5000")), "maxAmount should match")
 	assert.Equal(t, "BRL", limit.Currency, "currency should match")
 	assert.Equal(t, "DRAFT", limit.Status, "status should be DRAFT for newly created limit")
 
@@ -3575,10 +3576,10 @@ func TestLimits_UpdateLimit_ImmutableFields_ReturnsTRC0138(t *testing.T) {
 
 	// Test cases for immutable field validation
 	testCases := []struct {
-		name           string
-		updateBody     map[string]interface{}
-		expectedField  string
-		description    string
+		name          string
+		updateBody    map[string]interface{}
+		expectedField string
+		description   string
 	}{
 		{
 			name: "change_limitType_DAILY_to_MONTHLY",

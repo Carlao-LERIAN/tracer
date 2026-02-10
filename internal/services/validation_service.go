@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -318,8 +319,8 @@ func validateTransactionValidation(tv *model.TransactionValidation) error {
 	}
 
 	// Amount must be positive
-	if tv.Amount <= 0 {
-		return fmt.Errorf("invalid amount: %d", tv.Amount)
+	if tv.Amount.LessThanOrEqual(decimal.Zero) {
+		return fmt.Errorf("invalid amount: %s", tv.Amount.String())
 	}
 
 	// Currency must not be empty

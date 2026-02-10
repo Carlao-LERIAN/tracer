@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/shopspring/decimal"
+
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
@@ -28,20 +30,20 @@ import (
 func TestLimitHandler_CreateLimit(t *testing.T) {
 	tests := []struct {
 		name           string
-		requestBody    interface{}
+		requestBody    any
 		mockSetup      func(ctrl *gomock.Controller) *MockLimitService
 		expectedStatus int
 		expectedBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name: "success - creates limit",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":        "Daily Limit",
 				"description": "Daily spending limit",
 				"limitType":   "DAILY",
-				"maxAmount":   100000,
+				"maxAmount":   "1000.00",
 				"currency":    "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -53,7 +55,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 						ID:        testutil.MustDeterministicUUID(1),
 						Name:      "Daily Limit",
 						LimitType: model.LimitTypeDaily,
-						MaxAmount: 100000,
+						MaxAmount: decimal.RequireFromString("1000"),
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
@@ -64,7 +66,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 				assert.Equal(t, "Daily Limit", response["name"])
@@ -74,11 +76,11 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - missing required field name",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"limitType": "DAILY",
-				"maxAmount": 100000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -92,11 +94,11 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - missing required field limitType",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
-				"maxAmount": 100000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -110,12 +112,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - invalid limitType value",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "INVALID",
-				"maxAmount": 100000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -129,12 +131,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - invalid currency (not 3 chars)",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 100000,
+				"maxAmount": "1000.00",
 				"currency":  "BR",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -148,12 +150,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - maxAmount must be positive",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 0,
+				"maxAmount": "0",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -167,12 +169,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - empty scopes",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 100000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes":    []map[string]interface{}{},
+				"scopes":    []map[string]any{},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				return NewMockLimitService(ctrl)
@@ -184,12 +186,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 		},
 		{
 			name: "error - service returns internal error",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
-				"maxAmount": 100000,
+				"maxAmount": "1000.00",
 				"currency":  "BRL",
-				"scopes": []map[string]interface{}{
+				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
 			},
@@ -272,7 +274,7 @@ func TestLimitHandler_GetLimit(t *testing.T) {
 						ID:        validID,
 						Name:      "Daily Limit",
 						LimitType: model.LimitTypeDaily,
-						MaxAmount: 100000,
+						MaxAmount: decimal.RequireFromString("1000"),
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
@@ -283,7 +285,7 @@ func TestLimitHandler_GetLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 				assert.Equal(t, "Daily Limit", response["name"])
@@ -494,7 +496,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 	tests := []struct {
 		name           string
 		limitID        string
-		requestBody    interface{}
+		requestBody    any
 		mockSetup      func(ctrl *gomock.Controller) *MockLimitService
 		expectedStatus int
 		expectedBody   func(t *testing.T, body []byte)
@@ -502,7 +504,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "success - updates limit name",
 			limitID: validID.String(),
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name": "Updated Limit Name",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
@@ -513,7 +515,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 						ID:        validID,
 						Name:      "Updated Limit Name",
 						LimitType: model.LimitTypeDaily,
-						MaxAmount: 100000,
+						MaxAmount: decimal.RequireFromString("1000"),
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
@@ -524,7 +526,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 				assert.Equal(t, "Updated Limit Name", response["name"])
@@ -533,8 +535,8 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "success - updates maxAmount",
 			limitID: validID.String(),
-			requestBody: map[string]interface{}{
-				"maxAmount": 200000,
+			requestBody: map[string]any{
+				"maxAmount": "2000.00",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				mockService := NewMockLimitService(ctrl)
@@ -544,7 +546,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 						ID:        validID,
 						Name:      "Test Limit",
 						LimitType: model.LimitTypeDaily,
-						MaxAmount: 200000,
+						MaxAmount: decimal.RequireFromString("2000"),
 						Currency:  "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
@@ -555,16 +557,16 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
-				assert.Equal(t, float64(200000), response["maxAmount"])
+				assert.Equal(t, "2000", response["maxAmount"])
 			},
 		},
 		{
 			name:        "error - empty body (no fields to update)",
 			limitID:     validID.String(),
-			requestBody: map[string]interface{}{},
+			requestBody: map[string]any{},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				return NewMockLimitService(ctrl)
 			},
@@ -576,7 +578,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "error - invalid UUID",
 			limitID: "invalid-uuid",
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name": "Test",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
@@ -590,7 +592,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "error - limit not found",
 			limitID: validID.String(),
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name": "Test",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
@@ -607,7 +609,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 		{
 			name:    "error - limit already deleted",
 			limitID: validID.String(),
-			requestBody: map[string]interface{}{
+			requestBody: map[string]any{
 				"name": "Test",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
@@ -902,7 +904,7 @@ func TestToCreateLimitServiceInput(t *testing.T) {
 		Name:        "Test Limit",
 		Description: &desc,
 		LimitType:   model.LimitTypeDaily,
-		MaxAmount:   100000,
+		MaxAmount:   decimal.RequireFromString("1000"),
 		Currency:    "BRL",
 		Scopes: []model.Scope{
 			{
@@ -926,7 +928,7 @@ func TestToCreateLimitServiceInput(t *testing.T) {
 
 func TestToUpdateLimitServiceInput(t *testing.T) {
 	name := "Updated Name"
-	amount := int64(200000)
+	amount := decimal.RequireFromString("2000")
 	accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 
 	input := &UpdateLimitInput{
@@ -996,7 +998,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(80))},
@@ -1009,7 +1011,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{}, // Empty scope
@@ -1023,7 +1025,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      string(make([]byte, 300)),
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(81))},
@@ -1065,7 +1067,7 @@ func TestUpdateLimitInput_Validate(t *testing.T) {
 		{
 			name: "valid partial update - amount only",
 			input: UpdateLimitInput{
-				MaxAmount: func() *int64 { a := int64(200000); return &a }(),
+				MaxAmount: func() *decimal.Decimal { a := decimal.RequireFromString("2000"); return &a }(),
 			},
 			expectError: false,
 		},
@@ -1241,7 +1243,7 @@ func TestUpdateLimitInput_IsEmpty(t *testing.T) {
 		{
 			name: "input with maxAmount",
 			input: UpdateLimitInput{
-				MaxAmount: func() *int64 { a := int64(100); return &a }(),
+				MaxAmount: func() *decimal.Decimal { a := decimal.RequireFromString("1"); return &a }(),
 			},
 			expected: false,
 		},
@@ -1282,7 +1284,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{
@@ -1301,7 +1303,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(90))}, // Valid scope at index 0
@@ -1316,7 +1318,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 			input: CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
-				MaxAmount: 100000,
+				MaxAmount: decimal.RequireFromString("1000"),
 				Currency:  "BRL",
 				Scopes: []model.Scope{
 					{
@@ -1365,13 +1367,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitNameRequired)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1387,13 +1390,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidType)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1409,13 +1413,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidMaxAmount)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1431,13 +1436,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidCurrency)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1453,13 +1459,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitInvalidScope)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1475,13 +1482,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitNameTooLong)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1497,13 +1505,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitNameInvalidChars)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1519,13 +1528,14 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					Return(nil, constant.ErrLimitDescriptionInvalidChars)
 			},
 			request: func() *http.Request {
-				body, _ := json.Marshal(map[string]interface{}{
+				body, err := json.Marshal(map[string]any{
 					"name":      "Test",
 					"limitType": "DAILY",
-					"maxAmount": 100000,
+					"maxAmount": "1000.00",
 					"currency":  "BRL",
-					"scopes":    []map[string]interface{}{{"accountId": testutil.MustDeterministicUUID(120).String()}},
+					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
+				require.NoError(t, err)
 
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
@@ -1638,8 +1648,8 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			setupMock: func(m *MockLimitService) {
 				snapshot := &model.UsageSnapshot{
 					LimitID:            validID,
-					CurrentUsage:       50000,
-					LimitAmount:        100000,
+					CurrentUsage:       decimal.RequireFromString("500"),
+					LimitAmount:        decimal.RequireFromString("1000"),
 					UtilizationPercent: 50.0,
 					NearLimit:          false,
 					ResetAt:            &resetAt,
@@ -1650,14 +1660,14 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			validateJSON: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 
 				// Verify snapshot fields
 				assert.Equal(t, validID.String(), response["limitId"])
-				assert.Equal(t, float64(50000), response["currentUsage"])
-				assert.Equal(t, float64(100000), response["limitAmount"])
+				assert.Equal(t, "500", response["currentUsage"])
+				assert.Equal(t, "1000", response["limitAmount"])
 				assert.Equal(t, 50.0, response["utilizationPercent"])
 				assert.Equal(t, false, response["nearLimit"])
 				assert.NotNil(t, response["resetAt"])
@@ -1669,8 +1679,8 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			setupMock: func(m *MockLimitService) {
 				snapshot := &model.UsageSnapshot{
 					LimitID:            validID,
-					CurrentUsage:       85000,
-					LimitAmount:        100000,
+					CurrentUsage:       decimal.RequireFromString("850"),
+					LimitAmount:        decimal.RequireFromString("1000"),
 					UtilizationPercent: 85.0,
 					NearLimit:          true,
 					ResetAt:            &resetAt,
@@ -1681,13 +1691,13 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			validateJSON: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 
 				// Verify nearLimit is true when >80%
 				assert.Equal(t, validID.String(), response["limitId"])
-				assert.Equal(t, float64(85000), response["currentUsage"])
+				assert.Equal(t, "850", response["currentUsage"])
 				assert.Equal(t, 85.0, response["utilizationPercent"])
 				assert.Equal(t, true, response["nearLimit"])
 			},
@@ -1698,8 +1708,8 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			setupMock: func(m *MockLimitService) {
 				snapshot := &model.UsageSnapshot{
 					LimitID:            validID,
-					CurrentUsage:       0,
-					LimitAmount:        100000,
+					CurrentUsage:       decimal.RequireFromString("0"),
+					LimitAmount:        decimal.RequireFromString("1000"),
 					UtilizationPercent: 0.0,
 					NearLimit:          false,
 					ResetAt:            nil, // PER_TRANSACTION has no reset
@@ -1710,13 +1720,13 @@ func TestLimitHandler_GetLimitUsage(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			validateJSON: func(t *testing.T, body []byte) {
-				var response map[string]interface{}
+				var response map[string]any
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 
 				// Verify PER_TRANSACTION: zero usage and no resetAt
 				assert.Equal(t, validID.String(), response["limitId"])
-				assert.Equal(t, float64(0), response["currentUsage"])
+				assert.Equal(t, "0", response["currentUsage"])
 				assert.Equal(t, 0.0, response["utilizationPercent"])
 				assert.Equal(t, false, response["nearLimit"])
 				_, hasResetAt := response["resetAt"]

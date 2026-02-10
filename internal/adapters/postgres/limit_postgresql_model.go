@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg/model"
 )
@@ -22,18 +23,18 @@ import (
 // - sql.Null* types for nullable database columns
 // - JSON serialization for scopes array
 type LimitPostgreSQLModel struct {
-	ID          string         `db:"id"`
-	Name        string         `db:"name"`
-	Description sql.NullString `db:"description"`
-	LimitType   string         `db:"limit_type"`
-	MaxAmount   int64          `db:"max_amount"`
-	Currency    string         `db:"currency"`
-	Scopes      string         `db:"scopes"`
-	Status      string         `db:"status"`
-	ResetAt     sql.NullTime   `db:"reset_at"`
-	CreatedAt   time.Time      `db:"created_at"`
-	UpdatedAt   time.Time      `db:"updated_at"`
-	DeletedAt   sql.NullTime   `db:"deleted_at"`
+	ID          string          `db:"id"`
+	Name        string          `db:"name"`
+	Description sql.NullString  `db:"description"`
+	LimitType   string          `db:"limit_type"`
+	MaxAmount   decimal.Decimal `db:"max_amount"`
+	Currency    string          `db:"currency"`
+	Scopes      string          `db:"scopes"`
+	Status      string          `db:"status"`
+	ResetAt     sql.NullTime    `db:"reset_at"`
+	CreatedAt   time.Time       `db:"created_at"`
+	UpdatedAt   time.Time       `db:"updated_at"`
+	DeletedAt   sql.NullTime    `db:"deleted_at"`
 }
 
 // ToEntity converts the database model to a domain entity.

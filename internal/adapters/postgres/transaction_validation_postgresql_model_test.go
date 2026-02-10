@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/shopspring/decimal"
+
 	"tracer/internal/testutil"
 	"tracer/pkg/model"
 )
@@ -48,7 +50,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				RequestID:            testRequestID.String(),
 				TransactionType:      "CARD",
 				SubType:              nil,
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"checking","status":"active"}`,
@@ -69,7 +71,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				RequestID:            testRequestID,
 				TransactionType:      model.TransactionTypeCard,
 				SubType:              nil,
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account: model.AccountContext{
@@ -99,7 +101,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				RequestID:            testRequestID.String(),
 				TransactionType:      "PIX",
 				SubType:              &subType,
-				Amount:               50000,
+				Amount:               decimal.RequireFromString("500"),
 				Currency:             "USD",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"savings","status":"active","metadata":{"tier":"gold"}}`,
@@ -111,7 +113,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				Reason:               "Rule matched: high_amount",
 				MatchedRuleIds:       "{" + testMatchedRuleID.String() + "}",
 				EvaluatedRuleIds:     "{" + testEvaluatedRuleID.String() + "," + testMatchedRuleID.String() + "}",
-				LimitUsageDetails:    `[{"limitId":"` + testLimitID.String() + `","limitAmount":100000,"scope":"account:` + testAccountID.String() + `","period":"DAILY","currentUsage":50000,"attemptedAmount":50000,"exceeded":false}]`,
+				LimitUsageDetails:    `[{"limitId":"` + testLimitID.String() + `","limitAmount":1000,"scope":"account:` + testAccountID.String() + `","period":"DAILY","currentUsage":500,"attemptedAmount":500,"exceeded":false}]`,
 				ProcessingTimeMs:     25,
 				CreatedAt:            fixedTime,
 			},
@@ -120,7 +122,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				RequestID:            testRequestID,
 				TransactionType:      model.TransactionTypePix,
 				SubType:              &subType,
-				Amount:               50000,
+				Amount:               decimal.RequireFromString("500"),
 				Currency:             "USD",
 				TransactionTimestamp: txTimestamp,
 				Account: model.AccountContext{
@@ -153,11 +155,11 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				LimitUsageDetails: []model.LimitUsageDetail{
 					{
 						LimitID:         testLimitID,
-						LimitAmount:     100000,
+						LimitAmount:     decimal.RequireFromString("1000"),
 						Scope:           "account:" + testAccountID.String(),
 						Period:          model.LimitTypeDaily,
-						CurrentUsage:    50000,
-						AttemptedAmount: 50000,
+						CurrentUsage:    decimal.RequireFromString("500"),
+						AttemptedAmount: decimal.RequireFromString("500"),
 						Exceeded:        false,
 					},
 				},
@@ -172,7 +174,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				RequestID:            testRequestID.String(),
 				TransactionType:      "WIRE",
 				SubType:              nil,
-				Amount:               1000000,
+				Amount:               decimal.RequireFromString("10000"),
 				Currency:             "EUR",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"credit","status":"active"}`,
@@ -193,7 +195,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				RequestID:            testRequestID,
 				TransactionType:      model.TransactionTypeWire,
 				SubType:              nil,
-				Amount:               1000000,
+				Amount:               decimal.RequireFromString("10000"),
 				Currency:             "EUR",
 				TransactionTimestamp: txTimestamp,
 				Account: model.AccountContext{
@@ -219,7 +221,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				RequestID:            testRequestID.String(),
 				TransactionType:      "CARD",
 				SubType:              &subType,
-				Amount:               150000,
+				Amount:               decimal.RequireFromString("1500"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"checking","status":"active"}`,
@@ -231,7 +233,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				Reason:               "Limit exceeded: daily_limit",
 				MatchedRuleIds:       "{" + testMatchedRuleID.String() + "," + testEvaluatedRuleID.String() + "}",
 				EvaluatedRuleIds:     "{" + testMatchedRuleID.String() + "," + testEvaluatedRuleID.String() + "}",
-				LimitUsageDetails:    `[{"limitId":"` + testLimitID.String() + `","limitAmount":100000,"scope":"account:` + testAccountID.String() + `","period":"DAILY","currentUsage":150000,"attemptedAmount":150000,"exceeded":true}]`,
+				LimitUsageDetails:    `[{"limitId":"` + testLimitID.String() + `","limitAmount":1000,"scope":"account:` + testAccountID.String() + `","period":"DAILY","currentUsage":1500,"attemptedAmount":1500,"exceeded":true}]`,
 				ProcessingTimeMs:     30,
 				CreatedAt:            fixedTime,
 			},
@@ -240,7 +242,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				RequestID:            testRequestID,
 				TransactionType:      model.TransactionTypeCard,
 				SubType:              &subType,
-				Amount:               150000,
+				Amount:               decimal.RequireFromString("1500"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account: model.AccountContext{
@@ -261,11 +263,11 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 				LimitUsageDetails: []model.LimitUsageDetail{
 					{
 						LimitID:         testLimitID,
-						LimitAmount:     100000,
+						LimitAmount:     decimal.RequireFromString("1000"),
 						Scope:           "account:" + testAccountID.String(),
 						Period:          model.LimitTypeDaily,
-						CurrentUsage:    150000,
-						AttemptedAmount: 150000,
+						CurrentUsage:    decimal.RequireFromString("1500"),
+						AttemptedAmount: decimal.RequireFromString("1500"),
 						Exceeded:        true,
 					},
 				},
@@ -390,7 +392,7 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 				RequestID:            testRequestID,
 				TransactionType:      model.TransactionTypeCard,
 				SubType:              nil,
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account: model.AccountContext{
@@ -418,7 +420,7 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 				assert.Equal(t, testRequestID.String(), dbModel.RequestID, "RequestID should be string representation of UUID")
 				assert.Equal(t, "CARD", dbModel.TransactionType)
 				assert.Nil(t, dbModel.SubType, "SubType should be nil for nil input")
-				assert.Equal(t, int64(10000), dbModel.Amount)
+				assert.True(t, decimal.RequireFromString("100").Equal(dbModel.Amount), "Amount should be 100")
 				assert.Equal(t, "BRL", dbModel.Currency)
 				assert.Equal(t, txTimestamp, dbModel.TransactionTimestamp)
 				assert.Equal(t, "ALLOW", dbModel.Decision)
@@ -446,7 +448,7 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 				RequestID:            testRequestID,
 				TransactionType:      model.TransactionTypePix,
 				SubType:              &subType,
-				Amount:               50000,
+				Amount:               decimal.RequireFromString("500"),
 				Currency:             "USD",
 				TransactionTimestamp: txTimestamp,
 				Account: model.AccountContext{
@@ -479,11 +481,11 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 				LimitUsageDetails: []model.LimitUsageDetail{
 					{
 						LimitID:         testLimitID,
-						LimitAmount:     100000,
+						LimitAmount:     decimal.RequireFromString("1000"),
 						Scope:           "account:" + testAccountID.String(),
 						Period:          model.LimitTypeDaily,
-						CurrentUsage:    50000,
-						AttemptedAmount: 50000,
+						CurrentUsage:    decimal.RequireFromString("500"),
+						AttemptedAmount: decimal.RequireFromString("500"),
 						Exceeded:        false,
 					},
 				},
@@ -496,7 +498,7 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 				assert.Equal(t, "PIX", dbModel.TransactionType)
 				require.NotNil(t, dbModel.SubType, "SubType should not be nil")
 				assert.Equal(t, "debit", *dbModel.SubType)
-				assert.Equal(t, int64(50000), dbModel.Amount)
+				assert.True(t, decimal.RequireFromString("500").Equal(dbModel.Amount), "Amount should be 500")
 				assert.Equal(t, "USD", dbModel.Currency)
 				assert.Equal(t, "DENY", dbModel.Decision)
 				assert.Equal(t, "Rule matched", dbModel.Reason)
@@ -535,7 +537,7 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 				ID:                   testID,
 				RequestID:            testRequestID,
 				TransactionType:      model.TransactionTypeCard,
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account: model.AccountContext{
@@ -600,7 +602,7 @@ func TestTransactionValidationPostgreSQLModel_RoundTrip(t *testing.T) {
 		RequestID:            testRequestID,
 		TransactionType:      model.TransactionTypeCard,
 		SubType:              &subType,
-		Amount:               75000,
+		Amount:               decimal.RequireFromString("750"),
 		Currency:             "BRL",
 		TransactionTimestamp: txTimestamp,
 		Account: model.AccountContext{
@@ -630,11 +632,11 @@ func TestTransactionValidationPostgreSQLModel_RoundTrip(t *testing.T) {
 		LimitUsageDetails: []model.LimitUsageDetail{
 			{
 				LimitID:         testLimitID,
-				LimitAmount:     100000,
+				LimitAmount:     decimal.RequireFromString("1000"),
 				Scope:           "account:" + testAccountID.String(),
 				Period:          model.LimitTypeDaily,
-				CurrentUsage:    75000,
-				AttemptedAmount: 75000,
+				CurrentUsage:    decimal.RequireFromString("750"),
+				AttemptedAmount: decimal.RequireFromString("750"),
 				Exceeded:        false,
 			},
 		},
@@ -727,7 +729,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:                   testutil.MustDeterministicUUID(31).String(),
 				RequestID:            testutil.MustDeterministicUUID(32).String(),
 				TransactionType:      "CARD",
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"checking","status":"active"}`,
@@ -755,7 +757,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:                   testutil.MustDeterministicUUID(33).String(),
 				RequestID:            testutil.MustDeterministicUUID(34).String(),
 				TransactionType:      "PIX",
-				Amount:               20000,
+				Amount:               decimal.RequireFromString("200"),
 				Currency:             "USD",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"savings","status":"active"}`,
@@ -781,7 +783,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:                   testutil.MustDeterministicUUID(35).String(),
 				RequestID:            testutil.MustDeterministicUUID(36).String(),
 				TransactionType:      "WIRE",
-				Amount:               100000,
+				Amount:               decimal.RequireFromString("1000"),
 				Currency:             "EUR",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"checking","status":"active"}`,
@@ -807,7 +809,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:                   testutil.MustDeterministicUUID(37).String(),
 				RequestID:            testutil.MustDeterministicUUID(38).String(),
 				TransactionType:      "CARD",
-				Amount:               5000,
+				Amount:               decimal.RequireFromString("50"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"credit","status":"active"}`,
@@ -837,7 +839,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:                   testutil.MustDeterministicUUID(39).String(),
 				RequestID:            testutil.MustDeterministicUUID(40).String(),
 				TransactionType:      "CARD",
-				Amount:               5000,
+				Amount:               decimal.RequireFromString("50"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"credit","status":"active"}`,
@@ -868,7 +870,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 				ID:                   testutil.MustDeterministicUUID(41).String(),
 				RequestID:            testutil.MustDeterministicUUID(42).String(),
 				TransactionType:      "CARD",
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				TransactionTimestamp: txTimestamp,
 				Account:              `{"accountId":"` + testAccountID.String() + `","type":"checking","status":"active"}`,
@@ -1058,7 +1060,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_InvalidUUIDs(t *testing.T
 				ID:                   testID.String(),
 				RequestID:            testRequestID.String(),
 				TransactionType:      "CARD",
-				Amount:               10000,
+				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
 				TransactionTimestamp: fixedTime,
 				Account:              `{"id":"` + testID.String() + `","type":"checking"}`,

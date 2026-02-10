@@ -256,7 +256,7 @@ func TestScope_ToMap(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.expected, func(t *testing.T) {
 				t.Parallel()
-				
+
 				scope := &Scope{
 					TransactionType: &tc.txType,
 				}

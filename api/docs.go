@@ -1864,8 +1864,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.LimitType"
                 },
                 "maxAmount": {
-                    "type": "integer",
-                    "minimum": 1
+                    "type": "string",
+                    "example": "1000.00"
                 },
                 "name": {
                     "type": "string",
@@ -1993,8 +1993,8 @@ const docTemplate = `{
                     "maxLength": 1000
                 },
                 "maxAmount": {
-                    "type": "integer",
-                    "minimum": 1
+                    "type": "string",
+                    "example": "1000.00"
                 },
                 "name": {
                     "type": "string",
@@ -2048,7 +2048,8 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "amount": {
-                    "type": "integer"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "createdAt": {
                     "type": "string",
@@ -2287,8 +2288,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.LimitType"
                 },
                 "maxAmount": {
-                    "type": "integer",
-                    "example": 100000
+                    "type": "string",
+                    "example": "1000.00"
                 },
                 "name": {
                     "type": "string"
@@ -2345,17 +2346,20 @@ const docTemplate = `{
             "properties": {
                 "attemptedAmount": {
                     "description": "AttemptedAmount is the transaction amount being validated.\nPer API Design v1.3.2 section 4.1.1.",
-                    "type": "integer"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "currentUsage": {
                     "description": "CurrentUsage represents the PROJECTED usage after applying the transaction amount,\nnot the actual persisted counter value. This is calculated as:\n(counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.\nWhen Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows\nwhat the usage would have been if the transaction were allowed.",
-                    "type": "integer"
+                    "type": "string",
+                    "example": "500.00"
                 },
                 "exceeded": {
                     "type": "boolean"
                 },
                 "limitAmount": {
-                    "type": "integer"
+                    "type": "string",
+                    "example": "1000.00"
                 },
                 "limitId": {
                     "type": "string",
@@ -2555,7 +2559,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.AccountContext"
                 },
                 "amount": {
-                    "type": "integer"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "createdAt": {
                     "type": "string",
@@ -2636,14 +2641,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "currentUsage": {
-                    "description": "Current usage amount in cents (sum of all counters)",
-                    "type": "integer",
-                    "example": 50000
+                    "description": "Current usage amount (sum of all counters)",
+                    "type": "string",
+                    "example": "500.00"
                 },
                 "limitAmount": {
-                    "description": "Total limit amount in cents (from Limit.MaxAmount)",
-                    "type": "integer",
-                    "example": 100000
+                    "description": "Total limit amount (from Limit.MaxAmount)",
+                    "type": "string",
+                    "example": "1000.00"
                 },
                 "limitId": {
                     "description": "Limit identifier",
@@ -2682,7 +2687,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.AccountContext"
                 },
                 "amount": {
-                    "type": "integer"
+                    "type": "string",
+                    "example": "100.00"
                 },
                 "currency": {
                     "type": "string"

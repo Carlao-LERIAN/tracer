@@ -5,12 +5,12 @@
 package model
 
 import (
-	"math"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"tracer/pkg"
 	"tracer/pkg/constant"
@@ -60,38 +60,38 @@ const (
 var safeDescriptionRegex = regexp.MustCompile(`^[^<>]*$`)
 
 // Limit represents a transaction limit.
-// MaxAmount is expressed in the smallest currency unit (e.g., cents for USD/BRL).
+// MaxAmount is expressed as a decimal value (e.g., 1000.00 for USD/BRL).
 // ResetAt is calculated based on LimitType:
 //   - DAILY: next midnight UTC
 //   - MONTHLY: next 1st of month at midnight UTC
 //   - PER_TRANSACTION: null (no reset)
 type Limit struct {
-	ID          uuid.UUID   `json:"limitId" swaggertype:"string" format:"uuid"`
-	Name        string      `json:"name"`
-	Description *string     `json:"description,omitempty"`
-	LimitType   LimitType   `json:"limitType"`
-	MaxAmount   int64       `json:"maxAmount" example:"100000"`
-	Currency    string      `json:"currency"`
-	Scopes      []Scope     `json:"scopes"`
-	Status      LimitStatus `json:"status"`
-	ResetAt     *time.Time  `json:"resetAt,omitempty" format:"date-time"`
-	CreatedAt   time.Time   `json:"createdAt" format:"date-time"`
-	UpdatedAt   time.Time   `json:"updatedAt" format:"date-time"`
-	DeletedAt   *time.Time  `json:"deletedAt,omitempty" format:"date-time"`
+	ID          uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
+	Name        string          `json:"name"`
+	Description *string         `json:"description,omitempty"`
+	LimitType   LimitType       `json:"limitType"`
+	MaxAmount   decimal.Decimal `json:"maxAmount" swaggertype:"string" example:"1000.00"`
+	Currency    string          `json:"currency"`
+	Scopes      []Scope         `json:"scopes"`
+	Status      LimitStatus     `json:"status"`
+	ResetAt     *time.Time      `json:"resetAt,omitempty" format:"date-time"`
+	CreatedAt   time.Time       `json:"createdAt" format:"date-time"`
+	UpdatedAt   time.Time       `json:"updatedAt" format:"date-time"`
+	DeletedAt   *time.Time      `json:"deletedAt,omitempty" format:"date-time"`
 }
 
 // UsageCounter tracks current usage for a limit within a specific scope and period.
-// CurrentUsage is expressed in the smallest currency unit (e.g., cents).
+// CurrentUsage is expressed as a decimal value.
 // Note: Remaining amount is calculated as (Limit.MaxAmount - CurrentUsage), not stored.
 // ScopeKey format: "acct:abc-123", "segment:gold", "portfolio:xyz"
 // PeriodKey format: "2025-12-28" for DAILY, "2025-12" for MONTHLY
 type UsageCounter struct {
-	ID            uuid.UUID `json:"usageCounterId" swaggertype:"string" format:"uuid"`
-	LimitID       uuid.UUID `json:"limitId" swaggertype:"string" format:"uuid"`
-	ScopeKey      string    `json:"scopeKey"`
-	PeriodKey     string    `json:"periodKey"`
-	CurrentUsage  int64     `json:"currentUsage" minimum:"0"`
-	LastUpdatedAt time.Time `json:"lastUpdatedAt" format:"date-time"`
+	ID            uuid.UUID       `json:"usageCounterId" swaggertype:"string" format:"uuid"`
+	LimitID       uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
+	ScopeKey      string          `json:"scopeKey"`
+	PeriodKey     string          `json:"periodKey"`
+	CurrentUsage  decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00" minimum:"0"`
+	LastUpdatedAt time.Time       `json:"lastUpdatedAt" format:"date-time"`
 }
 
 // ScanFields returns pointers to all fields for use with sql.Row.Scan or sql.Rows.Scan.
@@ -168,13 +168,13 @@ func validateScopes(scopes []Scope) error {
 }
 
 // NewLimit creates a new Limit entity with validation.
-// maxAmount is in smallest currency unit (cents).
+// maxAmount is a decimal value (e.g., 1000.00).
 // Scopes ordering is preserved: the returned Limit.Scopes maintains the same order as the input.
 // Name and description are trimmed of leading/trailing whitespace before storage.
 func NewLimit(
 	name string,
 	limitType LimitType,
-	maxAmount int64,
+	maxAmount decimal.Decimal,
 	currency string,
 	scopes []Scope,
 	description *string,
@@ -236,8 +236,8 @@ func validateName(name string) error {
 }
 
 // validateMaxAmount checks if maxAmount is valid
-func validateMaxAmount(maxAmount int64) error {
-	if maxAmount <= 0 {
+func validateMaxAmount(maxAmount decimal.Decimal) error {
+	if maxAmount.LessThanOrEqual(decimal.Zero) {
 		return constant.ErrLimitInvalidMaxAmount
 	}
 
@@ -265,11 +265,11 @@ func validateDescription(description *string) error {
 }
 
 // Update modifies limit fields. Only non-nil parameters are updated.
-// maxAmount is in smallest currency unit (cents).
+// maxAmount is a decimal value (e.g., 1000.00).
 // Name and description are trimmed of leading/trailing whitespace before storage.
 func (l *Limit) Update(
 	name *string,
-	maxAmount *int64,
+	maxAmount *decimal.Decimal,
 	description *string,
 	scopes *[]Scope,
 ) error {
@@ -453,30 +453,24 @@ func NewUsageCounter(
 		LimitID:       limitID,
 		ScopeKey:      normalizedScopeKey,
 		PeriodKey:     normalizedPeriodKey,
-		CurrentUsage:  0,
+		CurrentUsage:  decimal.Zero,
 		LastUpdatedAt: time.Now().UTC(),
 	}, nil
 }
 
-// Increment adds amount to current usage with overflow protection.
-// amount is in smallest currency unit (cents).
+// Increment adds amount to current usage.
+// amount is a decimal value.
 // Returns constant.ErrUsageCounterIncrementNonNegative if amount < 0.
-// Returns constant.ErrLimitUsageCounterOverflow if increment would cause overflow.
-func (u *UsageCounter) Increment(amount int64) error {
-	if amount < 0 {
+func (u *UsageCounter) Increment(amount decimal.Decimal) error {
+	if amount.IsNegative() {
 		return constant.ErrUsageCounterIncrementNonNegative
 	}
 
-	if amount == 0 {
+	if amount.IsZero() {
 		return nil
 	}
 
-	// Check for overflow before incrementing
-	if u.CurrentUsage > math.MaxInt64-amount {
-		return constant.ErrUsageCounterOverflow
-	}
-
-	u.CurrentUsage += amount
+	u.CurrentUsage = u.CurrentUsage.Add(amount)
 	u.LastUpdatedAt = time.Now().UTC()
 
 	return nil
@@ -497,7 +491,7 @@ func (u *UsageCounter) Validate() error {
 		return constant.ErrUsageCounterPeriodKeyRequired
 	}
 
-	if u.CurrentUsage < 0 {
+	if u.CurrentUsage.IsNegative() {
 		return constant.ErrUsageCounterCurrentUsageNegative
 	}
 
@@ -606,10 +600,10 @@ type ListLimitsResult struct {
 type UsageSnapshot struct {
 	// Limit identifier
 	LimitID uuid.UUID `json:"limitId" swaggertype:"string" format:"uuid"`
-	// Current usage amount in cents (sum of all counters)
-	CurrentUsage int64 `json:"currentUsage" example:"50000"`
-	// Total limit amount in cents (from Limit.MaxAmount)
-	LimitAmount int64 `json:"limitAmount" example:"100000"`
+	// Current usage amount (sum of all counters)
+	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00"`
+	// Total limit amount (from Limit.MaxAmount)
+	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string" example:"1000.00"`
 	// Usage percentage (currentUsage / limitAmount * 100)
 	UtilizationPercent float64 `json:"utilizationPercent" example:"50.0"`
 	// True if usage > 80%
@@ -624,26 +618,20 @@ const NearLimitThreshold = 80.0
 // NewUsageSnapshot creates a UsageSnapshot from a Limit and its usage counters.
 // For PER_TRANSACTION limits, currentUsage is always 0 and resetAt is nil.
 func NewUsageSnapshot(limit *Limit, counters []UsageCounter) *UsageSnapshot {
-	var currentUsage int64
+	currentUsage := decimal.Zero
 
 	// For PER_TRANSACTION limits, currentUsage is always 0
 	if limit.LimitType != LimitTypePerTransaction {
 		for _, counter := range counters {
-			// Check for overflow before adding (consistent with UsageCounter.Increment)
-			if currentUsage > math.MaxInt64-counter.CurrentUsage {
-				// Clamp to MaxInt64 on overflow
-				currentUsage = math.MaxInt64
-				break
-			}
-
-			currentUsage += counter.CurrentUsage
+			currentUsage = currentUsage.Add(counter.CurrentUsage)
 		}
 	}
 
 	// Calculate utilization percentage
 	var utilizationPercent float64
-	if limit.MaxAmount > 0 {
-		utilizationPercent = float64(currentUsage) / float64(limit.MaxAmount) * 100.0
+	if limit.MaxAmount.IsPositive() {
+		// (currentUsage / maxAmount) * 100
+		utilizationPercent, _ = currentUsage.Div(limit.MaxAmount).Mul(decimal.NewFromInt(100)).Float64()
 	}
 
 	// nearLimit is true if usage > 80% (strictly greater, not >=)

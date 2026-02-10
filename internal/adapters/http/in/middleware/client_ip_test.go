@@ -102,7 +102,6 @@ func TestClientIPMiddleware_InvalidIPFallback(t *testing.T) {
 	assert.NotEmpty(t, capturedIP, "Should have some IP value")
 }
 
-
 func TestIsValidIP_IPv4(t *testing.T) {
 	assert.True(t, isValidIP("192.168.1.1"))
 	assert.True(t, isValidIP("10.0.0.1"))
