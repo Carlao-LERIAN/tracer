@@ -252,7 +252,7 @@ func (r *Rule) Update(
 	}
 
 	if updated {
-		r.UpdatedAt = now
+		r.UpdatedAt = now.UTC()
 	}
 
 	return nil
@@ -321,7 +321,7 @@ func (r *Rule) SetAction(action Decision, now time.Time) error {
 	}
 
 	r.Action = action
-	r.UpdatedAt = now
+	r.UpdatedAt = now.UTC()
 
 	return nil
 }
