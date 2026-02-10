@@ -3008,3 +3008,112 @@ func TestAuditEvents_11_2_15_FiltersByActionDraft(t *testing.T) {
 		assert.Equal(t, "DRAFT", event["action"])
 	}
 }
+
+// TestAuditEvents_11_2_16_FiltersByEventTypeLimitDrafted tests filtering by eventType=LIMIT_DRAFTED.
+func TestAuditEvents_11_2_16_FiltersByEventTypeLimitDrafted(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	// Create limit (starts in DRAFT)
+	accountID := testutil.MustDeterministicUUID(7043).String()
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
+	defer testutil.CleanupLimit(t, limitID)
+
+	// Activate limit (DRAFT → ACTIVE)
+	testutil.ActivateLimit(t, limitID)
+
+	// Deactivate limit (ACTIVE → INACTIVE)
+	deactivateReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits/"+limitID+"/deactivate", nil)
+	require.NoError(t, err)
+	deactivateReq.Header.Set("X-API-Key", apiKey)
+	deactivateResp, err := testutil.HTTPClient.Do(deactivateReq)
+	require.NoError(t, err)
+	deactivateResp.Body.Close()
+	require.Equal(t, http.StatusOK, deactivateResp.StatusCode)
+
+	// Draft limit (INACTIVE → DRAFT) — generates LIMIT_DRAFTED event
+	testutil.DraftLimit(t, limitID)
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Filter by eventType=LIMIT_DRAFTED scoped to this resource
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?eventType=LIMIT_DRAFTED&resourceId="+limitID, nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result struct {
+		AuditEvents []map[string]any `json:"auditEvents"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, result.AuditEvents, "Should find LIMIT_DRAFTED event")
+
+	for _, event := range result.AuditEvents {
+		assert.Equal(t, "LIMIT_DRAFTED", event["eventType"])
+	}
+
+	// Verify before/after states in the first event
+	event := result.AuditEvents[0]
+	ctx := event["context"].(map[string]any)
+	before := ctx["before"].(map[string]any)
+	after := ctx["after"].(map[string]any)
+
+	assert.Equal(t, "INACTIVE", before["status"])
+	assert.Equal(t, "DRAFT", after["status"])
+}
+
+// TestAuditEvents_11_2_17_FiltersByActionDraftForLimit tests filtering by action=DRAFT for limits.
+func TestAuditEvents_11_2_17_FiltersByActionDraftForLimit(t *testing.T) {
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	// Create limit (starts in DRAFT)
+	accountID := testutil.MustDeterministicUUID(7044).String()
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "1000")
+	defer testutil.CleanupLimit(t, limitID)
+
+	// Activate limit (DRAFT → ACTIVE)
+	testutil.ActivateLimit(t, limitID)
+
+	// Deactivate limit (ACTIVE → INACTIVE)
+	deactivateReq, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits/"+limitID+"/deactivate", nil)
+	require.NoError(t, err)
+	deactivateReq.Header.Set("X-API-Key", apiKey)
+	deactivateResp, err := testutil.HTTPClient.Do(deactivateReq)
+	require.NoError(t, err)
+	deactivateResp.Body.Close()
+	require.Equal(t, http.StatusOK, deactivateResp.StatusCode)
+
+	// Draft limit (INACTIVE → DRAFT) — generates event with action=DRAFT
+	testutil.DraftLimit(t, limitID)
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Filter by action=DRAFT scoped to this resource
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/audit-events?action=DRAFT&resourceId="+limitID, nil)
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result struct {
+		AuditEvents []map[string]any `json:"auditEvents"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, result.AuditEvents, "Should find event with action=DRAFT for limit")
+
+	for _, event := range result.AuditEvents {
+		assert.Equal(t, "DRAFT", event["action"])
+	}
+}
