@@ -47,15 +47,19 @@ MIGRATE_BIN := $(or $(GOBIN),$(shell go env GOPATH)/bin)/migrate
 # Commands (alphabetically ordered)
 #-------------------------------------------------------
 
-# Apply all pending migrations
-# Runs function migrations first, then regular migrations
-.PHONY: migrate
-migrate:
-	$(call title1,"Applying database migrations")
+# Ensure golang-migrate CLI is installed
+.PHONY: ensure-migrate
+ensure-migrate:
 	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
+
+# Apply all pending migrations
+# Runs function migrations first, then regular migrations
+.PHONY: migrate
+migrate: ensure-migrate
+	$(call title1,"Applying database migrations")
 	@$(MIGRATE_BIN) -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) up
 	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) up
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Migrations applied successfully$(GREEN) ✔️$(NC)"
@@ -63,12 +67,8 @@ migrate:
 # Rollback the last migration
 # Affects only regular migrations, not function migrations
 .PHONY: migrate-down
-migrate-down:
+migrate-down: ensure-migrate
 	$(call title1,"Rolling back last migration")
-	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
-		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
-		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
-	fi
 	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) down 1
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Last migration rolled back successfully$(GREEN) ✔️$(NC)"
 
@@ -76,17 +76,13 @@ migrate-down:
 # Set FORCE=1 to skip the 5-second confirmation prompt
 # Usage: make migrate-down-all FORCE=1
 .PHONY: migrate-down-all
-migrate-down-all:
+migrate-down-all: ensure-migrate
 	$(call title1,"Rolling back all migrations")
 	@if [ "$(FORCE)" != "1" ]; then \
 		echo "$(RED)$(BOLD)WARNING: This will rollback ALL migrations and may cause data loss!$(NC)"; \
 		echo "$(YELLOW)Press Ctrl+C to cancel, or wait 5 seconds to continue...$(NC)"; \
 		echo "$(CYAN)Tip: Use FORCE=1 to skip this warning$(NC)"; \
 		sleep 5; \
-	fi
-	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
-		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
-		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
 	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) down -all
 	@$(MIGRATE_BIN) -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) down -all
@@ -96,15 +92,11 @@ migrate-down-all:
 # Required parameter: VERSION=N
 # Usage: make migrate-force VERSION=5
 .PHONY: migrate-force
-migrate-force:
+migrate-force: ensure-migrate
 	$(call title1,"Force setting migration version to $(VERSION)")
 	@if [ -z "$(VERSION)" ]; then \
 		echo "$(RED)$(BOLD)[error]$(NC) VERSION is required. Usage: make migrate-force VERSION=1$(RED) ❌$(NC)"; \
 		exit 1; \
-	fi
-	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
-		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
-		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
 	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) force $(VERSION)
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Migration version forced to $(VERSION)$(GREEN) ✔️$(NC)"
@@ -112,12 +104,8 @@ migrate-force:
 # Show current migration version
 # Displays version for both function and regular migrations
 .PHONY: migrate-version
-migrate-version:
+migrate-version: ensure-migrate
 	$(call title1,"Showing current migration version")
-	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
-		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
-		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
-	fi
 	@$(MIGRATE_BIN) -database "$(MIGRATIONS_FUNCTIONS_DB_URL)" -path $(MIGRATIONS_FUNCTIONS_PATH) version
 	@$(MIGRATE_BIN) -database "$(DATABASE_URL)" -path $(MIGRATIONS_PATH) version
 
