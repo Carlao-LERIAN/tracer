@@ -1011,6 +1011,9 @@ func CreateLimitWithScope(t *testing.T, name string, maxAmount string, scopes []
 		Scopes    []ScopeInput `json:"scopes"`
 	}
 
+	_, err := decimal.NewFromString(maxAmount)
+	require.NoError(t, err, "maxAmount must be a valid decimal: %q", maxAmount)
+
 	if scopes == nil {
 		scopes = []ScopeInput{}
 	}
