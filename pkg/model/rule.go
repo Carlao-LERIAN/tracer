@@ -142,8 +142,8 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 		Action:      action,
 		Scopes:      scopesCopy,
 		Status:      RuleStatusDraft,
-		CreatedAt:   createdAt,
-		UpdatedAt:   createdAt,
+		CreatedAt:   createdAt.UTC(),
+		UpdatedAt:   createdAt.UTC(),
 	}, nil
 }
 

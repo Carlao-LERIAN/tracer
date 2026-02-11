@@ -34,6 +34,7 @@ type TestTracer struct {
 	Exporter         *tracetest.InMemoryExporter
 	Provider         *sdktrace.TracerProvider
 	previousProvider trace.TracerProvider
+	cleanupOnce      sync.Once
 }
 
 // SetupTestTracing creates a test tracer and sets it as the global provider.
@@ -72,10 +73,12 @@ func SetupTestTracing(t *testing.T) *TestTracer {
 // and releases the global provider mutex so the next test can proceed.
 // This is called automatically via t.Cleanup(), but can be called manually if needed.
 func (tt *TestTracer) Cleanup() {
-	otel.SetTracerProvider(tt.previousProvider)
-	_ = tt.Provider.Shutdown(context.Background())
+	tt.cleanupOnce.Do(func() {
+		otel.SetTracerProvider(tt.previousProvider)
+		_ = tt.Provider.Shutdown(context.Background())
 
-	globalProviderMu.Unlock()
+		globalProviderMu.Unlock()
+	})
 }
 
 // GetSpans returns all captured spans.
