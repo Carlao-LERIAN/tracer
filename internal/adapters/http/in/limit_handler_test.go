@@ -504,7 +504,13 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				mockService := NewMockLimitService(ctrl)
 				mockService.EXPECT().
-					ListLimits(gomock.Any(), gomock.Any()).
+					ListLimits(gomock.Any(), gomock.Cond(func(x any) bool {
+						f, ok := x.(*model.ListLimitsFilter)
+						return ok && f.Name != nil && *f.Name == "Monthly" &&
+							f.ScopeFilter != nil && f.ScopeFilter.TransactionType != nil &&
+							string(*f.ScopeFilter.TransactionType) == "PIX" &&
+							f.Status != nil && *f.Status == model.LimitStatusActive
+					})).
 					Return(&model.ListLimitsResult{
 						Limits:  []model.Limit{},
 						HasMore: false,
