@@ -32,7 +32,7 @@ type Scope struct {
 	AccountID       *uuid.UUID       `json:"accountId,omitempty" swaggertype:"string" format:"uuid"`
 	MerchantID      *uuid.UUID       `json:"merchantId,omitempty" swaggertype:"string" format:"uuid"`
 	TransactionType *TransactionType `json:"transactionType,omitempty" validate:"omitempty,transactiontype"`
-	SubType         *string          `json:"subType,omitempty" validate:"omitempty,max=50"`
+	SubType         *string          `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50"`
 }
 
 // IsEmpty returns true if all scope fields are nil.

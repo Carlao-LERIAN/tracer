@@ -20,7 +20,7 @@ type TransactionValidation struct {
 	ID                   uuid.UUID         `json:"validationId" swaggertype:"string" format:"uuid"`
 	RequestID            uuid.UUID         `json:"requestId" swaggertype:"string" format:"uuid"`
 	TransactionType      TransactionType   `json:"transactionType"`
-	SubType              *string           `json:"subType,omitempty"`
+	SubType              *string           `json:"subType,omitempty" maxLength:"50"`
 	Amount               decimal.Decimal   `json:"amount" swaggertype:"string" example:"100.00"`
 	Currency             string            `json:"currency"`
 	TransactionTimestamp time.Time         `json:"transactionTimestamp" format:"date-time"`

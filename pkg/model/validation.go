@@ -60,7 +60,7 @@ const (
 type ValidationRequest struct {
 	RequestID            uuid.UUID         `json:"requestId" validate:"required" swaggertype:"string" format:"uuid"`
 	TransactionType      TransactionType   `json:"transactionType" validate:"required"`
-	SubType              *string           `json:"subType,omitempty"`
+	SubType              *string           `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50"`
 	Amount               decimal.Decimal   `json:"amount" validate:"required" swaggertype:"string" example:"100.00"`
 	Currency             string            `json:"currency" validate:"required"`
 	TransactionTimestamp time.Time         `json:"transactionTimestamp" format:"date-time" validate:"required"`

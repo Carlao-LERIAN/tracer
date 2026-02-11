@@ -2795,7 +2795,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.SegmentContext"
                 },
                 "subType": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50
                 },
                 "totalRulesLoaded": {
                     "type": "integer"
@@ -2890,7 +2891,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.SegmentContext"
                 },
                 "subType": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50
                 },
                 "transactionTimestamp": {
                     "type": "string",

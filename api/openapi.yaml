@@ -2584,6 +2584,7 @@ components:
         segment:
           $ref: '#/components/schemas/tracer_pkg_model.SegmentContext'
         subType:
+          maxLength: 50
           type: string
         totalRulesLoaded:
           type: integer
@@ -2655,6 +2656,7 @@ components:
         segment:
           $ref: '#/components/schemas/tracer_pkg_model.SegmentContext'
         subType:
+          maxLength: 50
           type: string
         transactionTimestamp:
           format: date-time

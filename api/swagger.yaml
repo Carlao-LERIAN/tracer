@@ -627,6 +627,7 @@ definitions:
       segment:
         $ref: '#/definitions/tracer_pkg_model.SegmentContext'
       subType:
+        maxLength: 50
         type: string
       totalRulesLoaded:
         type: integer
@@ -690,6 +691,7 @@ definitions:
       segment:
         $ref: '#/definitions/tracer_pkg_model.SegmentContext'
       subType:
+        maxLength: 50
         type: string
       transactionTimestamp:
         format: date-time
