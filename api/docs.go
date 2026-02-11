@@ -445,6 +445,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "maxLength": 256,
                         "type": "string",
                         "description": "Filter by name (case-insensitive partial match)",
                         "name": "name",
@@ -513,6 +514,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "maxLength": 50,
                         "type": "string",
                         "description": "Filter by scope subType (max 50 chars)",
                         "name": "subType",

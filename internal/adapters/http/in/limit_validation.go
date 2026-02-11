@@ -285,8 +285,8 @@ func (i *ListLimitsInput) validateScopeFields() error {
 		}
 	}
 
-	// Validate subType length (trim whitespace before checking)
-	if i.SubType != nil && len(strings.TrimSpace(*i.SubType)) > MaxLimitSubTypeLength {
+	// Validate subType length
+	if i.SubType != nil && len(*i.SubType) > MaxLimitSubTypeLength {
 		return &ValidationError{
 			Code:    "TRC-0006",
 			Message: fmt.Sprintf("subType exceeds maximum length of %d characters", MaxLimitSubTypeLength),

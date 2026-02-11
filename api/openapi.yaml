@@ -339,6 +339,7 @@ paths:
         in: query
         name: name
         schema:
+          maxLength: 256
           type: string
       - description: Filter by status
         in: query
@@ -396,6 +397,7 @@ paths:
         in: query
         name: subType
         schema:
+          maxLength: 50
           type: string
       - description: Sort field
         in: query

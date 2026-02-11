@@ -185,7 +185,7 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 //	@Security		ApiKeyAuth
 //	@Param			limit			query		int						false	"Max items per page (1-100, default: 10)"	minimum(1)	maximum(100)
 //	@Param			cursor			query		string					false	"Pagination cursor (empty for first page)"
-//	@Param			name			query		string					false	"Filter by name (case-insensitive partial match)"
+//	@Param			name			query		string					false	"Filter by name (case-insensitive partial match)"	maxLength(256)
 //	@Param			status			query		string					false	"Filter by status"			Enums(DRAFT, ACTIVE, INACTIVE)
 //	@Param			limitType		query		string					false	"Filter by limit type"		Enums(DAILY, MONTHLY, PER_TRANSACTION)
 //	@Param			accountId		query		string					false	"Filter by scope accountId (UUID)"	Format(uuid)
@@ -193,7 +193,7 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 //	@Param			portfolioId		query		string					false	"Filter by scope portfolioId (UUID)"	Format(uuid)
 //	@Param			merchantId		query		string					false	"Filter by scope merchantId (UUID)"	Format(uuid)
 //	@Param			transactionType	query		string					false	"Filter by scope transactionType"	Enums(CARD, WIRE, PIX, CRYPTO)
-//	@Param			subType			query		string					false	"Filter by scope subType (max 50 chars)"
+//	@Param			subType			query		string					false	"Filter by scope subType (max 50 chars)"	maxLength(50)
 //	@Param			sortBy			query		string					false	"Sort field"				Enums(createdAt, updatedAt, name, maxAmount)
 //	@Param			sortOrder		query		string					false	"Sort direction"			Enums(ASC, DESC)
 //	@Success		200			{object}	ListLimitsResponse	"Limits listed successfully"
