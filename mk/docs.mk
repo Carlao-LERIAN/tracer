@@ -57,7 +57,7 @@ generate-docs-all:
 	$(call title1,"Generating Swagger documentation for all services")
 	$(call check_command,swag,"go install github.com/swaggo/swag/cmd/swag@latest")
 	@echo "$(CYAN)Verifying API documentation coverage...$(NC)"
-	@sh ./scripts/verify-api-docs.sh 2>/dev/null || echo "$(YELLOW)Warning: Some API endpoints may not be properly documented. Continuing with documentation generation...$(NC)"
+	@sh ./scripts/verify-api-docs.sh || echo "$(YELLOW)Warning: Some API endpoints may not be properly documented. Continuing with documentation generation...$(NC)"
 	@echo "$(CYAN)Generating documentation for plugin component...$(NC)"
 	$(MAKE) generate-docs 2>&1 | grep -v "warning: "
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated successfully$(GREEN) ✔️$(NC)"

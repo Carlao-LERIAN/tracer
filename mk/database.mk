@@ -84,7 +84,7 @@ migrate-down-all:
 		echo "$(CYAN)Tip: Use FORCE=1 to skip this warning$(NC)"; \
 		sleep 5; \
 	fi
-	@if ! command -v migrate >/dev/null 2>&1; then \
+	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
@@ -102,7 +102,7 @@ migrate-force:
 		echo "$(RED)$(BOLD)[error]$(NC) VERSION is required. Usage: make migrate-force VERSION=1$(RED) ❌$(NC)"; \
 		exit 1; \
 	fi
-	@if ! command -v migrate >/dev/null 2>&1; then \
+	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
@@ -114,7 +114,7 @@ migrate-force:
 .PHONY: migrate-version
 migrate-version:
 	$(call title1,"Showing current migration version")
-	@if ! command -v migrate >/dev/null 2>&1; then \
+	@if [ ! -x "$(MIGRATE_BIN)" ]; then \
 		echo "$(YELLOW)Installing golang-migrate...$(NC)"; \
 		go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
 	fi
