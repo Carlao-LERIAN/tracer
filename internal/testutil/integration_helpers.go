@@ -290,7 +290,7 @@ type ValidationRequest struct {
 	RequestID            string            `json:"requestId,omitempty"`
 	TransactionType      string            `json:"transactionType,omitempty"`
 	SubType              string            `json:"subType,omitempty"`
-	Amount               decimal.Decimal   `json:"amount,omitempty"`
+	Amount               decimal.Decimal   `json:"amount"`
 	Currency             string            `json:"currency,omitempty"`
 	TransactionTimestamp string            `json:"transactionTimestamp,omitempty"`
 	Account              *AccountContext   `json:"account,omitempty"`
