@@ -1499,6 +1499,7 @@ paths:
         type: string
       - description: Filter by scope subType (max 50 chars)
         in: query
+        maxLength: 50
         name: subType
         type: string
       - description: Sort field

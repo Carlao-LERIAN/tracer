@@ -273,7 +273,7 @@ func (h *Handler) GetRule(c *fiber.Ctx) error {
 //	@Param			portfolioId		query		string	false	"Filter by scope portfolioId (UUID)"	Format(uuid)
 //	@Param			merchantId		query		string	false	"Filter by scope merchantId (UUID)"	Format(uuid)
 //	@Param			transactionType	query		string	false	"Filter by scope transactionType"	Enums(CARD, WIRE, PIX, CRYPTO)
-//	@Param			subType			query		string	false	"Filter by scope subType (max 50 chars)"
+//	@Param			subType			query		string	false	"Filter by scope subType (max 50 chars)"	maxLength(50)
 //	@Param			sortBy			query		string	false	"Sort field"	Enums(createdAt, updatedAt, name, status)
 //	@Param			sortOrder		query		string	false	"Sort direction"	Enums(ASC, DESC)
 //	@Success		200				{object}	ListRulesResponse	"Rules listed successfully"

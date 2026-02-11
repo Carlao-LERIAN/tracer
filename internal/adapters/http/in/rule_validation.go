@@ -182,7 +182,7 @@ type ListRulesInput struct {
 	PortfolioID     *string           `query:"portfolioId"`
 	MerchantID      *string           `query:"merchantId"`
 	TransactionType *string           `query:"transactionType"`
-	SubType         *string           `query:"subType"`
+	SubType         *string           `query:"subType" validate:"omitempty,max=50"`
 	Limit           *int              `query:"limit"`
 	Cursor          string            `query:"cursor"`
 	SortBy          string            `query:"sortBy" enums:"createdAt,updatedAt,name,status"`

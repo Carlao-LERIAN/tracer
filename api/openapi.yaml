@@ -872,6 +872,7 @@ paths:
         in: query
         name: subType
         schema:
+          maxLength: 50
           type: string
       - description: Sort field
         in: query

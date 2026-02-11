@@ -1125,6 +1125,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "maxLength": 50,
                         "type": "string",
                         "description": "Filter by scope subType (max 50 chars)",
                         "name": "subType",
