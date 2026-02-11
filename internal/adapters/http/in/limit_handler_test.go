@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -523,6 +524,44 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 				var response ListLimitsResponse
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
+			},
+		},
+		{
+			name:        "success - name filter at max length boundary (256 chars)",
+			queryParams: "?name=" + strings.Repeat("a", MaxLimitNameFilterLength),
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				expectedName := strings.Repeat("a", MaxLimitNameFilterLength)
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					ListLimits(gomock.Any(), gomock.Cond(func(x any) bool {
+						f, ok := x.(*model.ListLimitsFilter)
+						return ok && f.Name != nil && *f.Name == expectedName
+					})).
+					Return(&model.ListLimitsResult{
+						Limits:  []model.Limit{},
+						HasMore: false,
+					}, nil)
+
+				return mockService
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: func(t *testing.T, body []byte) {
+				var response ListLimitsResponse
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Empty(t, response.Limits)
+			},
+		},
+		{
+			name:        "error - name filter exceeds max length (257 chars)",
+			queryParams: "?name=" + strings.Repeat("a", MaxLimitNameFilterLength+1),
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				return NewMockLimitService(ctrl)
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "TRC-0006")
+				assert.Contains(t, string(body), "name filter exceeds maximum length")
 			},
 		},
 		{

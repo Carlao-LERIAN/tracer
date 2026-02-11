@@ -442,7 +442,7 @@ func TestListLimits_4_9_ScopeFilterWithPagination(t *testing.T) {
 	err = json.Unmarshal(respBody2, &result2)
 	require.NoError(t, err)
 
-	assert.NotEmpty(t, result2.Limits, "Second page should have results")
+	assert.Len(t, result2.Limits, 2, "Second page should have exactly 2 remaining limits")
 
 	// Verify no duplicates between pages
 	page1IDs := extractLimitIDsFromList(t, result1.Limits)
