@@ -11,7 +11,7 @@
 #   - API annotations in Go code (@Summary, @Description, etc.)
 #
 # Variables used from main Makefile:
-#   - ROOT_DIR: Project root directory
+#   (none - runs from project root)
 #
 # Generated files:
 #   - ./api/swagger.json - Swagger specification
@@ -43,7 +43,7 @@ generate-docs:
 		echo "$(YELLOW)Installing swag...$(NC)"; \
 		go install github.com/swaggo/swag/cmd/swag@latest; \
 	fi
-	@cd $(ROOT_DIR) && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
+	@swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
 	@docker run --rm -v ./:/local --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v7.10.0 generate -i /local/api/swagger.json -g openapi-yaml -o /local/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
