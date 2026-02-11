@@ -1011,6 +1011,10 @@ func CreateLimitWithScope(t *testing.T, name string, maxAmount string, scopes []
 		Scopes    []ScopeInput `json:"scopes"`
 	}
 
+	if scopes == nil {
+		scopes = []ScopeInput{}
+	}
+
 	reqBody := createLimitReq{
 		Name:      name,
 		LimitType: "DAILY",
