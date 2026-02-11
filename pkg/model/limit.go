@@ -507,13 +507,15 @@ func (u *UsageCounter) Validate() error {
 // ListLimitsFilter defines filters for listing limits.
 // Cursor-based pagination: Cursor contains base64-encoded cursor with sort info.
 type ListLimitsFilter struct {
-	Status    *LimitStatus `json:"status,omitempty"`
-	LimitType *LimitType   `json:"limitType,omitempty"`
-	Currency  *string      `json:"currency,omitempty"`
-	Limit     int          `json:"limit"`
-	Cursor    string       `json:"cursor,omitempty"`
-	SortBy    string       `json:"sortBy,omitempty"`
-	SortOrder string       `json:"sortOrder,omitempty"`
+	Name        *string      `json:"name,omitempty"` // Filter by name (case-insensitive partial match / contains)
+	Status      *LimitStatus `json:"status,omitempty"`
+	LimitType   *LimitType   `json:"limitType,omitempty"`
+	Currency    *string      `json:"currency,omitempty"`
+	ScopeFilter *Scope       `json:"scopeFilter,omitempty"` // Optional scope filter for JSONB scope matching
+	Limit       int          `json:"limit"`
+	Cursor      string       `json:"cursor,omitempty"`
+	SortBy      string       `json:"sortBy,omitempty"`
+	SortOrder   string       `json:"sortOrder,omitempty"`
 }
 
 // DefaultLimitSortField is the default sort column for limit queries.

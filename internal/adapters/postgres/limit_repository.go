@@ -569,8 +569,15 @@ func (r *LimitRepository) normalizeListFilters(filters *model.ListLimitsFilter) 
 	return filters
 }
 
-// applyListFilters adds status and limit_type WHERE clauses to the query.
+// applyListFilters adds status, limit_type, name, and scope WHERE clauses to the query.
 func (r *LimitRepository) applyListFilters(query sq.SelectBuilder, filters *model.ListLimitsFilter) sq.SelectBuilder {
+	if filters.Name != nil && *filters.Name != "" {
+		// Case-insensitive partial match using ILIKE with % wildcards
+		// Escape LIKE special characters to prevent unintended pattern matching
+		escapedName := escapeLikePattern(*filters.Name)
+		query = query.Where(sq.ILike{"name": "%" + escapedName + "%"})
+	}
+
 	if filters.Status != nil {
 		query = query.Where(sq.Eq{"status": string(*filters.Status)})
 	}
@@ -582,6 +589,12 @@ func (r *LimitRepository) applyListFilters(query sq.SelectBuilder, filters *mode
 	if filters.Currency != nil {
 		normalizedCurrency := strings.ToUpper(*filters.Currency)
 		query = query.Where(sq.Eq{"currency": normalizedCurrency})
+	}
+
+	// Apply scope filter using shared buildScopeFilter() JSONB logic
+	if filters.ScopeFilter != nil && !filters.ScopeFilter.IsEmpty() {
+		scopeFilter, filterArgs := buildScopeFilter([]model.Scope{*filters.ScopeFilter})
+		query = query.Where(scopeFilter, filterArgs...)
 	}
 
 	return query

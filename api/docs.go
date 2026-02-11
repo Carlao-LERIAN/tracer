@@ -445,6 +445,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "Filter by name (case-insensitive partial match)",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
                         "enum": [
                             "DRAFT",
                             "ACTIVE",
@@ -464,6 +470,52 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Filter by limit type",
                         "name": "limitType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by scope accountId (UUID)",
+                        "name": "accountId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by scope segmentId (UUID)",
+                        "name": "segmentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by scope portfolioId (UUID)",
+                        "name": "portfolioId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by scope merchantId (UUID)",
+                        "name": "merchantId",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "CARD",
+                            "WIRE",
+                            "PIX",
+                            "CRYPTO"
+                        ],
+                        "type": "string",
+                        "description": "Filter by scope transactionType",
+                        "name": "transactionType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by scope subType (max 50 chars)",
+                        "name": "subType",
                         "in": "query"
                     },
                     {

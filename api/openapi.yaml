@@ -335,6 +335,11 @@ paths:
         name: cursor
         schema:
           type: string
+      - description: Filter by name (case-insensitive partial match)
+        in: query
+        name: name
+        schema:
+          type: string
       - description: Filter by status
         in: query
         name: status
@@ -352,6 +357,45 @@ paths:
           - DAILY
           - MONTHLY
           - PER_TRANSACTION
+          type: string
+      - description: Filter by scope accountId (UUID)
+        in: query
+        name: accountId
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope segmentId (UUID)
+        in: query
+        name: segmentId
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope portfolioId (UUID)
+        in: query
+        name: portfolioId
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope merchantId (UUID)
+        in: query
+        name: merchantId
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope transactionType
+        in: query
+        name: transactionType
+        schema:
+          enum:
+          - CARD
+          - WIRE
+          - PIX
+          - CRYPTO
+          type: string
+      - description: Filter by scope subType (max 50 chars)
+        in: query
+        name: subType
+        schema:
           type: string
       - description: Sort field
         in: query

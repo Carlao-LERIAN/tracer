@@ -584,7 +584,7 @@ func (r *Repository) applyFilters(query sq.SelectBuilder, filter *model.ListRule
 
 	// Apply scope filter using existing buildScopeFilter() JSONB logic
 	if filter.ScopeFilter != nil && !filter.ScopeFilter.IsEmpty() {
-		scopeFilter, filterArgs := r.buildScopeFilter([]model.Scope{*filter.ScopeFilter})
+		scopeFilter, filterArgs := buildScopeFilter([]model.Scope{*filter.ScopeFilter})
 		query = query.Where(scopeFilter, filterArgs...)
 	}
 
@@ -718,7 +718,7 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 
 	// Apply JSONB scope filter if scopes are provided
 	if len(scopes) > 0 {
-		scopeFilter, filterArgs := r.buildScopeFilter(scopes)
+		scopeFilter, filterArgs := buildScopeFilter(scopes)
 		query = query.Where(scopeFilter, filterArgs...)
 	}
 
@@ -777,7 +777,7 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 //
 // IMPORTANT: Uses '?' placeholders (not $1, $2) so Squirrel can renumber them
 // correctly when combined with other WHERE clauses.
-func (r *Repository) buildScopeFilter(filterScopes []model.Scope) (string, []any) {
+func buildScopeFilter(filterScopes []model.Scope) (string, []any) {
 	if len(filterScopes) == 0 {
 		return "1=1", nil
 	}
@@ -789,7 +789,7 @@ func (r *Repository) buildScopeFilter(filterScopes []model.Scope) (string, []any
 	)
 
 	for _, scope := range filterScopes {
-		condition, scopeArgs := r.buildSingleScopeCondition(scope)
+		condition, scopeArgs := buildSingleScopeCondition(scope)
 		if condition != "" {
 			scopeConditions = append(scopeConditions, condition)
 			args = append(args, scopeArgs...)
@@ -815,7 +815,7 @@ func (r *Repository) buildScopeFilter(filterScopes []model.Scope) (string, []any
 // Returns SQL fragment and arguments.
 // Uses '?' placeholders so Squirrel can renumber them correctly.
 // UUID fields are converted to strings for JSONB comparison.
-func (r *Repository) buildSingleScopeCondition(scope model.Scope) (string, []any) {
+func buildSingleScopeCondition(scope model.Scope) (string, []any) {
 	var (
 		conditions []string
 		args       []any
