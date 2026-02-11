@@ -830,6 +830,93 @@ func TestHandler_ListRules(t *testing.T) {
 				assert.Contains(t, string(body), "unexpected error")
 			},
 		},
+		{
+			name:        "success - with accountId scope filter",
+			queryParams: "?accountId=550e8400-e29b-41d4-a716-446655440000",
+			mockSetup: func(ctrl *gomock.Controller) *MockRuleService {
+				mockService := NewMockRuleService(ctrl)
+				mockService.EXPECT().
+					ListRules(gomock.Any(), gomock.Any()).
+					Return(&model.ListRulesResult{
+						Rules:   rules,
+						HasMore: false,
+					}, nil)
+				return mockService
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: func(t *testing.T, body []byte) {
+				var response ListRulesResponse
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Len(t, response.Rules, 2)
+			},
+		},
+		{
+			name:        "success - with transactionType scope filter",
+			queryParams: "?transactionType=CARD",
+			mockSetup: func(ctrl *gomock.Controller) *MockRuleService {
+				mockService := NewMockRuleService(ctrl)
+				mockService.EXPECT().
+					ListRules(gomock.Any(), gomock.Any()).
+					Return(&model.ListRulesResult{
+						Rules:   rules,
+						HasMore: false,
+					}, nil)
+				return mockService
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: func(t *testing.T, body []byte) {
+				var response ListRulesResponse
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Len(t, response.Rules, 2)
+			},
+		},
+		{
+			name:        "success - with multiple scope filters and existing filters combined",
+			queryParams: "?status=ACTIVE&accountId=550e8400-e29b-41d4-a716-446655440000&transactionType=PIX",
+			mockSetup: func(ctrl *gomock.Controller) *MockRuleService {
+				mockService := NewMockRuleService(ctrl)
+				mockService.EXPECT().
+					ListRules(gomock.Any(), gomock.Any()).
+					Return(&model.ListRulesResult{
+						Rules:   []model.Rule{},
+						HasMore: false,
+					}, nil)
+				return mockService
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: func(t *testing.T, body []byte) {
+				var response ListRulesResponse
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Empty(t, response.Rules)
+			},
+		},
+		{
+			name:        "error - invalid accountId UUID",
+			queryParams: "?accountId=not-a-uuid",
+			mockSetup: func(ctrl *gomock.Controller) *MockRuleService {
+				mockService := NewMockRuleService(ctrl)
+				return mockService
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "accountId")
+			},
+		},
+		{
+			name:        "error - invalid transactionType enum",
+			queryParams: "?transactionType=INVALID",
+			mockSetup: func(ctrl *gomock.Controller) *MockRuleService {
+				mockService := NewMockRuleService(ctrl)
+				return mockService
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "transactionType")
+			},
+		},
 	}
 
 	for _, tt := range tests {

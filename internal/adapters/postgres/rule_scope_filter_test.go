@@ -312,3 +312,90 @@ func TestBuildScopeFilter_PlaceholderNumbering_MultipleScopes(t *testing.T) {
 		assert.Equal(t, 1, count, "placeholder %s should appear exactly once, got %d times", placeholder, count)
 	}
 }
+
+func TestApplyFilters_WithScopeFilter(t *testing.T) {
+	repo := &Repository{}
+
+	t.Run("no scope filter - no scope clause added", func(t *testing.T) {
+		filter := &model.ListRulesFilter{
+			Limit: 10,
+		}
+
+		baseQuery := sq.Select("id").From("rules").PlaceholderFormat(sq.Dollar)
+		query := repo.applyFilters(baseQuery, filter)
+
+		sqlStr, args, err := query.ToSql()
+		require.NoError(t, err)
+
+		assert.NotContains(t, sqlStr, "jsonb_array_elements")
+		assert.Empty(t, args)
+	})
+
+	t.Run("with accountId scope filter - adds JSONB clause", func(t *testing.T) {
+		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+		filter := &model.ListRulesFilter{
+			Limit: 10,
+			ScopeFilter: &model.Scope{
+				AccountID: &accountID,
+			},
+		}
+
+		baseQuery := sq.Select("id").From("rules").PlaceholderFormat(sq.Dollar)
+		query := repo.applyFilters(baseQuery, filter)
+
+		sqlStr, args, err := query.ToSql()
+		require.NoError(t, err)
+
+		assert.Contains(t, sqlStr, "jsonb_array_elements")
+		assert.Contains(t, sqlStr, "scopes")
+		assert.Contains(t, sqlStr, "accountId")
+		assert.NotEmpty(t, args)
+	})
+
+	t.Run("with multiple scope fields - adds compound JSONB clause", func(t *testing.T) {
+		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+		txType := model.TransactionTypeCard
+		filter := &model.ListRulesFilter{
+			Limit: 10,
+			ScopeFilter: &model.Scope{
+				AccountID:       &accountID,
+				TransactionType: &txType,
+			},
+		}
+
+		baseQuery := sq.Select("id").From("rules").PlaceholderFormat(sq.Dollar)
+		query := repo.applyFilters(baseQuery, filter)
+
+		sqlStr, args, err := query.ToSql()
+		require.NoError(t, err)
+
+		assert.Contains(t, sqlStr, "accountId")
+		assert.Contains(t, sqlStr, "transactionType")
+		assert.Len(t, args, 2)
+	})
+
+	t.Run("scope filter combined with name and status filters", func(t *testing.T) {
+		name := "test"
+		status := model.RuleStatusActive
+		accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+		filter := &model.ListRulesFilter{
+			Name:   &name,
+			Status: &status,
+			Limit:  10,
+			ScopeFilter: &model.Scope{
+				AccountID: &accountID,
+			},
+		}
+
+		baseQuery := sq.Select("id").From("rules").PlaceholderFormat(sq.Dollar)
+		query := repo.applyFilters(baseQuery, filter)
+
+		sqlStr, args, err := query.ToSql()
+		require.NoError(t, err)
+
+		assert.Contains(t, sqlStr, "ILIKE")
+		assert.Contains(t, sqlStr, "jsonb_array_elements")
+		assert.Contains(t, sqlStr, "status")
+		assert.NotEmpty(t, args)
+	})
+}

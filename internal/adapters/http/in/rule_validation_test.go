@@ -913,6 +913,131 @@ func TestListRulesInput_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "sortBy and sortOrder cannot be used with cursor; cursor already contains sort configuration",
 		},
+		// Scope filter validation tests
+		{
+			name: "valid - with accountId filter",
+			input: ListRulesInput{
+				Limit:     testutil.Ptr(10),
+				AccountID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440000"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - with segmentId filter",
+			input: ListRulesInput{
+				Limit:     testutil.Ptr(10),
+				SegmentID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440001"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - with portfolioId filter",
+			input: ListRulesInput{
+				Limit:       testutil.Ptr(10),
+				PortfolioID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440002"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - with merchantId filter",
+			input: ListRulesInput{
+				Limit:      testutil.Ptr(10),
+				MerchantID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440003"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - with transactionType filter",
+			input: ListRulesInput{
+				Limit:           testutil.Ptr(10),
+				TransactionType: testutil.StringPtr("CARD"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - with subType filter",
+			input: ListRulesInput{
+				Limit:   testutil.Ptr(10),
+				SubType: testutil.StringPtr("CREDIT"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - with multiple scope filters combined",
+			input: ListRulesInput{
+				Limit:           testutil.Ptr(10),
+				AccountID:       testutil.StringPtr("550e8400-e29b-41d4-a716-446655440000"),
+				TransactionType: testutil.StringPtr("PIX"),
+				SubType:         testutil.StringPtr("INSTANT"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid - scope filters combined with existing filters",
+			input: ListRulesInput{
+				Status:    testutil.Ptr(model.RuleStatusActive),
+				Action:    testutil.Ptr(model.DecisionDeny),
+				Limit:     testutil.Ptr(10),
+				AccountID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440000"),
+				SortBy:    "name",
+				SortOrder: "ASC",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid - accountId not a valid UUID",
+			input: ListRulesInput{
+				Limit:     testutil.Ptr(10),
+				AccountID: testutil.StringPtr("not-a-uuid"),
+			},
+			wantErr: true,
+			errMsg:  "accountId",
+		},
+		{
+			name: "invalid - segmentId not a valid UUID",
+			input: ListRulesInput{
+				Limit:     testutil.Ptr(10),
+				SegmentID: testutil.StringPtr("invalid"),
+			},
+			wantErr: true,
+			errMsg:  "segmentId",
+		},
+		{
+			name: "invalid - portfolioId not a valid UUID",
+			input: ListRulesInput{
+				Limit:       testutil.Ptr(10),
+				PortfolioID: testutil.StringPtr("xyz"),
+			},
+			wantErr: true,
+			errMsg:  "portfolioId",
+		},
+		{
+			name: "invalid - merchantId not a valid UUID",
+			input: ListRulesInput{
+				Limit:      testutil.Ptr(10),
+				MerchantID: testutil.StringPtr("bad-id"),
+			},
+			wantErr: true,
+			errMsg:  "merchantId",
+		},
+		{
+			name: "invalid - transactionType not a valid enum",
+			input: ListRulesInput{
+				Limit:           testutil.Ptr(10),
+				TransactionType: testutil.StringPtr("INVALID_TYPE"),
+			},
+			wantErr: true,
+			errMsg:  "transactionType",
+		},
+		{
+			name: "invalid - subType exceeds max length",
+			input: ListRulesInput{
+				Limit:   testutil.Ptr(10),
+				SubType: testutil.StringPtr(strings.Repeat("a", 51)),
+			},
+			wantErr: true,
+			errMsg:  "subType",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1213,6 +1338,105 @@ func TestToListFilter_SortBy_PassesCamelCaseToFilter(t *testing.T) {
 
 			assert.Equal(t, tt.expectedSortBy, filter.SortBy,
 				"SortBy should be passed as camelCase; repository handles snake_case conversion")
+		})
+	}
+}
+
+func TestToListFilter_WithScopeFields(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          ListRulesInput
+		expectScope    bool
+		checkScopeFunc func(t *testing.T, scope *model.Scope)
+	}{
+		{
+			name: "no scope fields - ScopeFilter is nil",
+			input: ListRulesInput{
+				Limit: testutil.Ptr(10),
+			},
+			expectScope: false,
+		},
+		{
+			name: "accountId only",
+			input: ListRulesInput{
+				Limit:     testutil.Ptr(10),
+				AccountID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440000"),
+			},
+			expectScope: true,
+			checkScopeFunc: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope.AccountID)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", scope.AccountID.String())
+				assert.Nil(t, scope.SegmentID)
+				assert.Nil(t, scope.PortfolioID)
+				assert.Nil(t, scope.MerchantID)
+				assert.Nil(t, scope.TransactionType)
+				assert.Nil(t, scope.SubType)
+			},
+		},
+		{
+			name: "all scope fields",
+			input: ListRulesInput{
+				Limit:           testutil.Ptr(10),
+				AccountID:       testutil.StringPtr("550e8400-e29b-41d4-a716-446655440000"),
+				SegmentID:       testutil.StringPtr("550e8400-e29b-41d4-a716-446655440001"),
+				PortfolioID:     testutil.StringPtr("550e8400-e29b-41d4-a716-446655440002"),
+				MerchantID:      testutil.StringPtr("550e8400-e29b-41d4-a716-446655440003"),
+				TransactionType: testutil.StringPtr("CARD"),
+				SubType:         testutil.StringPtr("CREDIT"),
+			},
+			expectScope: true,
+			checkScopeFunc: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope.AccountID)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", scope.AccountID.String())
+				require.NotNil(t, scope.SegmentID)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440001", scope.SegmentID.String())
+				require.NotNil(t, scope.PortfolioID)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440002", scope.PortfolioID.String())
+				require.NotNil(t, scope.MerchantID)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440003", scope.MerchantID.String())
+				require.NotNil(t, scope.TransactionType)
+				assert.Equal(t, model.TransactionTypeCard, *scope.TransactionType)
+				require.NotNil(t, scope.SubType)
+				assert.Equal(t, "CREDIT", *scope.SubType)
+			},
+		},
+		{
+			name: "transactionType and subType only",
+			input: ListRulesInput{
+				Limit:           testutil.Ptr(10),
+				TransactionType: testutil.StringPtr("PIX"),
+				SubType:         testutil.StringPtr("INSTANT"),
+			},
+			expectScope: true,
+			checkScopeFunc: func(t *testing.T, scope *model.Scope) {
+				assert.Nil(t, scope.AccountID)
+				require.NotNil(t, scope.TransactionType)
+				assert.Equal(t, model.TransactionTypePix, *scope.TransactionType)
+				require.NotNil(t, scope.SubType)
+				assert.Equal(t, "INSTANT", *scope.SubType)
+			},
+		},
+		{
+			name: "empty string scope fields are treated as absent",
+			input: ListRulesInput{
+				Limit:     testutil.Ptr(10),
+				AccountID: testutil.StringPtr(""),
+			},
+			expectScope: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := toListFilter(&tt.input)
+			if tt.expectScope {
+				require.NotNil(t, filter.ScopeFilter, "ScopeFilter should not be nil")
+				if tt.checkScopeFunc != nil {
+					tt.checkScopeFunc(t, filter.ScopeFilter)
+				}
+			} else {
+				assert.Nil(t, filter.ScopeFilter, "ScopeFilter should be nil when no scope fields provided")
+			}
 		})
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
@@ -173,13 +174,19 @@ func (u *UpdateRuleInput) IsEmpty() bool {
 // Uses cursor-based pagination for consistent results during navigation.
 // Aligned with TRD v1.2.4 - priority removed from sortBy options.
 type ListRulesInput struct {
-	Name      *string           `query:"name"`
-	Status    *model.RuleStatus `query:"status"`
-	Action    *model.Decision   `query:"action"`
-	Limit     *int              `query:"limit"`
-	Cursor    string            `query:"cursor"`
-	SortBy    string            `query:"sortBy" enums:"createdAt,updatedAt,name,status"`
-	SortOrder string            `query:"sortOrder" enums:"ASC,DESC"`
+	Name            *string           `query:"name"`
+	Status          *model.RuleStatus `query:"status"`
+	Action          *model.Decision   `query:"action"`
+	AccountID       *string           `query:"accountId"`
+	SegmentID       *string           `query:"segmentId"`
+	PortfolioID     *string           `query:"portfolioId"`
+	MerchantID      *string           `query:"merchantId"`
+	TransactionType *string           `query:"transactionType"`
+	SubType         *string           `query:"subType"`
+	Limit           *int              `query:"limit"`
+	Cursor          string            `query:"cursor"`
+	SortBy          string            `query:"sortBy" enums:"createdAt,updatedAt,name,status"`
+	SortOrder       string            `query:"sortOrder" enums:"ASC,DESC"`
 }
 
 // ValidationError represents a validation error with a specific TRC code.
@@ -242,6 +249,57 @@ func (l *ListRulesInput) Validate() error {
 		}
 	}
 
+	// Validate scope filter fields (TRC-0006 for invalid values)
+	if err := l.validateScopeFields(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateScopeFields validates scope-related query parameters.
+func (l *ListRulesInput) validateScopeFields() error {
+	// Validate UUID fields
+	uuidFields := []struct {
+		value *string
+		name  string
+	}{
+		{l.AccountID, "accountId"},
+		{l.SegmentID, "segmentId"},
+		{l.PortfolioID, "portfolioId"},
+		{l.MerchantID, "merchantId"},
+	}
+
+	for _, f := range uuidFields {
+		if f.value != nil && *f.value != "" {
+			if _, err := uuid.Parse(*f.value); err != nil {
+				return &ValidationError{
+					Code:    "TRC-0006",
+					Message: f.name + " must be a valid UUID",
+				}
+			}
+		}
+	}
+
+	// Validate transactionType enum
+	if l.TransactionType != nil && *l.TransactionType != "" {
+		txType := model.TransactionType(*l.TransactionType)
+		if !txType.IsValid() {
+			return &ValidationError{
+				Code:    "TRC-0006",
+				Message: "transactionType must be one of [CARD, WIRE, PIX, CRYPTO]",
+			}
+		}
+	}
+
+	// Validate subType length
+	if l.SubType != nil && len(*l.SubType) > MaxRuleSubTypeLength {
+		return &ValidationError{
+			Code:    "TRC-0006",
+			Message: fmt.Sprintf("subType exceeds maximum length of %d characters", MaxRuleSubTypeLength),
+		}
+	}
+
 	return nil
 }
 
@@ -277,13 +335,15 @@ type ListRulesResponse struct {
 // toListFilter converts HTTP ListRulesInput to model.ListRulesFilter.
 // SortBy is passed as camelCase; the repository converts to snake_case for DB queries.
 // SortOrder is already normalized to uppercase during validation.
+// Scope fields are converted from strings to typed values (UUIDs, enums).
+// Pre-validated by Validate() - safe to use uuid.MustParse for UUID fields.
 func toListFilter(input *ListRulesInput) *model.ListRulesFilter {
 	limit := constant.DefaultPaginationLimit
 	if input.Limit != nil {
 		limit = *input.Limit
 	}
 
-	return &model.ListRulesFilter{
+	filter := &model.ListRulesFilter{
 		Name:      input.Name,
 		Status:    input.Status,
 		Action:    input.Action,
@@ -292,6 +352,63 @@ func toListFilter(input *ListRulesInput) *model.ListRulesFilter {
 		SortBy:    input.SortBy,    // Pass camelCase directly; repository converts to snake_case
 		SortOrder: input.SortOrder, // Already normalized to uppercase during validation
 	}
+
+	// Build scope filter from individual query parameters
+	if scope := buildScopeFromInput(input); scope != nil {
+		filter.ScopeFilter = scope
+	}
+
+	return filter
+}
+
+// buildScopeFromInput constructs a model.Scope from ListRulesInput scope fields.
+// Returns nil if no scope fields are provided (all nil or empty strings).
+// Uses uuid.MustParse because Validate() has already verified UUID format.
+func buildScopeFromInput(input *ListRulesInput) *model.Scope {
+	var scope model.Scope
+
+	hasField := false
+
+	if input.AccountID != nil && *input.AccountID != "" {
+		id := uuid.MustParse(*input.AccountID)
+		scope.AccountID = &id
+		hasField = true
+	}
+
+	if input.SegmentID != nil && *input.SegmentID != "" {
+		id := uuid.MustParse(*input.SegmentID)
+		scope.SegmentID = &id
+		hasField = true
+	}
+
+	if input.PortfolioID != nil && *input.PortfolioID != "" {
+		id := uuid.MustParse(*input.PortfolioID)
+		scope.PortfolioID = &id
+		hasField = true
+	}
+
+	if input.MerchantID != nil && *input.MerchantID != "" {
+		id := uuid.MustParse(*input.MerchantID)
+		scope.MerchantID = &id
+		hasField = true
+	}
+
+	if input.TransactionType != nil && *input.TransactionType != "" {
+		txType := model.TransactionType(*input.TransactionType)
+		scope.TransactionType = &txType
+		hasField = true
+	}
+
+	if input.SubType != nil && *input.SubType != "" {
+		scope.SubType = input.SubType
+		hasField = true
+	}
+
+	if !hasField {
+		return nil
+	}
+
+	return &scope
 }
 
 // toListResponse converts model.ListRulesResult to ListRulesResponse.

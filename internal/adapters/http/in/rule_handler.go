@@ -257,23 +257,29 @@ func (h *Handler) GetRule(c *fiber.Ctx) error {
 // ListRules godoc
 //
 //	@Summary		List fraud rules
-//	@Description	Lists rules with cursor-based pagination and optional filters.
+//	@Description	Lists rules with cursor-based pagination and optional filters. Supports filtering by scope fields to find rules applicable to specific contexts. Global rules (empty scopes) are always included in scope-filtered results.
 //	@ID				listRules
 //	@Tags			rules
 //	@Accept			json
 //	@Produce		json
 //	@Security		ApiKeyAuth
-//	@Param			limit		query		int		false	"Max items per page (1-100, default: 10)"	minimum(1)	maximum(100)
-//	@Param			cursor		query		string	false	"Pagination cursor (empty for first page)"
-//	@Param			name		query		string	false	"Filter by name (case-insensitive partial match)"
-//	@Param			status		query		string	false	"Filter by status (DELETED not allowed)"	Enums(DRAFT, ACTIVE, INACTIVE)
-//	@Param			action		query		string	false	"Filter by action"	Enums(ALLOW, DENY, REVIEW)
-//	@Param			sortBy		query		string	false	"Sort field"	Enums(createdAt, updatedAt, name, status)
-//	@Param			sortOrder	query		string	false	"Sort direction"	Enums(ASC, DESC)
-//	@Success		200			{object}	ListRulesResponse	"Rules listed successfully"
-//	@Failure		400			{object}	api.ErrorResponse	"Invalid parameters"
-//	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
-//	@Failure		500			{object}	api.ErrorResponse	"Internal server error"
+//	@Param			limit			query		int		false	"Max items per page (1-100, default: 10)"	minimum(1)	maximum(100)
+//	@Param			cursor			query		string	false	"Pagination cursor (empty for first page)"
+//	@Param			name			query		string	false	"Filter by name (case-insensitive partial match)"
+//	@Param			status			query		string	false	"Filter by status (DELETED not allowed)"	Enums(DRAFT, ACTIVE, INACTIVE)
+//	@Param			action			query		string	false	"Filter by action"	Enums(ALLOW, DENY, REVIEW)
+//	@Param			accountId		query		string	false	"Filter by scope accountId (UUID)"	Format(uuid)
+//	@Param			segmentId		query		string	false	"Filter by scope segmentId (UUID)"	Format(uuid)
+//	@Param			portfolioId		query		string	false	"Filter by scope portfolioId (UUID)"	Format(uuid)
+//	@Param			merchantId		query		string	false	"Filter by scope merchantId (UUID)"	Format(uuid)
+//	@Param			transactionType	query		string	false	"Filter by scope transactionType"	Enums(CARD, WIRE, PIX, CRYPTO)
+//	@Param			subType			query		string	false	"Filter by scope subType (max 50 chars)"
+//	@Param			sortBy			query		string	false	"Sort field"	Enums(createdAt, updatedAt, name, status)
+//	@Param			sortOrder		query		string	false	"Sort direction"	Enums(ASC, DESC)
+//	@Success		200				{object}	ListRulesResponse	"Rules listed successfully"
+//	@Failure		400				{object}	api.ErrorResponse	"Invalid parameters"
+//	@Failure		401				{object}	api.ErrorResponse	"Unauthorized"
+//	@Failure		500				{object}	api.ErrorResponse	"Internal server error"
 //	@Router			/v1/rules [get]
 func (h *Handler) ListRules(c *fiber.Ctx) error {
 	ctx := c.UserContext()
