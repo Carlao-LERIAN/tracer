@@ -280,7 +280,7 @@ func (i *ListLimitsInput) validateScopeFields() error {
 		if !txType.IsValid() {
 			return &ValidationError{
 				Code:    "TRC-0006",
-				Message: "transactionType must be one of [CARD, WIRE, PIX, CRYPTO]",
+				Message: "transactionType must be one of [CARD WIRE PIX CRYPTO]",
 			}
 		}
 	}
@@ -376,33 +376,48 @@ func ToListLimitsFilter(input *ListLimitsInput) *model.ListLimitsFilter {
 
 // buildLimitScopeFromInput constructs a model.Scope from ListLimitsInput scope fields.
 // Returns nil if no scope fields are provided (all nil or empty strings).
-// SAFETY: Uses uuid.MustParse because Validate() has already verified UUID format.
-// This function MUST only be called after Validate() succeeds -- the handler enforces this order.
+// Returns nil defensively if any UUID field fails to parse.
 func buildLimitScopeFromInput(input *ListLimitsInput) *model.Scope {
 	var scope model.Scope
 
 	hasField := false
 
 	if input.AccountID != nil && *input.AccountID != "" {
-		id := uuid.MustParse(*input.AccountID)
+		id, err := uuid.Parse(*input.AccountID)
+		if err != nil {
+			return nil
+		}
+
 		scope.AccountID = &id
 		hasField = true
 	}
 
 	if input.SegmentID != nil && *input.SegmentID != "" {
-		id := uuid.MustParse(*input.SegmentID)
+		id, err := uuid.Parse(*input.SegmentID)
+		if err != nil {
+			return nil
+		}
+
 		scope.SegmentID = &id
 		hasField = true
 	}
 
 	if input.PortfolioID != nil && *input.PortfolioID != "" {
-		id := uuid.MustParse(*input.PortfolioID)
+		id, err := uuid.Parse(*input.PortfolioID)
+		if err != nil {
+			return nil
+		}
+
 		scope.PortfolioID = &id
 		hasField = true
 	}
 
 	if input.MerchantID != nil && *input.MerchantID != "" {
-		id := uuid.MustParse(*input.MerchantID)
+		id, err := uuid.Parse(*input.MerchantID)
+		if err != nil {
+			return nil
+		}
+
 		scope.MerchantID = &id
 		hasField = true
 	}
