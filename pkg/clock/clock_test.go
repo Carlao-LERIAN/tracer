@@ -103,7 +103,7 @@ func TestRealClock_NewTicker_StopPreventsMoreTicks(t *testing.T) {
 	case <-tickerChan:
 		// It's acceptable to receive one tick if it was already queued
 		// But subsequent reads should timeout
-	case <-time.After(20 * time.Millisecond):
+	case <-time.After(50 * time.Millisecond):
 		// Expected: no tick received after stop
 	}
 
@@ -111,7 +111,7 @@ func TestRealClock_NewTicker_StopPreventsMoreTicks(t *testing.T) {
 	select {
 	case <-tickerChan:
 		t.Fatal("received unexpected tick after stop; ticker should have stopped completely")
-	case <-time.After(20 * time.Millisecond):
+	case <-time.After(50 * time.Millisecond):
 		// Expected: no additional ticks after stop
 	}
 }

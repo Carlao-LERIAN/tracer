@@ -565,7 +565,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 	return result, nil
 }
 
-// applyFilters adds WHERE clauses for name, status, and action filters.
+// applyFilters adds WHERE clauses for name, status, action, and scope filters.
 func (r *Repository) applyFilters(query sq.SelectBuilder, filter *model.ListRulesFilter) sq.SelectBuilder {
 	if filter.Name != nil && *filter.Name != "" {
 		// Case-insensitive partial match using ILIKE with % wildcards
@@ -580,6 +580,12 @@ func (r *Repository) applyFilters(query sq.SelectBuilder, filter *model.ListRule
 
 	if filter.Action != nil {
 		query = query.Where(sq.Eq{"action": *filter.Action})
+	}
+
+	// Apply scope filter using existing buildScopeFilter() JSONB logic
+	if filter.ScopeFilter != nil && !filter.ScopeFilter.IsEmpty() {
+		scopeFilter, filterArgs := r.buildScopeFilter([]model.Scope{*filter.ScopeFilter})
+		query = query.Where(scopeFilter, filterArgs...)
 	}
 
 	return query

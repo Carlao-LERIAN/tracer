@@ -81,15 +81,25 @@ func (m *LimitPostgreSQLModel) ToEntity() (*model.Limit, error) {
 		deletedAt = &m.DeletedAt.Time
 	}
 
+	limitType := model.LimitType(m.LimitType)
+	if !limitType.IsValid() {
+		return nil, fmt.Errorf("invalid limit type in database: %s", m.LimitType)
+	}
+
+	status := model.LimitStatus(m.Status)
+	if !status.IsValid() {
+		return nil, fmt.Errorf("invalid limit status in database: %s", m.Status)
+	}
+
 	return &model.Limit{
 		ID:          id,
 		Name:        m.Name,
 		Description: description,
-		LimitType:   model.LimitType(m.LimitType),
+		LimitType:   limitType,
 		MaxAmount:   m.MaxAmount,
 		Currency:    m.Currency,
 		Scopes:      scopes,
-		Status:      model.LimitStatus(m.Status),
+		Status:      status,
 		ResetAt:     resetAt,
 		CreatedAt:   m.CreatedAt,
 		UpdatedAt:   m.UpdatedAt,

@@ -27,7 +27,7 @@ type CheckLimitsInput struct {
 	SegmentID            *uuid.UUID       `json:"segmentId,omitempty"`
 	PortfolioID          *uuid.UUID       `json:"portfolioId,omitempty"`
 	TransactionType      *TransactionType `json:"transactionType,omitempty"`
-	SubType              *string          `json:"subType,omitempty"`
+	SubType              *string          `json:"subType,omitempty" maxLength:"50"`
 	TransactionTimestamp time.Time        `json:"transactionTimestamp"`
 }
 

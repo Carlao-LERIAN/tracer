@@ -1029,7 +1029,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Lists rules with cursor-based pagination and optional filters.",
+                "description": "Lists rules with cursor-based pagination and optional filters. Supports filtering by scope fields to find rules applicable to specific contexts. Global rules (empty scopes) are always included in scope-filtered results.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1082,6 +1082,53 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Filter by action",
                         "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by scope accountId (UUID)",
+                        "name": "accountId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by scope segmentId (UUID)",
+                        "name": "segmentId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by scope portfolioId (UUID)",
+                        "name": "portfolioId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by scope merchantId (UUID)",
+                        "name": "merchantId",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "CARD",
+                            "WIRE",
+                            "PIX",
+                            "CRYPTO"
+                        ],
+                        "type": "string",
+                        "description": "Filter by scope transactionType",
+                        "name": "transactionType",
+                        "in": "query"
+                    },
+                    {
+                        "maxLength": 50,
+                        "type": "string",
+                        "description": "Filter by scope subType (max 50 chars)",
+                        "name": "subType",
                         "in": "query"
                     },
                     {
@@ -2749,7 +2796,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.SegmentContext"
                 },
                 "subType": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50
                 },
                 "totalRulesLoaded": {
                     "type": "integer"
@@ -2844,7 +2892,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/tracer_pkg_model.SegmentContext"
                 },
                 "subType": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50
                 },
                 "transactionTimestamp": {
                     "type": "string",

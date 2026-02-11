@@ -11,7 +11,7 @@
 #   - API annotations in Go code (@Summary, @Description, etc.)
 #
 # Variables used from main Makefile:
-#   - ROOT_DIR: Project root directory
+#   (none - runs from project root)
 #
 # Generated files:
 #   - ./api/swagger.json - Swagger specification
@@ -43,7 +43,7 @@ generate-docs:
 		echo "$(YELLOW)Installing swag...$(NC)"; \
 		go install github.com/swaggo/swag/cmd/swag@latest; \
 	fi
-	@cd $(ROOT_DIR) && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
+	@swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
 	@docker run --rm -v ./:/local --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v7.10.0 generate -i /local/api/swagger.json -g openapi-yaml -o /local/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
@@ -57,7 +57,7 @@ generate-docs-all:
 	$(call title1,"Generating Swagger documentation for all services")
 	$(call check_command,swag,"go install github.com/swaggo/swag/cmd/swag@latest")
 	@echo "$(CYAN)Verifying API documentation coverage...$(NC)"
-	@sh ./scripts/verify-api-docs.sh 2>/dev/null || echo "$(YELLOW)Warning: Some API endpoints may not be properly documented. Continuing with documentation generation...$(NC)"
+	@sh ./scripts/verify-api-docs.sh || echo "$(YELLOW)Warning: Some API endpoints may not be properly documented. Continuing with documentation generation...$(NC)"
 	@echo "$(CYAN)Generating documentation for plugin component...$(NC)"
 	$(MAKE) generate-docs 2>&1 | grep -v "warning: "
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated successfully$(GREEN) ✔️$(NC)"

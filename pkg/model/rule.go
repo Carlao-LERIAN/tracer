@@ -142,8 +142,8 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 		Action:      action,
 		Scopes:      scopesCopy,
 		Status:      RuleStatusDraft,
-		CreatedAt:   createdAt,
-		UpdatedAt:   createdAt,
+		CreatedAt:   createdAt.UTC(),
+		UpdatedAt:   createdAt.UTC(),
 	}, nil
 }
 
@@ -329,13 +329,14 @@ func (r *Rule) SetAction(action Decision, now time.Time) error {
 // ListRulesFilter represents the filter criteria for listing rules.
 // Uses cursor-based pagination for consistent results during navigation.
 type ListRulesFilter struct {
-	Name      *string // Filter by name (case-insensitive partial match / contains)
-	Status    *RuleStatus
-	Action    *Decision
-	Limit     int
-	Cursor    string // Base64 encoded cursor for pagination
-	SortBy    string
-	SortOrder string
+	Name        *string // Filter by name (case-insensitive partial match / contains)
+	Status      *RuleStatus
+	Action      *Decision
+	ScopeFilter *Scope // Optional scope filter for JSONB scope matching
+	Limit       int
+	Cursor      string // Base64 encoded cursor for pagination
+	SortBy      string
+	SortOrder   string
 }
 
 // ListRulesResult represents the result of listing rules.

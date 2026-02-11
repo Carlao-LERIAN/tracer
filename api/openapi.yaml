@@ -795,6 +795,8 @@ paths:
   /v1/rules:
     get:
       description: Lists rules with cursor-based pagination and optional filters.
+        Supports filtering by scope fields to find rules applicable to specific contexts.
+        Global rules (empty scopes) are always included in scope-filtered results.
       operationId: listRules
       parameters:
       - description: "Max items per page (1-100, default: 10)"
@@ -831,6 +833,46 @@ paths:
           - ALLOW
           - DENY
           - REVIEW
+          type: string
+      - description: Filter by scope accountId (UUID)
+        in: query
+        name: accountId
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope segmentId (UUID)
+        in: query
+        name: segmentId
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope portfolioId (UUID)
+        in: query
+        name: portfolioId
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope merchantId (UUID)
+        in: query
+        name: merchantId
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by scope transactionType
+        in: query
+        name: transactionType
+        schema:
+          enum:
+          - CARD
+          - WIRE
+          - PIX
+          - CRYPTO
+          type: string
+      - description: Filter by scope subType (max 50 chars)
+        in: query
+        name: subType
+        schema:
+          maxLength: 50
           type: string
       - description: Sort field
         in: query
@@ -2543,6 +2585,7 @@ components:
         segment:
           $ref: '#/components/schemas/tracer_pkg_model.SegmentContext'
         subType:
+          maxLength: 50
           type: string
         totalRulesLoaded:
           type: integer
@@ -2614,6 +2657,7 @@ components:
         segment:
           $ref: '#/components/schemas/tracer_pkg_model.SegmentContext'
         subType:
+          maxLength: 50
           type: string
         transactionTimestamp:
           format: date-time

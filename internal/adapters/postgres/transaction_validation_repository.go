@@ -890,8 +890,9 @@ func uuidSliceToStringArray(uuids []uuid.UUID) StringArray {
 	return result
 }
 
-// formatStringArrayToPostgres formats a slice of strings to PostgreSQL array format "{item1,item2,...}".
-// This is a common helper to avoid duplication between formatUUIDArrayString and formatUUIDArrayFromStringArray.
+// formatStringArrayToPostgres formats a slice of UUID strings to PostgreSQL array format "{item1,item2,...}".
+// IMPORTANT: This function does NOT escape special characters. Only use with
+// validated UUID strings that cannot contain commas, braces, or quotes.
 func formatStringArrayToPostgres(strs []string) string {
 	if len(strs) == 0 {
 		return "{}"

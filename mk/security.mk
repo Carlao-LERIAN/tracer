@@ -24,6 +24,10 @@
 #   - govulncheck: Go Vulnerability Checker - detects known CVEs
 # ------------------------------------------------------
 
+# Pinned tool versions for reproducible security scans
+GOSEC_VERSION ?= v2.22.11
+GOVULNCHECK_VERSION ?= v1.1.4
+
 # SARIF output for GitHub Security tab integration (optional)
 # Usage: make sec SARIF=1
 SARIF ?= 0
@@ -48,7 +52,7 @@ sec:
 sec-gosec:
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing gosec...$(NC)"; \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+		go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION); \
 	fi
 	@if find ./internal ./pkg ./cmd -name "*.go" -type f 2>/dev/null | grep -q .; then \
 		echo "$(CYAN)Running gosec on internal/, pkg/, and cmd/ folders...$(NC)"; \
@@ -70,7 +74,7 @@ sec-gosec:
 sec-govulncheck:
 	@if ! command -v govulncheck >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing govulncheck...$(NC)"; \
-		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+		go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION); \
 	fi
 	@if find ./internal ./pkg ./cmd -name "*.go" -type f 2>/dev/null | grep -q .; then \
 		echo "$(CYAN)Running govulncheck on internal/, pkg/, and cmd/ folders...$(NC)"; \

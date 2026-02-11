@@ -363,7 +363,8 @@ func TestLimitPostgreSQLModel_RoundTrip(t *testing.T) {
 
 	// entity -> dbModel
 	var dbModel LimitPostgreSQLModel
-	dbModel.FromEntity(original)
+	err := dbModel.FromEntity(original)
+	require.NoError(t, err, "FromEntity should not return error")
 
 	// dbModel -> entity
 	result, err := dbModel.ToEntity()

@@ -16,7 +16,8 @@
 #   make lint                        # Run linters with auto-fix
 #   make format                      # Format Go code
 #   make generate                    # Generate mocks and code
-#   make tidy                        # Update and clean dependencies
+#   make tidy                        # Clean unused dependencies
+#   make update-deps                 # Update all deps to latest versions
 #   make quality                     # Run all quality checks (lint + test)
 #
 # Tools:
@@ -82,12 +83,19 @@ quality: lint test
 	@echo ""
 	@echo "$(GREEN)Ready to commit and push!$(NC)"
 
-# Update and clean Go module dependencies
-# Runs go get -u to update dependencies
+# Clean Go module dependencies (safe for frequent use)
 # Runs go mod tidy to remove unused dependencies
 .PHONY: tidy
 tidy:
-	$(call title1,"Update and Cleaning dependencies")
+	$(call title1,"Cleaning dependencies")
+	@go mod tidy
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
+
+# Update all dependencies to latest versions and clean
+# Use intentionally: upgrades all transitive deps
+.PHONY: update-deps
+update-deps:
+	$(call title1,"Updating all dependencies")
 	@go get -u ./...
 	@go mod tidy
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dependencies updated and cleaned successfully$(GREEN) ✔️$(NC)"

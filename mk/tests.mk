@@ -111,6 +111,12 @@ check-tests:
 	@if find . -name "*.go" -type f | grep -q .; then \
 		echo "$(CYAN)Running test coverage check...$(NC)"; \
 		go test -coverprofile=coverage.tmp ./... > /dev/null 2>&1; \
+		test_exit=$$?; \
+		if [ $$test_exit -ne 0 ]; then \
+			echo "$(RED)$(BOLD)[error]$(NC) Tests failed (exit code $$test_exit). Run 'make test-unit' for details.$(RED) ❌$(NC)"; \
+			rm -f coverage.tmp; \
+			exit 1; \
+		fi; \
 		if [ -f coverage.tmp ]; then \
 			coverage=$$(go tool cover -func=coverage.tmp | grep total | awk '{print $$3}'); \
 			echo "$(CYAN)Test coverage: $(GREEN)$$coverage$(NC)"; \
