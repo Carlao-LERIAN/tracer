@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -352,7 +353,7 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 		expectedBody   func(t *testing.T, body []byte)
 	}{
 		{
-			name:        "success - lists limits with defaults",
+			name:        "lists limits with default parameters and empty result",
 			queryParams: "",
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				mockService := NewMockLimitService(ctrl)
@@ -373,10 +374,11 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 				require.NoError(t, err)
 				assert.Empty(t, response.Limits)
 				assert.False(t, response.HasMore)
+				assert.Empty(t, response.NextCursor)
 			},
 		},
 		{
-			name:        "success - lists limits with status filter ACTIVE",
+			name:        "status filter ACTIVE returns matching limits with all fields",
 			queryParams: "?status=ACTIVE",
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				mockService := NewMockLimitService(ctrl)
@@ -403,10 +405,14 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 				assert.Len(t, response.Limits, 1)
+				assert.Equal(t, testutil.MustDeterministicUUID(20), response.Limits[0].ID)
+				assert.Equal(t, "Active Limit", response.Limits[0].Name)
+				assert.Equal(t, model.LimitStatusActive, response.Limits[0].Status)
+				assert.False(t, response.HasMore)
 			},
 		},
 		{
-			name:        "success - lists limits with status filter DRAFT",
+			name:        "status filter DRAFT returns limits with correct status",
 			queryParams: "?status=DRAFT",
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				mockService := NewMockLimitService(ctrl)
@@ -433,11 +439,13 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 				err := json.Unmarshal(body, &response)
 				require.NoError(t, err)
 				assert.Len(t, response.Limits, 1)
+				assert.Equal(t, testutil.MustDeterministicUUID(21), response.Limits[0].ID)
 				assert.Equal(t, model.LimitStatusDraft, response.Limits[0].Status)
+				assert.False(t, response.HasMore)
 			},
 		},
 		{
-			name:        "error - invalid status filter",
+			name:        "invalid status filter returns validation error",
 			queryParams: "?status=INVALID",
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				return NewMockLimitService(ctrl)
@@ -448,7 +456,153 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 			},
 		},
 		{
-			name:        "error - invalid cursor",
+			name:        "name filter passes value to service filter",
+			queryParams: "?name=Daily",
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					ListLimits(gomock.Any(), gomock.Cond(func(x any) bool {
+						f, ok := x.(*model.ListLimitsFilter)
+						return ok && f.Name != nil && *f.Name == "Daily"
+					})).
+					Return(&model.ListLimitsResult{
+						Limits:  []model.Limit{},
+						HasMore: false,
+					}, nil)
+
+				return mockService
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: func(t *testing.T, body []byte) {
+				var response ListLimitsResponse
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Empty(t, response.Limits)
+				assert.False(t, response.HasMore)
+			},
+		},
+		{
+			name:        "accountId scope filter passes UUID to service filter",
+			queryParams: "?accountId=" + testutil.MustDeterministicUUID(1).String(),
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				expectedAccountID := testutil.MustDeterministicUUID(1)
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					ListLimits(gomock.Any(), gomock.Cond(func(x any) bool {
+						f, ok := x.(*model.ListLimitsFilter)
+						return ok && f.ScopeFilter != nil && f.ScopeFilter.AccountID != nil &&
+							*f.ScopeFilter.AccountID == expectedAccountID
+					})).
+					Return(&model.ListLimitsResult{
+						Limits:  []model.Limit{},
+						HasMore: false,
+					}, nil)
+
+				return mockService
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: func(t *testing.T, body []byte) {
+				var response ListLimitsResponse
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Empty(t, response.Limits)
+				assert.False(t, response.HasMore)
+			},
+		},
+		{
+			name:        "combined name, scope, and status filters pass all values to service",
+			queryParams: "?name=Monthly&transactionType=PIX&status=ACTIVE",
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					ListLimits(gomock.Any(), gomock.Cond(func(x any) bool {
+						f, ok := x.(*model.ListLimitsFilter)
+						return ok && f.Name != nil && *f.Name == "Monthly" &&
+							f.ScopeFilter != nil && f.ScopeFilter.TransactionType != nil &&
+							string(*f.ScopeFilter.TransactionType) == "PIX" &&
+							f.Status != nil && *f.Status == model.LimitStatusActive
+					})).
+					Return(&model.ListLimitsResult{
+						Limits:  []model.Limit{},
+						HasMore: false,
+					}, nil)
+
+				return mockService
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: func(t *testing.T, body []byte) {
+				var response ListLimitsResponse
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Empty(t, response.Limits)
+				assert.False(t, response.HasMore)
+			},
+		},
+		{
+			name:        "name filter at max length boundary (255 chars) is accepted",
+			queryParams: "?name=" + strings.Repeat("a", MaxLimitNameFilterLength),
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				expectedName := strings.Repeat("a", MaxLimitNameFilterLength)
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					ListLimits(gomock.Any(), gomock.Cond(func(x any) bool {
+						f, ok := x.(*model.ListLimitsFilter)
+						return ok && f.Name != nil && *f.Name == expectedName
+					})).
+					Return(&model.ListLimitsResult{
+						Limits:  []model.Limit{},
+						HasMore: false,
+					}, nil)
+
+				return mockService
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: func(t *testing.T, body []byte) {
+				var response ListLimitsResponse
+				err := json.Unmarshal(body, &response)
+				require.NoError(t, err)
+				assert.Empty(t, response.Limits)
+				assert.False(t, response.HasMore)
+			},
+		},
+		{
+			name:        "name filter exceeding max length (256 chars) returns validation error",
+			queryParams: "?name=" + strings.Repeat("a", MaxLimitNameFilterLength+1),
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				return NewMockLimitService(ctrl)
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "TRC-0006")
+				assert.Contains(t, string(body), "name filter exceeds maximum length")
+			},
+		},
+		{
+			name:        "invalid accountId UUID in scope filter returns validation error",
+			queryParams: "?accountId=not-a-uuid",
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				return NewMockLimitService(ctrl)
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "TRC-0006")
+				assert.Contains(t, string(body), "accountId")
+			},
+		},
+		{
+			name:        "invalid transactionType enum in scope filter returns validation error",
+			queryParams: "?transactionType=INVALID_TYPE",
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				return NewMockLimitService(ctrl)
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "TRC-0006")
+				assert.Contains(t, string(body), "transactionType")
+			},
+		},
+		{
+			name:        "invalid cursor returns bad request error",
 			queryParams: "?cursor=invalid",
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				mockService := NewMockLimitService(ctrl)

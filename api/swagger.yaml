@@ -1039,6 +1039,11 @@ paths:
         in: query
         name: cursor
         type: string
+      - description: Filter by name (case-insensitive partial match)
+        in: query
+        maxLength: 255
+        name: name
+        type: string
       - description: Filter by status
         enum:
         - DRAFT
@@ -1054,6 +1059,40 @@ paths:
         - PER_TRANSACTION
         in: query
         name: limitType
+        type: string
+      - description: Filter by scope accountId (UUID)
+        format: uuid
+        in: query
+        name: accountId
+        type: string
+      - description: Filter by scope segmentId (UUID)
+        format: uuid
+        in: query
+        name: segmentId
+        type: string
+      - description: Filter by scope portfolioId (UUID)
+        format: uuid
+        in: query
+        name: portfolioId
+        type: string
+      - description: Filter by scope merchantId (UUID)
+        format: uuid
+        in: query
+        name: merchantId
+        type: string
+      - description: Filter by scope transactionType
+        enum:
+        - CARD
+        - WIRE
+        - PIX
+        - CRYPTO
+        in: query
+        name: transactionType
+        type: string
+      - description: Filter by scope subType (max 50 chars)
+        in: query
+        maxLength: 50
+        name: subType
         type: string
       - description: Sort field
         enum:

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	"tracer/internal/services/command"
@@ -25,6 +26,7 @@ const (
 	MaxLimitDescriptionLength = 1000
 	MaxLimitScopesCount       = 100
 	MaxLimitSubTypeLength     = 50
+	MaxLimitNameFilterLength  = 255 // Maximum length for name filter query parameter (matches VARCHAR(255))
 	// MaxUsageCountersPerLimit bounds the number of usage counters returned for a single limit.
 	// Calculated as: max_scopes (100) × reasonable_period_history (~10 months).
 	// Provides DoS protection and documents API expectations for tooling validation.
@@ -144,12 +146,19 @@ func (i *UpdateLimitInput) IsEmpty() bool {
 
 // ListLimitsInput represents query parameters for listing limits.
 type ListLimitsInput struct {
-	Limit     *int   `query:"limit"` // Changed to *int to distinguish nil (use default) from 0 (invalid)
-	Cursor    string `query:"cursor"`
-	Status    string `query:"status" enums:"DRAFT,ACTIVE,INACTIVE"`
-	LimitType string `query:"limitType" enums:"DAILY,MONTHLY,PER_TRANSACTION"`
-	SortBy    string `query:"sortBy" enums:"createdAt,updatedAt,name,maxAmount"`
-	SortOrder string `query:"sortOrder" enums:"ASC,DESC"`
+	Name            *string `query:"name"`
+	AccountID       *string `query:"accountId"`
+	SegmentID       *string `query:"segmentId"`
+	PortfolioID     *string `query:"portfolioId"`
+	MerchantID      *string `query:"merchantId"`
+	TransactionType *string `query:"transactionType"`
+	SubType         *string `query:"subType"`
+	Limit           *int    `query:"limit"`
+	Cursor          string  `query:"cursor"`
+	Status          string  `query:"status" enums:"DRAFT,ACTIVE,INACTIVE"`
+	LimitType       string  `query:"limitType" enums:"DAILY,MONTHLY,PER_TRANSACTION"`
+	SortBy          string  `query:"sortBy" enums:"createdAt,updatedAt,name,maxAmount"`
+	SortOrder       string  `query:"sortOrder" enums:"ASC,DESC"`
 }
 
 // SetDefaults applies default values.
@@ -225,6 +234,65 @@ func (i *ListLimitsInput) Validate() error {
 		}
 	}
 
+	// Validate scope filter fields (TRC-0006 for invalid values)
+	if err := i.validateScopeFields(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateScopeFields validates name and scope-related query parameters for listing limits.
+func (i *ListLimitsInput) validateScopeFields() error {
+	// Validate name length (prevent oversized ILIKE queries)
+	if i.Name != nil && len(*i.Name) > MaxLimitNameFilterLength {
+		return &ValidationError{
+			Code:    "TRC-0006",
+			Message: fmt.Sprintf("name filter exceeds maximum length of %d characters", MaxLimitNameFilterLength),
+		}
+	}
+
+	// Validate UUID fields
+	uuidFields := []struct {
+		value *string
+		name  string
+	}{
+		{i.AccountID, "accountId"},
+		{i.SegmentID, "segmentId"},
+		{i.PortfolioID, "portfolioId"},
+		{i.MerchantID, "merchantId"},
+	}
+
+	for _, f := range uuidFields {
+		if f.value != nil && *f.value != "" {
+			if _, err := uuid.Parse(*f.value); err != nil {
+				return &ValidationError{
+					Code:    "TRC-0006",
+					Message: f.name + " must be a valid UUID",
+				}
+			}
+		}
+	}
+
+	// Validate transactionType enum
+	if i.TransactionType != nil && *i.TransactionType != "" {
+		txType := model.TransactionType(*i.TransactionType)
+		if !txType.IsValid() {
+			return &ValidationError{
+				Code:    "TRC-0006",
+				Message: "transactionType must be one of [CARD WIRE PIX CRYPTO]",
+			}
+		}
+	}
+
+	// Validate subType length
+	if i.SubType != nil && len(*i.SubType) > MaxLimitSubTypeLength {
+		return &ValidationError{
+			Code:    "TRC-0006",
+			Message: fmt.Sprintf("subType exceeds maximum length of %d characters", MaxLimitSubTypeLength),
+		}
+	}
+
 	return nil
 }
 
@@ -281,6 +349,7 @@ func ToListLimitsFilter(input *ListLimitsInput) *model.ListLimitsFilter {
 	}
 
 	filter := &model.ListLimitsFilter{
+		Name:      input.Name,
 		Limit:     limit,
 		Cursor:    input.Cursor,
 		SortBy:    input.SortBy, // Pass camelCase directly; repository converts to snake_case
@@ -297,7 +366,78 @@ func ToListLimitsFilter(input *ListLimitsInput) *model.ListLimitsFilter {
 		filter.LimitType = &limitType
 	}
 
+	// Build scope filter from individual query parameters
+	if scope := buildLimitScopeFromInput(input); scope != nil {
+		filter.ScopeFilter = scope
+	}
+
 	return filter
+}
+
+// buildLimitScopeFromInput constructs a model.Scope from ListLimitsInput scope fields.
+// Returns nil if no scope fields are provided (all nil or empty strings).
+// Returns nil defensively if any UUID field fails to parse.
+func buildLimitScopeFromInput(input *ListLimitsInput) *model.Scope {
+	var scope model.Scope
+
+	hasField := false
+
+	if input.AccountID != nil && *input.AccountID != "" {
+		id, err := uuid.Parse(*input.AccountID)
+		if err != nil {
+			return nil
+		}
+
+		scope.AccountID = &id
+		hasField = true
+	}
+
+	if input.SegmentID != nil && *input.SegmentID != "" {
+		id, err := uuid.Parse(*input.SegmentID)
+		if err != nil {
+			return nil
+		}
+
+		scope.SegmentID = &id
+		hasField = true
+	}
+
+	if input.PortfolioID != nil && *input.PortfolioID != "" {
+		id, err := uuid.Parse(*input.PortfolioID)
+		if err != nil {
+			return nil
+		}
+
+		scope.PortfolioID = &id
+		hasField = true
+	}
+
+	if input.MerchantID != nil && *input.MerchantID != "" {
+		id, err := uuid.Parse(*input.MerchantID)
+		if err != nil {
+			return nil
+		}
+
+		scope.MerchantID = &id
+		hasField = true
+	}
+
+	if input.TransactionType != nil && *input.TransactionType != "" {
+		txType := model.TransactionType(*input.TransactionType)
+		scope.TransactionType = &txType
+		hasField = true
+	}
+
+	if input.SubType != nil && *input.SubType != "" {
+		scope.SubType = input.SubType
+		hasField = true
+	}
+
+	if !hasField {
+		return nil
+	}
+
+	return &scope
 }
 
 // ToListLimitsResponse converts model ListLimitsResult to HTTP ListLimitsResponse.

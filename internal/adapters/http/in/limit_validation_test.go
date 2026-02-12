@@ -562,6 +562,219 @@ func TestValidateLimitStatus_PointerHandling(t *testing.T) {
 	})
 }
 
+func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       ListLimitsInput
+		expectError bool
+		errContains string
+		errCode     string
+	}{
+		{
+			name: "valid - accountId UUID",
+			input: ListLimitsInput{
+				AccountID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440001"),
+				Limit:     testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - segmentId UUID",
+			input: ListLimitsInput{
+				SegmentID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440002"),
+				Limit:     testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - portfolioId UUID",
+			input: ListLimitsInput{
+				PortfolioID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440003"),
+				Limit:       testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - merchantId UUID",
+			input: ListLimitsInput{
+				MerchantID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440004"),
+				Limit:      testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - transactionType CARD",
+			input: ListLimitsInput{
+				TransactionType: testutil.StringPtr("CARD"),
+				Limit:           testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - transactionType PIX",
+			input: ListLimitsInput{
+				TransactionType: testutil.StringPtr("PIX"),
+				Limit:           testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - subType within limit",
+			input: ListLimitsInput{
+				SubType: testutil.StringPtr("Credit"),
+				Limit:   testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - multiple scope fields combined",
+			input: ListLimitsInput{
+				AccountID:       testutil.StringPtr("550e8400-e29b-41d4-a716-446655440001"),
+				TransactionType: testutil.StringPtr("WIRE"),
+				Limit:           testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - name filter only",
+			input: ListLimitsInput{
+				Name:  testutil.StringPtr("Daily"),
+				Limit: testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - name with scope filters",
+			input: ListLimitsInput{
+				Name:      testutil.StringPtr("Daily"),
+				AccountID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440001"),
+				Limit:     testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - no scope fields (backward compatible)",
+			input: ListLimitsInput{
+				Limit: testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "error - invalid accountId UUID",
+			input: ListLimitsInput{
+				AccountID: testutil.StringPtr("not-a-uuid"),
+				Limit:     testutil.Ptr(10),
+			},
+			expectError: true,
+			errContains: "accountId must be a valid UUID",
+			errCode:     "TRC-0006",
+		},
+		{
+			name: "error - invalid segmentId UUID",
+			input: ListLimitsInput{
+				SegmentID: testutil.StringPtr("invalid"),
+				Limit:     testutil.Ptr(10),
+			},
+			expectError: true,
+			errContains: "segmentId must be a valid UUID",
+			errCode:     "TRC-0006",
+		},
+		{
+			name: "error - invalid portfolioId UUID",
+			input: ListLimitsInput{
+				PortfolioID: testutil.StringPtr("bad-uuid"),
+				Limit:       testutil.Ptr(10),
+			},
+			expectError: true,
+			errContains: "portfolioId must be a valid UUID",
+			errCode:     "TRC-0006",
+		},
+		{
+			name: "error - invalid merchantId UUID",
+			input: ListLimitsInput{
+				MerchantID: testutil.StringPtr("xyz"),
+				Limit:      testutil.Ptr(10),
+			},
+			expectError: true,
+			errContains: "merchantId must be a valid UUID",
+			errCode:     "TRC-0006",
+		},
+		{
+			name: "error - invalid transactionType enum",
+			input: ListLimitsInput{
+				TransactionType: testutil.StringPtr("INVALID_TYPE"),
+				Limit:           testutil.Ptr(10),
+			},
+			expectError: true,
+			errContains: "transactionType must be one of",
+			errCode:     "TRC-0006",
+		},
+		{
+			name: "error - subType exceeds max length",
+			input: ListLimitsInput{
+				SubType: testutil.StringPtr(strings.Repeat("x", MaxLimitSubTypeLength+1)),
+				Limit:   testutil.Ptr(10),
+			},
+			expectError: true,
+			errContains: "subType exceeds maximum length",
+			errCode:     "TRC-0006",
+		},
+		{
+			name: "valid - name at exact max length boundary (255 chars)",
+			input: ListLimitsInput{
+				Name:  testutil.StringPtr(strings.Repeat("a", MaxLimitNameFilterLength)),
+				Limit: testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "error - name exceeds max length (256 chars)",
+			input: ListLimitsInput{
+				Name:  testutil.StringPtr(strings.Repeat("a", MaxLimitNameFilterLength+1)),
+				Limit: testutil.Ptr(10),
+			},
+			expectError: true,
+			errContains: "name filter exceeds maximum length",
+			errCode:     "TRC-0006",
+		},
+		{
+			name: "valid - name with LIKE special characters (escaped safely)",
+			input: ListLimitsInput{
+				Name:  testutil.StringPtr("100%_match"),
+				Limit: testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - empty name string is accepted (no filter applied)",
+			input: ListLimitsInput{
+				Name:  testutil.StringPtr(""),
+				Limit: testutil.Ptr(10),
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.input.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+				if tt.errCode != "" {
+					var valErr *ValidationError
+					require.ErrorAs(t, err, &valErr)
+					assert.Equal(t, tt.errCode, valErr.Code)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestToListLimitsFilter_SortOrderUppercase(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -601,4 +814,194 @@ func TestToListLimitsFilter_SortOrderUppercase(t *testing.T) {
 			assert.Equal(t, tt.expectedOrder, result.SortOrder)
 		})
 	}
+}
+
+func TestBuildLimitScopeFromInput(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       ListLimitsInput
+		expectNil   bool
+		checkFields func(t *testing.T, scope *model.Scope)
+	}{
+		{
+			name:      "no scope fields returns nil",
+			input:     ListLimitsInput{},
+			expectNil: true,
+		},
+		{
+			name: "empty string fields returns nil",
+			input: ListLimitsInput{
+				AccountID: testutil.StringPtr(""),
+			},
+			expectNil: true,
+		},
+		{
+			name: "accountId only",
+			input: ListLimitsInput{
+				AccountID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440001"),
+			},
+			expectNil: false,
+			checkFields: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope.AccountID)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440001", scope.AccountID.String())
+				assert.Nil(t, scope.SegmentID)
+				assert.Nil(t, scope.PortfolioID)
+				assert.Nil(t, scope.MerchantID)
+				assert.Nil(t, scope.TransactionType)
+				assert.Nil(t, scope.SubType)
+			},
+		},
+		{
+			name: "transactionType only",
+			input: ListLimitsInput{
+				TransactionType: testutil.StringPtr("CARD"),
+			},
+			expectNil: false,
+			checkFields: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope.TransactionType)
+				assert.Equal(t, model.TransactionTypeCard, *scope.TransactionType)
+				assert.Nil(t, scope.AccountID)
+			},
+		},
+		{
+			name: "subType only",
+			input: ListLimitsInput{
+				SubType: testutil.StringPtr("Credit"),
+			},
+			expectNil: false,
+			checkFields: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope.SubType)
+				assert.Equal(t, "Credit", *scope.SubType)
+			},
+		},
+		{
+			name: "portfolioId only",
+			input: ListLimitsInput{
+				PortfolioID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440003"),
+			},
+			expectNil: false,
+			checkFields: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope.PortfolioID)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440003", scope.PortfolioID.String())
+				assert.Nil(t, scope.AccountID)
+				assert.Nil(t, scope.SegmentID)
+				assert.Nil(t, scope.MerchantID)
+			},
+		},
+		{
+			name: "merchantId only",
+			input: ListLimitsInput{
+				MerchantID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440004"),
+			},
+			expectNil: false,
+			checkFields: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope.MerchantID)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440004", scope.MerchantID.String())
+				assert.Nil(t, scope.AccountID)
+				assert.Nil(t, scope.PortfolioID)
+				assert.Nil(t, scope.SegmentID)
+			},
+		},
+		{
+			name: "segmentId only",
+			input: ListLimitsInput{
+				SegmentID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440005"),
+			},
+			expectNil: false,
+			checkFields: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope.SegmentID)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440005", scope.SegmentID.String())
+				assert.Nil(t, scope.AccountID)
+				assert.Nil(t, scope.PortfolioID)
+				assert.Nil(t, scope.MerchantID)
+			},
+		},
+		{
+			name: "multiple fields combined",
+			input: ListLimitsInput{
+				AccountID:       testutil.StringPtr("550e8400-e29b-41d4-a716-446655440001"),
+				SegmentID:       testutil.StringPtr("550e8400-e29b-41d4-a716-446655440002"),
+				TransactionType: testutil.StringPtr("WIRE"),
+				SubType:         testutil.StringPtr("International"),
+			},
+			expectNil: false,
+			checkFields: func(t *testing.T, scope *model.Scope) {
+				require.NotNil(t, scope.AccountID)
+				require.NotNil(t, scope.SegmentID)
+				require.NotNil(t, scope.TransactionType)
+				require.NotNil(t, scope.SubType)
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440001", scope.AccountID.String())
+				assert.Equal(t, "550e8400-e29b-41d4-a716-446655440002", scope.SegmentID.String())
+				assert.Equal(t, model.TransactionTypeWire, *scope.TransactionType)
+				assert.Equal(t, "International", *scope.SubType)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scope := buildLimitScopeFromInput(&tt.input)
+			if tt.expectNil {
+				assert.Nil(t, scope)
+			} else {
+				require.NotNil(t, scope)
+				if tt.checkFields != nil {
+					tt.checkFields(t, scope)
+				}
+			}
+		})
+	}
+}
+
+func TestToListLimitsFilter_WithNameAndScopeFields(t *testing.T) {
+	t.Run("name filter is passed through", func(t *testing.T) {
+		input := &ListLimitsInput{
+			Name:  testutil.StringPtr("Daily"),
+			Limit: testutil.Ptr(10),
+		}
+		filter := ToListLimitsFilter(input)
+		require.NotNil(t, filter.Name)
+		assert.Equal(t, "Daily", *filter.Name)
+		assert.Nil(t, filter.ScopeFilter)
+	})
+
+	t.Run("scope filter is built from fields", func(t *testing.T) {
+		input := &ListLimitsInput{
+			AccountID: testutil.StringPtr("550e8400-e29b-41d4-a716-446655440001"),
+			Limit:     testutil.Ptr(10),
+		}
+		filter := ToListLimitsFilter(input)
+		require.NotNil(t, filter.ScopeFilter)
+		require.NotNil(t, filter.ScopeFilter.AccountID)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440001", filter.ScopeFilter.AccountID.String())
+	})
+
+	t.Run("no scope fields means nil ScopeFilter", func(t *testing.T) {
+		input := &ListLimitsInput{
+			Status: "ACTIVE",
+			Limit:  testutil.Ptr(10),
+		}
+		filter := ToListLimitsFilter(input)
+		assert.Nil(t, filter.ScopeFilter)
+		require.NotNil(t, filter.Status)
+		assert.Equal(t, model.LimitStatusActive, *filter.Status)
+	})
+
+	t.Run("name and scope combined", func(t *testing.T) {
+		input := &ListLimitsInput{
+			Name:            testutil.StringPtr("Monthly"),
+			TransactionType: testutil.StringPtr("PIX"),
+			Status:          "ACTIVE",
+			Limit:           testutil.Ptr(20),
+		}
+		filter := ToListLimitsFilter(input)
+		require.NotNil(t, filter.Name)
+		assert.Equal(t, "Monthly", *filter.Name)
+		require.NotNil(t, filter.ScopeFilter)
+		require.NotNil(t, filter.ScopeFilter.TransactionType)
+		assert.Equal(t, model.TransactionTypePix, *filter.ScopeFilter.TransactionType)
+		require.NotNil(t, filter.Status)
+		assert.Equal(t, model.LimitStatusActive, *filter.Status)
+		assert.Equal(t, 20, filter.Limit)
+	})
 }

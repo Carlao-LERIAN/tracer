@@ -290,7 +290,7 @@ type ValidationRequest struct {
 	RequestID            string            `json:"requestId,omitempty"`
 	TransactionType      string            `json:"transactionType,omitempty"`
 	SubType              string            `json:"subType,omitempty"`
-	Amount               decimal.Decimal   `json:"amount,omitempty"`
+	Amount               decimal.Decimal   `json:"amount"`
 	Currency             string            `json:"currency,omitempty"`
 	TransactionTimestamp string            `json:"transactionTimestamp,omitempty"`
 	Account              *AccountContext   `json:"account,omitempty"`
@@ -993,6 +993,62 @@ func CleanupLimit(t *testing.T, limitID string) {
 		bodyBytes, _ := io.ReadAll(deleteResp.Body)
 		t.Logf("Cleanup: DELETE limit %s returned status %d: %s", limitID, deleteResp.StatusCode, string(bodyBytes))
 	}
+}
+
+// CreateLimitWithScope creates a DAILY limit with arbitrary scopes for integration testing.
+// Returns the limit ID. The limit is created in DRAFT status.
+func CreateLimitWithScope(t *testing.T, name string, maxAmount string, scopes []ScopeInput) string {
+	t.Helper()
+
+	apiKey := GetAPIKey()
+	baseURL := GetBaseURL()
+
+	type createLimitReq struct {
+		Name      string       `json:"name"`
+		LimitType string       `json:"limitType"`
+		MaxAmount string       `json:"maxAmount"`
+		Currency  string       `json:"currency"`
+		Scopes    []ScopeInput `json:"scopes"`
+	}
+
+	_, err := decimal.NewFromString(maxAmount)
+	require.NoError(t, err, "maxAmount must be a valid decimal: %q", maxAmount)
+
+	if scopes == nil {
+		scopes = []ScopeInput{}
+	}
+
+	reqBody := createLimitReq{
+		Name:      name,
+		LimitType: "DAILY",
+		MaxAmount: maxAmount,
+		Currency:  "BRL",
+		Scopes:    scopes,
+	}
+
+	body, err := json.Marshal(reqBody)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := HTTPClient.Do(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Failed to create test limit: %s", string(respBody))
+
+	var limit limitResponse
+
+	err = json.Unmarshal(respBody, &limit)
+	require.NoError(t, err)
+
+	return limit.ID
 }
 
 // CreateRuleWithScope creates a rule with a scope and returns the rule ID.

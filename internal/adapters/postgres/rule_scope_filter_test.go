@@ -17,23 +17,20 @@ import (
 )
 
 func TestBuildScopeFilter_EmptyScopes(t *testing.T) {
-	repo := &Repository{}
-
-	filter, args := repo.buildScopeFilter([]model.Scope{})
+	filter, args := buildScopeFilter([]model.Scope{})
 
 	assert.Equal(t, "1=1", filter)
 	assert.Empty(t, args)
 }
 
 func TestBuildScopeFilter_SingleScopeWithTransactionType(t *testing.T) {
-	repo := &Repository{}
 	txType := model.TransactionTypeCard
 
 	scopes := []model.Scope{
 		{TransactionType: &txType},
 	}
 
-	filter, args := repo.buildScopeFilter(scopes)
+	filter, args := buildScopeFilter(scopes)
 
 	assert.Contains(t, filter, "scopes = '[]'::jsonb")
 	assert.Contains(t, filter, "EXISTS")
@@ -44,7 +41,6 @@ func TestBuildScopeFilter_SingleScopeWithTransactionType(t *testing.T) {
 }
 
 func TestBuildScopeFilter_SingleScopeWithMultipleFields(t *testing.T) {
-	repo := &Repository{}
 	txType := model.TransactionTypePix
 	accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 	merchantID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
@@ -57,7 +53,7 @@ func TestBuildScopeFilter_SingleScopeWithMultipleFields(t *testing.T) {
 		},
 	}
 
-	filter, args := repo.buildScopeFilter(scopes)
+	filter, args := buildScopeFilter(scopes)
 
 	assert.Contains(t, filter, "accountId")
 	assert.Contains(t, filter, "merchantId")
@@ -66,7 +62,6 @@ func TestBuildScopeFilter_SingleScopeWithMultipleFields(t *testing.T) {
 }
 
 func TestBuildScopeFilter_MultipleScopes(t *testing.T) {
-	repo := &Repository{}
 	txTypeCard := model.TransactionTypeCard
 	txTypePix := model.TransactionTypePix
 
@@ -75,7 +70,7 @@ func TestBuildScopeFilter_MultipleScopes(t *testing.T) {
 		{TransactionType: &txTypePix},
 	}
 
-	filter, args := repo.buildScopeFilter(scopes)
+	filter, args := buildScopeFilter(scopes)
 
 	assert.Contains(t, filter, "OR")
 	assert.Len(t, args, 2)
@@ -84,7 +79,6 @@ func TestBuildScopeFilter_MultipleScopes(t *testing.T) {
 }
 
 func TestBuildScopeFilter_AllFields(t *testing.T) {
-	repo := &Repository{}
 	txType := model.TransactionTypeCard
 	segmentID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 	portfolioID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
@@ -103,7 +97,7 @@ func TestBuildScopeFilter_AllFields(t *testing.T) {
 		},
 	}
 
-	filter, args := repo.buildScopeFilter(scopes)
+	filter, args := buildScopeFilter(scopes)
 
 	assert.Contains(t, filter, "segmentId")
 	assert.Contains(t, filter, "portfolioId")
@@ -115,19 +109,16 @@ func TestBuildScopeFilter_AllFields(t *testing.T) {
 }
 
 func TestBuildSingleScopeCondition_EmptyScope(t *testing.T) {
-	repo := &Repository{}
-
-	condition, args := repo.buildSingleScopeCondition(model.Scope{})
+	condition, args := buildSingleScopeCondition(model.Scope{})
 
 	assert.Equal(t, "1=1", condition)
 	assert.Empty(t, args)
 }
 
 func TestBuildSingleScopeCondition_SingleField(t *testing.T) {
-	repo := &Repository{}
 	accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 
-	condition, args := repo.buildSingleScopeCondition(model.Scope{AccountID: &accountID})
+	condition, args := buildSingleScopeCondition(model.Scope{AccountID: &accountID})
 
 	assert.Contains(t, condition, "accountId")
 	assert.Contains(t, condition, "?")
@@ -136,11 +127,10 @@ func TestBuildSingleScopeCondition_SingleField(t *testing.T) {
 }
 
 func TestBuildSingleScopeCondition_MultipleFields(t *testing.T) {
-	repo := &Repository{}
 	accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 	merchantID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440002")
 
-	condition, args := repo.buildSingleScopeCondition(model.Scope{
+	condition, args := buildSingleScopeCondition(model.Scope{
 		AccountID:  &accountID,
 		MerchantID: &merchantID,
 	})
@@ -153,10 +143,9 @@ func TestBuildSingleScopeCondition_MultipleFields(t *testing.T) {
 }
 
 func TestBuildSingleScopeCondition_TransactionType(t *testing.T) {
-	repo := &Repository{}
 	txType := model.TransactionTypePix
 
-	condition, args := repo.buildSingleScopeCondition(model.Scope{TransactionType: &txType})
+	condition, args := buildSingleScopeCondition(model.Scope{TransactionType: &txType})
 
 	assert.Contains(t, condition, "transactionType")
 	assert.Contains(t, condition, "?")
@@ -205,28 +194,26 @@ func TestJoinOr(t *testing.T) {
 }
 
 func TestBuildScopeFilter_GlobalRulesAlwaysMatch(t *testing.T) {
-	repo := &Repository{}
 	txType := model.TransactionTypeCard
 
 	scopes := []model.Scope{
 		{TransactionType: &txType},
 	}
 
-	filter, _ := repo.buildScopeFilter(scopes)
+	filter, _ := buildScopeFilter(scopes)
 
 	// Must include condition for global rules (empty scopes array)
 	assert.Contains(t, filter, "scopes = '[]'::jsonb")
 }
 
 func TestBuildScopeFilter_NullFieldsActAsWildcards(t *testing.T) {
-	repo := &Repository{}
 	txType := model.TransactionTypeCard
 
 	scopes := []model.Scope{
 		{TransactionType: &txType},
 	}
 
-	filter, _ := repo.buildScopeFilter(scopes)
+	filter, _ := buildScopeFilter(scopes)
 
 	// The condition should check for NULL OR equal, meaning null acts as wildcard
 	assert.Contains(t, filter, "IS NULL OR")
@@ -237,14 +224,13 @@ func TestBuildScopeFilter_NullFieldsActAsWildcards(t *testing.T) {
 // This prevents a critical bug where hardcoded $1, $2 placeholders conflict
 // with Squirrel's automatic placeholder numbering.
 func TestBuildScopeFilter_PlaceholderNumbering(t *testing.T) {
-	repo := &Repository{}
 	txType := model.TransactionTypeCard
 
 	scopes := []model.Scope{
 		{TransactionType: &txType},
 	}
 
-	filter, args := repo.buildScopeFilter(scopes)
+	filter, args := buildScopeFilter(scopes)
 
 	// Simulate what ListActiveByScopes does: combine scope filter with other WHERE clauses
 	query := sq.Select("*").
@@ -274,7 +260,6 @@ func TestBuildScopeFilter_PlaceholderNumbering(t *testing.T) {
 // TestBuildScopeFilter_PlaceholderNumbering_MultipleScopes verifies placeholder
 // numbering with multiple scopes and fields.
 func TestBuildScopeFilter_PlaceholderNumbering_MultipleScopes(t *testing.T) {
-	repo := &Repository{}
 	txTypeCard := model.TransactionTypeCard
 	txTypePix := model.TransactionTypePix
 	accountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
@@ -284,7 +269,7 @@ func TestBuildScopeFilter_PlaceholderNumbering_MultipleScopes(t *testing.T) {
 		{TransactionType: &txTypePix, AccountID: &accountID},
 	}
 
-	filter, args := repo.buildScopeFilter(scopes)
+	filter, args := buildScopeFilter(scopes)
 
 	// Simulate ListActiveByScopes
 	query := sq.Select("*").
