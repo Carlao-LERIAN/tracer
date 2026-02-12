@@ -7,6 +7,7 @@ package testutil
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -85,7 +86,7 @@ func (m *mockLoggerFieldsRecorder) Infof(format string, args ...any) {
 }
 
 func (m *mockLoggerFieldsRecorder) Infoln(args ...any) {
-	m.record("info", fmt.Sprint(args...))
+	m.record("info", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
 }
 
 func (m *mockLoggerFieldsRecorder) Error(args ...any) {
@@ -105,7 +106,7 @@ func (m *mockLoggerFieldsRecorder) Errorf(format string, args ...any) {
 }
 
 func (m *mockLoggerFieldsRecorder) Errorln(args ...any) {
-	m.record("error", fmt.Sprint(args...))
+	m.record("error", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
 }
 
 func (m *mockLoggerFieldsRecorder) Warn(args ...any) {
@@ -125,7 +126,7 @@ func (m *mockLoggerFieldsRecorder) Warnf(format string, args ...any) {
 }
 
 func (m *mockLoggerFieldsRecorder) Warnln(args ...any) {
-	m.record("warn", fmt.Sprint(args...))
+	m.record("warn", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
 }
 
 func (m *mockLoggerFieldsRecorder) Debug(args ...any) {
@@ -145,7 +146,7 @@ func (m *mockLoggerFieldsRecorder) Debugf(format string, args ...any) {
 }
 
 func (m *mockLoggerFieldsRecorder) Debugln(args ...any) {
-	m.record("debug", fmt.Sprint(args...))
+	m.record("debug", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
 }
 
 func (m *mockLoggerFieldsRecorder) Fatal(args ...any) {
@@ -165,7 +166,7 @@ func (m *mockLoggerFieldsRecorder) Fatalf(format string, args ...any) {
 }
 
 func (m *mockLoggerFieldsRecorder) Fatalln(args ...any) {
-	m.record("fatal", fmt.Sprint(args...))
+	m.record("fatal", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
 }
 
 func (m *mockLoggerFieldsRecorder) WithDefaultMessageTemplate(s string) libLog.Logger { return m }
