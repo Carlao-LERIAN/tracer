@@ -26,7 +26,7 @@ const (
 	MaxLimitDescriptionLength = 1000
 	MaxLimitScopesCount       = 100
 	MaxLimitSubTypeLength     = 50
-	MaxLimitNameFilterLength  = 256 // Maximum length for name filter query parameter
+	MaxLimitNameFilterLength  = 255 // Maximum length for name filter query parameter (matches VARCHAR(255))
 	// MaxUsageCountersPerLimit bounds the number of usage counters returned for a single limit.
 	// Calculated as: max_scopes (100) × reasonable_period_history (~10 months).
 	// Provides DoS protection and documents API expectations for tooling validation.

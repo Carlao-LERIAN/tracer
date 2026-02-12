@@ -527,7 +527,7 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 			},
 		},
 		{
-			name:        "success - name filter at max length boundary (256 chars)",
+			name:        "success - name filter at max length boundary (255 chars)",
 			queryParams: "?name=" + strings.Repeat("a", MaxLimitNameFilterLength),
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				expectedName := strings.Repeat("a", MaxLimitNameFilterLength)
@@ -553,7 +553,7 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 			},
 		},
 		{
-			name:        "error - name filter exceeds max length (257 chars)",
+			name:        "error - name filter exceeds max length (256 chars)",
 			queryParams: "?name=" + strings.Repeat("a", MaxLimitNameFilterLength+1),
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				return NewMockLimitService(ctrl)

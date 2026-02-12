@@ -720,7 +720,7 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			errCode:     "TRC-0006",
 		},
 		{
-			name: "valid - name at exact max length boundary (256 chars)",
+			name: "valid - name at exact max length boundary (255 chars)",
 			input: ListLimitsInput{
 				Name:  testutil.StringPtr(strings.Repeat("a", MaxLimitNameFilterLength)),
 				Limit: testutil.Ptr(10),
@@ -728,7 +728,7 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "error - name exceeds max length (257 chars)",
+			name: "error - name exceeds max length (256 chars)",
 			input: ListLimitsInput{
 				Name:  testutil.StringPtr(strings.Repeat("a", MaxLimitNameFilterLength+1)),
 				Limit: testutil.Ptr(10),

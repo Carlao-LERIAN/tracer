@@ -185,7 +185,7 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 //	@Security		ApiKeyAuth
 //	@Param			limit			query		int						false	"Max items per page (1-100, default: 10)"	minimum(1)	maximum(100)
 //	@Param			cursor			query		string					false	"Pagination cursor (empty for first page)"
-//	@Param			name			query		string					false	"Filter by name (case-insensitive partial match)"	maxLength(256)
+//	@Param			name			query		string					false	"Filter by name (case-insensitive partial match)"	maxLength(255)
 //	@Param			status			query		string					false	"Filter by status"			Enums(DRAFT, ACTIVE, INACTIVE)
 //	@Param			limitType		query		string					false	"Filter by limit type"		Enums(DAILY, MONTHLY, PER_TRANSACTION)
 //	@Param			accountId		query		string					false	"Filter by scope accountId (UUID)"	Format(uuid)

@@ -1041,7 +1041,7 @@ paths:
         type: string
       - description: Filter by name (case-insensitive partial match)
         in: query
-        maxLength: 256
+        maxLength: 255
         name: name
         type: string
       - description: Filter by status

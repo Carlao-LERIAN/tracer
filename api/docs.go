@@ -445,7 +445,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "maxLength": 256,
+                        "maxLength": 255,
                         "type": "string",
                         "description": "Filter by name (case-insensitive partial match)",
                         "name": "name",

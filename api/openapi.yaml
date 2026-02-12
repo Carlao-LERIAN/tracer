@@ -339,7 +339,7 @@ paths:
         in: query
         name: name
         schema:
-          maxLength: 256
+          maxLength: 255
           type: string
       - description: Filter by status
         in: query
