@@ -15,6 +15,11 @@ import (
 // InitializeScenario registers all step definitions for a Godog scenario.
 // Called once per scenario — each scenario gets a fresh ScenarioContext.
 func InitializeScenario(ctx *godog.ScenarioContext) {
+	// Reset package-level UUID maps so each scenario starts from a known state.
+	// This prevents cross-scenario pollution from dynamically-added merchant,
+	// segment or account names that would shift counter-based UUID assignment.
+	support.ResetDeterministicUUIDMaps()
+
 	sc := support.NewScenarioContext()
 
 	// NOTE: Per-scenario cleanup is intentionally disabled.

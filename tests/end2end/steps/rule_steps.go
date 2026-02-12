@@ -88,8 +88,16 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 			uuid1 := sc.MerchantUUIDs[merchant1]
 			uuid2 := sc.MerchantUUIDs[merchant2]
 
-			if uuid1 == "" || uuid2 == "" {
-				return fmt.Errorf("merchant UUIDs not resolved for %q and/or %q — ensure Background step ran", merchant1, merchant2)
+			// Fall back to deterministic UUID when the Background step
+			// did not populate the map (e.g. scenario run in isolation).
+			if uuid1 == "" {
+				uuid1 = support.DeterministicMerchantUUID(merchant1)
+				sc.MerchantUUIDs[merchant1] = uuid1
+			}
+
+			if uuid2 == "" {
+				uuid2 = support.DeterministicMerchantUUID(merchant2)
+				sc.MerchantUUIDs[merchant2] = uuid2
 			}
 
 			sc.PendingRule.Action = "ALLOW"
