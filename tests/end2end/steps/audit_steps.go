@@ -9,6 +9,7 @@ package steps
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/cucumber/godog"
@@ -29,8 +30,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastAuditEvents = events
 		sc.LastAuditEventsHTTP = status
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -45,8 +46,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastAuditEvents = events
 		sc.LastAuditEventsHTTP = status
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -61,8 +62,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastAuditEvents = events
 		sc.LastAuditEventsHTTP = status
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -77,8 +78,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastAuditEvents = events
 		sc.LastAuditEventsHTTP = status
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -93,8 +94,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastAuditEvents = events
 		sc.LastAuditEventsHTTP = status
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -133,15 +134,15 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 				foundDeactivate = true
 			}
 
-			// Also check context for status transitions
+			// Also check context for status transitions via after.status
 			if action == "STATUS_CHANGE" || action == "UPDATE" {
-				eventCtx := strings.ToUpper(fmt.Sprintf("%v", event.Context))
-				if strings.Contains(eventCtx, "ACTIVE") && !strings.Contains(eventCtx, "INACTIVE") {
-					foundActivate = true
-				}
-
-				if strings.Contains(eventCtx, "INACTIVE") {
-					foundDeactivate = true
+				if afterStatus := extractAfterStatus(event.Context); afterStatus != "" {
+					switch afterStatus {
+					case "ACTIVE":
+						foundActivate = true
+					case "INACTIVE":
+						foundDeactivate = true
+					}
 				}
 			}
 		}
@@ -251,8 +252,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing events for verification: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		if len(events.AuditEvents) == 0 {
@@ -268,8 +269,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastHashVerification = result
 		sc.LastHashVerificationHTTP = verifyStatus
 
-		if verifyStatus != 200 {
-			return fmt.Errorf("expected 200, got %d", verifyStatus)
+		if verifyStatus != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, verifyStatus)
 		}
 
 		return nil
@@ -301,8 +302,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing audit events: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		merchantUUID := support.DeterministicMerchantUUID(merchant)
@@ -327,8 +328,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing audit events: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		merchantUUID := support.DeterministicMerchantUUID(merchant)
@@ -355,8 +356,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing validations: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		sc.LastAuditEventsHTTP = status
@@ -425,8 +426,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing validations: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		sc.LastAuditEventsHTTP = status
@@ -450,8 +451,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing validations: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		if len(listResp.TransactionValidations) == 0 {
@@ -469,8 +470,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing validations: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		sc.LastValidationList = listResp
@@ -515,11 +516,21 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing validations: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
-		_ = listResp
+		if len(listResp.TransactionValidations) == 0 {
+			return fmt.Errorf("expected at least one denied validation, got none")
+		}
+
+		for i, v := range listResp.TransactionValidations {
+			if v.Decision != "DENY" {
+				return fmt.Errorf("validation %d: expected DENY decision, got %q", i, v.Decision)
+			}
+		}
+
+		sc.LastValidationList = listResp
 
 		return nil
 	})
@@ -570,8 +581,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing validations: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		if len(listResp.TransactionValidations) == 0 {
@@ -593,8 +604,8 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 			return fmt.Errorf("listing validations by rule: %w", err)
 		}
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		if len(listResp.TransactionValidations) == 0 {
@@ -652,4 +663,24 @@ func extractMatchedRuleIDs(event support.AuditEvent) []string {
 	}
 
 	return result
+}
+
+// extractAfterStatus extracts the status string from context["after"]["status"].
+// Returns the uppercased status or empty string if the path does not exist.
+func extractAfterStatus(ctx map[string]any) string {
+	if ctx == nil {
+		return ""
+	}
+
+	after, ok := ctx["after"].(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	status, ok := after["status"].(string)
+	if !ok {
+		return ""
+	}
+
+	return strings.ToUpper(status)
 }
