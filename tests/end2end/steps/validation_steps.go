@@ -576,6 +576,9 @@ func normalizeTransactionType(s string) string {
 }
 
 // mapCountryToISO maps human-readable country names to ISO 3166-1 alpha-2 codes.
+// The mapping is intentionally limited to the countries used in BDD test
+// scenarios. Extend the map only when a new feature file introduces a country
+// not yet covered.
 func mapCountryToISO(country string) string {
 	countryMap := map[string]string{
 		"brazil":            "BR",

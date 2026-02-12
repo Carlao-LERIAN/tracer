@@ -458,6 +458,10 @@ type LimitRequest struct {
 
 // CreateLimitE creates a limit and returns the response.
 func CreateLimitE(req *LimitRequest) (LimitResponse, int, error) {
+	if req == nil {
+		return LimitResponse{}, 0, fmt.Errorf("limit request cannot be nil")
+	}
+
 	body, err := json.Marshal(req)
 	if err != nil {
 		return LimitResponse{}, 0, fmt.Errorf("marshaling limit request: %w", err)
