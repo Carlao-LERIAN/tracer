@@ -364,6 +364,60 @@ coverage:
 	$(MAKE) coverage-integration
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All coverage reports generated$(GREEN) ✔️$(NC)"
 
+# End-to-end BDD tests using Godog
+# These tests run against a live Tracer instance with a fresh database.
+# The rule resets Docker volumes to ensure a clean state before each run.
+#
+# Requirements:
+#   - Docker and docker-compose installed
+#   - docker-compose.yml in project root
+#   - Feature files in tests/end2end/features/
+#   - Test files must use the build tag: //go:build e2e
+#
+# Usage:
+#   make test-e2e                                    # Run all E2E scenarios
+#   make test-e2e E2E_SERVER=http://myhost:9090      # Custom server address
+#   make test-e2e E2E_API_KEY=my_custom_key          # Custom API key
+#   make test-e2e E2E_SKIP_RESET=1                   # Skip Docker reset (reuse current DB)
+E2E_SERVER ?= http://localhost:8080
+E2E_API_KEY ?= dev_api_key_32chars_change_in_prod
+E2E_SKIP_RESET ?= 0
+
+.PHONY: test-e2e
+test-e2e:
+	$(call title1,"Running end-to-end BDD tests")
+	@if ! command -v go >/dev/null 2>&1; then \
+		echo "$(RED)Error: go is not installed$(NC)"; \
+		exit 1; \
+	fi
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "$(RED)Error: docker is not installed$(NC)"; \
+		exit 1; \
+	fi
+	@if [ "$(E2E_SKIP_RESET)" != "1" ]; then \
+		echo "$(CYAN)Resetting Docker services with fresh database...$(NC)"; \
+		$(DOCKER_CMD) -f docker-compose.yml down -v 2>&1 | tail -1; \
+		$(DOCKER_CMD) -f docker-compose.yml up -d 2>&1 | tail -1; \
+		echo "$(CYAN)Waiting for services to become healthy...$(NC)"; \
+		for i in $$(seq 1 $(TEST_HEALTH_WAIT)); do \
+			if curl -fsS $(E2E_SERVER)/health >/dev/null 2>&1; then \
+				echo "$(GREEN)Services are up$(NC)"; \
+				break; \
+			fi; \
+			if [ $$i -eq $(TEST_HEALTH_WAIT) ]; then \
+				echo "$(RED)Error: services not healthy after $(TEST_HEALTH_WAIT)s$(NC)"; \
+				exit 1; \
+			fi; \
+			sleep 1; \
+		done; \
+	else \
+		echo "$(YELLOW)Skipping Docker reset (E2E_SKIP_RESET=1)$(NC)"; \
+	fi
+	@echo "$(CYAN)Running BDD end-to-end tests...$(NC)"
+	@SERVER_ADDRESS=$(E2E_SERVER) API_KEY=$(E2E_API_KEY) \
+		go test -tags=e2e -v -count=1 -timeout 120s -run TestFeatures ./tests/end2end/...
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) End-to-end tests completed successfully$(GREEN) ✔️$(NC)"
+
 # Run all tests (excludes native fuzz engine which runs indefinitely)
 .PHONY: test-all
 test-all:
