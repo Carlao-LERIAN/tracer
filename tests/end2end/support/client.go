@@ -541,6 +541,10 @@ type UpdateLimitRequest struct {
 
 // UpdateLimitE updates a limit via PATCH.
 func UpdateLimitE(limitID string, req *UpdateLimitRequest) (LimitResponse, int, error) {
+	if req == nil {
+		return LimitResponse{}, 0, fmt.Errorf("update limit request cannot be nil")
+	}
+
 	body, err := json.Marshal(req)
 	if err != nil {
 		return LimitResponse{}, 0, fmt.Errorf("marshaling update request: %w", err)
