@@ -253,11 +253,15 @@ func TestListRules_2_4_5_ScopeFilterWithPagination(t *testing.T) {
 	rules1, ok := result1["rules"].([]any)
 	require.True(t, ok)
 	assert.Len(t, rules1, 2, "First page should have 2 rules")
-	assert.True(t, result1["hasMore"].(bool), "Should have more results")
-	assert.NotEmpty(t, result1["nextCursor"], "Should have nextCursor")
+	hasMore, ok := result1["hasMore"].(bool)
+	require.True(t, ok, "hasMore should be a boolean")
+	assert.True(t, hasMore, "Should have more results")
+
+	cursor, ok := result1["nextCursor"].(string)
+	require.True(t, ok, "nextCursor should be a string")
+	require.NotEmpty(t, cursor, "Should have nextCursor")
 
 	// Second page using cursor
-	cursor := result1["nextCursor"].(string)
 	url2 := fmt.Sprintf("%s/v1/rules?segmentId=%s&limit=2&cursor=%s", baseURL, segmentID, cursor)
 	req2, err := http.NewRequest(http.MethodGet, url2, nil)
 	require.NoError(t, err)
