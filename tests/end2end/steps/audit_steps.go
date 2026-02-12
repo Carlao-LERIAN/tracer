@@ -7,7 +7,6 @@
 package steps
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -617,19 +616,38 @@ func registerAuditSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 }
 
 // eventContainsMerchant checks if the audit event's context contains the given
-// merchant UUID. This uses JSON serialization to search the nested context map,
-// making it resilient to different context structure layouts.
+// merchant UUID by performing a depth-first traversal of the nested context map.
+// It returns true only when a string value exactly equals the merchantUUID.
 func eventContainsMerchant(event support.AuditEvent, merchantUUID string) bool {
 	if merchantUUID == "" {
 		return false
 	}
 
-	contextJSON, err := json.Marshal(event.Context)
-	if err != nil {
-		return false
+	return mapContainsValue(event.Context, merchantUUID)
+}
+
+// mapContainsValue performs a depth-first search over a nested structure
+// (maps, slices, and primitives) and returns true when any string value
+// exactly equals target.
+func mapContainsValue(v any, target string) bool {
+	switch val := v.(type) {
+	case string:
+		return val == target
+	case map[string]any:
+		for _, child := range val {
+			if mapContainsValue(child, target) {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range val {
+			if mapContainsValue(item, target) {
+				return true
+			}
+		}
 	}
 
-	return strings.Contains(string(contextJSON), merchantUUID)
+	return false
 }
 
 // extractMatchedRuleIDs drills into the audit event's nested context structure
