@@ -270,16 +270,23 @@ type LimitUsageDetail struct {
 
 // CreateValidationE submits a validation request and returns the response.
 // Defaults: TransactionTimestamp → current UTC time, Account → test account UUID.
+// Works on a local copy to avoid mutating the caller's request.
 func CreateValidationE(req *testutil.ValidationRequest) (ValidationResponse, int, error) {
-	if req.TransactionTimestamp == "" {
-		req.TransactionTimestamp = time.Now().UTC().Format(time.RFC3339)
+	if req == nil {
+		return ValidationResponse{}, 0, fmt.Errorf("validation request cannot be nil")
 	}
 
-	if req.Account == nil {
-		req.Account = &testutil.AccountContext{ID: TestAccountUUID()}
+	reqCopy := *req
+
+	if reqCopy.TransactionTimestamp == "" {
+		reqCopy.TransactionTimestamp = time.Now().UTC().Format(time.RFC3339)
 	}
 
-	body, err := json.Marshal(req)
+	if reqCopy.Account == nil {
+		reqCopy.Account = &testutil.AccountContext{ID: TestAccountUUID()}
+	}
+
+	body, err := json.Marshal(&reqCopy)
 	if err != nil {
 		return ValidationResponse{}, 0, fmt.Errorf("marshaling validation request: %w", err)
 	}

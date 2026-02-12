@@ -168,7 +168,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 		}
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		if rule.Status != "DRAFT" {
@@ -192,7 +192,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 		}
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		if rule.Status != "ACTIVE" {
@@ -218,7 +218,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 		sc.LastRuleHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -239,7 +239,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 		sc.LastRuleHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -259,7 +259,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 		sc.LastRuleHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200 deactivating rule, got %d", status)
+			return fmt.Errorf("expected %d deactivating rule, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -280,7 +280,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 		sc.LastRuleHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200 deactivating rule %q, got %d", name, status)
+			return fmt.Errorf("expected %d deactivating rule %q, got %d", http.StatusOK, name, status)
 		}
 
 		return nil
@@ -388,7 +388,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 		sc.LastRuleHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -427,6 +427,10 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 		})
 
 	ctx.Step(`^all three rules are activated$`, func() error {
+		if len(sc.Rules) != 3 {
+			return fmt.Errorf("expected exactly 3 registered rules, got %d", len(sc.Rules))
+		}
+
 		names := make([]string, 0, len(sc.Rules))
 		for name := range sc.Rules {
 			names = append(names, name)
@@ -441,7 +445,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 			}
 
 			if status != http.StatusOK {
-				return fmt.Errorf("activating rule %q: expected 200, got %d", name, status)
+				return fmt.Errorf("activating rule %q: expected %d, got %d", name, http.StatusOK, status)
 			}
 
 			sc.LastRule = rule
@@ -478,7 +482,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 			}
 
 			if status != http.StatusOK {
-				return fmt.Errorf("expected 200, got %d", status)
+				return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 			}
 
 			sc.LastRule = rule
@@ -512,7 +516,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 			}
 
 			if status != http.StatusOK {
-				return fmt.Errorf("expected 200, got %d", status)
+				return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 			}
 
 			sc.LastRule = rule
@@ -528,7 +532,7 @@ func registerRuleSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext) 
 			}
 
 			if status != http.StatusOK {
-				return fmt.Errorf("getting rule %q: expected 200, got %d", name, status)
+				return fmt.Errorf("getting rule %q: expected %d, got %d", name, http.StatusOK, status)
 			}
 
 			if rule.Status != "ACTIVE" {
