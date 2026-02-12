@@ -122,7 +122,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		}
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		if limit.Status != "DRAFT" {
@@ -146,7 +146,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		}
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		if limit.Status != "ACTIVE" {
@@ -183,7 +183,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastLimitHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -204,7 +204,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastLimitHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -225,7 +225,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastLimitHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200 deactivating limit %q, got %d", name, status)
+			return fmt.Errorf("expected %d deactivating limit %q, got %d", http.StatusOK, name, status)
 		}
 
 		return nil
@@ -337,7 +337,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastLimitHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -368,7 +368,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastUsageHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -389,7 +389,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastUsageHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -407,7 +407,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		}
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		expected, err := decimal.NewFromString(normalizeAmount(amount))
@@ -511,7 +511,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastLimitHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("expected 200, got %d", status)
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -531,7 +531,7 @@ func registerLimitSteps(ctx *godog.ScenarioContext, sc *support.ScenarioContext)
 		sc.LastLimitHTTP = status
 
 		if status != http.StatusOK {
-			return fmt.Errorf("reactivating limit %s: expected 200, got %d", sc.LastLimit.ID, status)
+			return fmt.Errorf("reactivating limit %s: expected %d, got %d", sc.LastLimit.ID, http.StatusOK, status)
 		}
 
 		return nil

@@ -8,6 +8,7 @@ package steps
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/cucumber/godog"
 
@@ -20,8 +21,8 @@ func assertAuthReachable() error {
 		return fmt.Errorf("authentication check failed: %w", err)
 	}
 
-	if status != 200 {
-		return fmt.Errorf("authentication check returned status %d, expected 200", status)
+	if status != http.StatusOK {
+		return fmt.Errorf("authentication check returned status %d, expected %d", status, http.StatusOK)
 	}
 
 	return nil

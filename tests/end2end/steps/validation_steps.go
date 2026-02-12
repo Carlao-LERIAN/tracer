@@ -8,6 +8,7 @@ package steps
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/cucumber/godog"
@@ -105,8 +106,8 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 		sc.ValidationHistory = append(sc.ValidationHistory, valResp)
 		sc.PendingTransaction = nil
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -136,8 +137,8 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 		sc.LastValidationHTTP = status
 		sc.ValidationHistory = append(sc.ValidationHistory, valResp)
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -168,8 +169,8 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 		sc.LastValidationHTTP = status
 		sc.ValidationHistory = append(sc.ValidationHistory, valResp)
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -200,8 +201,8 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 		sc.LastValidationHTTP = status
 		sc.ValidationHistory = append(sc.ValidationHistory, valResp)
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -232,8 +233,8 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 		sc.LastValidationHTTP = status
 		sc.ValidationHistory = append(sc.ValidationHistory, valResp)
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -267,8 +268,8 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 		sc.LastValidationHTTP = status
 		sc.ValidationHistory = append(sc.ValidationHistory, valResp)
 
-		if status != 200 {
-			return fmt.Errorf("expected 200, got %d", status)
+		if status != http.StatusOK {
+			return fmt.Errorf("expected %d, got %d", http.StatusOK, status)
 		}
 
 		return nil
@@ -487,8 +488,8 @@ func registerValidationSteps(ctx *godog.ScenarioContext, sc *support.ScenarioCon
 				return fmt.Errorf("submitting %s of R$%s: %w", txType, amt, err)
 			}
 
-			if status != 200 {
-				return fmt.Errorf("submitting %s of R$%s: expected 200, got %d", txType, amt, status)
+			if status != http.StatusOK {
+				return fmt.Errorf("submitting %s of R$%s: expected %d, got %d", txType, amt, http.StatusOK, status)
 			}
 
 			sc.ValidationHistory = append(sc.ValidationHistory, valResp)
@@ -546,7 +547,7 @@ func assertMatchedRule(sc *support.ScenarioContext, nameFragment string) error {
 	// This handles cross-scenario cases where sc.Rules is empty.
 	for _, matchedID := range sc.LastValidation.MatchedRuleIDs {
 		rule, status, err := support.GetRuleE(matchedID)
-		if err != nil || status != 200 {
+		if err != nil || status != http.StatusOK {
 			continue
 		}
 
