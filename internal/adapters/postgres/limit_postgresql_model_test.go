@@ -538,3 +538,14 @@ func TestLimitPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 		})
 	}
 }
+
+func TestLimitPostgreSQLModel_FromEntity_NilEntity(t *testing.T) {
+	t.Parallel()
+
+	var dbModel LimitPostgreSQLModel
+
+	err := dbModel.FromEntity(nil)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot be nil")
+}

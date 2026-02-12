@@ -115,6 +115,10 @@ func (m *LimitPostgreSQLModel) ToEntity() (*model.Limit, error) {
 // - Converting typed constants to strings
 // Returns an error if JSON marshaling fails.
 func (m *LimitPostgreSQLModel) FromEntity(entity *model.Limit) error {
+	if entity == nil {
+		return fmt.Errorf("limit entity cannot be nil")
+	}
+
 	m.ID = entity.ID.String()
 	m.Name = entity.Name
 	m.LimitType = string(entity.LimitType)
