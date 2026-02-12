@@ -142,6 +142,10 @@ func (m *TransactionValidationPostgreSQLModel) ToEntity() (*model.TransactionVal
 // - Converting typed constants to strings
 // Returns an error if JSON marshaling fails.
 func (m *TransactionValidationPostgreSQLModel) FromEntity(entity *model.TransactionValidation) error {
+	if entity == nil {
+		return fmt.Errorf("transaction validation entity cannot be nil")
+	}
+
 	m.ID = entity.ID.String()
 	m.RequestID = entity.RequestID.String()
 	m.TransactionType = string(entity.TransactionType)
