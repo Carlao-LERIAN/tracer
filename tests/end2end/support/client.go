@@ -668,32 +668,35 @@ func VerifyHashChainE(eventID string) (HashChainVerification, int, error) {
 // uuidMu protects all deterministic UUID maps and counters from concurrent access.
 var uuidMu sync.Mutex
 
-// merchantUUIDBaseMap maps merchant names to deterministic UUID bases.
+// merchantUUIDBaseMap maps normalized (lowercase) merchant names to deterministic UUID bases.
 // Using high base numbers to avoid collision with other test data.
 var merchantUUIDBaseMap = map[string]int64{
-	"SuperMart":   70001,
-	"FuelCo":      70002,
-	"GlobalShop":  70003,
-	"LocalStore":  70004,
-	"TrustedCorp": 70005,
-	"UnknownShop": 70006,
+	"supermart":   70001,
+	"fuelco":      70002,
+	"globalshop":  70003,
+	"localstore":  70004,
+	"trustedcorp": 70005,
+	"unknownshop": 70006,
 }
 
 // nextMerchantBase is used for merchant names not in the predefined map.
 var nextMerchantBase int64 = 70100
 
 // DeterministicMerchantUUID returns a consistent UUID for a merchant name.
+// The name is normalized (trimmed + lowercased) so lookups are case-insensitive.
 func DeterministicMerchantUUID(name string) string {
 	uuidMu.Lock()
 	defer uuidMu.Unlock()
 
-	if base, ok := merchantUUIDBaseMap[name]; ok {
+	key := strings.ToLower(strings.TrimSpace(name))
+
+	if base, ok := merchantUUIDBaseMap[key]; ok {
 		return testutil.MustDeterministicUUID(base).String()
 	}
 
 	// For unknown merchants, assign a new base
 	nextMerchantBase++
-	merchantUUIDBaseMap[name] = nextMerchantBase
+	merchantUUIDBaseMap[key] = nextMerchantBase
 
 	return testutil.MustDeterministicUUID(nextMerchantBase).String()
 }
@@ -756,8 +759,8 @@ func ResetDeterministicUUIDMaps() {
 	defer uuidMu.Unlock()
 
 	merchantUUIDBaseMap = map[string]int64{
-		"SuperMart": 70001, "FuelCo": 70002, "GlobalShop": 70003,
-		"LocalStore": 70004, "TrustedCorp": 70005, "UnknownShop": 70006,
+		"supermart": 70001, "fuelco": 70002, "globalshop": 70003,
+		"localstore": 70004, "trustedcorp": 70005, "unknownshop": 70006,
 	}
 	nextMerchantBase = 70100
 
