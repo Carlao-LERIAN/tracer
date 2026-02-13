@@ -2639,6 +2639,7 @@ func (s *TestContainerSuite) TearDownSuite() {
 make test                # Run all tests
 make test-unit           # Run unit tests only
 make test-integration    # Run integration tests (with testcontainers)
+make test-e2e            # Run E2E BDD tests (resets DB, runs Godog scenarios)
 make test-all            # Run all tests (unit + integration)
 make test-bench          # Run benchmark tests
 

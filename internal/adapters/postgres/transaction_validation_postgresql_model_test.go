@@ -1081,3 +1081,14 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_InvalidUUIDs(t *testing.T
 		})
 	}
 }
+
+func TestTransactionValidationPostgreSQLModel_FromEntity_NilEntity(t *testing.T) {
+	t.Parallel()
+
+	var dbModel TransactionValidationPostgreSQLModel
+
+	err := dbModel.FromEntity(nil)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot be nil")
+}

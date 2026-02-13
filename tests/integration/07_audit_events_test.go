@@ -2917,10 +2917,18 @@ func TestAuditEvents_11_2_14_FiltersByEventTypeRuleDrafted(t *testing.T) {
 	}
 
 	// Verify before/after states in the first event
+	require.GreaterOrEqual(t, len(result.AuditEvents), 1, "Need at least one event to inspect")
+
 	event := result.AuditEvents[0]
-	ctx := event["context"].(map[string]any)
-	before := ctx["before"].(map[string]any)
-	after := ctx["after"].(map[string]any)
+
+	ctxVal, ok := event["context"].(map[string]any)
+	require.True(t, ok, "context should be a map")
+
+	before, ok := ctxVal["before"].(map[string]any)
+	require.True(t, ok, "before should be a map")
+
+	after, ok := ctxVal["after"].(map[string]any)
+	require.True(t, ok, "after should be a map")
 
 	assert.Equal(t, "INACTIVE", before["status"])
 	assert.Equal(t, "DRAFT", after["status"])

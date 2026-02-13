@@ -303,7 +303,7 @@ tracer/
 | **Logging**          | Loki                        | Centralized log aggregation               |
 | **Metrics**          | Prometheus                  | Time-series metrics                       |
 | **Validation**       | validator/v10               | Struct tag validation                     |
-| **Testing**          | Go testing + testify        | Unit & integration tests                  |
+| **Testing**          | Go testing + testify + Godog| Unit, integration & E2E BDD tests         |
 
 ---
 
@@ -415,6 +415,7 @@ make clean              # Remove build artifacts
 make test               # Run all tests
 make test-unit          # Run unit tests only
 make test-integration   # Run integration tests (with testcontainers)
+make test-e2e           # Run E2E BDD tests (resets DB, runs Godog scenarios)
 make test-all           # Run all tests (unit + integration)
 make test-bench         # Run benchmark tests
 
@@ -660,6 +661,11 @@ make test-unit
 # Integration tests
 make test-integration
 
+# End-to-end BDD tests (requires running Tracer instance)
+make test-e2e                                    # Full run (resets DB)
+make test-e2e E2E_SKIP_RESET=1                   # Reuse current DB
+make test-e2e E2E_SERVER=http://myhost:9090      # Custom server
+
 # All tests
 make test-all
 
@@ -680,6 +686,24 @@ go test -race -count=1 -p 4 ./...
 internal/services/command/
 ├── create_rule.go
 └── create_rule_test.go        # Test file (same package)
+
+tests/integration/             # Integration tests (testcontainers)
+tests/end2end/                 # E2E BDD tests (Godog)
+├── e2e_test.go                # Godog test runner
+├── features/                  # Gherkin .feature files
+│   ├── 01_rule_lifecycle.feature
+│   ├── 02_limit_enforcement.feature
+│   └── ...
+├── steps/                     # Step definitions (Go)
+│   ├── init.go                # Step registration
+│   ├── auth_steps.go
+│   ├── rule_steps.go
+│   ├── validation_steps.go
+│   ├── limit_steps.go
+│   └── audit_steps.go
+└── support/                   # Shared helpers
+    ├── client.go              # HTTP client for Tracer API
+    └── context.go             # Scenario context
 ```
 
 ### Test Patterns
@@ -759,9 +783,10 @@ Contributions are welcome! Please follow these guidelines:
 4. **Implement** the feature/fix
 5. **Run** tests: `make test`
 6. **Run** integration tests: `make test-integration`
-7. **Lint** code: `make lint`
-8. **Commit** with conventional format: `feat: add webhook notifications`
-9. **Push** and create a Pull Request
+7. **Run** E2E tests: `make test-e2e`
+8. **Lint** code: `make lint`
+9. **Commit** with conventional format: `feat: add webhook notifications`
+10. **Push** and create a Pull Request
 
 ### Standards
 

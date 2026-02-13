@@ -3858,7 +3858,7 @@ func TestLimits_DraftLimit_NotFound(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	nonExistentID := uuid.New().String()
+	nonExistentID := testutil.MustDeterministicUUID(3032).String()
 
 	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+nonExistentID+"/draft", nil)
 	require.NoError(t, err)
@@ -3874,7 +3874,7 @@ func TestLimits_DraftLimit_NotFound(t *testing.T) {
 func TestLimits_DraftLimit_WithoutAuthentication(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 
-	limitID := uuid.New().String()
+	limitID := testutil.MustDeterministicUUID(3033).String()
 
 	req, err := http.NewRequest("POST", baseURL+"/v1/limits/"+limitID+"/draft", nil)
 	require.NoError(t, err)
