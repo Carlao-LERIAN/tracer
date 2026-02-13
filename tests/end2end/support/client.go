@@ -668,19 +668,38 @@ func VerifyHashChainE(eventID string) (HashChainVerification, int, error) {
 // uuidMu protects all deterministic UUID maps and counters from concurrent access.
 var uuidMu sync.Mutex
 
-// merchantUUIDBaseMap maps normalized (lowercase) merchant names to deterministic UUID bases.
-// Using high base numbers to avoid collision with other test data.
-var merchantUUIDBaseMap = map[string]int64{
-	"supermart":   70001,
-	"fuelco":      70002,
-	"globalshop":  70003,
-	"localstore":  70004,
-	"trustedcorp": 70005,
-	"unknownshop": 70006,
+// Initial UUID base values — single source of truth for both package-level
+// vars and ResetDeterministicUUIDMaps.
+const (
+	initialMerchantBase int64 = 70100
+	initialSegmentBase  int64 = 80100
+	initialAccountBase  int64 = 90100
+)
+
+func defaultMerchantUUIDBaseMap() map[string]int64 {
+	return map[string]int64{
+		"supermart": 70001, "fuelco": 70002, "globalshop": 70003,
+		"localstore": 70004, "trustedcorp": 70005, "unknownshop": 70006,
+	}
 }
 
+func defaultSegmentUUIDBaseMap() map[string]int64 {
+	return map[string]int64{
+		"corporate": 80001, "retail": 80002, "premium": 80003,
+	}
+}
+
+func defaultAccountUUIDBaseMap() map[string]int64 {
+	return map[string]int64{
+		"company abc": 90001, "company xyz": 90002,
+	}
+}
+
+// merchantUUIDBaseMap maps normalized (lowercase) merchant names to deterministic UUID bases.
+var merchantUUIDBaseMap = defaultMerchantUUIDBaseMap()
+
 // nextMerchantBase is used for merchant names not in the predefined map.
-var nextMerchantBase int64 = 70100
+var nextMerchantBase = initialMerchantBase
 
 // DeterministicMerchantUUID returns a consistent UUID for a merchant name.
 // The name is normalized (trimmed + lowercased) so lookups are case-insensitive.
@@ -703,15 +722,9 @@ func DeterministicMerchantUUID(name string) string {
 
 // --- Deterministic UUID helpers ---
 
-// DeterministicSegmentUUID returns a consistent UUID for a segment name.
-// Uses high bases (80000+) to avoid collision with other test data.
-var segmentUUIDBaseMap = map[string]int64{
-	"corporate": 80001,
-	"retail":    80002,
-	"premium":   80003,
-}
+var segmentUUIDBaseMap = defaultSegmentUUIDBaseMap()
 
-var nextSegmentBase int64 = 80100
+var nextSegmentBase = initialSegmentBase
 
 // DeterministicSegmentUUID returns a deterministic UUID for a segment name.
 func DeterministicSegmentUUID(name string) string {
@@ -729,13 +742,9 @@ func DeterministicSegmentUUID(name string) string {
 	return testutil.MustDeterministicUUID(nextSegmentBase).String()
 }
 
-// DeterministicAccountUUID returns a deterministic UUID for a customer name.
-var accountUUIDBaseMap = map[string]int64{
-	"company abc": 90001,
-	"company xyz": 90002,
-}
+var accountUUIDBaseMap = defaultAccountUUIDBaseMap()
 
-var nextAccountBase int64 = 90100
+var nextAccountBase = initialAccountBase
 
 func DeterministicAccountUUID(customer string) string {
 	uuidMu.Lock()
@@ -758,21 +767,14 @@ func ResetDeterministicUUIDMaps() {
 	uuidMu.Lock()
 	defer uuidMu.Unlock()
 
-	merchantUUIDBaseMap = map[string]int64{
-		"supermart": 70001, "fuelco": 70002, "globalshop": 70003,
-		"localstore": 70004, "trustedcorp": 70005, "unknownshop": 70006,
-	}
-	nextMerchantBase = 70100
+	merchantUUIDBaseMap = defaultMerchantUUIDBaseMap()
+	nextMerchantBase = initialMerchantBase
 
-	segmentUUIDBaseMap = map[string]int64{
-		"corporate": 80001, "retail": 80002, "premium": 80003,
-	}
-	nextSegmentBase = 80100
+	segmentUUIDBaseMap = defaultSegmentUUIDBaseMap()
+	nextSegmentBase = initialSegmentBase
 
-	accountUUIDBaseMap = map[string]int64{
-		"company abc": 90001, "company xyz": 90002,
-	}
-	nextAccountBase = 90100
+	accountUUIDBaseMap = defaultAccountUUIDBaseMap()
+	nextAccountBase = initialAccountBase
 }
 
 // TestAccountUUID returns a fixed UUID for the generic "test account" used in J3.
