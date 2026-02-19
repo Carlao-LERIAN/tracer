@@ -33,19 +33,29 @@ var (
 const (
 	StatusOK       = "OK"
 	StatusReady    = "READY"
+	StatusDegraded = "DEGRADED"
 	StatusFailed   = "FAILED"
 	StatusNotReady = "NOT_READY"
 )
 
 // Component name constants.
 const (
-	ComponentDatabase = "database"
+	ComponentDatabase  = "database"
+	ComponentRuleCache = "rule_cache"
 )
 
 // Default health check configuration values.
 const (
-	DefaultHealthCheckTimeout = 3 * time.Second
+	DefaultHealthCheckTimeout          = 3 * time.Second
+	DefaultCacheStalenessThreshold     = 5 * time.Minute
 )
+
+// RuleCacheHealthProvider exposes cache health metrics for the readiness probe.
+type RuleCacheHealthProvider interface {
+	IsReady() bool
+	Staleness() time.Duration
+	Size() int
+}
 
 // PostgresDBProvider abstracts PostgreSQL database access for testability.
 // This interface allows mocking the database connection in tests.
@@ -88,8 +98,10 @@ func (p *postgresConnectionAdapter) IsConnected() bool {
 
 // HealthChecker holds the connection pools for dependency health checks.
 type HealthChecker struct {
-	dbProvider PostgresDBProvider
-	timeout    time.Duration
+	dbProvider              PostgresDBProvider
+	timeout                 time.Duration
+	cacheHealth             RuleCacheHealthProvider
+	cacheStalenessThreshold time.Duration
 }
 
 // NewHealthChecker creates a new HealthChecker instance with connection pools.
@@ -102,8 +114,9 @@ func NewHealthChecker(postgresConn *libPostgres.PostgresConnection) *HealthCheck
 	}
 
 	return &HealthChecker{
-		dbProvider: provider,
-		timeout:    DefaultHealthCheckTimeout,
+		dbProvider:              provider,
+		timeout:                 DefaultHealthCheckTimeout,
+		cacheStalenessThreshold: DefaultCacheStalenessThreshold,
 	}
 }
 
@@ -111,9 +124,16 @@ func NewHealthChecker(postgresConn *libPostgres.PostgresConnection) *HealthCheck
 // This constructor is intended for testing, allowing mock database connections.
 func NewTestableHealthChecker(provider PostgresDBProvider) *HealthChecker {
 	return &HealthChecker{
-		dbProvider: provider,
-		timeout:    DefaultHealthCheckTimeout,
+		dbProvider:              provider,
+		timeout:                 DefaultHealthCheckTimeout,
+		cacheStalenessThreshold: DefaultCacheStalenessThreshold,
 	}
+}
+
+// SetCacheHealthProvider attaches a cache health provider to the health checker.
+// Must be called after cache warm-up completes.
+func (h *HealthChecker) SetCacheHealthProvider(provider RuleCacheHealthProvider) {
+	h.cacheHealth = provider
 }
 
 // ReadinessHandler returns a handler that checks all dependencies.
@@ -139,7 +159,7 @@ func (h *HealthChecker) ReadinessHandler() fiber.Handler {
 		defer span.End()
 
 		// Initialize explicitly to ensure JSON serializes as [] not null
-		checks := make([]api.HealthCheck, 0, 1)
+		checks := make([]api.HealthCheck, 0, 2)
 
 		allOK := true
 
@@ -152,17 +172,29 @@ func (h *HealthChecker) ReadinessHandler() fiber.Handler {
 			allOK = false
 		}
 
+		// Check rule cache
+		cacheCheck := h.checkRuleCache()
+		checks = append(checks, cacheCheck)
+
 		response := api.ReadinessResponse{
 			Status: StatusReady,
 			Checks: checks,
 		}
 
 		if !allOK {
+			// DB failed — return 503 regardless of cache state
 			response.Status = StatusNotReady
 
 			libOtel.HandleSpanError(&span, "readiness check failed", ErrDependenciesUnhealthy)
 
 			return libHTTP.JSONResponse(c, fiber.StatusServiceUnavailable, response)
+		}
+
+		if cacheCheck.Status == StatusFailed {
+			// Cache degraded but DB healthy — return 200 DEGRADED (avoids K8s restarts)
+			response.Status = StatusDegraded
+
+			return libHTTP.OK(c, response)
 		}
 
 		return libHTTP.OK(c, response)
@@ -214,4 +246,23 @@ func (h *HealthChecker) checkPostgres(ctx context.Context) api.HealthCheck {
 	}
 
 	return status
+}
+
+// checkRuleCache verifies rule cache health for the readiness probe.
+// Returns FAILED if cache is not ready or data is stale beyond threshold.
+// Returns OK if cache is healthy or not configured.
+func (h *HealthChecker) checkRuleCache() api.HealthCheck {
+	if h.cacheHealth == nil {
+		return api.HealthCheck{Component: ComponentRuleCache, Status: StatusOK, Message: "cache not configured"}
+	}
+
+	if !h.cacheHealth.IsReady() {
+		return api.HealthCheck{Component: ComponentRuleCache, Status: StatusFailed, Message: "cache not ready"}
+	}
+
+	if h.cacheHealth.Staleness() > h.cacheStalenessThreshold {
+		return api.HealthCheck{Component: ComponentRuleCache, Status: StatusFailed, Message: "cache data stale"}
+	}
+
+	return api.HealthCheck{Component: ComponentRuleCache, Status: StatusOK, Message: ""}
 }
