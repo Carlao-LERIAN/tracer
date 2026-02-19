@@ -1,0 +1,50 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package cache
+
+import (
+	"context"
+
+	"tracer/pkg/constant"
+	"tracer/pkg/model"
+)
+
+// CacheAdapter wraps RuleCache to satisfy query.ActiveRulesRepository.
+// This enables the validation hot path to read from cache instead of PostgreSQL.
+type CacheAdapter struct {
+	cache *RuleCache
+}
+
+// NewCacheAdapter creates a new cache adapter.
+// Panics if cache is nil — programming error at bootstrap time.
+func NewCacheAdapter(cache *RuleCache) *CacheAdapter {
+	if cache == nil {
+		panic("NewCacheAdapter: cache cannot be nil")
+	}
+
+	return &CacheAdapter{cache: cache}
+}
+
+// GetActiveRules returns active rules from the cache, optionally filtered by scope.
+// Returns constant.ErrRuleCacheNotReady if the cache has not been populated yet.
+// Satisfies the query.ActiveRulesRepository interface.
+func (a *CacheAdapter) GetActiveRules(_ context.Context, txScope *model.Scope) ([]*model.Rule, error) {
+	if !a.cache.IsReady() {
+		return nil, constant.ErrRuleCacheNotReady
+	}
+
+	cachedRules := a.cache.GetActiveRules(txScope)
+	rules := make([]*model.Rule, 0, len(cachedRules))
+
+	for _, cr := range cachedRules {
+		if cr == nil || cr.Rule == nil {
+			continue // defense-in-depth
+		}
+
+		rules = append(rules, cr.Rule)
+	}
+
+	return rules, nil
+}
