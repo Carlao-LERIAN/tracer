@@ -49,7 +49,7 @@ func TestWarmUp_Success(t *testing.T) {
 	assertCacheSize(t, c, 2)
 }
 
-func TestWarmUp_SkipsFailedCompilation(t *testing.T) {
+func TestWarmUp_AbortsOnCompilationFailure(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -66,33 +66,12 @@ func TestWarmUp_SkipsFailedCompilation(t *testing.T) {
 	mockCompiler.EXPECT().Compile(ctx, rules[1].Expression).Return(nil, errors.New("bad expression"))
 
 	c := cache.NewRuleCache(clk)
-	count, _, err := cache.WarmUp(ctx, c, mockRepo, mockCompiler, logger, clk)
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, count, "should skip failed compilation")
-	assertCacheSize(t, c, 1)
-}
-
-func TestWarmUp_AllCompilationsFail(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	mockRepo := mocks.NewMockRuleSyncRepository(ctrl)
-	mockCompiler := mocks.NewMockExpressionCompiler(ctrl)
-	logger := testutil.NewMockLogger()
-	clk := clock.New()
-
-	ctx := context.Background()
-	rules := []*model.Rule{newTestRule(1)}
-
-	mockRepo.EXPECT().GetAllActiveRules(ctx).Return(rules, nil)
-	mockCompiler.EXPECT().Compile(ctx, rules[0].Expression).Return(nil, errors.New("bad"))
-
-	c := cache.NewRuleCache(clk)
 	_, _, err := cache.WarmUp(ctx, c, mockRepo, mockCompiler, logger, clk)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, constant.ErrRuleCacheWarmUpFailed)
+	assert.Contains(t, err.Error(), rules[1].ID.String(), "error should reference the failing rule ID")
+	assert.False(t, c.IsReady(), "cache must not be marked ready on compilation failure")
 }
 
 func TestWarmUp_RepoError(t *testing.T) {

@@ -72,20 +72,16 @@ func WarmUp(ctx context.Context, c *RuleCache, repo RuleSyncRepository, compiler
 				"operation", "cache.warmup",
 				"rule.id", rule.ID.String(),
 				"error.message", compileErr.Error(),
-			).Error("Failed to compile rule expression — skipping rule")
+			).Error("Failed to compile rule expression — aborting warmup")
 
-			continue
+			return 0, clk.Now().Sub(start), fmt.Errorf("%w: rule %s failed to compile: %w",
+				constant.ErrRuleCacheWarmUpFailed, rule.ID.String(), compileErr)
 		}
 
 		cachedRules = append(cachedRules, &CachedRule{
 			Rule:    rule,
 			Program: program,
 		})
-	}
-
-	// Fail if ALL rules failed to compile (total failure)
-	if len(rules) > 0 && len(cachedRules) == 0 {
-		return 0, clk.Now().Sub(start), fmt.Errorf("%w: all %d rules failed to compile", constant.ErrRuleCacheWarmUpFailed, len(rules))
 	}
 
 	c.SetRules(cachedRules)
