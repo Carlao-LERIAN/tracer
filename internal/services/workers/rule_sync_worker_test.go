@@ -62,12 +62,6 @@ func TestNewRuleSyncWorker_NilCompiler(t *testing.T) {
 func TestNewRuleSyncWorker_InvalidInterval(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	mockCache := mocks.NewMockRuleSyncCache(ctrl)
-	repo := mocks.NewMockRuleSyncRepository(ctrl)
-	compiler := mocks.NewMockExpressionCompiler(ctrl)
-	logger := testutil.NewMockLogger()
-
 	tests := []struct {
 		name     string
 		interval time.Duration
@@ -79,6 +73,12 @@ func TestNewRuleSyncWorker_InvalidInterval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mockCache := mocks.NewMockRuleSyncCache(ctrl)
+			repo := mocks.NewMockRuleSyncRepository(ctrl)
+			compiler := mocks.NewMockExpressionCompiler(ctrl)
+			logger := testutil.NewMockLogger()
 
 			cfg := DefaultRuleSyncWorkerConfig()
 			cfg.PollInterval = tt.interval
@@ -106,12 +106,6 @@ func TestNewRuleSyncWorker_NilLogger(t *testing.T) {
 func TestNewRuleSyncWorker_InvalidStalenessThreshold(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	mockCache := mocks.NewMockRuleSyncCache(ctrl)
-	repo := mocks.NewMockRuleSyncRepository(ctrl)
-	compiler := mocks.NewMockExpressionCompiler(ctrl)
-	logger := testutil.NewMockLogger()
-
 	tests := []struct {
 		name      string
 		threshold time.Duration
@@ -123,6 +117,12 @@ func TestNewRuleSyncWorker_InvalidStalenessThreshold(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mockCache := mocks.NewMockRuleSyncCache(ctrl)
+			repo := mocks.NewMockRuleSyncRepository(ctrl)
+			compiler := mocks.NewMockExpressionCompiler(ctrl)
+			logger := testutil.NewMockLogger()
 
 			cfg := DefaultRuleSyncWorkerConfig()
 			cfg.StalenessThreshold = tt.threshold
@@ -337,7 +337,7 @@ func TestRunSyncCycle_NoChanges(t *testing.T) {
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime().Add(-10 * time.Second)
 
-	// Delta returns nothing — early return before GetActiveRules
+	// Delta returns nothing — touches cache staleness and returns before GetActiveRules
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil)
 
 	// Cache staleness must be touched even on empty fetch

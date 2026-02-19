@@ -383,13 +383,7 @@ func TestReadiness_CacheNotReady_ReturnsDegraded(t *testing.T) {
 
 	// Verify cache component appears in checks
 	require.GreaterOrEqual(t, len(response.Checks), 1, "should include cache check")
-	var cacheCheck *api.HealthCheck
-	for i := range response.Checks {
-		if response.Checks[i].Component == ComponentRuleCache {
-			cacheCheck = &response.Checks[i]
-			break
-		}
-	}
+	cacheCheck := findCheckByComponent(response.Checks, ComponentRuleCache)
 	require.NotNil(t, cacheCheck, "should have rule_cache check")
 	assert.Equal(t, StatusFailed, cacheCheck.Status)
 	assert.Equal(t, "cache not ready", cacheCheck.Message)
@@ -430,13 +424,7 @@ func TestReadiness_CacheReady_ReturnsUp(t *testing.T) {
 	assert.Equal(t, StatusReady, response.Status)
 
 	// Verify cache component shows OK
-	var cacheCheck *api.HealthCheck
-	for i := range response.Checks {
-		if response.Checks[i].Component == ComponentRuleCache {
-			cacheCheck = &response.Checks[i]
-			break
-		}
-	}
+	cacheCheck := findCheckByComponent(response.Checks, ComponentRuleCache)
 	require.NotNil(t, cacheCheck, "should have rule_cache check")
 	assert.Equal(t, StatusOK, cacheCheck.Status)
 }
@@ -477,16 +465,21 @@ func TestReadiness_CacheStalenessExceeded_ReturnsDegraded(t *testing.T) {
 	assert.Equal(t, StatusDegraded, response.Status)
 
 	// Verify cache component shows stale status
-	var cacheCheck *api.HealthCheck
-	for i := range response.Checks {
-		if response.Checks[i].Component == ComponentRuleCache {
-			cacheCheck = &response.Checks[i]
-			break
-		}
-	}
+	cacheCheck := findCheckByComponent(response.Checks, ComponentRuleCache)
 	require.NotNil(t, cacheCheck, "should have rule_cache check")
 	assert.Equal(t, StatusFailed, cacheCheck.Status)
 	assert.Equal(t, "cache data stale", cacheCheck.Message)
+}
+
+// findCheckByComponent returns the health check for the given component, or nil if not found.
+func findCheckByComponent(checks []api.HealthCheck, component string) *api.HealthCheck {
+	for i := range checks {
+		if checks[i].Component == component {
+			return &checks[i]
+		}
+	}
+
+	return nil
 }
 
 // mockCacheHealth implements RuleCacheHealthProvider for testing.

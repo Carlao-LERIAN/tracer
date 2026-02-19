@@ -696,14 +696,15 @@ func InitServers() (*Service, error) {
 	}
 
 	// Init Rule Cache: warm up from database, compile CEL expressions, wire into evaluation path
-	ruleCache := cache.NewRuleCache(clock.New())
+	clk := clock.New()
+	ruleCache := cache.NewRuleCache(clk)
 	ruleSyncRepo := postgres.NewRuleSyncRepository(postgresConn)
 
 	ctx := context.Background()
 
 	cacheCompiler := &celCompilerAdapter{adapter: celAdapter}
 
-	rulesLoaded, warmUpDuration, err := cache.WarmUp(ctx, ruleCache, ruleSyncRepo, cacheCompiler, logger, clock.New())
+	rulesLoaded, warmUpDuration, err := cache.WarmUp(ctx, ruleCache, ruleSyncRepo, cacheCompiler, logger, clk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to warm up rule cache: %w", err)
 	}

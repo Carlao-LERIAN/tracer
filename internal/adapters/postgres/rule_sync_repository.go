@@ -98,7 +98,7 @@ func (r *RuleSyncRepository) GetRulesUpdatedSince(ctx context.Context, since tim
 // scanRulesFromRows scans all rows into model.Rule using the same pattern
 // as Repository.scanRuleFromRows (12-column scan + RulePostgreSQLModel + ToEntity).
 func (r *RuleSyncRepository) scanRulesFromRows(ctx context.Context, rows *sql.Rows) ([]*model.Rule, error) {
-	rules := make([]*model.Rule, 0)
+	rules := make([]*model.Rule, 0, 64)
 
 	for rows.Next() {
 		if err := ctx.Err(); err != nil {

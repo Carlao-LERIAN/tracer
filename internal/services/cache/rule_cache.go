@@ -221,7 +221,8 @@ func deepCopy(src *CachedRule) *CachedRule {
 	}
 
 	return &CachedRule{
-		Rule:    &ruleCopy,
+		Rule: &ruleCopy,
+		// Program is shared, not cloned: compiled CEL programs are immutable after compilation.
 		Program: src.Program,
 	}
 }
