@@ -111,8 +111,6 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 
 	logger = logging.WithTrace(ctx, logger)
 
-	_ = ctx // Context used for tracing only
-
 	// Validate expression is not empty (fail fast before any processing)
 	if expression == "" {
 		err := fmt.Errorf("%w: expression cannot be empty", constant.ErrExpressionSyntax)

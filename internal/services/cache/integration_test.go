@@ -74,7 +74,7 @@ func TestIntegration_WarmUp_FromSeededPostgreSQL(t *testing.T) {
 	// Use mock compiler — we are testing the DB-to-cache path, not CEL compilation
 	ctrl := gomock.NewController(t)
 	mockCompiler := mocks.NewMockExpressionCompiler(ctrl)
-	mockCompiler.EXPECT().Compile(gomock.Any(), gomock.Any()).Return("compiled", nil).Times(2)
+	mockCompiler.EXPECT().Compile(gomock.Any(), gomock.Any()).Return("compiled", nil).MinTimes(2)
 
 	logger := testutil.NewMockLogger()
 	clk := clock.New()

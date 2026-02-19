@@ -816,7 +816,8 @@ func InitServers() (*Service, error) {
 	ruleCache := cache.NewRuleCache(clk)
 	ruleSyncRepo := postgres.NewRuleSyncRepository(postgresConn)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	cacheCompiler := &celCompilerAdapter{adapter: celAdapter}
 
