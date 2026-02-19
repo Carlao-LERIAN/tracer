@@ -184,6 +184,12 @@ var (
 	// =============================================================================
 	ErrTransactionValidationIDRequired        = errors.New("TRC-0270") // validation ID is required
 	ErrTransactionValidationCreatedAtRequired = errors.New("TRC-0271") // createdAt is required
+
+	// =============================================================================
+	// Cache Errors (TRC-0280 to TRC-0299)
+	// =============================================================================
+	ErrRuleCacheWarmUpFailed = errors.New("TRC-0280") // rule cache warm-up failed
+	ErrRuleCacheNotReady     = errors.New("TRC-0281") // rule cache is not ready
 )
 
 // Error code constants for HTTP responses.
@@ -196,4 +202,5 @@ const (
 	CodeLimitCheckError        = "TRC-0136"
 	CodeValidationTimeout      = "TRC-0229"
 	CodeListValidationsTimeout = "TRC-0252"
+	CodeCacheNotReady          = "TRC-0281"
 )
