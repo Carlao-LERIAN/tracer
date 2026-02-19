@@ -427,8 +427,8 @@ func TestIntegration_Polling_MetricsEmission(t *testing.T) {
 	}
 
 	// duration histogram should have recordings
-	durationMetric, found := metricsByName["tracer_cache_sync_duration_seconds"]
-	assert.True(t, found, "tracer_cache_sync_duration_seconds metric should be present")
+	durationMetric, found := metricsByName["tracer_cache_sync_duration_milliseconds"]
+	assert.True(t, found, "tracer_cache_sync_duration_milliseconds metric should be present")
 
 	if found {
 		assert.Greater(t, countHistogramDataPoints(durationMetric), 0,

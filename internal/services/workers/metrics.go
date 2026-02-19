@@ -33,9 +33,9 @@ var MetricCacheSyncErrorsTotal = Metric{
 // MetricCacheSyncDuration tracks the duration of each sync cycle.
 // Measured from start to end of runSyncCycle, excluding skipped polls.
 var MetricCacheSyncDuration = Metric{
-	Name:        "tracer_cache_sync_duration_seconds",
-	Unit:        "s",
-	Description: "Duration of cache sync poll cycles in seconds",
+	Name:        "tracer_cache_sync_duration_milliseconds",
+	Unit:        "ms",
+	Description: "Duration of cache sync poll cycles in milliseconds",
 }
 
 // MetricCacheSyncRulesChanged tracks the number of rules changed per sync cycle.

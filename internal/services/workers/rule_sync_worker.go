@@ -327,7 +327,7 @@ func (w *RuleSyncWorker) emitSuccessMetrics(
 		WithLabels(map[string]string{"status": "success"}).
 		AddOne(ctx)
 
-	elapsed := int64(w.clock.Now().Sub(start).Seconds())
+	elapsed := w.clock.Now().Sub(start).Milliseconds()
 	mf.Histogram(MetricCacheSyncDuration).Record(ctx, elapsed)
 
 	if rulesChanged > 0 {

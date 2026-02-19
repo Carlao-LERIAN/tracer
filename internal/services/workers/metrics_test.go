@@ -35,10 +35,10 @@ func TestMetricDeclarations_AllSixDefined(t *testing.T) {
 			wantDescContains: "error",
 		},
 		{
-			name:             "duration seconds",
+			name:             "duration milliseconds",
 			metric:           MetricCacheSyncDuration,
-			wantName:         "tracer_cache_sync_duration_seconds",
-			wantUnit:         "s",
+			wantName:         "tracer_cache_sync_duration_milliseconds",
+			wantUnit:         "ms",
 			wantDescContains: "Duration",
 		},
 		{
