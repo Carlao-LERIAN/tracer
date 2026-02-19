@@ -577,7 +577,7 @@ func initWorkers(
 }
 
 // initSyncWorker creates the rule sync worker.
-// Uses default configuration; env var parsing added in T-004.
+// Uses default configuration; env var parsing added later.
 func initSyncWorker(
 	ruleCache *cache.RuleCache,
 	syncRepo *postgres.RuleSyncRepository,
@@ -713,7 +713,7 @@ func InitServers() (*Service, error) {
 	cacheAdapter := cache.NewCacheAdapter(ruleCache)
 	healthChecker.SetCacheHealthProvider(ruleCache)
 
-	// Init Rule Evaluation components (T-008)
+	// Init Rule Evaluation components
 	evalConfig, err := LoadEvaluationConfig(cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("invalid evaluation configuration: %w", err)

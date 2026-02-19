@@ -15,7 +15,7 @@ import (
 
 // RuleSyncRepository provides the delta query needed by the sync worker.
 // Returns ALL statuses (not just ACTIVE) so the worker can detect deactivations.
-// Satisfied by internal/adapters/postgres/rule_sync_repository.go (T-001).
+// Satisfied by internal/adapters/postgres/rule_sync_repository.go.
 type RuleSyncRepository interface {
 	// GetRulesUpdatedSince retrieves all rules updated at or after the given timestamp.
 	// Returns ALL statuses to detect deactivations/deletions.

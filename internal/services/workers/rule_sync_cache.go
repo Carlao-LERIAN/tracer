@@ -17,7 +17,7 @@ import (
 
 // RuleSyncCache defines the cache operations needed by the sync worker.
 // Combines read (for ClassifyChanges) and write (for applying deltas).
-// Satisfied by *cache.RuleCache (T-001).
+// Satisfied by *cache.RuleCache.
 type RuleSyncCache interface {
 	// GetActiveRules returns cached rules matching the given scope.
 	// Pass nil to get all cached rules (used to build ClassifyChanges map).

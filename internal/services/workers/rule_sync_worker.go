@@ -168,8 +168,9 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		return // lastSync NOT updated on error
 	}
 
-	// 2. If no results, update lastSync and return
+	// 2. If no results, touch cache staleness and update lastSync
 	if len(fetched) == 0 {
+		w.cache.ApplyChanges(nil, nil)
 		w.lastSync = w.clock.Now()
 
 		logger.WithFields(
@@ -195,6 +196,7 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 	changes := ClassifyChanges(cachedMap, fetched)
 
 	if changes.IsEmpty() {
+		w.cache.ApplyChanges(nil, nil)
 		w.updateLastSync(fetched)
 
 		logger.WithFields(

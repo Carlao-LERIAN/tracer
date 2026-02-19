@@ -340,6 +340,9 @@ func TestRunSyncCycle_NoChanges(t *testing.T) {
 	// Delta returns nothing — early return before GetActiveRules
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil)
 
+	// Cache staleness must be touched even on empty fetch
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
+
 	worker.runSyncCycle(context.Background())
 
 	// lastSync should advance to clock.Now() on empty fetch
@@ -371,6 +374,9 @@ func TestRunSyncCycle_OverlapBuffer(t *testing.T) {
 	// Key assertion: query uses lastSync MINUS overlapBuffer
 	expectedSince := lastSync.Add(-2 * time.Second)
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), expectedSince).Return([]*model.Rule{}, nil)
+
+	// Cache staleness must be touched even on empty fetch
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
 
 	worker.runSyncCycle(context.Background())
 
@@ -532,6 +538,9 @@ func TestRunSyncCycle_StagnationPrevention(t *testing.T) {
 	// Delta returns same rule (overlap re-fetch) — UpdatedAt == lastSync
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{existingRule}, nil)
 
+	// Cache staleness must be touched even when changes are empty
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
+
 	worker.runSyncCycle(context.Background())
 
 	// Stagnation prevention: lastSync should advance to clock.Now()
@@ -563,7 +572,63 @@ func TestRunSyncCycle_OverlapClassifyPath(t *testing.T) {
 	// Delta returns same rule (overlap buffer re-fetch) — same UpdatedAt
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{existingRule}, nil)
 
-	// ClassifyChanges returns empty ChangeSet — no Compile or ApplyChanges
+	// ClassifyChanges returns empty ChangeSet — no Compile, but cache staleness touched
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
+
+	worker.runSyncCycle(context.Background())
+}
+
+func TestRunSyncCycle_EmptyFetch_TouchesCacheStaleness(t *testing.T) {
+	t.Parallel()
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockRuleSyncCache(ctrl)
+	repo := mocks.NewMockRuleSyncRepository(ctrl)
+	compiler := mocks.NewMockExpressionCompiler(ctrl)
+	logger := testutil.NewMockLogger()
+	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
+
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	require.NoError(t, err)
+	worker.lastSync = testutil.FixedTime().Add(-10 * time.Second)
+
+	// Delta returns nothing
+	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil)
+
+	// Key assertion: cache staleness must be touched even on empty fetch
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
+
+	worker.runSyncCycle(context.Background())
+}
+
+func TestRunSyncCycle_EmptyChangeSet_TouchesCacheStaleness(t *testing.T) {
+	t.Parallel()
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockRuleSyncCache(ctrl)
+	repo := mocks.NewMockRuleSyncRepository(ctrl)
+	compiler := mocks.NewMockExpressionCompiler(ctrl)
+	logger := testutil.NewMockLogger()
+	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
+
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	require.NoError(t, err)
+	worker.lastSync = testutil.FixedTime()
+
+	existingRule := newSyncTestActiveRule(1)
+	cachedRule := newSyncTestCachedRule(existingRule)
+
+	mockCache.EXPECT().GetActiveRules(nil).Return([]*cache.CachedRule{cachedRule})
+
+	// Delta returns same rule (overlap re-fetch) — ClassifyChanges returns empty
+	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{existingRule}, nil)
+
+	// Key assertion: cache staleness must be touched even when changes are empty
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
 
 	worker.runSyncCycle(context.Background())
 }
@@ -593,6 +658,7 @@ func TestRunLoop_TickerDriven(t *testing.T) {
 	// One tick -> one sync cycle; verify since uses warmupTime
 	expectedSince := warmupTime.Add(-defaultSyncConfig().OverlapBuffer)
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), expectedSince).Return([]*model.Rule{}, nil).Times(1)
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(1)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -638,6 +704,7 @@ func TestRunLoop_MultipleTicksProcessed(t *testing.T) {
 
 	// Expect 3 sync cycles
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil).Times(3)
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(3)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

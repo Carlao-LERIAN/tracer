@@ -16,9 +16,11 @@ import (
 // benchResult prevents compiler from optimizing away GetActiveRules calls.
 var benchResult []*cache.CachedRule
 
-func BenchmarkRuleCache_GetActiveRules_100Rules(b *testing.B) {
+func benchmarkGetActiveRules(b *testing.B, count int) {
+	b.Helper()
+
 	c := cache.NewRuleCache(clock.New())
-	rules := make([]*cache.CachedRule, 100)
+	rules := make([]*cache.CachedRule, count)
 	for i := range rules {
 		rules[i] = newTestCachedRule(newTestRule(int64(i + 1)))
 	}
@@ -31,35 +33,9 @@ func BenchmarkRuleCache_GetActiveRules_100Rules(b *testing.B) {
 	}
 }
 
-func BenchmarkRuleCache_GetActiveRules_1000Rules(b *testing.B) {
-	c := cache.NewRuleCache(clock.New())
-	rules := make([]*cache.CachedRule, 1000)
-	for i := range rules {
-		rules[i] = newTestCachedRule(newTestRule(int64(i + 1)))
-	}
-	c.SetRules(rules)
-	c.MarkReady()
-
-	b.ResetTimer()
-	for range b.N {
-		benchResult = c.GetActiveRules(nil)
-	}
-}
-
-func BenchmarkRuleCache_GetActiveRules_10000Rules(b *testing.B) {
-	c := cache.NewRuleCache(clock.New())
-	rules := make([]*cache.CachedRule, 10000)
-	for i := range rules {
-		rules[i] = newTestCachedRule(newTestRule(int64(i + 1)))
-	}
-	c.SetRules(rules)
-	c.MarkReady()
-
-	b.ResetTimer()
-	for range b.N {
-		benchResult = c.GetActiveRules(nil)
-	}
-}
+func BenchmarkRuleCache_GetActiveRules_100Rules(b *testing.B)   { benchmarkGetActiveRules(b, 100) }
+func BenchmarkRuleCache_GetActiveRules_1000Rules(b *testing.B)  { benchmarkGetActiveRules(b, 1000) }
+func BenchmarkRuleCache_GetActiveRules_10000Rules(b *testing.B) { benchmarkGetActiveRules(b, 10000) }
 
 func BenchmarkRuleCache_GetActiveRules_ScopeFiltered_1000Rules(b *testing.B) {
 	c := cache.NewRuleCache(clock.New())
