@@ -52,11 +52,8 @@ func TestSyncCycle_CircuitBreakerClosed(t *testing.T) {
 	clk := &testutil.MockClock{FixedTime: testutil.FixedTime()}
 	cb := newTestCircuitBreaker(logger)
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, cb, clk)
 	require.NoError(t, err)
-
-	worker.SetCircuitBreaker(cb)
-
 	newRule := newSyncTestActiveRule(1)
 
 	// Circuit closed: repo query executes normally
@@ -85,10 +82,9 @@ func TestSyncCycle_CircuitBreakerOpen(t *testing.T) {
 	clk := &testutil.MockClock{FixedTime: testutil.FixedTime()}
 	cb := newTestCircuitBreaker(logger)
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, cb, clk)
 	require.NoError(t, err)
 
-	worker.SetCircuitBreaker(cb)
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
 	// Trip the circuit: 3 consecutive failures
@@ -123,10 +119,9 @@ func TestSyncCycle_CircuitBreakerHalfOpen_Success(t *testing.T) {
 	clk := &testutil.MockClock{FixedTime: testutil.FixedTime()}
 	cb := newTestCircuitBreaker(logger)
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, cb, clk)
 	require.NoError(t, err)
 
-	worker.SetCircuitBreaker(cb)
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
 	// Trip the circuit
@@ -169,10 +164,9 @@ func TestSyncCycle_CircuitBreakerHalfOpen_Failure(t *testing.T) {
 	clk := &testutil.MockClock{FixedTime: testutil.FixedTime()}
 	cb := newTestCircuitBreaker(logger)
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, cb, clk)
 	require.NoError(t, err)
 
-	worker.SetCircuitBreaker(cb)
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
 	// Trip the circuit
@@ -212,10 +206,9 @@ func TestSyncCycle_TripsAfterThreeFailures(t *testing.T) {
 	clk := &testutil.MockClock{FixedTime: testutil.FixedTime()}
 	cb := newTestCircuitBreaker(logger)
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, cb, clk)
 	require.NoError(t, err)
 
-	worker.SetCircuitBreaker(cb)
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
 	dbErr := errors.New("connection refused")
@@ -249,10 +242,9 @@ func TestSyncCycle_SuccessBetweenFailuresResetsCounter(t *testing.T) {
 	clk := &testutil.MockClock{FixedTime: testutil.FixedTime()}
 	cb := newTestCircuitBreaker(logger)
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, cb, clk)
 	require.NoError(t, err)
 
-	worker.SetCircuitBreaker(cb)
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
 	dbErr := errors.New("connection refused")
@@ -300,10 +292,9 @@ func TestSyncCycle_ContextCancellationNotCounted(t *testing.T) {
 	clk := &testutil.MockClock{FixedTime: testutil.FixedTime()}
 	cb := newTestCircuitBreaker(logger)
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, cb, clk)
 	require.NoError(t, err)
 
-	worker.SetCircuitBreaker(cb)
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
 	// Simulate 5 context cancellations + deadline exceeded (more than threshold of 3)
@@ -338,10 +329,9 @@ func TestCircuitBreaker_StateChangeLogged_ClosedToOpen(t *testing.T) {
 	clk := &testutil.MockClock{FixedTime: testutil.FixedTime()}
 	cb := newTestCircuitBreaker(logger)
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, cb, clk)
 	require.NoError(t, err)
 
-	worker.SetCircuitBreaker(cb)
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
 	// Trip circuit with 3 failures
@@ -388,10 +378,9 @@ func TestCircuitBreaker_RecoveryLogged_OpenToClosed(t *testing.T) {
 	clk := &testutil.MockClock{FixedTime: testutil.FixedTime()}
 	cb := newTestCircuitBreaker(logger)
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, cb, clk)
 	require.NoError(t, err)
 
-	worker.SetCircuitBreaker(cb)
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
 	// Trip the circuit

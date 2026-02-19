@@ -28,7 +28,23 @@ import (
 	"tracer/internal/services/workers"
 	"tracer/internal/testutil"
 	"tracer/pkg/clock"
+	"tracer/pkg/resilience"
 )
+
+// newIntegrationCircuitBreaker returns a permissive circuit breaker for integration tests.
+func newIntegrationCircuitBreaker() *resilience.CircuitBreaker {
+	cfg := resilience.CircuitBreakerConfig{
+		Name:          "test_integration_polling",
+		MaxRequests:   1,
+		Interval:      0,
+		Timeout:       1 * time.Second,
+		FailureThresh: 5,
+		FailureRatio:  0,
+		MinRequests:   0,
+	}
+
+	return resilience.NewCircuitBreaker(cfg, testutil.NewMockLogger())
+}
 
 // celCompilerAdapter wraps cel.Adapter to satisfy workers.ExpressionCompiler interface.
 // Mirrors the same adapter in bootstrap/config.go (unexported there).
@@ -79,7 +95,7 @@ func TestIntegration_Polling_EndToEnd_InsertUpdateDelete(t *testing.T) {
 		OverlapBuffer:      50 * time.Millisecond,
 	}
 
-	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncCfg, logger, clk)
+	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncCfg, logger, newIntegrationCircuitBreaker(), clk)
 	require.NoError(t, err)
 
 	// 4. Start worker
@@ -189,7 +205,7 @@ func TestIntegration_Polling_OverlapBuffer_NoDuplication(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	compiler := &noopCompiler{}
 
-	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncCfg, logger, clk)
+	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncCfg, logger, newIntegrationCircuitBreaker(), clk)
 	require.NoError(t, err)
 
 	// 3. Run worker for several cycles
@@ -289,7 +305,7 @@ func TestIntegration_Polling_RealCELCompilation(t *testing.T) {
 		OverlapBuffer:      50 * time.Millisecond,
 	}
 
-	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, realCompiler, syncCfg, logger(t), clk)
+	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, realCompiler, syncCfg, logger(t), newIntegrationCircuitBreaker(), clk)
 	require.NoError(t, err)
 
 	workerCtx, cancelWorker := context.WithCancel(ctx)
@@ -378,7 +394,7 @@ func TestIntegration_Polling_MetricsEmission(t *testing.T) {
 	}
 
 	compiler := &noopCompiler{}
-	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncCfg, mockLogger, clk)
+	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncCfg, mockLogger, newIntegrationCircuitBreaker(), clk)
 	require.NoError(t, err)
 
 	// 3. Run worker with enriched context (carries metrics factory)

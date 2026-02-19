@@ -166,9 +166,6 @@ func TestIntegration_CircuitBreaker_DBFailure(t *testing.T) {
 		OverlapBuffer:      50 * time.Millisecond,
 	}
 
-	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncCfg, logger, clk)
-	require.NoError(t, err)
-
 	cbCfg := resilience.CircuitBreakerConfig{
 		Name:          "test_integration",
 		MaxRequests:   1,
@@ -179,7 +176,9 @@ func TestIntegration_CircuitBreaker_DBFailure(t *testing.T) {
 		MinRequests:   0,
 	}
 	cb := resilience.NewCircuitBreaker(cbCfg, logger)
-	worker.SetCircuitBreaker(cb)
+
+	worker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncCfg, logger, cb, clk)
+	require.NoError(t, err)
 
 	// 4. Verify initial sync works (circuit closed)
 	workerCtx, cancelWorker := context.WithCancel(ctx)

@@ -28,7 +28,7 @@ func TestNewRuleSyncWorker_NilCache(t *testing.T) {
 	compiler := mocks.NewMockExpressionCompiler(ctrl)
 	logger := testutil.NewMockLogger()
 
-	_, err := NewRuleSyncWorker(nil, repo, compiler, DefaultRuleSyncWorkerConfig(), logger, nil)
+	_, err := NewRuleSyncWorker(nil, repo, compiler, DefaultRuleSyncWorkerConfig(), logger, defaultTestCircuitBreaker(), nil)
 
 	require.ErrorIs(t, err, ErrNilRuleCache)
 }
@@ -41,7 +41,7 @@ func TestNewRuleSyncWorker_NilRepository(t *testing.T) {
 	compiler := mocks.NewMockExpressionCompiler(ctrl)
 	logger := testutil.NewMockLogger()
 
-	_, err := NewRuleSyncWorker(mockCache, nil, compiler, DefaultRuleSyncWorkerConfig(), logger, nil)
+	_, err := NewRuleSyncWorker(mockCache, nil, compiler, DefaultRuleSyncWorkerConfig(), logger, defaultTestCircuitBreaker(), nil)
 
 	require.ErrorIs(t, err, ErrNilRepository)
 }
@@ -54,7 +54,7 @@ func TestNewRuleSyncWorker_NilCompiler(t *testing.T) {
 	repo := mocks.NewMockRuleSyncRepository(ctrl)
 	logger := testutil.NewMockLogger()
 
-	_, err := NewRuleSyncWorker(mockCache, repo, nil, DefaultRuleSyncWorkerConfig(), logger, nil)
+	_, err := NewRuleSyncWorker(mockCache, repo, nil, DefaultRuleSyncWorkerConfig(), logger, defaultTestCircuitBreaker(), nil)
 
 	require.ErrorIs(t, err, ErrNilExpressionCompiler)
 }
@@ -83,7 +83,7 @@ func TestNewRuleSyncWorker_InvalidInterval(t *testing.T) {
 			cfg := DefaultRuleSyncWorkerConfig()
 			cfg.PollInterval = tt.interval
 
-			_, err := NewRuleSyncWorker(mockCache, repo, compiler, cfg, logger, nil)
+			_, err := NewRuleSyncWorker(mockCache, repo, compiler, cfg, logger, defaultTestCircuitBreaker(), nil)
 
 			require.ErrorIs(t, err, ErrInvalidPollInterval)
 		})
@@ -98,9 +98,23 @@ func TestNewRuleSyncWorker_NilLogger(t *testing.T) {
 	repo := mocks.NewMockRuleSyncRepository(ctrl)
 	compiler := mocks.NewMockExpressionCompiler(ctrl)
 
-	_, err := NewRuleSyncWorker(mockCache, repo, compiler, DefaultRuleSyncWorkerConfig(), nil, nil)
+	_, err := NewRuleSyncWorker(mockCache, repo, compiler, DefaultRuleSyncWorkerConfig(), nil, defaultTestCircuitBreaker(), nil)
 
 	require.ErrorIs(t, err, ErrNilLogger)
+}
+
+func TestNewRuleSyncWorker_NilCircuitBreaker(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockCache := mocks.NewMockRuleSyncCache(ctrl)
+	repo := mocks.NewMockRuleSyncRepository(ctrl)
+	compiler := mocks.NewMockExpressionCompiler(ctrl)
+	logger := testutil.NewMockLogger()
+
+	_, err := NewRuleSyncWorker(mockCache, repo, compiler, DefaultRuleSyncWorkerConfig(), logger, nil, nil)
+
+	require.ErrorIs(t, err, ErrNilCircuitBreaker)
 }
 
 func TestNewRuleSyncWorker_InvalidStalenessThreshold(t *testing.T) {
@@ -127,7 +141,7 @@ func TestNewRuleSyncWorker_InvalidStalenessThreshold(t *testing.T) {
 			cfg := DefaultRuleSyncWorkerConfig()
 			cfg.StalenessThreshold = tt.threshold
 
-			_, err := NewRuleSyncWorker(mockCache, repo, compiler, cfg, logger, nil)
+			_, err := NewRuleSyncWorker(mockCache, repo, compiler, cfg, logger, defaultTestCircuitBreaker(), nil)
 
 			require.ErrorIs(t, err, ErrInvalidStalenessThreshold)
 		})
@@ -146,7 +160,7 @@ func TestNewRuleSyncWorker_InvalidOverlapBuffer(t *testing.T) {
 	cfg := DefaultRuleSyncWorkerConfig()
 	cfg.OverlapBuffer = -1 * time.Second
 
-	_, err := NewRuleSyncWorker(mockCache, repo, compiler, cfg, logger, nil)
+	_, err := NewRuleSyncWorker(mockCache, repo, compiler, cfg, logger, defaultTestCircuitBreaker(), nil)
 
 	require.ErrorIs(t, err, ErrInvalidOverlapBuffer)
 }
@@ -160,7 +174,7 @@ func TestNewRuleSyncWorker_ValidConfig(t *testing.T) {
 	compiler := mocks.NewMockExpressionCompiler(ctrl)
 	logger := testutil.NewMockLogger()
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, DefaultRuleSyncWorkerConfig(), logger, nil)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, DefaultRuleSyncWorkerConfig(), logger, defaultTestCircuitBreaker(), nil)
 
 	require.NoError(t, err)
 	assert.NotNil(t, worker)
@@ -181,7 +195,7 @@ func TestRuleSyncWorker_GracefulShutdown(t *testing.T) {
 	// Cache returns initial lastSync time
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -216,7 +230,7 @@ func TestRunSyncCycle_DetectsNewRules(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime()
 
@@ -256,7 +270,7 @@ func TestRunSyncCycle_DetectsUpdatedRules(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime()
 
@@ -299,7 +313,7 @@ func TestRunSyncCycle_DetectsDeletedRules(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime()
 
@@ -336,7 +350,7 @@ func TestRunSyncCycle_NoChanges(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime().Add(-10 * time.Second)
 
@@ -369,7 +383,7 @@ func TestRunSyncCycle_OverlapBuffer(t *testing.T) {
 	cfg := defaultSyncConfig()
 	cfg.OverlapBuffer = 2 * time.Second
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, cfg, logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, cfg, logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 
 	lastSync := fixedNow.Add(-10 * time.Second)
@@ -401,7 +415,7 @@ func TestRunSyncCycle_CELCompilationFailure(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime()
 
@@ -450,7 +464,7 @@ func TestRunSyncCycle_RepoError(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 
 	worker.lastSync = testutil.FixedTime()
@@ -474,7 +488,7 @@ func TestRunSyncCycle_LastSyncUpdatedOnSuccess(t *testing.T) {
 	initialTime := testutil.FixedTime()
 	clk := testutil.MockClock{FixedTime: initialTime}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = initialTime
 
@@ -507,7 +521,7 @@ func TestRunSyncCycle_LastSyncNotUpdatedOnError(t *testing.T) {
 	initialTime := testutil.FixedTime()
 	clk := testutil.MockClock{FixedTime: initialTime}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = initialTime
 
@@ -532,7 +546,7 @@ func TestRunSyncCycle_StagnationPrevention(t *testing.T) {
 	advancedTime := testutil.FixedTime().Add(10 * time.Second)
 	clk := testutil.MockClock{FixedTime: advancedTime}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime() // 10s behind clock.Now()
 
@@ -568,7 +582,7 @@ func TestRunSyncCycle_OverlapClassifyPath(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime()
 
@@ -599,7 +613,7 @@ func TestRunSyncCycle_EmptyFetch_TouchesCacheStaleness(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime().Add(-10 * time.Second)
 
@@ -625,7 +639,7 @@ func TestRunSyncCycle_EmptyChangeSet_TouchesCacheStaleness(t *testing.T) {
 	logger := testutil.NewMockLogger()
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime()}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 	worker.lastSync = testutil.FixedTime()
 
@@ -660,7 +674,7 @@ func TestRunLoop_TickerDriven(t *testing.T) {
 	tickerChan := make(chan time.Time, 1)
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime(), TickerChan: tickerChan}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 
 	warmupTime := testutil.FixedTime().Add(-5 * time.Minute)
@@ -709,7 +723,7 @@ func TestRunLoop_MultipleTicksProcessed(t *testing.T) {
 	tickerChan := make(chan time.Time, 3)
 	clk := testutil.MockClock{FixedTime: testutil.FixedTime(), TickerChan: tickerChan}
 
-	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, clk)
+	worker, err := NewRuleSyncWorker(mockCache, repo, compiler, defaultSyncConfig(), logger, defaultTestCircuitBreaker(), clk)
 	require.NoError(t, err)
 
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()

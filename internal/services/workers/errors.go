@@ -27,4 +27,6 @@ var (
 	ErrInvalidStalenessThreshold = errors.New("staleness threshold must be positive")
 	// ErrInvalidOverlapBuffer is returned when overlap buffer is negative.
 	ErrInvalidOverlapBuffer = errors.New("overlap buffer must be non-negative")
+	// ErrNilCircuitBreaker is returned when the required circuit breaker dependency is nil.
+	ErrNilCircuitBreaker = errors.New("circuit breaker cannot be nil")
 )

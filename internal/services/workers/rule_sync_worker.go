@@ -38,7 +38,7 @@ type RuleSyncWorker struct {
 	logger         libLog.Logger
 	clock          clock.Clock
 	lastSync       time.Time
-	circuitBreaker *resilience.CircuitBreaker // nil = no circuit breaker
+	circuitBreaker *resilience.CircuitBreaker
 }
 
 // NewRuleSyncWorker creates a new rule sync worker.
@@ -49,6 +49,7 @@ type RuleSyncWorker struct {
 // Returns ErrInvalidPollInterval if PollInterval <= 0.
 // Returns ErrInvalidStalenessThreshold if StalenessThreshold <= 0.
 // Returns ErrInvalidOverlapBuffer if OverlapBuffer < 0.
+// Returns ErrNilCircuitBreaker if cb is nil.
 // The clk parameter is optional; if nil, uses clock.RealClock{}.
 func NewRuleSyncWorker(
 	ruleCache RuleSyncCache,
@@ -56,6 +57,7 @@ func NewRuleSyncWorker(
 	compiler ExpressionCompiler,
 	config RuleSyncWorkerConfig,
 	logger libLog.Logger,
+	cb *resilience.CircuitBreaker,
 	clk clock.Clock,
 ) (*RuleSyncWorker, error) {
 	if ruleCache == nil {
@@ -86,17 +88,22 @@ func NewRuleSyncWorker(
 		return nil, ErrInvalidOverlapBuffer
 	}
 
+	if cb == nil {
+		return nil, ErrNilCircuitBreaker
+	}
+
 	if clk == nil {
 		clk = clock.RealClock{}
 	}
 
 	return &RuleSyncWorker{
-		cache:    ruleCache,
-		repo:     repo,
-		compiler: compiler,
-		config:   config,
-		logger:   logger,
-		clock:    clk,
+		cache:          ruleCache,
+		repo:           repo,
+		compiler:       compiler,
+		config:         config,
+		logger:         logger,
+		circuitBreaker: cb,
+		clock:          clk,
 	}, nil
 }
 
@@ -394,26 +401,8 @@ func (w *RuleSyncWorker) updateLastSync(fetched []*model.Rule) {
 	w.lastSync = maxTime
 }
 
-// SetCircuitBreaker configures the circuit breaker for the sync worker.
-// Must be called before Run/RunWithContext. If not called, the worker
-// operates without circuit breaker protection.
-// Passing nil disables circuit breaker protection (logged as warning).
-func (w *RuleSyncWorker) SetCircuitBreaker(cb *resilience.CircuitBreaker) {
-	if cb == nil {
-		w.logger.WithFields(
-			"operation", "worker.rule_sync.set_circuit_breaker",
-		).Warn("SetCircuitBreaker called with nil - circuit breaker protection disabled")
-	}
-
-	w.circuitBreaker = cb
-}
-
-// queryDelta executes the delta query, optionally wrapped in circuit breaker.
+// queryDelta executes the delta query wrapped in the circuit breaker.
 func (w *RuleSyncWorker) queryDelta(ctx context.Context, since time.Time) ([]*model.Rule, error) {
-	if w.circuitBreaker == nil {
-		return w.repo.GetRulesUpdatedSince(ctx, since)
-	}
-
 	result, err := w.circuitBreaker.Execute(ctx, func() (any, error) {
 		return w.repo.GetRulesUpdatedSince(ctx, since)
 	})

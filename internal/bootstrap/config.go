@@ -699,15 +699,14 @@ func initSyncWorker(
 	// celCompilerAdapter satisfies workers.ExpressionCompiler (Compile returns (any, error))
 	compiler := &celCompilerAdapter{adapter: celAdapter}
 
-	syncWorker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, *syncWorkerConfig, logger, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create rule sync worker: %w", err)
-	}
-
 	// Configure circuit breaker for DB poll resilience
 	cbConfig := workers.DefaultSyncCircuitBreakerConfig()
 	cb := resilience.NewCircuitBreaker(cbConfig, logger)
-	syncWorker.SetCircuitBreaker(cb)
+
+	syncWorker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, *syncWorkerConfig, logger, cb, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rule sync worker: %w", err)
+	}
 
 	logger.WithFields(
 		"component", "rule_sync_worker",
@@ -832,6 +831,7 @@ func InitServers() (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cache adapter: %w", err)
 	}
+
 	healthChecker.SetCacheHealthProvider(ruleCache)
 
 	// Init Rule Evaluation components

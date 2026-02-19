@@ -13,6 +13,7 @@ import (
 	"tracer/internal/services/cache"
 	"tracer/internal/testutil"
 	"tracer/pkg/model"
+	"tracer/pkg/resilience"
 )
 
 // NOTE: For mock clock, use testutil.MockClock directly.
@@ -65,6 +66,21 @@ func buildCachedMap(t *testing.T, rules ...*cache.CachedRule) map[uuid.UUID]*cac
 	}
 
 	return m
+}
+
+// defaultTestCircuitBreaker returns a circuit breaker with permissive test settings.
+func defaultTestCircuitBreaker() *resilience.CircuitBreaker {
+	cfg := resilience.CircuitBreakerConfig{
+		Name:          "test",
+		MaxRequests:   1,
+		Interval:      0,
+		Timeout:       1 * time.Second,
+		FailureThresh: 5,
+		FailureRatio:  0,
+		MinRequests:   0,
+	}
+
+	return resilience.NewCircuitBreaker(cfg, testutil.NewMockLogger())
 }
 
 // defaultSyncConfig returns a test-friendly config with short intervals.
