@@ -32,6 +32,7 @@ import (
 	"tracer/pkg/constant"
 	"tracer/pkg/migration"
 	"tracer/pkg/model"
+	"tracer/pkg/resilience"
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -594,12 +595,19 @@ func initSyncWorker(
 		return nil, fmt.Errorf("failed to create rule sync worker: %w", err)
 	}
 
+	// Configure circuit breaker for DB poll resilience
+	cbConfig := workers.DefaultSyncCircuitBreakerConfig()
+	cb := resilience.NewCircuitBreaker(cbConfig, logger)
+	syncWorker.SetCircuitBreaker(cb)
+
 	logger.WithFields(
 		"component", "rule_sync_worker",
 		"poll_interval", syncWorkerConfig.PollInterval.String(),
 		"staleness_threshold", syncWorkerConfig.StalenessThreshold.String(),
 		"overlap_buffer", syncWorkerConfig.OverlapBuffer.String(),
-	).Info("Rule sync worker initialized")
+		"circuit_breaker.failure_threshold", cbConfig.FailureThresh,
+		"circuit_breaker.timeout", cbConfig.Timeout.String(),
+	).Info("Rule sync worker initialized with circuit breaker")
 
 	return syncWorker, nil
 }

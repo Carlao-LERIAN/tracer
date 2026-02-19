@@ -6,6 +6,8 @@ package workers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,24 +17,27 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
+	"github.com/sony/gobreaker"
 
 	"tracer/internal/services/cache"
 	"tracer/pkg/clock"
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
+	"tracer/pkg/resilience"
 )
 
 // RuleSyncWorker periodically polls the database for rule changes
 // and applies deltas to the in-memory cache with CEL recompilation.
 // Implements libCommons.App interface for Launcher integration.
 type RuleSyncWorker struct {
-	cache    RuleSyncCache
-	repo     RuleSyncRepository
-	compiler ExpressionCompiler
-	config   RuleSyncWorkerConfig
-	logger   libLog.Logger
-	clock    clock.Clock
-	lastSync time.Time
+	cache          RuleSyncCache
+	repo           RuleSyncRepository
+	compiler       ExpressionCompiler
+	config         RuleSyncWorkerConfig
+	logger         libLog.Logger
+	clock          clock.Clock
+	lastSync       time.Time
+	circuitBreaker *resilience.CircuitBreaker // nil = no circuit breaker
 }
 
 // NewRuleSyncWorker creates a new rule sync worker.
@@ -154,11 +159,30 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		"last_sync", w.lastSync.Format(time.RFC3339),
 	).Info("Running rule sync cycle")
 
-	// 1. Query delta with overlap buffer
+	// 1. Query delta with overlap buffer (circuit breaker protected)
 	since := w.lastSync.Add(-w.config.OverlapBuffer)
 
-	fetched, err := w.repo.GetRulesUpdatedSince(ctx, since)
+	fetched, err := w.queryDelta(ctx, since)
 	if err != nil {
+		// Circuit breaker open or half-open rejecting: skip cycle, serve stale cache
+		if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
+			logger.WithFields(
+				"operation", "worker.rule_sync.sync_cycle",
+				"circuit_breaker.state", "open_or_half_open",
+			).Warn("Circuit breaker rejecting request, skipping sync cycle - serving stale cache")
+
+			return
+		}
+
+		// Context cancellation: normal during shutdown, not a real failure
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.WithFields(
+				"operation", "worker.rule_sync.sync_cycle",
+			).Info("Sync cycle interrupted by context cancellation")
+
+			return
+		}
+
 		libOtel.HandleSpanError(&span, "Delta query failed", err)
 		logger.WithFields(
 			"operation", "worker.rule_sync.sync_cycle",
@@ -281,4 +305,50 @@ func (w *RuleSyncWorker) updateLastSync(fetched []*model.Rule) {
 	}
 
 	w.lastSync = maxTime
+}
+
+// SetCircuitBreaker configures the circuit breaker for the sync worker.
+// Must be called before Run/RunWithContext. If not called, the worker
+// operates without circuit breaker protection.
+// Passing nil disables circuit breaker protection (logged as warning).
+func (w *RuleSyncWorker) SetCircuitBreaker(cb *resilience.CircuitBreaker) {
+	if cb == nil {
+		w.logger.WithFields(
+			"operation", "worker.rule_sync.set_circuit_breaker",
+		).Warn("SetCircuitBreaker called with nil - circuit breaker protection disabled")
+	}
+
+	w.circuitBreaker = cb
+}
+
+// queryDelta executes the delta query, optionally wrapped in circuit breaker.
+func (w *RuleSyncWorker) queryDelta(ctx context.Context, since time.Time) ([]*model.Rule, error) {
+	if w.circuitBreaker == nil {
+		return w.repo.GetRulesUpdatedSince(ctx, since)
+	}
+
+	result, err := w.circuitBreaker.Execute(ctx, func() (any, error) {
+		return w.repo.GetRulesUpdatedSince(ctx, since)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Use comma-ok pattern to safely handle nil result from Execute.
+	// When repo returns (nil, nil), Execute returns (nil, nil) and
+	// a bare type assertion on nil interface would panic.
+	rules, ok := result.([]*model.Rule)
+	if !ok {
+		if result != nil {
+			// This should never happen -- indicates a programming error in Execute wrapper
+			w.logger.WithFields(
+				"operation", "worker.rule_sync.query_delta",
+				"result_type", fmt.Sprintf("%T", result),
+			).Error("Unexpected type from circuit breaker Execute - returning nil rules")
+		}
+
+		return nil, nil
+	}
+
+	return rules, nil
 }
