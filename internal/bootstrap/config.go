@@ -75,6 +75,14 @@ type Config struct {
 	CleanupIntervalHours string `env:"CLEANUP_INTERVAL_HOURS"`
 	// CleanupRetentionDays is how many days to retain usage counters (default: 90)
 	CleanupRetentionDays string `env:"CLEANUP_RETENTION_DAYS"`
+
+	// Rule Sync Worker
+	// RuleSyncPollIntervalSeconds is how often the worker polls for rule changes (default: 10)
+	RuleSyncPollIntervalSeconds string `env:"RULE_SYNC_POLL_INTERVAL_SECONDS"`
+	// RuleSyncStalenessThresholdSeconds is when the cache is considered stale for health checks (default: 50)
+	RuleSyncStalenessThresholdSeconds string `env:"RULE_SYNC_STALENESS_THRESHOLD_SECONDS"`
+	// RuleSyncOverlapBufferSeconds is the overlap buffer for delta queries in seconds (default: 2)
+	RuleSyncOverlapBufferSeconds string `env:"RULE_SYNC_OVERLAP_BUFFER_SECONDS"`
 }
 
 // minAPIKeyLength is the minimum recommended length for API keys.
@@ -222,6 +230,94 @@ func parseCleanupRetentionDays(s string) (time.Duration, error) {
 	return time.Duration(days) * 24 * time.Hour, nil
 }
 
+// parseRuleSyncPollInterval parses the poll interval from string to time.Duration.
+// Returns default value (10 seconds) if empty.
+// Returns error if value is invalid, non-positive, or exceeds maximum.
+func parseRuleSyncPollInterval(s string) (time.Duration, error) {
+	const (
+		defaultSeconds    = 10
+		maxAllowedSeconds = 3600
+	)
+
+	if s == "" {
+		return time.Duration(defaultSeconds) * time.Second, nil
+	}
+
+	seconds, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid RULE_SYNC_POLL_INTERVAL_SECONDS value '%s': %w", s, err)
+	}
+
+	if seconds <= 0 {
+		return 0, fmt.Errorf("RULE_SYNC_POLL_INTERVAL_SECONDS must be positive, got %d", seconds)
+	}
+
+	if seconds > maxAllowedSeconds {
+		return 0, fmt.Errorf("RULE_SYNC_POLL_INTERVAL_SECONDS exceeds maximum allowed (%d seconds = 1 hour), got %d", maxAllowedSeconds, seconds)
+	}
+
+	return time.Duration(seconds) * time.Second, nil
+}
+
+// parseRuleSyncStalenessThreshold parses the staleness threshold from string to time.Duration.
+// Returns default value (50 seconds) if empty.
+// Returns error if value is invalid, non-positive, or exceeds maximum.
+func parseRuleSyncStalenessThreshold(s string) (time.Duration, error) {
+	const (
+		defaultSeconds    = 50
+		maxAllowedSeconds = 3600
+	)
+
+	if s == "" {
+		return time.Duration(defaultSeconds) * time.Second, nil
+	}
+
+	seconds, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid RULE_SYNC_STALENESS_THRESHOLD_SECONDS value '%s': %w", s, err)
+	}
+
+	if seconds <= 0 {
+		return 0, fmt.Errorf("RULE_SYNC_STALENESS_THRESHOLD_SECONDS must be positive, got %d", seconds)
+	}
+
+	if seconds > maxAllowedSeconds {
+		return 0, fmt.Errorf("RULE_SYNC_STALENESS_THRESHOLD_SECONDS exceeds maximum allowed (%d seconds = 1 hour), got %d", maxAllowedSeconds, seconds)
+	}
+
+	return time.Duration(seconds) * time.Second, nil
+}
+
+// parseRuleSyncOverlapBuffer parses the overlap buffer from string to time.Duration.
+// Returns default value (2 seconds) if empty.
+// Returns error if value is invalid, negative, or exceeds maximum.
+// Zero is allowed (no overlap buffer).
+func parseRuleSyncOverlapBuffer(s string) (time.Duration, error) {
+	const (
+		defaultSeconds    = 2
+		maxAllowedSeconds = 60
+	)
+
+	if s == "" {
+		return time.Duration(defaultSeconds) * time.Second, nil
+	}
+
+	seconds, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid RULE_SYNC_OVERLAP_BUFFER_SECONDS value '%s': %w", s, err)
+	}
+
+	if seconds < 0 {
+		return 0, fmt.Errorf("RULE_SYNC_OVERLAP_BUFFER_SECONDS must be non-negative, got %d", seconds)
+	}
+
+	if seconds > maxAllowedSeconds {
+		return 0, fmt.Errorf("RULE_SYNC_OVERLAP_BUFFER_SECONDS exceeds maximum allowed (%d seconds), got %d", maxAllowedSeconds, seconds)
+	}
+
+	return time.Duration(seconds) * time.Second, nil
+}
+
 // LoadCleanupWorkerConfig creates a UsageCleanupWorkerConfig from environment configuration.
 // Returns nil config if cleanup worker is disabled.
 // Returns error if config or logger is nil, or if config values are invalid.
@@ -263,6 +359,45 @@ func LoadCleanupWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.UsageC
 	return &workers.UsageCleanupWorkerConfig{
 		CleanupInterval: cleanupInterval,
 		RetentionPeriod: retentionPeriod,
+	}, nil
+}
+
+// LoadRuleSyncWorkerConfig creates a RuleSyncWorkerConfig from environment configuration.
+// Returns error if config or logger is nil, or if config values are invalid.
+func LoadRuleSyncWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.RuleSyncWorkerConfig, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
+
+	pollInterval, err := parseRuleSyncPollInterval(cfg.RuleSyncPollIntervalSeconds)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RULE_SYNC_POLL_INTERVAL_SECONDS: %w", err)
+	}
+
+	stalenessThreshold, err := parseRuleSyncStalenessThreshold(cfg.RuleSyncStalenessThresholdSeconds)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RULE_SYNC_STALENESS_THRESHOLD_SECONDS: %w", err)
+	}
+
+	overlapBuffer, err := parseRuleSyncOverlapBuffer(cfg.RuleSyncOverlapBufferSeconds)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RULE_SYNC_OVERLAP_BUFFER_SECONDS: %w", err)
+	}
+
+	logger.WithFields(
+		"poll_interval", pollInterval.String(),
+		"staleness_threshold", stalenessThreshold.String(),
+		"overlap_buffer", overlapBuffer.String(),
+	).Info("Rule sync worker configuration loaded")
+
+	return &workers.RuleSyncWorkerConfig{
+		PollInterval:       pollInterval,
+		StalenessThreshold: stalenessThreshold,
+		OverlapBuffer:      overlapBuffer,
 	}, nil
 }
 
@@ -535,7 +670,7 @@ func initWorkers(
 		return nil, err
 	}
 
-	syncWorker, err := initSyncWorker(ruleCache, ruleSyncRepo, celAdapter, logger)
+	syncWorker, err := initSyncWorker(cfg, ruleCache, ruleSyncRepo, celAdapter, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -549,19 +684,22 @@ func initWorkers(
 }
 
 // initSyncWorker creates the rule sync worker.
-// TODO: read sync worker settings from env vars (PollInterval, StalenessThreshold, OverlapBuffer).
 func initSyncWorker(
+	cfg *Config,
 	ruleCache *cache.RuleCache,
 	syncRepo *postgres.RuleSyncRepository,
 	celAdapter *cel.Adapter,
 	logger libLog.Logger,
 ) (*workers.RuleSyncWorker, error) {
-	syncWorkerConfig := workers.DefaultRuleSyncWorkerConfig()
+	syncWorkerConfig, err := LoadRuleSyncWorkerConfig(cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("invalid rule sync worker configuration: %w", err)
+	}
 
 	// celCompilerAdapter satisfies workers.ExpressionCompiler (Compile returns (any, error))
 	compiler := &celCompilerAdapter{adapter: celAdapter}
 
-	syncWorker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncWorkerConfig, logger, nil)
+	syncWorker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, *syncWorkerConfig, logger, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rule sync worker: %w", err)
 	}
