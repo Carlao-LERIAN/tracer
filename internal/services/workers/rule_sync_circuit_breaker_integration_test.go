@@ -189,9 +189,10 @@ func TestIntegration_CircuitBreaker_DBFailure(t *testing.T) {
 		_ = worker.RunWithContext(workerCtx)
 	}()
 
-	// Wait for a couple of successful sync cycles
-	time.Sleep(500 * time.Millisecond)
-	assert.False(t, cb.IsOpen(), "circuit should be closed with healthy DB")
+	// Wait for a couple of successful sync cycles (condition-based, not time-based)
+	require.Eventually(t, func() bool {
+		return !cb.IsOpen()
+	}, 5*time.Second, 50*time.Millisecond, "circuit should be closed with healthy DB")
 
 	// 5. Stop PostgreSQL container (simulate DB failure)
 	terminateCtx, cancelTerminate := context.WithTimeout(ctx, 10*time.Second)
