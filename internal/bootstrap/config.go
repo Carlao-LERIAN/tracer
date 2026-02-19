@@ -24,6 +24,7 @@ import (
 	"tracer/internal/adapters/http/in"
 	"tracer/internal/adapters/postgres"
 	"tracer/internal/services"
+	"tracer/internal/services/cache"
 	"tracer/internal/services/command"
 	"tracer/internal/services/query"
 	"tracer/internal/services/workers"
@@ -434,7 +435,9 @@ func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, aud
 }
 
 // initEvaluateRulesQuery creates the rule evaluation query with all its dependencies.
-func initEvaluateRulesQuery(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, evalConfig *query.EvaluationConfig) (*query.EvaluateRulesQuery, error) {
+// The activeRulesRepo parameter accepts any ActiveRulesRepository implementation
+// (e.g., *postgres.Repository for direct DB reads, or *cache.CacheAdapter for in-memory reads).
+func initEvaluateRulesQuery(activeRulesRepo query.ActiveRulesRepository, celAdapter *cel.Adapter, evalConfig *query.EvaluationConfig) (*query.EvaluateRulesQuery, error) {
 	ruleEvaluator, err := query.NewRuleEvaluator(celAdapter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rule evaluator: %w", err)
@@ -445,7 +448,7 @@ func initEvaluateRulesQuery(ruleRepo *postgres.Repository, celAdapter *cel.Adapt
 		return nil, fmt.Errorf("failed to create complete evaluator: %w", err)
 	}
 
-	getActiveRulesQuery, err := query.NewGetActiveRulesQuery(ruleRepo)
+	getActiveRulesQuery, err := query.NewGetActiveRulesQuery(activeRulesRepo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create get active rules query: %w", err)
 	}
@@ -635,13 +638,31 @@ func InitServers() (*Service, error) {
 		return nil, err
 	}
 
+	// Init Rule Cache: warm up from database, compile CEL expressions, wire into evaluation path
+	ruleCache := cache.NewRuleCache(clock.New())
+	ruleSyncRepo := postgres.NewRuleSyncRepository(postgresConn)
+
+	ctx := context.Background()
+
+	cacheCompiler := &celCompilerAdapter{adapter: celAdapter}
+
+	rulesLoaded, warmUpDuration, err := cache.WarmUp(ctx, ruleCache, ruleSyncRepo, cacheCompiler, logger, clock.New())
+	if err != nil {
+		return nil, fmt.Errorf("failed to warm up rule cache: %w", err)
+	}
+
+	logger.Infof("Rule cache warmed up: %d rules in %v", rulesLoaded, warmUpDuration)
+
+	cacheAdapter := cache.NewCacheAdapter(ruleCache)
+	healthChecker.SetCacheHealthProvider(ruleCache)
+
 	// Init Rule Evaluation components (T-008)
 	evalConfig, err := LoadEvaluationConfig(cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("invalid evaluation configuration: %w", err)
 	}
 
-	evaluateRulesQuery, err := initEvaluateRulesQuery(ruleRepo, celAdapter, evalConfig)
+	evaluateRulesQuery, err := initEvaluateRulesQuery(cacheAdapter, celAdapter, evalConfig)
 	if err != nil {
 		return nil, err
 	}

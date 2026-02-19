@@ -27,6 +27,7 @@ var ErrNilActiveRulesRepository = errors.New("active rules repository is nil")
 // ActiveRulesRepository defines the interface for loading active rules.
 // Interface defined in the package that USES it (per PROJECT_RULES.md).
 // Supports optional scope filtering for performance optimization.
+// Implementations MAY return a superset of matching rules; callers MUST apply their own scope filtering.
 type ActiveRulesRepository interface {
 	GetActiveRules(ctx context.Context, txScope *model.Scope) ([]*model.Rule, error)
 }
