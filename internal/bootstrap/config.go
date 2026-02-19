@@ -61,8 +61,7 @@ type Config struct {
 	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS"`
 
 	// CEL Expression Engine
-	CELCostLimit    string `env:"CEL_COST_LIMIT"`
-	CELCacheMaxSize string `env:"CEL_CACHE_MAX_SIZE"`
+	CELCostLimit string `env:"CEL_COST_LIMIT"`
 
 	// Rule Evaluation Feature Flags
 	DefaultDecisionWhenNoMatch string `env:"DEFAULT_DECISION_WHEN_NO_MATCH"`
@@ -108,28 +107,6 @@ func parseCELCostLimit(s string) (uint64, error) {
 
 	if v == 0 {
 		return 0, fmt.Errorf("CEL_COST_LIMIT must be positive, got 0")
-	}
-
-	return v, nil
-}
-
-// parseCELCacheMaxSize parses the CEL cache max size from string to int64.
-// Returns default value (1000) if empty.
-// Returns error if value is invalid or non-positive.
-func parseCELCacheMaxSize(s string) (int64, error) {
-	const defaultValue int64 = 1000
-
-	if s == "" {
-		return defaultValue, nil
-	}
-
-	v, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid CEL_CACHE_MAX_SIZE value '%s': %w", s, err)
-	}
-
-	if v <= 0 {
-		return 0, fmt.Errorf("CEL_CACHE_MAX_SIZE must be positive, got %d", v)
 	}
 
 	return v, nil
@@ -332,14 +309,8 @@ func initCELAdapter(cfg *Config, logger libLog.Logger) (*cel.Adapter, error) {
 		return nil, fmt.Errorf("invalid CEL cost limit configuration: %w", err)
 	}
 
-	celCacheMaxSize, err := parseCELCacheMaxSize(cfg.CELCacheMaxSize)
-	if err != nil {
-		return nil, fmt.Errorf("invalid cache configuration: %w", err)
-	}
-
 	adapter, err := cel.NewAdapter(cel.AdapterConfig{
-		CostLimit:    celCostLimit,
-		CacheMaxSize: celCacheMaxSize,
+		CostLimit: celCostLimit,
 	}, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL adapter: %w", err)

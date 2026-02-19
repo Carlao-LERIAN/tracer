@@ -14,37 +14,23 @@ import (
 )
 
 // Component tests: These tests verify the interaction between internal components
-// (Adapter + Cache + CEL Environment) without external dependencies.
+// (Adapter + CEL Environment) without external dependencies.
 // They run with `go test` (no build tags) as they use in-memory implementations.
 
-// TestComponents_CompileCacheEvaluate tests the full compile → cache → evaluate flow.
-func TestComponents_CompileCacheEvaluate(t *testing.T) {
+// TestComponents_CompileAndEvaluate tests the full compile → evaluate flow.
+func TestComponents_CompileAndEvaluate(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 	expression := "amount > 1000"
 
-	// Step 1: Compile (cache miss)
+	// Step 1: Compile
 	program, err := adapter.Compile(ctx, expression)
-	require.NoError(t, err, "First compile should succeed")
+	require.NoError(t, err, "Compile should succeed")
 	assert.NotNil(t, program)
 
-	stats := adapter.Stats()
-	assert.Equal(t, int64(1), stats.Size, "Cache should have 1 entry")
-	assert.Equal(t, int64(1), stats.Misses, "Should have 1 cache miss")
-	assert.Equal(t, int64(0), stats.Hits, "Should have 0 cache hits")
-
-	// Step 2: Compile same expression (cache hit)
-	program2, err := adapter.Compile(ctx, expression)
-	require.NoError(t, err, "Second compile should succeed")
-	assert.Equal(t, program.ExpressionHash, program2.ExpressionHash, "Should return cached program")
-
-	stats = adapter.Stats()
-	assert.Equal(t, int64(1), stats.Size, "Cache size should still be 1")
-	assert.Equal(t, int64(1), stats.Hits, "Should have 1 cache hit")
-
-	// Step 3: Evaluate
+	// Step 2: Evaluate
 	req := newTestRequest()
-	result, err := adapter.Evaluate(ctx, program2, req)
+	result, err := adapter.Evaluate(ctx, program, req)
 	require.NoError(t, err, "Evaluate should succeed")
 	assert.True(t, result, "1500 > 1000 should be true")
 }
@@ -280,8 +266,9 @@ func TestComponents_AllTransactionFields(t *testing.T) {
 	}
 }
 
-// TestComponents_CacheHitPath tests that cache hit returns identical program.
-func TestComponents_CacheHitPath(t *testing.T) {
+// TestComponents_CompileDeterministic tests that compiling the same expression
+// produces programs with the same hash.
+func TestComponents_CompileDeterministic(t *testing.T) {
 	adapter := newTestAdapter(t)
 	ctx := context.Background()
 	expression := `transactionType == "PIX" && amount > 1000`
@@ -300,44 +287,6 @@ func TestComponents_CacheHitPath(t *testing.T) {
 		assert.Equal(t, programs[0].ExpressionHash, programs[i].ExpressionHash,
 			"All programs should have the same hash")
 	}
-
-	// Stats should show 1 miss and 4 hits
-	stats := adapter.Stats()
-	assert.Equal(t, int64(1), stats.Size)
-	assert.Equal(t, int64(1), stats.Misses)
-	assert.Equal(t, int64(4), stats.Hits)
-}
-
-// TestComponents_InvalidateAndRecompile tests cache invalidation and recompilation.
-func TestComponents_InvalidateAndRecompile(t *testing.T) {
-	adapter := newTestAdapter(t)
-	ctx := context.Background()
-	expression := "amount > 1000"
-
-	// Step 1: Compile
-	program1, err := adapter.Compile(ctx, expression)
-	require.NoError(t, err)
-
-	stats := adapter.Stats()
-	assert.Equal(t, int64(1), stats.Size)
-
-	// Step 2: Invalidate
-	err = adapter.Invalidate(ctx, program1.ExpressionHash)
-	require.NoError(t, err)
-
-	stats = adapter.Stats()
-	assert.Equal(t, int64(0), stats.Size, "Cache should be empty after invalidation")
-
-	// Step 3: Recompile (should be cache miss)
-	program2, err := adapter.Compile(ctx, expression)
-	require.NoError(t, err)
-
-	stats = adapter.Stats()
-	assert.Equal(t, int64(1), stats.Size)
-	assert.Equal(t, int64(2), stats.Misses, "Should have 2 total misses")
-
-	// Programs should have same hash (same expression)
-	assert.Equal(t, program1.ExpressionHash, program2.ExpressionHash)
 }
 
 // TestComponents_MultipleExpressions tests handling multiple different expressions.
@@ -361,22 +310,6 @@ func TestComponents_MultipleExpressions(t *testing.T) {
 		require.NoError(t, err, "Should compile: %s", expr)
 		programs[i] = program
 	}
-
-	// All should be in cache
-	stats := adapter.Stats()
-	assert.Equal(t, int64(5), stats.Size)
-	assert.Equal(t, int64(5), stats.Misses)
-	assert.Equal(t, int64(0), stats.Hits)
-
-	// Compile all again (should all be cache hits)
-	for _, expr := range expressions {
-		_, err := adapter.Compile(ctx, expr)
-		require.NoError(t, err)
-	}
-
-	stats = adapter.Stats()
-	assert.Equal(t, int64(5), stats.Size)
-	assert.Equal(t, int64(5), stats.Hits)
 
 	// Evaluate all with same request
 	req := newTestRequest()
@@ -444,35 +377,6 @@ func TestComponents_ConcurrentAccess(t *testing.T) {
 	}
 
 	require.Empty(t, errors, "Expected no errors in concurrent operations, got: %v", errors)
-
-	// Verify cache state
-	stats := adapter.Stats()
-	assert.Equal(t, int64(3), stats.Size, "Should have 3 unique expressions cached")
-	assert.True(t, stats.Hits > 0 || stats.Misses > 0, "Should have some cache activity")
-}
-
-// TestComponents_CacheEviction tests FIFO cache eviction.
-func TestComponents_CacheEviction(t *testing.T) {
-	adapter := newTestAdapterWithConfig(t, DefaultCostLimit, 3) // very small cache to test eviction
-
-	ctx := context.Background()
-
-	// Compile 4 expressions (cache can only hold 3)
-	expressions := []string{
-		"amount > 1",
-		"amount > 2",
-		"amount > 3",
-		"amount > 4",
-	}
-
-	for _, expr := range expressions {
-		_, err := adapter.Compile(ctx, expr)
-		require.NoError(t, err)
-	}
-
-	// Cache should be at max size
-	stats := adapter.Stats()
-	assert.Equal(t, int64(3), stats.Size, "Cache should be at max size")
 }
 
 // TestComponents_ErrorRecovery tests that errors don't corrupt state.
@@ -484,15 +388,9 @@ func TestComponents_ErrorRecovery(t *testing.T) {
 	program, err := adapter.Compile(ctx, "amount > 1000")
 	require.NoError(t, err)
 
-	initialStats := adapter.Stats()
-
 	// Try to compile invalid expression
 	_, err = adapter.Compile(ctx, "invalid syntax !!!")
 	assert.Error(t, err, "Should fail on invalid syntax")
-
-	// State should not be corrupted
-	stats := adapter.Stats()
-	assert.Equal(t, initialStats.Size, stats.Size, "Cache size should not change on error")
 
 	// Valid program should still work
 	req := newTestRequest()
@@ -543,8 +441,4 @@ func TestComponents_EndToEndWorkflow(t *testing.T) {
 	assert.True(t, results["pix_transaction"], "Transaction type is PIX")
 	assert.True(t, results["active_account"], "Account status is active")
 	assert.True(t, results["domestic_merchant"], "Merchant country is BR")
-
-	// 4. Check cache efficiency
-	stats := adapter.Stats()
-	assert.Equal(t, int64(5), stats.Size, "All 5 rules should be cached")
 }

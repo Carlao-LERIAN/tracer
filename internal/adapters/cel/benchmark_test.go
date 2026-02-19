@@ -9,36 +9,15 @@ import (
 	"testing"
 )
 
-// BenchmarkCompile benchmarks expression compilation (cache miss).
-// Each iteration creates a new adapter to avoid cache hits.
+// BenchmarkCompile benchmarks expression compilation.
 func BenchmarkCompile(b *testing.B) {
-	ctx := context.Background()
-	expression := "amount > 1000"
-
-	for b.Loop() {
-		adapter := newTestAdapter(b)
-		_, err := adapter.Compile(ctx, expression)
-
-		if err != nil {
-			b.Fatalf("Compile failed: %v", err)
-		}
-	}
-}
-
-// BenchmarkCompile_Cached benchmarks expression compilation with cache hit.
-func BenchmarkCompile_Cached(b *testing.B) {
 	adapter := newTestAdapter(b)
 	ctx := context.Background()
 	expression := "amount > 1000"
 
-	// Warm up cache
-	_, err := adapter.Compile(ctx, expression)
-	if err != nil {
-		b.Fatalf("Initial compile failed: %v", err)
-	}
-
 	for b.Loop() {
 		_, err := adapter.Compile(ctx, expression)
+
 		if err != nil {
 			b.Fatalf("Compile failed: %v", err)
 		}
@@ -47,11 +26,11 @@ func BenchmarkCompile_Cached(b *testing.B) {
 
 // BenchmarkCompile_ComplexExpression benchmarks compilation of complex expressions.
 func BenchmarkCompile_ComplexExpression(b *testing.B) {
+	adapter := newTestAdapter(b)
 	ctx := context.Background()
 	expression := `transactionType == "PIX" && amount > 1000 && account["status"] == "active" && currency == "BRL"`
 
 	for b.Loop() {
-		adapter := newTestAdapter(b)
 		_, err := adapter.Compile(ctx, expression)
 
 		if err != nil {
@@ -102,39 +81,12 @@ func BenchmarkEvaluate_ComplexExpression(b *testing.B) {
 	}
 }
 
-// BenchmarkCompileAndEvaluate benchmarks full compile + evaluate cycle (cache miss).
+// BenchmarkCompileAndEvaluate benchmarks full compile + evaluate cycle.
 func BenchmarkCompileAndEvaluate(b *testing.B) {
-	ctx := context.Background()
-	expression := "amount > 1000"
-	req := newTestRequest()
-
-	for b.Loop() {
-		adapter := newTestAdapter(b)
-
-		program, err := adapter.Compile(ctx, expression)
-		if err != nil {
-			b.Fatalf("Compile failed: %v", err)
-		}
-
-		_, err = adapter.Evaluate(ctx, program, req)
-		if err != nil {
-			b.Fatalf("Evaluate failed: %v", err)
-		}
-	}
-}
-
-// BenchmarkCompileAndEvaluate_Cached benchmarks compile (cached) + evaluate cycle.
-func BenchmarkCompileAndEvaluate_Cached(b *testing.B) {
 	adapter := newTestAdapter(b)
 	ctx := context.Background()
 	expression := "amount > 1000"
 	req := newTestRequest()
-
-	// Warm up cache
-	_, err := adapter.Compile(ctx, expression)
-	if err != nil {
-		b.Fatalf("Initial compile failed: %v", err)
-	}
 
 	for b.Loop() {
 		program, err := adapter.Compile(ctx, expression)

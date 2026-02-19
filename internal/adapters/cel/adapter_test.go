@@ -22,8 +22,7 @@ func TestNewAdapter_Success(t *testing.T) {
 
 	logger := testutil.NewMockLogger()
 	cfg := AdapterConfig{
-		CostLimit:    5000,
-		CacheMaxSize: 500,
+		CostLimit: 5000,
 	}
 
 	adapter, err := NewAdapter(cfg, logger)
@@ -73,30 +72,6 @@ func TestAdapter_Compile_Success(t *testing.T) {
 	assert.NotEmpty(t, program.ExpressionHash)
 	assert.Equal(t, "amount > 1000", program.SourceExpression)
 	assert.NotNil(t, program.Program)
-}
-
-// TestAdapter_Compile_CacheHit tests that cached expressions are returned.
-func TestAdapter_Compile_CacheHit(t *testing.T) {
-	t.Parallel()
-
-	adapter := newTestAdapter(t)
-	ctx := context.Background()
-	expression := "amount > 1000"
-
-	// First compilation
-	program1, err := adapter.Compile(ctx, expression)
-	require.NoError(t, err)
-
-	// Second compilation should hit cache
-	program2, err := adapter.Compile(ctx, expression)
-	require.NoError(t, err)
-
-	// Should be the same cached program
-	assert.Equal(t, program1.ExpressionHash, program2.ExpressionHash)
-
-	// Check cache stats
-	stats := adapter.Stats()
-	assert.Equal(t, int64(1), stats.Hits, "Should have 1 cache hit")
 }
 
 // TestAdapter_Compile_SyntaxError tests syntax error handling.
@@ -221,60 +196,6 @@ func TestAdapter_Evaluate_NilRequest(t *testing.T) {
 
 	assert.False(t, result)
 	assert.Error(t, err)
-}
-
-// TestAdapter_Invalidate tests cache invalidation.
-func TestAdapter_Invalidate(t *testing.T) {
-	t.Parallel()
-
-	adapter := newTestAdapter(t)
-	ctx := context.Background()
-
-	// Compile and cache
-	program, err := adapter.Compile(ctx, "amount > 1000")
-	require.NoError(t, err)
-
-	// Verify in cache
-	stats := adapter.Stats()
-	assert.Equal(t, int64(1), stats.Size)
-
-	// Invalidate
-	err = adapter.Invalidate(ctx, program.ExpressionHash)
-	require.NoError(t, err)
-
-	// Verify removed from cache
-	stats = adapter.Stats()
-	assert.Equal(t, int64(0), stats.Size)
-}
-
-// TestAdapter_Stats tests cache statistics.
-func TestAdapter_Stats(t *testing.T) {
-	t.Parallel()
-
-	adapter := newTestAdapter(t)
-	ctx := context.Background()
-
-	// Initial stats
-	stats := adapter.Stats()
-	assert.Equal(t, int64(0), stats.Size)
-	assert.Equal(t, int64(0), stats.Hits)
-	assert.Equal(t, int64(0), stats.Misses)
-
-	// Compile (cache miss)
-	_, err := adapter.Compile(ctx, "amount > 1000")
-	require.NoError(t, err)
-
-	stats = adapter.Stats()
-	assert.Equal(t, int64(1), stats.Size)
-	assert.Equal(t, int64(1), stats.Misses) // First compilation is a miss
-
-	// Compile same (cache hit)
-	_, err = adapter.Compile(ctx, "amount > 1000")
-	require.NoError(t, err)
-
-	stats = adapter.Stats()
-	assert.Equal(t, int64(1), stats.Size)
-	assert.Equal(t, int64(1), stats.Hits)
 }
 
 // TestAdapter_TracingSpans tests that spans are created.

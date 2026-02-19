@@ -153,63 +153,6 @@ func TestParseCELCostLimit(t *testing.T) {
 	}
 }
 
-func TestParseCELCacheMaxSize(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		input       string
-		expected    int64
-		expectError bool
-	}{
-		{
-			name:        "empty string returns default",
-			input:       "",
-			expected:    1000,
-			expectError: false,
-		},
-		{
-			name:        "valid number",
-			input:       "500",
-			expected:    500,
-			expectError: false,
-		},
-		{
-			name:        "invalid string returns error",
-			input:       "invalid",
-			expectError: true,
-		},
-		{
-			name:        "negative number returns error",
-			input:       "-100",
-			expectError: true,
-		},
-		{
-			name:        "zero returns error",
-			input:       "0",
-			expectError: true,
-		},
-		{
-			name:        "large number",
-			input:       "100000",
-			expected:    100000,
-			expectError: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := parseCELCacheMaxSize(tc.input)
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-
 func TestValidateAuthConfig_TableDriven(t *testing.T) {
 	t.Parallel()
 
@@ -326,8 +269,7 @@ func TestCelCompilerAdapter_Compile(t *testing.T) {
 			// Arrange
 			logger := testutil.NewMockLogger()
 			adapter, err := cel.NewAdapter(cel.AdapterConfig{
-				CostLimit:    10000,
-				CacheMaxSize: 100,
+				CostLimit: 10000,
 			}, logger)
 			require.NoError(t, err)
 

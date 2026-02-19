@@ -52,19 +52,13 @@ func safePrefix(s string, n int) string {
 // ExpressionEngine compiles and evaluates CEL expressions.
 // Interface defined locally per Ring pattern (depend on abstractions, not concretions).
 type ExpressionEngine interface {
-	// Compile validates, compiles, and caches a CEL expression.
+	// Compile validates and compiles a CEL expression.
 	// Returns a CompiledProgram that can be used for evaluation.
 	Compile(ctx context.Context, expression string) (*CompiledProgram, error)
 
 	// Evaluate runs a compiled program against a ValidationRequest.
 	// Returns the boolean result of the expression.
 	Evaluate(ctx context.Context, program *CompiledProgram, req *model.ValidationRequest) (bool, error)
-
-	// Invalidate removes an expression from the cache by its hash.
-	Invalidate(ctx context.Context, expressionHash string) error
-
-	// Stats returns cache statistics for monitoring.
-	Stats() CacheStats
 }
 
 // AdapterConfig holds configuration for the CEL adapter.
@@ -72,16 +66,11 @@ type AdapterConfig struct {
 	// CostLimit is the maximum cost for CEL expression evaluation.
 	// Read from CEL_COST_LIMIT env var (default: 10000).
 	CostLimit uint64
-
-	// CacheMaxSize is the maximum number of compiled expressions to cache.
-	// Read from CEL_CACHE_MAX_SIZE env var (default: 1000).
-	CacheMaxSize int64
 }
 
 // Adapter implements ExpressionEngine using google/cel-go.
 type Adapter struct {
 	env       *Environment
-	cache     *Cache
 	logger    libLog.Logger
 	costLimit uint64
 }
@@ -103,20 +92,14 @@ func NewAdapter(cfg AdapterConfig, logger libLog.Logger) (*Adapter, error) {
 		costLimit = DefaultCostLimit
 	}
 
-	cacheMaxSize := cfg.CacheMaxSize
-	if cacheMaxSize == 0 {
-		cacheMaxSize = DefaultCacheMaxSize
-	}
-
 	return &Adapter{
 		env:       env,
-		cache:     NewCache(cacheMaxSize),
 		logger:    logger,
 		costLimit: costLimit,
 	}, nil
 }
 
-// Compile validates, compiles, and caches a CEL expression.
+// Compile validates and compiles a CEL expression.
 // Uses OpenTelemetry tracing with span name: adapter.cel.compile
 func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProgram, error) {
 	start := time.Now()
@@ -145,19 +128,6 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		"expression_hash":   hash,
 		"expression_length": len(expression),
 	}); err != nil {
-		libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
-	}
-
-	// Check cache first
-	if prog, ok := a.cache.Get(hash); ok {
-		if err := libOtel.SetSpanAttributesFromStruct(&span, "cache", map[string]any{"hit": true}); err != nil {
-			libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
-		}
-
-		return prog, nil
-	}
-
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "cache", map[string]any{"hit": false}); err != nil {
 		libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
 	}
 
@@ -255,9 +225,6 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		CompileTimeMs:    compileTimeMs,
 	}
 
-	// Cache the compiled program
-	a.cache.Set(compiled)
-
 	if err := libOtel.SetSpanAttributesFromStruct(&span, "compile_result", map[string]any{
 		"compile_time_ms": compileTimeMs,
 	}); err != nil {
@@ -350,43 +317,6 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	}
 
 	return result, nil
-}
-
-// Invalidate removes an expression from the cache by its hash.
-// Uses OpenTelemetry tracing with span name: adapter.cel.invalidate
-// Propagates ctx through logging and tracing for observability.
-func (a *Adapter) Invalidate(ctx context.Context, expressionHash string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "adapter.cel.invalidate")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	_ = ctx // Context used for tracing only
-
-	// Set span attributes for the invalidation operation
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "invalidate_input", map[string]any{
-		"expression_hash": expressionHash,
-	}); err != nil {
-		libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
-	}
-
-	// Invalidate from cache
-	a.cache.Invalidate(expressionHash)
-
-	// Log with trace context
-	logger.WithFields(
-		"operation", "adapter.cel.invalidate",
-		"expression.hash", safePrefix(expressionHash, 8),
-	).Info("CEL expression invalidated")
-
-	return nil
-}
-
-// Stats returns cache statistics for monitoring.
-func (a *Adapter) Stats() CacheStats {
-	return a.cache.Stats()
 }
 
 // Ensure Adapter implements ExpressionEngine at compile time.
