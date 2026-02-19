@@ -577,7 +577,7 @@ func initWorkers(
 }
 
 // initSyncWorker creates the rule sync worker.
-// Uses default configuration; env var parsing added later.
+// TODO: read sync worker settings from env vars (PollInterval, StalenessThreshold, OverlapBuffer).
 func initSyncWorker(
 	ruleCache *cache.RuleCache,
 	syncRepo *postgres.RuleSyncRepository,

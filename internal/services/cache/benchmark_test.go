@@ -17,8 +17,6 @@ import (
 var benchResult []*cache.CachedRule
 
 func benchmarkGetActiveRules(b *testing.B, count int) {
-	b.Helper()
-
 	c := cache.NewRuleCache(clock.New())
 	rules := make([]*cache.CachedRule, count)
 	for i := range rules {
