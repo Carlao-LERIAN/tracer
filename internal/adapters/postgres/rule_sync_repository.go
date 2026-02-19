@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	sq "github.com/Masterminds/squirrel"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	sq "github.com/Masterminds/squirrel"
 
 	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/pkg/model"
@@ -105,8 +105,10 @@ func (r *RuleSyncRepository) scanRulesFromRows(ctx context.Context, rows *sql.Ro
 			return nil, fmt.Errorf("context cancelled during scan: %w", err)
 		}
 
-		var dbModel RulePostgreSQLModel
-		var scopesJSON []byte
+		var (
+			dbModel    RulePostgreSQLModel
+			scopesJSON []byte
+		)
 
 		err := rows.Scan(
 			&dbModel.ID, &dbModel.Name, &dbModel.Description,

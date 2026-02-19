@@ -17,4 +17,14 @@ var (
 	ErrInvalidCleanupInterval = errors.New("cleanup interval must be positive")
 	// ErrInvalidRetentionPeriod is returned when retention period is not positive.
 	ErrInvalidRetentionPeriod = errors.New("retention period must be positive")
+	// ErrNilRuleCache is returned when the required rule cache dependency is nil.
+	ErrNilRuleCache = errors.New("rule cache cannot be nil")
+	// ErrNilExpressionCompiler is returned when the required expression compiler dependency is nil.
+	ErrNilExpressionCompiler = errors.New("expression compiler cannot be nil")
+	// ErrInvalidPollInterval is returned when poll interval is not positive.
+	ErrInvalidPollInterval = errors.New("poll interval must be positive")
+	// ErrInvalidStalenessThreshold is returned when staleness threshold is not positive.
+	ErrInvalidStalenessThreshold = errors.New("staleness threshold must be positive")
+	// ErrInvalidOverlapBuffer is returned when overlap buffer is negative.
+	ErrInvalidOverlapBuffer = errors.New("overlap buffer must be non-negative")
 )
