@@ -84,6 +84,28 @@ func TestHealthProvider_Ready(t *testing.T) {
 	assert.Equal(t, 1, c.Size())
 }
 
+func TestCacheAdapter_SetsCompiledProgram(t *testing.T) {
+	t.Parallel()
+
+	rule := newTestRule(1)
+	program := "compiled-program-stub"
+	cachedRule := &cache.CachedRule{Rule: rule, Program: program}
+
+	c := cache.NewRuleCache(clock.New())
+	c.SetRules([]*cache.CachedRule{cachedRule})
+	c.MarkReady()
+
+	adapter := cache.NewCacheAdapter(c)
+
+	ctx := context.Background()
+	rules, err := adapter.GetActiveRules(ctx, nil)
+
+	require.NoError(t, err)
+	require.Len(t, rules, 1)
+	assert.Equal(t, program, rules[0].CompiledProgram,
+		"CacheAdapter should set CompiledProgram from CachedRule.Program")
+}
+
 func TestNewCacheAdapter_NilCache_Panics(t *testing.T) {
 	t.Parallel()
 

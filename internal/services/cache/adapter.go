@@ -43,6 +43,10 @@ func (a *CacheAdapter) GetActiveRules(_ context.Context, txScope *model.Scope) (
 			continue // defense-in-depth
 		}
 
+		// Pass compiled program through to the evaluator via transient field,
+		// avoiding recompilation on the hot evaluation path.
+		cr.Rule.CompiledProgram = cr.Program
+
 		rules = append(rules, cr.Rule)
 	}
 
