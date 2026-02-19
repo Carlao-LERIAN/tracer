@@ -29,4 +29,8 @@ type RuleSyncCache interface {
 	// LastSyncTime returns when the cache was last successfully updated.
 	// Used to initialize the worker's lastSync from the warm-up timestamp.
 	LastSyncTime() time.Time
+
+	// Size returns the number of rules currently in the cache.
+	// Used for observability metrics (cache size gauge).
+	Size() int
 }

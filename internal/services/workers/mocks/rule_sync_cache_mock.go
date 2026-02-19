@@ -82,3 +82,17 @@ func (mr *MockRuleSyncCacheMockRecorder) LastSyncTime() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSyncTime", reflect.TypeOf((*MockRuleSyncCache)(nil).LastSyncTime))
 }
+
+// Size mocks base method.
+func (m *MockRuleSyncCache) Size() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Size indicates an expected call of Size.
+func (mr *MockRuleSyncCacheMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockRuleSyncCache)(nil).Size))
+}
