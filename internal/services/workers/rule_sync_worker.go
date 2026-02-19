@@ -16,6 +16,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libMetrics "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 	"github.com/google/uuid"
 	"github.com/sony/gobreaker"
 
@@ -147,11 +148,12 @@ func (w *RuleSyncWorker) runLoop(ctx context.Context) error {
 // runSyncCycle executes a single poll-classify-compile-apply cycle.
 // Errors are logged but not returned — the worker continues running.
 func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
+	_, tracer, _, metricsFactory := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "worker.rule_sync.sync_cycle")
 	defer span.End()
 
+	start := w.clock.Now()
 	logger := logging.WithTrace(ctx, w.logger)
 
 	logger.WithFields(
@@ -171,6 +173,8 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 				"circuit_breaker.state", "open_or_half_open",
 			).Warn("Circuit breaker rejecting request, skipping sync cycle - serving stale cache")
 
+			w.emitSkipMetrics(ctx, metricsFactory, "skipped", "circuit_open")
+
 			return
 		}
 
@@ -189,6 +193,8 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 			"error.message", err.Error(),
 		).Error("Failed to query rule changes")
 
+		w.emitSkipMetrics(ctx, metricsFactory, "error", "db_error")
+
 		return // lastSync NOT updated on error
 	}
 
@@ -200,6 +206,8 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		logger.WithFields(
 			"operation", "worker.rule_sync.sync_cycle",
 		).Info("No rule changes detected")
+
+		w.emitSuccessMetrics(ctx, metricsFactory, start, 0)
 
 		return
 	}
@@ -228,6 +236,8 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 			"fetched_count", len(fetched),
 		).Info("Overlap buffer: all changes already applied")
 
+		w.emitSuccessMetrics(ctx, metricsFactory, start, 0)
+
 		return
 	}
 
@@ -238,11 +248,15 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 
 	upserts := make([]*cache.CachedRule, 0, len(toCompile))
 
+	var compileErrors int
+
 	for _, rule := range toCompile {
 		var program any
 
 		compiled, compileErr := w.compiler.Compile(ctx, rule.Expression)
 		if compileErr != nil {
+			compileErrors++
+
 			logger.WithFields(
 				"operation", "worker.rule_sync.compile",
 				"rule_id", rule.ID.String(),
@@ -270,6 +284,79 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		"updated_count", len(changes.Updated),
 		"deleted_count", len(changes.Deleted),
 	).Info("Rule sync cycle completed")
+
+	// 8. Emit metrics and span attributes
+	changedCount := len(changes.New) + len(changes.Updated) + len(changes.Deleted)
+	w.emitSuccessMetrics(ctx, metricsFactory, start, changedCount)
+
+	if metricsFactory != nil && compileErrors > 0 {
+		metricsFactory.Counter(MetricCacheSyncErrorsTotal).
+			WithLabels(map[string]string{"reason": "compile_error"}).
+			Add(ctx, int64(compileErrors))
+	}
+
+	_ = libOtel.SetSpanAttributesFromStruct(&span, "sync_result", map[string]any{
+		"new_count":      len(changes.New),
+		"updated_count":  len(changes.Updated),
+		"deleted_count":  len(changes.Deleted),
+		"compile_errors": compileErrors,
+		"cache_size":     w.cache.Size(),
+	})
+}
+
+// emitSuccessMetrics records metrics for a successful sync cycle.
+// Called on all success paths: no-results, overlap-only, and full sync.
+func (w *RuleSyncWorker) emitSuccessMetrics(
+	ctx context.Context,
+	mf *libMetrics.MetricsFactory,
+	start time.Time,
+	rulesChanged int,
+) {
+	if mf == nil {
+		return
+	}
+
+	mf.Counter(MetricCacheSyncPollsTotal).
+		WithLabels(map[string]string{"status": "success"}).
+		AddOne(ctx)
+
+	elapsed := int64(w.clock.Now().Sub(start).Seconds())
+	mf.Histogram(MetricCacheSyncDuration).Record(ctx, elapsed)
+
+	if rulesChanged > 0 {
+		mf.Counter(MetricCacheSyncRulesChanged).Add(ctx, int64(rulesChanged))
+	}
+
+	mf.Gauge(MetricCacheSyncRuleCacheSize).
+		Set(ctx, int64(w.cache.Size()))
+
+	mf.Gauge(MetricCacheSyncStalenessSeconds).
+		Set(ctx, 0)
+}
+
+// emitSkipMetrics records metrics when a sync cycle is skipped or fails.
+// Called on circuit-breaker-open and DB-error paths.
+func (w *RuleSyncWorker) emitSkipMetrics(
+	ctx context.Context,
+	mf *libMetrics.MetricsFactory,
+	pollStatus string,
+	errorReason string,
+) {
+	if mf == nil {
+		return
+	}
+
+	mf.Counter(MetricCacheSyncPollsTotal).
+		WithLabels(map[string]string{"status": pollStatus}).
+		AddOne(ctx)
+
+	mf.Counter(MetricCacheSyncErrorsTotal).
+		WithLabels(map[string]string{"reason": errorReason}).
+		AddOne(ctx)
+
+	staleness := int64(w.clock.Now().Sub(w.lastSync).Seconds())
+	mf.Gauge(MetricCacheSyncStalenessSeconds).
+		Set(ctx, staleness)
 }
 
 // updateLastSync sets lastSync to the maximum UpdatedAt from fetched results.

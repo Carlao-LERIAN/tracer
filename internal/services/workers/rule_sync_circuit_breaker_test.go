@@ -62,6 +62,7 @@ func TestSyncCycle_CircuitBreakerClosed(t *testing.T) {
 	// Circuit closed: repo query executes normally
 	mockCache.EXPECT().GetActiveRules(nil).Return(nil)
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
+	mockCache.EXPECT().Size().Return(1).AnyTimes()
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule}, nil)
 	compiler.EXPECT().Compile(gomock.Any(), newRule.Expression).Return("compiled", nil)
 	mockCache.EXPECT().ApplyChanges(gomock.Len(1), gomock.Len(0))
@@ -148,6 +149,7 @@ func TestSyncCycle_CircuitBreakerHalfOpen_Success(t *testing.T) {
 	// Empty result takes the len(fetched)==0 early return path (no GetActiveRules call)
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil)
 	mockCache.EXPECT().ApplyChanges(nil, nil) // touch for staleness
+	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	worker.runSyncCycle(context.Background())
 
@@ -270,6 +272,7 @@ func TestSyncCycle_SuccessBetweenFailuresResetsCounter(t *testing.T) {
 	// Empty result takes the len(fetched)==0 early return path (no GetActiveRules call)
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil)
 	mockCache.EXPECT().ApplyChanges(nil, nil)
+	mockCache.EXPECT().Size().Return(0).AnyTimes()
 	worker.runSyncCycle(context.Background())
 	assert.Equal(t, gobreaker.StateClosed, cb.State(), "success should keep circuit closed")
 
@@ -410,6 +413,7 @@ func TestCircuitBreaker_RecoveryLogged_OpenToClosed(t *testing.T) {
 	// Successful probe -> recovery
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil)
 	mockCache.EXPECT().ApplyChanges(nil, nil)
+	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	worker.runSyncCycle(context.Background())
 

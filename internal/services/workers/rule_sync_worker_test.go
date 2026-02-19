@@ -224,6 +224,7 @@ func TestRunSyncCycle_DetectsNewRules(t *testing.T) {
 
 	// Cache is empty
 	mockCache.EXPECT().GetActiveRules(nil).Return(nil)
+	mockCache.EXPECT().Size().Return(1).AnyTimes()
 
 	// Delta query returns a new rule
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule}, nil)
@@ -263,6 +264,7 @@ func TestRunSyncCycle_DetectsUpdatedRules(t *testing.T) {
 	cachedRule := newSyncTestCachedRule(existingRule)
 
 	mockCache.EXPECT().GetActiveRules(nil).Return([]*cache.CachedRule{cachedRule})
+	mockCache.EXPECT().Size().Return(1).AnyTimes()
 
 	// Delta returns same rule with newer UpdatedAt
 	updatedRule := newSyncTestActiveRule(1)
@@ -305,6 +307,7 @@ func TestRunSyncCycle_DetectsDeletedRules(t *testing.T) {
 	cachedRule := newSyncTestCachedRule(existingRule)
 
 	mockCache.EXPECT().GetActiveRules(nil).Return([]*cache.CachedRule{cachedRule})
+	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	// Delta returns rule as INACTIVE
 	deactivatedRule := newSyncTestRule(1, model.RuleStatusInactive)
@@ -339,6 +342,7 @@ func TestRunSyncCycle_NoChanges(t *testing.T) {
 
 	// Delta returns nothing — touches cache staleness and returns before GetActiveRules
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil)
+	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	// Cache staleness must be touched even on empty fetch
 	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
@@ -374,6 +378,7 @@ func TestRunSyncCycle_OverlapBuffer(t *testing.T) {
 	// Key assertion: query uses lastSync MINUS overlapBuffer
 	expectedSince := lastSync.Add(-2 * time.Second)
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), expectedSince).Return([]*model.Rule{}, nil)
+	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	// Cache staleness must be touched even on empty fetch
 	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
@@ -406,6 +411,7 @@ func TestRunSyncCycle_CELCompilationFailure(t *testing.T) {
 	r2.Expression = "amount > 5000"
 
 	mockCache.EXPECT().GetActiveRules(nil).Return(nil)
+	mockCache.EXPECT().Size().Return(2).AnyTimes()
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{r1, r2}, nil)
 
 	// r1 fails compilation, r2 succeeds
@@ -477,6 +483,7 @@ func TestRunSyncCycle_LastSyncUpdatedOnSuccess(t *testing.T) {
 	newRule.UpdatedAt = ruleUpdatedAt
 
 	mockCache.EXPECT().GetActiveRules(nil).Return(nil)
+	mockCache.EXPECT().Size().Return(1).AnyTimes()
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{newRule}, nil)
 	compiler.EXPECT().Compile(gomock.Any(), gomock.Any()).Return("compiled", nil)
 	mockCache.EXPECT().ApplyChanges(gomock.Any(), gomock.Any())
@@ -534,6 +541,7 @@ func TestRunSyncCycle_StagnationPrevention(t *testing.T) {
 	cachedRule := newSyncTestCachedRule(existingRule)
 
 	mockCache.EXPECT().GetActiveRules(nil).Return([]*cache.CachedRule{cachedRule})
+	mockCache.EXPECT().Size().Return(1).AnyTimes()
 
 	// Delta returns same rule (overlap re-fetch) — UpdatedAt == lastSync
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{existingRule}, nil)
@@ -568,6 +576,7 @@ func TestRunSyncCycle_OverlapClassifyPath(t *testing.T) {
 	cachedRule := newSyncTestCachedRule(existingRule)
 
 	mockCache.EXPECT().GetActiveRules(nil).Return([]*cache.CachedRule{cachedRule})
+	mockCache.EXPECT().Size().Return(1).AnyTimes()
 
 	// Delta returns same rule (overlap buffer re-fetch) — same UpdatedAt
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{existingRule}, nil)
@@ -596,6 +605,7 @@ func TestRunSyncCycle_EmptyFetch_TouchesCacheStaleness(t *testing.T) {
 
 	// Delta returns nothing
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil)
+	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	// Key assertion: cache staleness must be touched even on empty fetch
 	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
@@ -626,6 +636,7 @@ func TestRunSyncCycle_EmptyChangeSet_TouchesCacheStaleness(t *testing.T) {
 
 	// Delta returns same rule (overlap re-fetch) — ClassifyChanges returns empty
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{existingRule}, nil)
+	mockCache.EXPECT().Size().Return(1).AnyTimes()
 
 	// Key assertion: cache staleness must be touched even when changes are empty
 	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil())
@@ -659,6 +670,7 @@ func TestRunLoop_TickerDriven(t *testing.T) {
 	expectedSince := warmupTime.Add(-defaultSyncConfig().OverlapBuffer)
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), expectedSince).Return([]*model.Rule{}, nil).Times(1)
 	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(1)
+	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -705,6 +717,7 @@ func TestRunLoop_MultipleTicksProcessed(t *testing.T) {
 	// Expect 3 sync cycles
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil).Times(3)
 	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(3)
+	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
