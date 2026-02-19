@@ -500,3 +500,82 @@ func TestRuleCache_Staleness_AfterSync(t *testing.T) {
 	assert.Equal(t, time.Duration(0), c.Staleness(),
 		"staleness immediately after sync should be 0 with fixed mock clock")
 }
+
+// T-003 S-005: Staleness tracking tests for circuit breaker degradation
+
+func TestStaleness_StaleCache(t *testing.T) {
+	t.Parallel()
+
+	baseTime := testutil.FixedTime()
+	// Pointer to MockClock required: test mutates FixedTime to simulate clock advance
+	clk := &testutil.MockClock{FixedTime: baseTime}
+	ruleCache := cache.NewRuleCache(clk)
+	ruleCache.SetRules(nil)
+	ruleCache.MarkReady()
+
+	// Advance clock past staleness threshold (50s)
+	clk.FixedTime = baseTime.Add(60 * time.Second)
+
+	staleness := ruleCache.Staleness()
+	assert.Equal(t, 60*time.Second, staleness,
+		"staleness should be exactly 60s (MockClock is deterministic)")
+}
+
+func TestStaleness_VeryStaleCache(t *testing.T) {
+	t.Parallel()
+
+	baseTime := testutil.FixedTime()
+	clk := &testutil.MockClock{FixedTime: baseTime}
+	ruleCache := cache.NewRuleCache(clk)
+	ruleCache.SetRules(nil)
+	ruleCache.MarkReady()
+
+	// Advance clock way past threshold (5 minutes)
+	clk.FixedTime = baseTime.Add(5 * time.Minute)
+
+	// Should still be DEGRADED, NOT "NOT_READY" (avoids K8s restart)
+	assert.True(t, ruleCache.IsReady(), "very stale cache should still report ready (DEGRADED, not NOT_READY)")
+	assert.Equal(t, 5*time.Minute, ruleCache.Staleness())
+}
+
+func TestStaleness_Recovery(t *testing.T) {
+	t.Parallel()
+
+	baseTime := testutil.FixedTime()
+	clk := &testutil.MockClock{FixedTime: baseTime}
+	ruleCache := cache.NewRuleCache(clk)
+	ruleCache.SetRules(nil)
+	ruleCache.MarkReady()
+
+	// Advance clock past staleness threshold
+	clk.FixedTime = baseTime.Add(60 * time.Second)
+	assert.Equal(t, 60*time.Second, ruleCache.Staleness())
+
+	// Simulate recovery: successful sync touches cache
+	ruleCache.ApplyChanges(nil, nil) // updates lastSyncTime
+
+	// Staleness should reset to exactly 0 (MockClock is fixed)
+	assert.Equal(t, time.Duration(0), ruleCache.Staleness(),
+		"staleness should reset after successful sync")
+}
+
+func TestHealth_StaleCacheRemainsReady(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies the health checker contract from T-001:
+	// DEGRADED state means IsReady()=true AND Staleness()>=threshold.
+	// The health handler (T-001) maps this to HTTP 200 (not 503) to avoid K8s restart.
+
+	baseTime := testutil.FixedTime()
+	clk := &testutil.MockClock{FixedTime: baseTime}
+	ruleCache := cache.NewRuleCache(clk)
+	ruleCache.SetRules(nil)
+	ruleCache.MarkReady()
+
+	// Advance past threshold
+	clk.FixedTime = baseTime.Add(60 * time.Second)
+
+	// Cache is ready (was populated) but stale
+	assert.True(t, ruleCache.IsReady(), "cache should report ready even when stale")
+	assert.Equal(t, 60*time.Second, ruleCache.Staleness(), "cache should be stale")
+}
