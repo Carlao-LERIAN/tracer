@@ -828,7 +828,10 @@ func InitServers() (*Service, error) {
 
 	logger.Infof("Rule cache warmed up: %d rules in %v", rulesLoaded, warmUpDuration)
 
-	cacheAdapter := cache.NewCacheAdapter(ruleCache)
+	cacheAdapter, err := cache.NewCacheAdapter(ruleCache)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache adapter: %w", err)
+	}
 	healthChecker.SetCacheHealthProvider(ruleCache)
 
 	// Init Rule Evaluation components

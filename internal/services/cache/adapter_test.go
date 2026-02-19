@@ -21,7 +21,8 @@ func TestCacheAdapter_ImplementsActiveRulesRepository(t *testing.T) {
 	t.Parallel()
 
 	c := cache.NewRuleCache(clock.New())
-	adapter := cache.NewCacheAdapter(c)
+	adapter, err := cache.NewCacheAdapter(c)
+	require.NoError(t, err)
 
 	// Compile-time interface check
 	var _ interface {
@@ -39,7 +40,8 @@ func TestCacheAdapter_DelegatesGetActiveRules(t *testing.T) {
 	c.SetRules([]*cache.CachedRule{cachedRule})
 	c.MarkReady()
 
-	adapter := cache.NewCacheAdapter(c)
+	adapter, err := cache.NewCacheAdapter(c)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	rules, err := adapter.GetActiveRules(ctx, nil)
@@ -54,7 +56,8 @@ func TestCacheAdapter_NotReady_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	c := cache.NewRuleCache(clock.New())
-	adapter := cache.NewCacheAdapter(c)
+	adapter, adapterErr := cache.NewCacheAdapter(c)
+	require.NoError(t, adapterErr)
 
 	// Cache not ready — adapter should return specific error
 	ctx := context.Background()
@@ -95,7 +98,8 @@ func TestCacheAdapter_SetsCompiledProgram(t *testing.T) {
 	c.SetRules([]*cache.CachedRule{cachedRule})
 	c.MarkReady()
 
-	adapter := cache.NewCacheAdapter(c)
+	adapter, err := cache.NewCacheAdapter(c)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	rules, err := adapter.GetActiveRules(ctx, nil)
@@ -106,10 +110,11 @@ func TestCacheAdapter_SetsCompiledProgram(t *testing.T) {
 		"CacheAdapter should set CompiledProgram from CachedRule.Program")
 }
 
-func TestNewCacheAdapter_NilCache_Panics(t *testing.T) {
+func TestNewCacheAdapter_NilCache_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	assert.Panics(t, func() {
-		cache.NewCacheAdapter(nil)
-	}, "NewCacheAdapter(nil) should panic — programming error at bootstrap time")
+	adapter, err := cache.NewCacheAdapter(nil)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, cache.ErrNilCache)
+	assert.Nil(t, adapter)
 }

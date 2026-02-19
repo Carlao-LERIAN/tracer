@@ -18,13 +18,13 @@ type CacheAdapter struct {
 }
 
 // NewCacheAdapter creates a new cache adapter.
-// Panics if cache is nil — programming error at bootstrap time.
-func NewCacheAdapter(cache *RuleCache) *CacheAdapter {
+// Returns ErrNilCache if cache is nil.
+func NewCacheAdapter(cache *RuleCache) (*CacheAdapter, error) {
 	if cache == nil {
-		panic("NewCacheAdapter: cache cannot be nil")
+		return nil, ErrNilCache
 	}
 
-	return &CacheAdapter{cache: cache}
+	return &CacheAdapter{cache: cache}, nil
 }
 
 // GetActiveRules returns active rules from the cache, optionally filtered by scope.
