@@ -323,7 +323,7 @@ func TestSyncCycle_ContextCancellationNotCounted(t *testing.T) {
 		"context cancellations and deadline exceeded should not trip the circuit breaker")
 }
 
-// S-007/S-008: Circuit breaker state change logging tests
+// Circuit breaker state change logging tests
 
 func TestCircuitBreaker_StateChangeLogged_ClosedToOpen(t *testing.T) {
 	t.Parallel()
@@ -440,7 +440,7 @@ func TestCircuitBreaker_RecoveryLogged_OpenToClosed(t *testing.T) {
 	assert.Contains(t, transitions, "half-open->closed", "should log half-open->closed transition")
 }
 
-// S-013: Concurrent stress test — reads during circuit recovery
+// Concurrent stress test — reads during circuit recovery
 
 func TestConcurrentReads_DuringCircuitRecovery(t *testing.T) {
 	t.Parallel()

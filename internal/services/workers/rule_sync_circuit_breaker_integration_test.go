@@ -124,7 +124,7 @@ func (s *testIntegrationSetup) seedActiveRules(t *testing.T, count int) {
 	}
 }
 
-// S-011: Integration test -- Kill DB -> circuit trips -> stale cache served
+// Integration test -- Kill DB -> circuit trips -> stale cache served
 
 func TestIntegration_CircuitBreaker_DBFailure(t *testing.T) {
 	setup := newTestIntegrationSetup(t)
@@ -216,7 +216,7 @@ func TestIntegration_CircuitBreaker_DBFailure(t *testing.T) {
 	cancelWorker()
 }
 
-// S-012: Integration test -- DEGRADED health -> recovery cycle
+// Integration test -- DEGRADED health -> recovery cycle
 
 func TestIntegration_CircuitBreaker_HealthRecovery(t *testing.T) {
 	setup := newTestIntegrationSetup(t)

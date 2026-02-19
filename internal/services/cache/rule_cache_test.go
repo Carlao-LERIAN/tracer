@@ -20,7 +20,6 @@ import (
 	"tracer/pkg/model"
 )
 
-// S-009: TestRuleCache_GetActiveRules_EmptyCache
 func TestRuleCache_GetActiveRules_EmptyCache(t *testing.T) {
 	t.Parallel()
 
@@ -31,7 +30,6 @@ func TestRuleCache_GetActiveRules_EmptyCache(t *testing.T) {
 	assert.Empty(t, rules)
 }
 
-// S-010: TestRuleCache_GetActiveRules_ScopeFiltering
 func TestRuleCache_GetActiveRules_ScopeFiltering(t *testing.T) {
 	t.Parallel()
 
@@ -101,7 +99,6 @@ func TestRuleCache_GetActiveRules_ScopeFiltering(t *testing.T) {
 	}
 }
 
-// S-011: TestRuleCache_GetActiveRules_ScopeDirection
 func TestRuleCache_GetActiveRules_ScopeDirection(t *testing.T) {
 	t.Parallel()
 
@@ -126,7 +123,6 @@ func TestRuleCache_GetActiveRules_ScopeDirection(t *testing.T) {
 	assert.Empty(t, rulesB, "rule scoped to A should NOT match transaction from B")
 }
 
-// S-012: TestRuleCache_GetActiveRules_DeepCopy
 func TestRuleCache_GetActiveRules_DeepCopy(t *testing.T) {
 	t.Parallel()
 
@@ -212,7 +208,6 @@ func TestRuleCache_GetActiveRules_DeepCopy(t *testing.T) {
 		"scope SubType pointer mutation must NOT propagate to cache")
 }
 
-// S-013: TestRuleCache_SetRules_PopulatesCache
 func TestRuleCache_SetRules_PopulatesCache(t *testing.T) {
 	t.Parallel()
 
@@ -303,7 +298,6 @@ func TestRuleCache_SetRules_ReplacesExisting(t *testing.T) {
 	assertCacheContains(t, c, testutil.MustDeterministicUUID(3))
 }
 
-// S-014: TestRuleCache_ApplyChanges_InsertUpdateRemove
 func TestRuleCache_ApplyChanges_InsertUpdateRemove(t *testing.T) {
 	t.Parallel()
 
@@ -402,7 +396,6 @@ func TestRuleCache_ApplyChanges_RemoveNonExistent(t *testing.T) {
 	assertCacheSize(t, c, 1)
 }
 
-// S-015: TestRuleCache_ConcurrentReadWrite
 func TestRuleCache_ConcurrentReadWrite(t *testing.T) {
 	t.Parallel()
 
@@ -447,7 +440,6 @@ func TestRuleCache_ConcurrentReadWrite(t *testing.T) {
 	assert.GreaterOrEqual(t, c.Size(), 1, "cache should have at least 1 rule")
 }
 
-// S-016: TestRuleCache_ReadyFlag
 func TestRuleCache_ReadyFlag(t *testing.T) {
 	t.Parallel()
 
@@ -461,7 +453,7 @@ func TestRuleCache_ReadyFlag(t *testing.T) {
 	assertCacheReady(t, c)
 }
 
-// S-017: TestRuleCache_LastSyncTime and Size
+// LastSyncTime and Size
 func TestRuleCache_LastSyncTime(t *testing.T) {
 	t.Parallel()
 
@@ -502,7 +494,7 @@ func TestRuleCache_Staleness_AfterSync(t *testing.T) {
 		"staleness immediately after sync should be 0 with fixed mock clock")
 }
 
-// T-003 S-005: Staleness tracking tests for circuit breaker degradation
+// Staleness tracking tests for circuit breaker degradation
 
 func TestStaleness_StaleCache(t *testing.T) {
 	t.Parallel()
