@@ -30,9 +30,10 @@ import (
 
 // testIntegrationSetup holds shared state for integration tests.
 type testIntegrationSetup struct {
-	container *tcpostgres.PostgresContainer
-	db        *sql.DB
-	connStr   string
+	container  *tcpostgres.PostgresContainer
+	db         *sql.DB
+	connStr    string
+	terminated bool // set when the test terminates the container manually
 }
 
 // newTestIntegrationSetup starts a PostgreSQL testcontainer and runs the schema migration
@@ -81,8 +82,18 @@ func newTestIntegrationSetup(t *testing.T) *testIntegrationSetup {
 	`)
 	require.NoError(t, err, "failed to create rules table")
 
+	setup := &testIntegrationSetup{
+		container: container,
+		db:        db,
+		connStr:   connStr,
+	}
+
 	t.Cleanup(func() {
 		db.Close()
+
+		if setup.terminated {
+			return
+		}
 
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -92,11 +103,7 @@ func newTestIntegrationSetup(t *testing.T) *testIntegrationSetup {
 		}
 	})
 
-	return &testIntegrationSetup{
-		container: container,
-		db:        db,
-		connStr:   connStr,
-	}
+	return setup
 }
 
 // seedActiveRules inserts active rules into the database.
@@ -192,6 +199,8 @@ func TestIntegration_CircuitBreaker_DBFailure(t *testing.T) {
 
 	err = setup.container.Terminate(terminateCtx)
 	require.NoError(t, err, "failed to stop postgres container")
+
+	setup.terminated = true
 
 	// 6. Wait for circuit to open (3 failures at 100ms interval = ~300ms + margin)
 	require.Eventually(t, func() bool {

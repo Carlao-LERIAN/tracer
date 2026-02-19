@@ -46,7 +46,11 @@ const (
 
 // Default health check configuration values.
 const (
-	DefaultHealthCheckTimeout      = 3 * time.Second
+	DefaultHealthCheckTimeout = 3 * time.Second
+	// DefaultCacheStalenessThreshold is the lenient tolerance used by the K8s readiness probe.
+	// Intentionally higher than RuleSyncWorkerConfig.StalenessThreshold (50s default),
+	// which is the internal worker metric for detecting stale cache. The readiness probe
+	// uses a wider window to avoid unnecessary pod restarts during transient DB outages.
 	DefaultCacheStalenessThreshold = 5 * time.Minute
 )
 

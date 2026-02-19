@@ -136,11 +136,12 @@ func TestRuleCache_GetActiveRules_DeepCopy(t *testing.T) {
 	}))
 	desc := "original description"
 	rule.Rule.Description = &desc
-	activatedAt := time.Now()
+	base := testutil.FixedTime()
+	activatedAt := base
 	rule.Rule.ActivatedAt = &activatedAt
-	deactivatedAt := time.Now().Add(-1 * time.Hour)
+	deactivatedAt := base.Add(-1 * time.Hour)
 	rule.Rule.DeactivatedAt = &deactivatedAt
-	deletedAt := time.Now().Add(-2 * time.Hour)
+	deletedAt := base.Add(-2 * time.Hour)
 	rule.Rule.DeletedAt = &deletedAt
 	segmentID := testutil.MustDeterministicUUID(300)
 	rule.Rule.Scopes[0].SegmentID = testutil.UUIDPtr(segmentID)

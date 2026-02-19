@@ -17,6 +17,13 @@ import (
 	"tracer/pkg/model"
 )
 
+// ruleSyncColumns defines the column list for rule sync queries.
+// Shared between GetAllActiveRules and GetRulesUpdatedSince to keep in sync with scanRulesFromRows.
+var ruleSyncColumns = []string{
+	"id", "name", "description", "expression", "action", "scopes",
+	"status", "created_at", "updated_at", "activated_at", "deactivated_at", "deleted_at",
+}
+
 // RuleSyncRepository provides database queries for the cache sync system.
 type RuleSyncRepository struct {
 	conn pgdb.Connection
@@ -44,8 +51,7 @@ func (r *RuleSyncRepository) GetAllActiveRules(ctx context.Context) ([]*model.Ru
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	query := sq.Select("id", "name", "description", "expression", "action", "scopes",
-		"status", "created_at", "updated_at", "activated_at", "deactivated_at", "deleted_at").
+	query := sq.Select(ruleSyncColumns...).
 		From(tableName).
 		Where(sq.Eq{"status": model.RuleStatusActive}).
 		Where(sq.Eq{"deleted_at": nil}).
@@ -74,8 +80,7 @@ func (r *RuleSyncRepository) GetRulesUpdatedSince(ctx context.Context, since tim
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	query := sq.Select("id", "name", "description", "expression", "action", "scopes",
-		"status", "created_at", "updated_at", "activated_at", "deactivated_at", "deleted_at").
+	query := sq.Select(ruleSyncColumns...).
 		From(tableName).
 		Where(sq.GtOrEq{"updated_at": since}).
 		OrderBy("updated_at ASC").
