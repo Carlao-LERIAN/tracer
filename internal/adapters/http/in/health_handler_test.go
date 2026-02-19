@@ -496,6 +496,6 @@ type mockCacheHealth struct {
 	size      int
 }
 
-func (m *mockCacheHealth) IsReady() bool           { return m.ready }
+func (m *mockCacheHealth) IsReady() bool            { return m.ready }
 func (m *mockCacheHealth) Staleness() time.Duration { return m.staleness }
 func (m *mockCacheHealth) Size() int                { return m.size }

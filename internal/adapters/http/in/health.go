@@ -46,8 +46,8 @@ const (
 
 // Default health check configuration values.
 const (
-	DefaultHealthCheckTimeout          = 3 * time.Second
-	DefaultCacheStalenessThreshold     = 5 * time.Minute
+	DefaultHealthCheckTimeout      = 3 * time.Second
+	DefaultCacheStalenessThreshold = 5 * time.Minute
 )
 
 // RuleCacheHealthProvider exposes cache health metrics for the readiness probe.
