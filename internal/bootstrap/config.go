@@ -547,6 +547,63 @@ func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepos
 	return cleanupWorker, nil
 }
 
+// initWorkers initializes all background workers and assembles the Service.
+// Extracted from InitServers to reduce cyclomatic complexity.
+func initWorkers(
+	cfg *Config,
+	limitDeps *limitServiceDeps,
+	ruleCache *cache.RuleCache,
+	ruleSyncRepo *postgres.RuleSyncRepository,
+	celAdapter *cel.Adapter,
+	serverAPI *HTTPServer,
+	logger libLog.Logger,
+) (*Service, error) {
+	cleanupWorker, err := initCleanupWorker(cfg, limitDeps.usageCounterRepo, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	syncWorker, err := initSyncWorker(ruleCache, ruleSyncRepo, celAdapter, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Service{
+		HTTPServer:    serverAPI,
+		Logger:        logger,
+		cleanupWorker: cleanupWorker,
+		syncWorker:    syncWorker,
+	}, nil
+}
+
+// initSyncWorker creates the rule sync worker.
+// Uses default configuration; env var parsing added in T-004.
+func initSyncWorker(
+	ruleCache *cache.RuleCache,
+	syncRepo *postgres.RuleSyncRepository,
+	celAdapter *cel.Adapter,
+	logger libLog.Logger,
+) (*workers.RuleSyncWorker, error) {
+	syncWorkerConfig := workers.DefaultRuleSyncWorkerConfig()
+
+	// celCompilerAdapter satisfies workers.ExpressionCompiler (Compile returns (any, error))
+	compiler := &celCompilerAdapter{adapter: celAdapter}
+
+	syncWorker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, syncWorkerConfig, logger, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rule sync worker: %w", err)
+	}
+
+	logger.WithFields(
+		"component", "rule_sync_worker",
+		"poll_interval", syncWorkerConfig.PollInterval.String(),
+		"staleness_threshold", syncWorkerConfig.StalenessThreshold.String(),
+		"overlap_buffer", syncWorkerConfig.OverlapBuffer.String(),
+	).Info("Rule sync worker initialized")
+
+	return syncWorker, nil
+}
+
 // initAuditEventService initializes the audit event service with all required queries.
 // Extracted to reduce cyclomatic complexity of InitServers.
 func initAuditEventService(auditEventRepo *postgres.AuditEventRepository) (*services.AuditEventService, error) {
@@ -716,8 +773,8 @@ func InitServers() (*Service, error) {
 		return nil, fmt.Errorf("failed to create HTTP server: %w", err)
 	}
 
-	// Init Usage Cleanup Worker (optional, based on configuration)
-	cleanupWorker, err := initCleanupWorker(cfg, limitDeps.usageCounterRepo, logger)
+	// Init background workers
+	svc, err := initWorkers(cfg, limitDeps, ruleCache, ruleSyncRepo, celAdapter, serverAPI, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -725,11 +782,7 @@ func InitServers() (*Service, error) {
 	// Mark initialization as successful; defer cleanup will not close the connection.
 	initSuccess = true
 
-	return &Service{
-		HTTPServer:    serverAPI,
-		Logger:        logger,
-		cleanupWorker: cleanupWorker,
-	}, nil
+	return svc, nil
 }
 
 // runFunctionMigrations executes PostgreSQL function migrations before schema migrations.
