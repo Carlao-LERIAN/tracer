@@ -25,8 +25,7 @@ func benchmarkGetActiveRules(b *testing.B, count int) {
 	c.SetRules(rules)
 	c.MarkReady()
 
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		benchResult = c.GetActiveRules(nil)
 	}
 }
@@ -56,9 +55,7 @@ func BenchmarkRuleCache_GetActiveRules_ScopeFiltered_1000Rules(b *testing.B) {
 
 	txScope := &model.Scope{AccountID: testutil.UUIDPtr(accountID)}
 
-	b.ResetTimer()
-
-	for range b.N {
+	for b.Loop() {
 		benchResult = c.GetActiveRules(txScope)
 	}
 }
