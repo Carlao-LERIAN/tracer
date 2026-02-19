@@ -51,9 +51,16 @@ func newSyncTestCachedRule(rule *model.Rule) *cache.CachedRule {
 
 // buildCachedMap converts a slice of CachedRules into a map keyed by Rule.ID.
 // Used to prepare the `cached` argument for ClassifyChanges.
-func buildCachedMap(rules ...*cache.CachedRule) map[uuid.UUID]*cache.CachedRule {
+func buildCachedMap(t *testing.T, rules ...*cache.CachedRule) map[uuid.UUID]*cache.CachedRule {
+	t.Helper()
+
 	m := make(map[uuid.UUID]*cache.CachedRule, len(rules))
+
 	for _, r := range rules {
+		if r == nil || r.Rule == nil {
+			t.Fatal("buildCachedMap: received nil CachedRule or nil CachedRule.Rule")
+		}
+
 		m[r.Rule.ID] = r
 	}
 

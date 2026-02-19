@@ -340,11 +340,10 @@ func (w *RuleSyncWorker) queryDelta(ctx context.Context, since time.Time) ([]*mo
 	rules, ok := result.([]*model.Rule)
 	if !ok {
 		if result != nil {
-			// This should never happen -- indicates a programming error in Execute wrapper
-			w.logger.WithFields(
-				"operation", "worker.rule_sync.query_delta",
-				"result_type", fmt.Sprintf("%T", result),
-			).Error("Unexpected type from circuit breaker Execute - returning nil rules")
+			return nil, fmt.Errorf(
+				"unexpected result type %T from circuit breaker Execute",
+				result,
+			)
 		}
 
 		return nil, nil

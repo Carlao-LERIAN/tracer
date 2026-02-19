@@ -17,7 +17,7 @@ import (
 func TestClassifyChanges_AllNew(t *testing.T) {
 	t.Parallel()
 
-	cached := buildCachedMap() // empty cache
+	cached := buildCachedMap(t) // empty cache
 	r1 := newSyncTestActiveRule(1)
 	r2 := newSyncTestActiveRule(2)
 
@@ -33,7 +33,7 @@ func TestClassifyChanges_AllUpdated(t *testing.T) {
 
 	r1 := newSyncTestActiveRule(1)
 	r2 := newSyncTestActiveRule(2)
-	cached := buildCachedMap(
+	cached := buildCachedMap(t,
 		newSyncTestCachedRule(r1),
 		newSyncTestCachedRule(r2),
 	)
@@ -56,7 +56,7 @@ func TestClassifyChanges_AllDeleted(t *testing.T) {
 
 	r1 := newSyncTestActiveRule(1)
 	r2 := newSyncTestActiveRule(2)
-	cached := buildCachedMap(
+	cached := buildCachedMap(t,
 		newSyncTestCachedRule(r1),
 		newSyncTestCachedRule(r2),
 	)
@@ -80,7 +80,7 @@ func TestClassifyChanges_Mixed(t *testing.T) {
 	// Existing rules in cache
 	existingRule := newSyncTestActiveRule(1)
 	toBeDeletedRule := newSyncTestActiveRule(2)
-	cached := buildCachedMap(
+	cached := buildCachedMap(t,
 		newSyncTestCachedRule(existingRule),
 		newSyncTestCachedRule(toBeDeletedRule),
 	)
@@ -105,7 +105,7 @@ func TestClassifyChanges_NoChanges(t *testing.T) {
 	t.Parallel()
 
 	r1 := newSyncTestActiveRule(1)
-	cached := buildCachedMap(newSyncTestCachedRule(r1))
+	cached := buildCachedMap(t, newSyncTestCachedRule(r1))
 
 	// Fetch same rule with same UpdatedAt (overlap buffer idempotency)
 	cs := ClassifyChanges(cached, []*model.Rule{r1})
@@ -118,7 +118,7 @@ func TestClassifyChanges_DeactivatedRule(t *testing.T) {
 
 	// Rule exists in cache as active
 	activeRule := newSyncTestActiveRule(1)
-	cached := buildCachedMap(newSyncTestCachedRule(activeRule))
+	cached := buildCachedMap(t, newSyncTestCachedRule(activeRule))
 
 	// Same rule fetched as INACTIVE (deactivated)
 	deactivatedRule := newSyncTestRule(1, model.RuleStatusInactive)
@@ -136,7 +136,7 @@ func TestClassifyChanges_EmptyFetch(t *testing.T) {
 	t.Parallel()
 
 	r1 := newSyncTestActiveRule(1)
-	cached := buildCachedMap(newSyncTestCachedRule(r1))
+	cached := buildCachedMap(t, newSyncTestCachedRule(r1))
 
 	cs := ClassifyChanges(cached, []*model.Rule{})
 
@@ -148,7 +148,7 @@ func TestClassifyChanges_DraftedRuleRemovedFromCache(t *testing.T) {
 
 	// Rule exists in cache as active, fetched as DRAFT (reverted to draft for editing)
 	activeRule := newSyncTestActiveRule(1)
-	cached := buildCachedMap(newSyncTestCachedRule(activeRule))
+	cached := buildCachedMap(t, newSyncTestCachedRule(activeRule))
 
 	draftedRule := newSyncTestRule(1, model.RuleStatusDraft)
 	draftedRule.UpdatedAt = activeRule.UpdatedAt.Add(1 * time.Second)
@@ -165,7 +165,7 @@ func TestClassifyChanges_DeactivatedNotInCache(t *testing.T) {
 	t.Parallel()
 
 	// Rule not in cache, fetched as DELETED
-	cached := buildCachedMap()
+	cached := buildCachedMap(t)
 	deletedRule := newSyncTestRule(1, model.RuleStatusDeleted)
 
 	cs := ClassifyChanges(cached, []*model.Rule{deletedRule})

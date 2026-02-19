@@ -180,7 +180,8 @@ func deepCopy(src *CachedRule) *CachedRule {
 		ruleCopy.DeletedAt = &t
 	}
 
-	// Deep copy scopes slice with all pointer fields
+	// TODO: update this manual deep copy when model.Scope gains new pointer fields.
+	// Deep copy scopes slice with all pointer fields.
 	if src.Rule.Scopes != nil {
 		scopesCopy := make([]model.Scope, len(src.Rule.Scopes))
 		for i, s := range src.Rule.Scopes {

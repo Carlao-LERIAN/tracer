@@ -12,6 +12,8 @@ import (
 
 // TestHashExpression_Deterministic tests that hash is deterministic.
 func TestHashExpression_Deterministic(t *testing.T) {
+	t.Parallel()
+
 	expression := "amount > 100 && transactionType == \"CARD\""
 
 	hash1 := HashExpression(expression)
@@ -25,6 +27,8 @@ func TestHashExpression_Deterministic(t *testing.T) {
 
 // TestHashExpression_Different tests that different expressions produce different hashes.
 func TestHashExpression_Different(t *testing.T) {
+	t.Parallel()
+
 	hash1 := HashExpression("amount > 100")
 	hash2 := HashExpression("amount > 10001")
 
