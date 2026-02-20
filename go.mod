@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/LerianStudio/lib-auth/v2 v2.4.0
 	github.com/LerianStudio/lib-commons/v2 v2.6.2
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/cucumber/godog v0.15.1
@@ -74,6 +75,7 @@ require (
 	github.com/go-openapi/swag/typeutils v0.25.4 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.4 // indirect
 	github.com/gofrs/uuid v4.3.1+incompatible // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/golang-migrate/migrate/v4 v4.19.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.4 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
