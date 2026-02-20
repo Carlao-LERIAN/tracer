@@ -65,6 +65,7 @@ var (
 	ErrExpressionEvaluation     = errors.New("TRC-0086") // runtime evaluation error
 	ErrExpressionProgram        = errors.New("TRC-0087") // program creation failed (compilation phase)
 	ErrExpressionCostEstimation = errors.New("TRC-0088") // failed to estimate expression cost
+	ErrAmountExceedsPrecision   = errors.New("TRC-0089") // amount exceeds safe precision for CEL float64 evaluation (max: ±2^53)
 
 	// =============================================================================
 	// Rule Errors (TRC-0100 to TRC-0119)
@@ -198,6 +199,7 @@ const (
 	CodeInternalServer         = "TRC-0004"
 	CodePayloadTooLarge        = "TRC-0011"
 	CodeContextCancelled       = "TRC-0012"
+	CodeAmountExceedsPrecision = "TRC-0089"
 	CodeRuleEvaluationError    = "TRC-0103"
 	CodeLimitCheckError        = "TRC-0136"
 	CodeValidationTimeout      = "TRC-0229"
