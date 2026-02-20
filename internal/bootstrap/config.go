@@ -510,32 +510,32 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Pos
 }
 
 // initRuleService creates the rule service with all its dependencies.
-// The notifier parameter is optional (nil-safe); when provided, rule mutation commands
-// (activate, deactivate, delete, draft) will trigger an immediate cache sync.
-func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, notifier command.RuleChangeNotifier) (*services.RuleService, error) {
+// The cacheWriter parameter is optional (nil-safe); when provided, activate and
+// deactivate commands will synchronously update the in-memory cache.
+func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter) (*services.RuleService, error) {
 	celCompiler := &celCompilerAdapter{adapter: celAdapter}
 	clk := clock.New()
 
-	// Inject audit writer and notifier into all Rule commands
+	// Inject audit writer and cache writer into Rule commands
 	createRuleCmd := command.NewCreateRuleCommand(ruleRepo, celCompiler, clk, auditWriter)
 	updateRuleCmd := command.NewUpdateRuleCommand(ruleRepo, celCompiler, clk, auditWriter)
 
-	activateRuleCmd, err := command.NewActivateRuleService(ruleRepo, celCompiler, clk, auditWriter, notifier)
+	activateRuleCmd, err := command.NewActivateRuleService(ruleRepo, celCompiler, clk, auditWriter, cacheWriter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activate rule service: %w", err)
 	}
 
-	deactivateRuleCmd, err := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter, notifier)
+	deactivateRuleCmd, err := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter, cacheWriter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deactivate rule service: %w", err)
 	}
 
-	draftRuleCmd, err := command.NewDraftRuleService(ruleRepo, clk, auditWriter, notifier)
+	draftRuleCmd, err := command.NewDraftRuleService(ruleRepo, clk, auditWriter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create draft rule service: %w", err)
 	}
 
-	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter, notifier)
+	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create delete rule service: %w", err)
 	}
@@ -820,14 +820,14 @@ func InitServers() (*Service, error) {
 
 	logger.Infof("Rule cache warmed up: %d rules in %v", rulesLoaded, warmUpDuration)
 
-	// Init sync worker BEFORE rule service so it can be passed as RuleChangeNotifier
+	// Init sync worker for background polling (cross-instance consistency)
 	syncWorker, err := initSyncWorker(cfg, ruleCache, ruleSyncRepo, celAdapter, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	// Init Rule service with audit writer and sync worker as notifier
-	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, syncWorker)
+	// Init Rule service with audit writer and rule cache for synchronous cache updates
+	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache)
 	if err != nil {
 		return nil, err
 	}

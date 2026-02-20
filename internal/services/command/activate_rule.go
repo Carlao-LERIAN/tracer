@@ -33,13 +33,13 @@ type ActivateRuleService struct {
 	expressionCompiler ExpressionCompiler
 	clock              clock.Clock
 	auditWriter        AuditWriter
-	notifier           RuleChangeNotifier
+	cacheWriter        RuleCacheWriter
 }
 
 // NewActivateRuleService creates a new ActivateRuleService.
-// The notifier parameter is optional (nil-safe); when set, it triggers an
-// immediate cache sync after a successful activation.
-func NewActivateRuleService(repository RuleRepository, expressionCompiler ExpressionCompiler, clk clock.Clock, auditWriter AuditWriter, notifier RuleChangeNotifier) (*ActivateRuleService, error) {
+// The cacheWriter parameter is optional (nil-safe); when set, it synchronously
+// updates the in-memory cache after a successful activation.
+func NewActivateRuleService(repository RuleRepository, expressionCompiler ExpressionCompiler, clk clock.Clock, auditWriter AuditWriter, cacheWriter RuleCacheWriter) (*ActivateRuleService, error) {
 	if repository == nil {
 		return nil, ErrActivateNilRepository
 	}
@@ -57,7 +57,7 @@ func NewActivateRuleService(repository RuleRepository, expressionCompiler Expres
 		expressionCompiler: expressionCompiler,
 		clock:              clk,
 		auditWriter:        auditWriter,
-		notifier:           notifier,
+		cacheWriter:        cacheWriter,
 	}, nil
 }
 
@@ -134,7 +134,8 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 		"rule.id", ruleID.String(),
 	).Info("Validating expression for rule")
 
-	if _, err := s.expressionCompiler.Compile(ctx, rule.Expression); err != nil {
+	program, err := s.expressionCompiler.Compile(ctx, rule.Expression)
+	if err != nil {
 		businessErr := libCommons.ValidateBusinessError(constant.ErrExpressionSyntax, err.Error())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Expression compilation failed", businessErr)
 		logger.WithFields(
@@ -214,8 +215,8 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 		}
 	}
 
-	if s.notifier != nil {
-		s.notifier.Notify()
+	if s.cacheWriter != nil {
+		s.cacheWriter.UpsertRule(updatedRule, program)
 	}
 
 	return updatedRule, nil

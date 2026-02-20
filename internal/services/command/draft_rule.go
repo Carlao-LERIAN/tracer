@@ -28,14 +28,11 @@ type DraftRuleService struct {
 	repository  RuleRepository
 	clock       clock.Clock
 	auditWriter AuditWriter
-	notifier    RuleChangeNotifier
 }
 
 // NewDraftRuleService creates a new DraftRuleService with dependencies.
 // Returns an error if repository or clk is nil to catch invalid dependency injection at construction time.
-// The notifier parameter is optional (nil-safe); when set, it triggers an
-// immediate cache sync after a successful draft transition.
-func NewDraftRuleService(repository RuleRepository, clk clock.Clock, auditWriter AuditWriter, notifier RuleChangeNotifier) (*DraftRuleService, error) {
+func NewDraftRuleService(repository RuleRepository, clk clock.Clock, auditWriter AuditWriter) (*DraftRuleService, error) {
 	if repository == nil {
 		return nil, ErrNilRuleRepository
 	}
@@ -48,7 +45,6 @@ func NewDraftRuleService(repository RuleRepository, clk clock.Clock, auditWriter
 		repository:  repository,
 		clock:       clk,
 		auditWriter: auditWriter,
-		notifier:    notifier,
 	}, nil
 }
 
@@ -175,10 +171,6 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 				"error", err.Error(),
 			).Warn("Failed to record audit event")
 		}
-	}
-
-	if s.notifier != nil {
-		s.notifier.Notify()
 	}
 
 	return updatedRule, nil

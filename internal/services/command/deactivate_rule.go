@@ -31,13 +31,13 @@ type DeactivateRuleService struct {
 	repository  RuleRepository
 	clock       clock.Clock
 	auditWriter AuditWriter
-	notifier    RuleChangeNotifier
+	cacheWriter RuleCacheWriter
 }
 
 // NewDeactivateRuleService creates a new DeactivateRuleService.
-// The notifier parameter is optional (nil-safe); when set, it triggers an
-// immediate cache sync after a successful deactivation.
-func NewDeactivateRuleService(repository RuleRepository, clk clock.Clock, auditWriter AuditWriter, notifier RuleChangeNotifier) (*DeactivateRuleService, error) {
+// The cacheWriter parameter is optional (nil-safe); when set, it synchronously
+// removes the rule from the in-memory cache after a successful deactivation.
+func NewDeactivateRuleService(repository RuleRepository, clk clock.Clock, auditWriter AuditWriter, cacheWriter RuleCacheWriter) (*DeactivateRuleService, error) {
 	if repository == nil {
 		return nil, ErrDeactivateNilRepository
 	}
@@ -50,7 +50,7 @@ func NewDeactivateRuleService(repository RuleRepository, clk clock.Clock, auditW
 		repository:  repository,
 		clock:       clk,
 		auditWriter: auditWriter,
-		notifier:    notifier,
+		cacheWriter: cacheWriter,
 	}, nil
 }
 
@@ -179,8 +179,8 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 		}
 	}
 
-	if s.notifier != nil {
-		s.notifier.Notify()
+	if s.cacheWriter != nil {
+		s.cacheWriter.RemoveRule(updatedRule.ID)
 	}
 
 	return updatedRule, nil

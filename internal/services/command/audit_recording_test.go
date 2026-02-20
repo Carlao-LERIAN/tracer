@@ -177,7 +177,7 @@ func TestAuditEventRecording_DeleteRule(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	service, err := NewDeleteRuleService(mockRepo, auditWriter, nil)
+	service, err := NewDeleteRuleService(mockRepo, auditWriter)
 	require.NoError(t, err)
 	err = service.Execute(context.Background(), ruleID)
 	require.NoError(t, err)
