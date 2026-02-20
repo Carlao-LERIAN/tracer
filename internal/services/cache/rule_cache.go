@@ -105,6 +105,18 @@ func (c *RuleCache) ApplyChanges(upserts []*CachedRule, removeIDs []uuid.UUID) {
 	c.lastSyncTime = c.clock.Now()
 }
 
+// UpsertRule adds or replaces a single rule in the cache with its compiled program.
+// Convenience wrapper around ApplyChanges for single-rule updates.
+func (c *RuleCache) UpsertRule(rule *model.Rule, program any) {
+	c.ApplyChanges([]*CachedRule{{Rule: rule, Program: program}}, nil)
+}
+
+// RemoveRule removes a single rule from the cache by ID.
+// Convenience wrapper around ApplyChanges for single-rule removal.
+func (c *RuleCache) RemoveRule(id uuid.UUID) {
+	c.ApplyChanges(nil, []uuid.UUID{id})
+}
+
 // MarkReady signals that the cache has been populated.
 func (c *RuleCache) MarkReady() {
 	c.mu.Lock()

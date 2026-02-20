@@ -572,3 +572,75 @@ func TestHealth_StaleCacheRemainsReady(t *testing.T) {
 	assert.True(t, ruleCache.IsReady(), "cache should report ready even when stale")
 	assert.Equal(t, 60*time.Second, ruleCache.Staleness(), "cache should be stale")
 }
+
+func TestRuleCache_UpsertRule_AddsNewRule(t *testing.T) {
+	t.Parallel()
+
+	c := cache.NewRuleCache(clock.New())
+	assertCacheSize(t, c, 0)
+
+	rule := newTestRule(1)
+	program := "compiled:amount > 1000"
+
+	c.UpsertRule(rule, program)
+
+	assertCacheSize(t, c, 1)
+	assertCacheContains(t, c, rule.ID)
+
+	// Verify the program was stored
+	rules := c.GetActiveRules(nil)
+	require.Len(t, rules, 1)
+	assert.Equal(t, program, rules[0].Program)
+}
+
+func TestRuleCache_UpsertRule_UpdatesExisting(t *testing.T) {
+	t.Parallel()
+
+	c := cache.NewRuleCache(clock.New())
+
+	rule := newTestRule(1)
+	c.UpsertRule(rule, "v1")
+	assertCacheSize(t, c, 1)
+
+	// Update with new program
+	updatedRule := newTestRule(1) // same ID
+	updatedRule.Name = "updated-name"
+	c.UpsertRule(updatedRule, "v2")
+
+	assertCacheSize(t, c, 1) // still 1 rule
+	rules := c.GetActiveRules(nil)
+	require.Len(t, rules, 1)
+	assert.Equal(t, "updated-name", rules[0].Rule.Name)
+	assert.Equal(t, "v2", rules[0].Program)
+}
+
+func TestRuleCache_RemoveRule_DeletesExisting(t *testing.T) {
+	t.Parallel()
+
+	rule1 := newTestRule(1)
+	rule2 := newTestRule(2)
+
+	c := cache.NewRuleCache(clock.New())
+	c.SetRules([]*cache.CachedRule{
+		{Rule: rule1, Program: "p1"},
+		{Rule: rule2, Program: "p2"},
+	})
+	assertCacheSize(t, c, 2)
+
+	c.RemoveRule(rule1.ID)
+
+	assertCacheSize(t, c, 1)
+	assertCacheContains(t, c, rule2.ID)
+}
+
+func TestRuleCache_RemoveRule_NonExistentIsNoop(t *testing.T) {
+	t.Parallel()
+
+	c := cache.NewRuleCache(clock.New())
+	c.SetRules([]*cache.CachedRule{newTestCachedRule(newTestRule(1))})
+	assertCacheSize(t, c, 1)
+
+	// Remove non-existent ID should not panic or affect existing rules
+	c.RemoveRule(testutil.MustDeterministicUUID(999))
+	assertCacheSize(t, c, 1)
+}
