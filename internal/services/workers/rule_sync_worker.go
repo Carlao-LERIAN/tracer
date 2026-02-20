@@ -39,7 +39,6 @@ type RuleSyncWorker struct {
 	clock          clock.Clock
 	lastSync       time.Time
 	circuitBreaker *resilience.CircuitBreaker
-	syncNowChan    chan struct{}
 }
 
 // NewRuleSyncWorker creates a new rule sync worker.
@@ -105,7 +104,6 @@ func NewRuleSyncWorker(
 		logger:         logger,
 		circuitBreaker: cb,
 		clock:          clk,
-		syncNowChan:    make(chan struct{}, 1),
 	}, nil
 }
 
@@ -122,17 +120,6 @@ func (w *RuleSyncWorker) Run(_ *libCommons.Launcher) error {
 // Useful for testing or external orchestration.
 func (w *RuleSyncWorker) RunWithContext(ctx context.Context) error {
 	return w.runLoop(ctx)
-}
-
-// Notify signals the worker to run a sync cycle immediately.
-// Non-blocking: if a notification is already pending, the new one is coalesced.
-// Safe to call from any goroutine.
-func (w *RuleSyncWorker) Notify() {
-	select {
-	case w.syncNowChan <- struct{}{}:
-	default:
-		// already pending — coalesce
-	}
 }
 
 // runLoop is the internal loop that handles sync cycles.
@@ -160,9 +147,6 @@ func (w *RuleSyncWorker) runLoop(ctx context.Context) error {
 			return nil
 
 		case <-tickerChan:
-			w.runSyncCycle(ctx)
-
-		case <-w.syncNowChan:
 			w.runSyncCycle(ctx)
 		}
 	}

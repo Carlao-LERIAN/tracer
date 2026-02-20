@@ -196,10 +196,6 @@ func CleanupRule(t *testing.T, ruleID string) {
 
 	_ = resp.Body.Close() // Intentionally ignored in test helper
 	// Ignore status - rule might already be deleted
-
-	// Wait for the sync worker to poll the DB and remove the rule from cache.
-	// Without this, subsequent tests may see stale rules in the in-memory cache.
-	time.Sleep(200 * time.Millisecond)
 }
 
 // DeleteRuleViaAPI deletes a rule using the DELETE /v1/rules/:id endpoint.
@@ -256,10 +252,6 @@ func DeleteRuleViaAPI(t *testing.T, ruleID string) {
 	defer func() { _ = resp.Body.Close() }() // Intentionally ignored in test helper
 
 	require.Equal(t, http.StatusNoContent, resp.StatusCode, "Failed to delete rule via API")
-
-	// Wait for the sync worker to poll the DB and remove the deleted rule from cache.
-	// With RuleChangeNotifier, the sync worker is triggered immediately; 200ms gives margin for the cycle.
-	time.Sleep(200 * time.Millisecond)
 }
 
 // SkipIfRulesNotImplemented checks if the rules API is available.
@@ -530,10 +522,6 @@ func ActivateRule(t *testing.T, ruleID string) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to activate rule: %s", string(respBody))
-
-	// Wait for the sync worker to poll the DB and update the in-memory cache.
-	// With RuleChangeNotifier, the sync worker is triggered immediately; 200ms gives margin for the cycle.
-	time.Sleep(200 * time.Millisecond)
 }
 
 // DeactivateRule deactivates a rule by ID.
@@ -586,10 +574,6 @@ func DeactivateRule(t *testing.T, ruleID string) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to deactivate rule: %s", string(respBody))
-
-	// Wait for the sync worker to poll the DB and update the in-memory cache.
-	// With RuleChangeNotifier, the sync worker is triggered immediately; 200ms gives margin for the cycle.
-	time.Sleep(200 * time.Millisecond)
 }
 
 // DraftRule transitions a rule back to DRAFT status by ID.
