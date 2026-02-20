@@ -388,6 +388,11 @@ func LoadRuleSyncWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.RuleS
 		return nil, fmt.Errorf("invalid RULE_SYNC_OVERLAP_BUFFER_SECONDS: %w", err)
 	}
 
+	if stalenessThreshold < pollInterval {
+		return nil, fmt.Errorf("invalid configuration: RULE_SYNC_STALENESS_THRESHOLD_SECONDS (%s) must be >= RULE_SYNC_POLL_INTERVAL_SECONDS (%s)",
+			stalenessThreshold, pollInterval)
+	}
+
 	logger.WithFields(
 		"poll_interval", pollInterval.String(),
 		"staleness_threshold", stalenessThreshold.String(),
