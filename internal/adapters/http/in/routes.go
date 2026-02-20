@@ -43,10 +43,11 @@ type RouteConfig struct {
 	// Set to "*" explicitly for development environments only.
 	CORSAllowedOrigins string
 
-	// APIKeyOnlyValidation enables API-key-only auth for the validation endpoint in dual mode.
-	// In dual mode (APIKeyOnlyValidation=true AND PluginAuthEnabled=true):
-	// - Endpoints registered with WithAPIKey use API key only, bypassing plugin auth.
-	// - All other endpoints use plugin auth with API key fallback as usual.
+	// APIKeyOnlyValidation enables API-key-only auth for the validation endpoint.
+	// When true AND PluginAuthEnabled=true (dual mode):
+	// - Routes registered with guard.With(..., true) use API key auth only, bypassing plugin auth.
+	// - Routes registered with guard.With(..., false) use plugin auth exclusively (no fallback).
+	// When PluginAuthEnabled=false, all routes use API key auth regardless of this flag.
 	APIKeyOnlyValidation bool
 }
 
