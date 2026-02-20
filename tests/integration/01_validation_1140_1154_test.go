@@ -653,14 +653,25 @@ func TestValidation_1_1_47_RejectsAmountExceedingCELPrecision(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
 		"Amount exceeding CEL precision (2^53) should return 400: %s", string(body))
+
+	var errResp map[string]interface{}
+	require.NoError(t, json.Unmarshal(body, &errResp), "Response body should be valid JSON")
+	assert.Equal(t, "TRC-0089", errResp["code"], "Error code should be TRC-0089 (amount exceeds precision)")
+	assert.Equal(t, "Bad Request", errResp["title"])
 }
 
 // Test 1.1.47b: Validation accepts the maximum safe amount for CEL evaluation (2^53).
 // 9007199254740992 is exactly 2^53, the boundary for float64 integer precision.
 // Amounts at or below this threshold are safe for CEL's float64 arithmetic.
 func TestValidation_1_1_47b_AcceptsMaxSafeCELAmount(t *testing.T) {
+	// Create and activate a rule so the validation path invokes CEL and the precision guard.
+	// Without this, the request would be ALLOW'd without ever reaching CEL evaluation.
+	ruleID := testutil.CreateTestRuleWithExpression(t, "cel-precision-boundary-test", "amount > 0", "DENY")
+	t.Cleanup(func() { testutil.CleanupRule(t, ruleID) })
+	testutil.ActivateRule(t, ruleID)
+
 	accountID := testutil.MustDeterministicUUID(1072).String()
 
 	apiKey := testutil.GetAPIKey()
@@ -688,8 +699,15 @@ func TestValidation_1_1_47b_AcceptsMaxSafeCELAmount(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode,
-		"Amount at CEL precision boundary (2^53) should be accepted: %s", string(body))
+	require.Equal(t, http.StatusOK, resp.StatusCode,
+		"Amount at CEL precision boundary (2^53) should pass the precision guard: %s", string(body))
+
+	// Verify CEL actually evaluated the expression (decision DENY proves the amount
+	// went through CEL evaluation, not just a no-rules pass-through).
+	var result testutil.ValidationResponse
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.Equal(t, "DENY", result.Decision,
+		"Rule 'amount > 0' should match and DENY, proving CEL evaluated the boundary amount")
 }
 
 // Test 1.1.48: Validation with empty metadata object
