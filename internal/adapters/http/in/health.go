@@ -27,6 +27,8 @@ var (
 	ErrConnectionFailed         = errors.New("connection failed")
 	ErrPingFailed               = errors.New("ping failed")
 	ErrDependenciesUnhealthy    = errors.New("dependencies unhealthy")
+	ErrCacheNotReady            = errors.New("cache not ready")
+	ErrCacheStale               = errors.New("cache data stale")
 )
 
 // Health check status constants.
@@ -177,7 +179,7 @@ func (h *HealthChecker) ReadinessHandler() fiber.Handler {
 		}
 
 		// Check rule cache
-		cacheCheck := h.checkRuleCache()
+		cacheCheck := h.checkRuleCache(ctx)
 		checks = append(checks, cacheCheck)
 
 		response := api.ReadinessResponse{
@@ -255,16 +257,25 @@ func (h *HealthChecker) checkPostgres(ctx context.Context) api.HealthCheck {
 // checkRuleCache verifies rule cache health for the readiness probe.
 // Returns FAILED if cache is not ready or data is stale beyond threshold.
 // Returns OK if cache is healthy or not configured.
-func (h *HealthChecker) checkRuleCache() api.HealthCheck {
+// Creates a child span if tracer is available in context.
+func (h *HealthChecker) checkRuleCache(ctx context.Context) api.HealthCheck {
+	//nolint:dogsled // only tracer needed for span creation; logger/headerID/metrics unused here
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "repository.rule_cache.health_check")
+	defer span.End()
+
 	if h.cacheHealth == nil {
 		return api.HealthCheck{Component: ComponentRuleCache, Status: StatusOK, Message: "cache not configured"}
 	}
 
 	if !h.cacheHealth.IsReady() {
+		libOtel.HandleSpanError(&span, "cache not ready", ErrCacheNotReady)
 		return api.HealthCheck{Component: ComponentRuleCache, Status: StatusFailed, Message: "cache not ready"}
 	}
 
 	if h.cacheHealth.Staleness() > h.cacheStalenessThreshold {
+		libOtel.HandleSpanError(&span, "cache data stale", ErrCacheStale)
 		return api.HealthCheck{Component: ComponentRuleCache, Status: StatusFailed, Message: "cache data stale"}
 	}
 
