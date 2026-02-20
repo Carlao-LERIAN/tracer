@@ -375,6 +375,22 @@ func ValidateAuthConfig(cfg *Config, logger libLog.Logger) error {
 	return nil
 }
 
+// ValidateAccessManagerConfig validates the Access Manager plugin configuration.
+// It warns when plugin auth is disabled (operator should be aware).
+// It fails if plugin auth is enabled but the address is missing.
+func ValidateAccessManagerConfig(cfg *Config, logger libLog.Logger) error {
+	if !cfg.PluginAuthEnabled {
+		logger.WithFields("config", "PLUGIN_AUTH_ENABLED").Warn("Access Manager plugin authentication is DISABLED")
+		return nil
+	}
+
+	if cfg.PluginAuthAddress == "" {
+		return fmt.Errorf("PLUGIN_AUTH_ADDRESS must be set when PLUGIN_AUTH_ENABLED=true")
+	}
+
+	return nil
+}
+
 // initPostgresConnection creates and connects a PostgreSQL connection pool.
 func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.PostgresConnection, error) {
 	sslMode := cfg.DBSSLMode
@@ -590,6 +606,11 @@ func InitServers() (*Service, error) {
 		return nil, fmt.Errorf("invalid auth configuration: %w", err)
 	}
 
+	// Validate Access Manager plugin configuration (fail-fast if misconfigured)
+	if err := ValidateAccessManagerConfig(cfg, logger); err != nil {
+		return nil, fmt.Errorf("invalid access manager configuration: %w", err)
+	}
+
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
 	telemetry := libOtel.InitializeTelemetry(&libOtel.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -700,10 +721,6 @@ func InitServers() (*Service, error) {
 		PluginAuthEnabled: cfg.PluginAuthEnabled,
 		AppName:           constant.ApplicationName,
 	}, authClient)
-
-	if authGuard == nil {
-		return nil, fmt.Errorf("failed to create auth guard: PluginAuthEnabled=true requires valid auth client")
-	}
 
 	httpApp := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard)
 

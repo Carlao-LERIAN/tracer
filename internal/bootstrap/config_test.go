@@ -291,6 +291,128 @@ func TestValidateAuthConfig_TableDriven(t *testing.T) {
 	}
 }
 
+func TestValidateAccessManagerConfig_Success_PluginDisabled_LogsWarning(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	logger := testutil.NewMockLogger()
+	cfg := &Config{
+		PluginAuthEnabled: false,
+		PluginAuthAddress: "",
+	}
+
+	// Act
+	err := ValidateAccessManagerConfig(cfg, logger)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, logger.Calls, 1, "expected exactly one warning when plugin auth is disabled")
+	assert.Contains(t, logger.Calls[0].Message, "Access Manager plugin authentication is DISABLED")
+}
+
+func TestValidateAccessManagerConfig_Error_PluginEnabledNoAddress_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	logger := testutil.NewMockLogger()
+	cfg := &Config{
+		PluginAuthEnabled: true,
+		PluginAuthAddress: "",
+	}
+
+	// Act
+	err := ValidateAccessManagerConfig(cfg, logger)
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PLUGIN_AUTH_ADDRESS must be set when PLUGIN_AUTH_ENABLED=true")
+}
+
+func TestValidateAccessManagerConfig_Success_PluginEnabledWithAddress_NoError(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	logger := testutil.NewMockLogger()
+	cfg := &Config{
+		PluginAuthEnabled: true,
+		PluginAuthAddress: "http://access-manager:8080",
+	}
+
+	// Act
+	err := ValidateAccessManagerConfig(cfg, logger)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, logger.Calls, 0, "expected no warnings for valid configuration")
+}
+
+func TestValidateAccessManagerConfig_TableDriven(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		pluginEnabled     bool
+		pluginAddress     string
+		expectError       bool
+		expectedErrMsg    string
+		expectedWarnCount int
+	}{
+		{
+			name:              "Success - plugin disabled logs warning",
+			pluginEnabled:     false,
+			pluginAddress:     "",
+			expectError:       false,
+			expectedWarnCount: 1,
+		},
+		{
+			name:              "Success - plugin disabled with address still logs warning",
+			pluginEnabled:     false,
+			pluginAddress:     "http://access-manager:8080",
+			expectError:       false,
+			expectedWarnCount: 1,
+		},
+		{
+			name:              "Error - plugin enabled without address returns error",
+			pluginEnabled:     true,
+			pluginAddress:     "",
+			expectError:       true,
+			expectedErrMsg:    "PLUGIN_AUTH_ADDRESS must be set when PLUGIN_AUTH_ENABLED=true",
+			expectedWarnCount: 0,
+		},
+		{
+			name:              "Success - plugin enabled with address no warning",
+			pluginEnabled:     true,
+			pluginAddress:     "http://access-manager:8080",
+			expectError:       false,
+			expectedWarnCount: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Arrange
+			logger := testutil.NewMockLogger()
+			cfg := &Config{
+				PluginAuthEnabled: tc.pluginEnabled,
+				PluginAuthAddress: tc.pluginAddress,
+			}
+
+			// Act
+			err := ValidateAccessManagerConfig(cfg, logger)
+
+			// Assert
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Len(t, logger.Calls, tc.expectedWarnCount,
+				"expected %d warnings, got %d", tc.expectedWarnCount, len(logger.Calls))
+		})
+	}
+}
+
 func TestCelCompilerAdapter_Compile(t *testing.T) {
 	t.Parallel()
 
