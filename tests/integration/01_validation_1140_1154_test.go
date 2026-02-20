@@ -708,6 +708,8 @@ func TestValidation_1_1_47b_AcceptsMaxSafeCELAmount(t *testing.T) {
 	require.NoError(t, json.Unmarshal(body, &result))
 	assert.Equal(t, "DENY", result.Decision,
 		"Rule 'amount > 0' should match and DENY, proving CEL evaluated the boundary amount")
+	assert.Contains(t, result.MatchedRuleIDs, ruleID,
+		"matchedRuleIds should contain the CEL precision boundary rule")
 }
 
 // Test 1.1.48: Validation with empty metadata object
