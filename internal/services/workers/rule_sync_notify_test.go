@@ -38,9 +38,14 @@ func TestRuleSyncWorker_Notify_TriggersSyncCycle(t *testing.T) {
 
 	mockCache.EXPECT().LastSyncTime().Return(testutil.FixedTime()).AnyTimes()
 
-	// Expect exactly one sync cycle triggered by Notify (not by ticker)
+	// Expect exactly one sync cycle triggered by Notify (not by ticker).
+	// The Do callback signals syncComplete so we can wait deterministically
+	// instead of using time.Sleep.
+	syncComplete := make(chan struct{}, 1)
+
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil).Times(1)
-	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(1)
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(1).
+		Do(func(_ any, _ any) { syncComplete <- struct{}{} })
 	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -53,8 +58,13 @@ func TestRuleSyncWorker_Notify_TriggersSyncCycle(t *testing.T) {
 	// Notify should trigger a sync cycle even though the ticker never fires
 	worker.Notify()
 
-	// Give the sync cycle time to execute
-	time.Sleep(100 * time.Millisecond)
+	// Wait for the sync cycle to complete via mock callback
+	select {
+	case <-syncComplete:
+		// Sync cycle finished — ApplyChanges was called
+	case <-time.After(2 * time.Second):
+		t.Fatal("sync cycle did not complete within timeout")
+	}
 
 	cancel()
 
