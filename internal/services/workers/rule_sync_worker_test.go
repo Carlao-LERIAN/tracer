@@ -683,7 +683,10 @@ func TestRunLoop_TickerDriven(t *testing.T) {
 	// One tick -> one sync cycle; verify since uses warmupTime
 	expectedSince := warmupTime.Add(-defaultSyncConfig().OverlapBuffer)
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), expectedSince).Return([]*model.Rule{}, nil).Times(1)
-	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(1)
+	cycleDone := make(chan struct{}, 1)
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(1).Do(func(_, _ any) {
+		cycleDone <- struct{}{}
+	})
 	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -696,8 +699,8 @@ func TestRunLoop_TickerDriven(t *testing.T) {
 	// Send one tick
 	tickerChan <- testutil.FixedTime()
 
-	// Give the sync cycle time to complete
-	time.Sleep(50 * time.Millisecond)
+	// Wait for sync cycle to complete deterministically
+	<-cycleDone
 
 	cancel()
 
@@ -730,7 +733,10 @@ func TestRunLoop_MultipleTicksProcessed(t *testing.T) {
 
 	// Expect 3 sync cycles
 	repo.EXPECT().GetRulesUpdatedSince(gomock.Any(), gomock.Any()).Return([]*model.Rule{}, nil).Times(3)
-	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(3)
+	cycleDone := make(chan struct{}, 3)
+	mockCache.EXPECT().ApplyChanges(gomock.Nil(), gomock.Nil()).Times(3).Do(func(_, _ any) {
+		cycleDone <- struct{}{}
+	})
 	mockCache.EXPECT().Size().Return(0).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -743,7 +749,7 @@ func TestRunLoop_MultipleTicksProcessed(t *testing.T) {
 	// Send 3 ticks
 	for i := 0; i < 3; i++ {
 		tickerChan <- testutil.FixedTime()
-		time.Sleep(50 * time.Millisecond)
+		<-cycleDone
 	}
 
 	cancel()

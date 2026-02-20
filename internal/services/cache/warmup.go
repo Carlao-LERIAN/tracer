@@ -18,6 +18,7 @@ import (
 // WarmUp loads all active rules from the database, compiles their CEL expressions,
 // populates the cache, and marks it as ready.
 // MUST complete successfully before the instance reports READY.
+// Fail-fast: any rule compilation error aborts the entire warm-up.
 // Uses the provided clock for timing (enables deterministic tests).
 func WarmUp(ctx context.Context, c *RuleCache, repo RuleSyncRepository, compiler ExpressionCompiler, logger libLog.Logger, clk clock.Clock) (int, time.Duration, error) {
 	if clk == nil {

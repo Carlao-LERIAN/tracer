@@ -83,15 +83,23 @@ func SetupTestDBSuite(m *testing.M, opts ...Option) int {
 	if cfg.migrationsPath != "" {
 		if err := applyMigrations(ctx, connStr, cfg.migrationsPath); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to apply migrations: %v\n", err)
-			container.Terminate(ctx)
+
+			if termErr := container.Terminate(ctx); termErr != nil {
+				fmt.Fprintf(os.Stderr, "Failed to terminate container: %v\n", termErr)
+			}
+
 			restoreEnv(saved)
+
 			return 1
 		}
 	}
 
 	code := m.Run()
 
-	container.Terminate(ctx)
+	if termErr := container.Terminate(ctx); termErr != nil {
+		fmt.Fprintf(os.Stderr, "Failed to terminate container: %v\n", termErr)
+	}
+
 	restoreEnv(saved)
 
 	return code
@@ -155,7 +163,7 @@ func applyMigrations(ctx context.Context, connectionString, migrationsPath strin
 	// 1. Function migrations (functions/ subdirectory) — execute *.up.sql files directly.
 	// We avoid importing pkg/migration here to prevent an import cycle
 	// (pkg/migration tests import this package).
-	functionsPath := migrationsPath + "/functions"
+	functionsPath := filepath.Join(migrationsPath, "functions")
 	if _, statErr := os.Stat(functionsPath); statErr == nil {
 		if err := execSQLFiles(ctx, db, functionsPath); err != nil {
 			return fmt.Errorf("function migrations: %w", err)
