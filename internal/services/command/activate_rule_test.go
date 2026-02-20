@@ -22,7 +22,7 @@ func TestNewActivateRuleService_NilRepository(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockExprCompiler := NewMockExpressionCompiler(ctrl)
 
-	service, err := NewActivateRuleService(nil, mockExprCompiler, testutil.NewDefaultMockClock(), nil)
+	service, err := NewActivateRuleService(nil, mockExprCompiler, testutil.NewDefaultMockClock(), nil, nil)
 
 	require.Nil(t, service)
 	require.ErrorIs(t, err, ErrActivateNilRepository)
@@ -32,7 +32,7 @@ func TestNewActivateRuleService_NilExpressionCompiler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockRepo := NewMockRuleRepository(ctrl)
 
-	service, err := NewActivateRuleService(mockRepo, nil, testutil.NewDefaultMockClock(), nil)
+	service, err := NewActivateRuleService(mockRepo, nil, testutil.NewDefaultMockClock(), nil, nil)
 
 	require.Nil(t, service)
 	require.ErrorIs(t, err, ErrActivateNilExpressionCompiler)
@@ -43,7 +43,7 @@ func TestNewActivateRuleService_NilClock(t *testing.T) {
 	mockRepo := NewMockRuleRepository(ctrl)
 	mockExprCompiler := NewMockExpressionCompiler(ctrl)
 
-	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, nil, nil)
+	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, nil, nil, nil)
 
 	require.Nil(t, service)
 	require.ErrorIs(t, err, ErrActivateNilClock)
@@ -98,7 +98,7 @@ func TestActivateRule_Success(t *testing.T) {
 		Times(1).
 		Return(nil)
 
-	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter, nil)
 	require.NoError(t, err)
 
 	result, err := service.Execute(ctx, ruleID)
@@ -128,7 +128,7 @@ func TestActivateRule_RuleNotFound(t *testing.T) {
 		RecordRuleEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter, nil)
 	require.NoError(t, err)
 
 	_, err = service.Execute(ctx, ruleID)
@@ -161,7 +161,7 @@ func TestActivateRule_AlreadyActive_Idempotent(t *testing.T) {
 		RecordRuleEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter, nil)
 	require.NoError(t, err)
 
 	result, err := service.Execute(ctx, ruleID)
@@ -200,7 +200,7 @@ func TestActivateRule_InvalidTransition(t *testing.T) {
 		RecordRuleEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter, nil)
 	require.NoError(t, err)
 
 	_, err = service.Execute(ctx, ruleID)
@@ -236,7 +236,7 @@ func TestActivateRule_EmptyExpression(t *testing.T) {
 		RecordRuleEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter, nil)
 	require.NoError(t, err)
 
 	_, err = service.Execute(ctx, ruleID)
@@ -272,7 +272,7 @@ func TestActivateRule_ExpressionCompilationFailed(t *testing.T) {
 		RecordRuleEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter, nil)
 	require.NoError(t, err)
 
 	_, err = service.Execute(ctx, ruleID)
@@ -298,7 +298,7 @@ func TestActivateRule_GetByIDError(t *testing.T) {
 		RecordRuleEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter, nil)
 	require.NoError(t, err)
 
 	_, err = service.Execute(ctx, ruleID)
@@ -341,7 +341,7 @@ func TestActivateRule_UpdateStatusError(t *testing.T) {
 		RecordRuleEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Times(0)
 
-	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewActivateRuleService(mockRepo, mockExprCompiler, testutil.NewDefaultMockClock(), auditWriter, nil)
 	require.NoError(t, err)
 
 	_, err = service.Execute(ctx, ruleID)

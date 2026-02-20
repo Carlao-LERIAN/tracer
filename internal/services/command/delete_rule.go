@@ -23,13 +23,16 @@ import (
 type DeleteRuleService struct {
 	repository  RuleRepository
 	auditWriter AuditWriter
+	notifier    RuleChangeNotifier
 }
 
 var ErrNilDeleteRuleRepository = errors.New("delete rule repository is nil")
 var ErrNilAuditWriter = errors.New("audit writer is nil")
 
 // NewDeleteRuleService creates a new DeleteRuleService.
-func NewDeleteRuleService(repository RuleRepository, auditWriter AuditWriter) (*DeleteRuleService, error) {
+// The notifier parameter is optional (nil-safe); when set, it triggers an
+// immediate cache sync after a successful deletion.
+func NewDeleteRuleService(repository RuleRepository, auditWriter AuditWriter, notifier RuleChangeNotifier) (*DeleteRuleService, error) {
 	if repository == nil {
 		return nil, ErrNilDeleteRuleRepository
 	}
@@ -41,6 +44,7 @@ func NewDeleteRuleService(repository RuleRepository, auditWriter AuditWriter) (*
 	return &DeleteRuleService{
 		repository:  repository,
 		auditWriter: auditWriter,
+		notifier:    notifier,
 	}, nil
 }
 
@@ -154,6 +158,10 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 				"error", err.Error(),
 			).Warn("Failed to record audit event")
 		}
+	}
+
+	if s.notifier != nil {
+		s.notifier.Notify()
 	}
 
 	return nil

@@ -18,6 +18,23 @@ import (
 	"tracer/pkg/model"
 )
 
+func TestNewDeactivateRuleService_NilRepository(t *testing.T) {
+	service, err := NewDeactivateRuleService(nil, testutil.NewDefaultMockClock(), nil, nil)
+
+	require.Nil(t, service)
+	require.ErrorIs(t, err, ErrDeactivateNilRepository)
+}
+
+func TestNewDeactivateRuleService_NilClock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := NewMockRuleRepository(ctrl)
+
+	service, err := NewDeactivateRuleService(mockRepo, nil, nil, nil)
+
+	require.Nil(t, service)
+	require.ErrorIs(t, err, ErrDeactivateNilClock)
+}
+
 func TestDeactivateRule_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
@@ -59,7 +76,8 @@ func TestDeactivateRule_Success(t *testing.T) {
 		gomock.Any(),                                // clientIP (may be 0.0.0.0 from context)
 	).Return(nil).Times(1)
 
-	service := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter, nil)
+	require.NoError(t, err)
 
 	result, err := service.Execute(ctx, ruleID)
 
@@ -99,9 +117,10 @@ func TestDeactivateRule_FromDraft_InvalidTransition(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter, nil)
+	require.NoError(t, err)
 
-	_, err := service.Execute(ctx, ruleID)
+	_, err = service.Execute(ctx, ruleID)
 
 	// DRAFT → INACTIVE is not a valid transition (DRAFT can only go to ACTIVE or DELETED)
 	require.Error(t, err)
@@ -127,9 +146,10 @@ func TestDeactivateRule_RuleNotFound(t *testing.T) {
 	// No audit event expected - rule not found
 	auditWriter.EXPECT().RecordRuleEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
-	service := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter, nil)
+	require.NoError(t, err)
 
-	_, err := service.Execute(ctx, ruleID)
+	_, err = service.Execute(ctx, ruleID)
 
 	require.Error(t, err)
 }
@@ -160,7 +180,8 @@ func TestDeactivateRule_AlreadyInactive_Idempotent(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter, nil)
+	require.NoError(t, err)
 
 	result, err := service.Execute(ctx, ruleID)
 
@@ -196,9 +217,10 @@ func TestDeactivateRule_InvalidTransition(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter, nil)
+	require.NoError(t, err)
 
-	_, err := service.Execute(ctx, ruleID)
+	_, err = service.Execute(ctx, ruleID)
 
 	require.Error(t, err)
 	// Verify the error is the typed InvalidTransitionError
@@ -225,9 +247,10 @@ func TestDeactivateRule_GetByIDError(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter, nil)
+	require.NoError(t, err)
 
-	_, err := service.Execute(ctx, ruleID)
+	_, err = service.Execute(ctx, ruleID)
 
 	require.Error(t, err)
 }
@@ -261,9 +284,10 @@ func TestDeactivateRule_UpdateStatusError(t *testing.T) {
 		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
 	).Times(0)
 
-	service := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter, nil)
+	require.NoError(t, err)
 
-	_, err := service.Execute(ctx, ruleID)
+	_, err = service.Execute(ctx, ruleID)
 
 	require.Error(t, err)
 	// Note: inputRule in memory IS mutated by SetStatus() before persistence fails

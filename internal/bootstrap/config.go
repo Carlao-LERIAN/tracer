@@ -510,27 +510,32 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Pos
 }
 
 // initRuleService creates the rule service with all its dependencies.
-func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter) (*services.RuleService, error) {
+// The notifier parameter is optional (nil-safe); when provided, rule mutation commands
+// (activate, deactivate, delete, draft) will trigger an immediate cache sync.
+func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, notifier command.RuleChangeNotifier) (*services.RuleService, error) {
 	celCompiler := &celCompilerAdapter{adapter: celAdapter}
 	clk := clock.New()
 
-	// Inject audit writer into all Rule commands for SOX/GLBA compliance
+	// Inject audit writer and notifier into all Rule commands
 	createRuleCmd := command.NewCreateRuleCommand(ruleRepo, celCompiler, clk, auditWriter)
 	updateRuleCmd := command.NewUpdateRuleCommand(ruleRepo, celCompiler, clk, auditWriter)
 
-	activateRuleCmd, err := command.NewActivateRuleService(ruleRepo, celCompiler, clk, auditWriter)
+	activateRuleCmd, err := command.NewActivateRuleService(ruleRepo, celCompiler, clk, auditWriter, notifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activate rule service: %w", err)
 	}
 
-	deactivateRuleCmd := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter)
+	deactivateRuleCmd, err := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter, notifier)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create deactivate rule service: %w", err)
+	}
 
-	draftRuleCmd, err := command.NewDraftRuleService(ruleRepo, clk, auditWriter)
+	draftRuleCmd, err := command.NewDraftRuleService(ruleRepo, clk, auditWriter, notifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create draft rule service: %w", err)
 	}
 
-	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter)
+	deleteRuleCmd, err := command.NewDeleteRuleService(ruleRepo, auditWriter, notifier)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create delete rule service: %w", err)
 	}
@@ -659,18 +664,11 @@ func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepos
 func initWorkers(
 	cfg *Config,
 	limitDeps *limitServiceDeps,
-	ruleCache *cache.RuleCache,
-	ruleSyncRepo *postgres.RuleSyncRepository,
-	celAdapter *cel.Adapter,
+	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
 	logger libLog.Logger,
 ) (*Service, error) {
 	cleanupWorker, err := initCleanupWorker(cfg, limitDeps.usageCounterRepo, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	syncWorker, err := initSyncWorker(cfg, ruleCache, ruleSyncRepo, celAdapter, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -805,12 +803,6 @@ func InitServers() (*Service, error) {
 	auditEventRepo := postgres.NewAuditEventRepository(postgresConn)
 	auditWriter := command.NewRecordAuditEventCommand(auditEventRepo)
 
-	// Init Rule service with audit writer for SOX/GLBA compliance
-	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter)
-	if err != nil {
-		return nil, err
-	}
-
 	// Init Rule Cache: warm up from database, compile CEL expressions, wire into evaluation path
 	clk := clock.New()
 	ruleCache := cache.NewRuleCache(clk)
@@ -827,6 +819,18 @@ func InitServers() (*Service, error) {
 	}
 
 	logger.Infof("Rule cache warmed up: %d rules in %v", rulesLoaded, warmUpDuration)
+
+	// Init sync worker BEFORE rule service so it can be passed as RuleChangeNotifier
+	syncWorker, err := initSyncWorker(cfg, ruleCache, ruleSyncRepo, celAdapter, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	// Init Rule service with audit writer and sync worker as notifier
+	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, syncWorker)
+	if err != nil {
+		return nil, err
+	}
 
 	cacheAdapter, err := cache.NewCacheAdapter(ruleCache)
 	if err != nil {
@@ -896,7 +900,7 @@ func InitServers() (*Service, error) {
 	}
 
 	// Init background workers
-	svc, err := initWorkers(cfg, limitDeps, ruleCache, ruleSyncRepo, celAdapter, serverAPI, logger)
+	svc, err := initWorkers(cfg, limitDeps, syncWorker, serverAPI, logger)
 	if err != nil {
 		return nil, err
 	}

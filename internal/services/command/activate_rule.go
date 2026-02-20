@@ -33,10 +33,13 @@ type ActivateRuleService struct {
 	expressionCompiler ExpressionCompiler
 	clock              clock.Clock
 	auditWriter        AuditWriter
+	notifier           RuleChangeNotifier
 }
 
 // NewActivateRuleService creates a new ActivateRuleService.
-func NewActivateRuleService(repository RuleRepository, expressionCompiler ExpressionCompiler, clk clock.Clock, auditWriter AuditWriter) (*ActivateRuleService, error) {
+// The notifier parameter is optional (nil-safe); when set, it triggers an
+// immediate cache sync after a successful activation.
+func NewActivateRuleService(repository RuleRepository, expressionCompiler ExpressionCompiler, clk clock.Clock, auditWriter AuditWriter, notifier RuleChangeNotifier) (*ActivateRuleService, error) {
 	if repository == nil {
 		return nil, ErrActivateNilRepository
 	}
@@ -54,6 +57,7 @@ func NewActivateRuleService(repository RuleRepository, expressionCompiler Expres
 		expressionCompiler: expressionCompiler,
 		clock:              clk,
 		auditWriter:        auditWriter,
+		notifier:           notifier,
 	}, nil
 }
 
@@ -208,6 +212,10 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 				"error", err.Error(),
 			).Warn("Failed to record audit event")
 		}
+	}
+
+	if s.notifier != nil {
+		s.notifier.Notify()
 	}
 
 	return updatedRule, nil
