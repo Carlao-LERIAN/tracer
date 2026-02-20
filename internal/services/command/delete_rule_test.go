@@ -28,6 +28,17 @@ func TestNewDeleteRuleService_NilRepository(t *testing.T) {
 	assert.Nil(t, service)
 }
 
+func TestNewDeleteRuleService_NilAuditWriter(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRepo := NewMockRuleRepository(ctrl)
+
+	service, err := NewDeleteRuleService(mockRepo, nil, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNilAuditWriter)
+	assert.Nil(t, service)
+}
+
 func TestDeleteRule_Success_FromInactive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
