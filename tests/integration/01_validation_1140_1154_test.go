@@ -621,7 +621,8 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 func TestValidation_1_1_47_RejectsAmountExceedingCELPrecision(t *testing.T) {
 	// Create and activate a rule so the validation path invokes CEL.
 	// The expression "amount > 0" matches any positive amount, forcing CEL evaluation.
-	ruleID := testutil.CreateTestRuleWithExpression(t, "cel-precision-guard-test", "amount > 0", "DENY")
+	ruleName := "cel-precision-guard-test-" + testutil.MustDeterministicUUID(1209).String()[:8]
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 0", "DENY")
 	t.Cleanup(func() { testutil.CleanupRule(t, ruleID) })
 	testutil.ActivateRule(t, ruleID)
 
@@ -668,7 +669,8 @@ func TestValidation_1_1_47_RejectsAmountExceedingCELPrecision(t *testing.T) {
 func TestValidation_1_1_47b_AcceptsMaxSafeCELAmount(t *testing.T) {
 	// Create and activate a rule so the validation path invokes CEL and the precision guard.
 	// Without this, the request would be ALLOW'd without ever reaching CEL evaluation.
-	ruleID := testutil.CreateTestRuleWithExpression(t, "cel-precision-boundary-test", "amount > 0", "DENY")
+	ruleName := "cel-precision-boundary-test-" + testutil.MustDeterministicUUID(1210).String()[:8]
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 0", "DENY")
 	t.Cleanup(func() { testutil.CleanupRule(t, ruleID) })
 	testutil.ActivateRule(t, ruleID)
 

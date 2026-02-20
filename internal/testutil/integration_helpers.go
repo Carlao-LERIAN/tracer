@@ -503,7 +503,6 @@ func CreateTestRuleWithExpression(t *testing.T, name, expression, action string)
 }
 
 // ActivateRule activates a rule by ID.
-// Includes a brief wait for the sync worker to pick up the change into the in-memory cache.
 func ActivateRule(t *testing.T, ruleID string) {
 	t.Helper()
 
