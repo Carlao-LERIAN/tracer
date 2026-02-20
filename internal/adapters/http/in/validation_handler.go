@@ -230,6 +230,10 @@ func (h *ValidationHandler) handleValidationError(c *fiber.Ctx, span *trace.Span
 			Title:   "Service Unavailable",
 			Message: "request cancelled",
 		})
+	case errors.Is(err, constant.ErrAmountExceedsPrecision):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Amount exceeds safe precision", err)
+
+		return pkgHTTP.BadRequestWithMessage(c, constant.CodeAmountExceedsPrecision, "Bad Request", "amount exceeds safe precision limit for evaluation (max: ±2^53)")
 	case errors.Is(err, constant.ErrRuleEvaluationFailed):
 		libOpentelemetry.HandleSpanError(span, "Rule evaluation failed", err)
 

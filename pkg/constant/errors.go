@@ -65,6 +65,7 @@ var (
 	ErrExpressionEvaluation     = errors.New("TRC-0086") // runtime evaluation error
 	ErrExpressionProgram        = errors.New("TRC-0087") // program creation failed (compilation phase)
 	ErrExpressionCostEstimation = errors.New("TRC-0088") // failed to estimate expression cost
+	ErrAmountExceedsPrecision   = errors.New("TRC-0089") // amount exceeds safe precision for CEL float64 evaluation (max: ±2^53)
 
 	// =============================================================================
 	// Rule Errors (TRC-0100 to TRC-0119)
@@ -184,6 +185,12 @@ var (
 	// =============================================================================
 	ErrTransactionValidationIDRequired        = errors.New("TRC-0270") // validation ID is required
 	ErrTransactionValidationCreatedAtRequired = errors.New("TRC-0271") // createdAt is required
+
+	// =============================================================================
+	// Cache Errors (TRC-0280 to TRC-0299)
+	// =============================================================================
+	ErrRuleCacheWarmUpFailed = errors.New("TRC-0280") // rule cache warm-up failed
+	ErrRuleCacheNotReady     = errors.New("TRC-0281") // rule cache is not ready
 )
 
 // Error code constants for HTTP responses.
@@ -192,8 +199,10 @@ const (
 	CodeInternalServer         = "TRC-0004"
 	CodePayloadTooLarge        = "TRC-0011"
 	CodeContextCancelled       = "TRC-0012"
+	CodeAmountExceedsPrecision = "TRC-0089"
 	CodeRuleEvaluationError    = "TRC-0103"
 	CodeLimitCheckError        = "TRC-0136"
 	CodeValidationTimeout      = "TRC-0229"
 	CodeListValidationsTimeout = "TRC-0252"
+	CodeCacheNotReady          = "TRC-0281"
 )

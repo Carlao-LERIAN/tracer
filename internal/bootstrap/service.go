@@ -18,6 +18,7 @@ type Service struct {
 	*HTTPServer
 	libLog.Logger
 	cleanupWorker *workers.UsageCleanupWorker
+	syncWorker    *workers.RuleSyncWorker
 }
 
 // Run starts the application.
@@ -31,6 +32,11 @@ func (app *Service) Run() {
 	// Register cleanup worker with Launcher if configured
 	if app.cleanupWorker != nil {
 		opts = append(opts, libCommons.RunApp("Usage Cleanup Worker", app.cleanupWorker))
+	}
+
+	// Register rule sync worker with Launcher
+	if app.syncWorker != nil {
+		opts = append(opts, libCommons.RunApp("Rule Sync Worker", app.syncWorker))
 	}
 
 	// Run all services (blocks until shutdown)
@@ -59,6 +65,12 @@ func (app *Service) Shutdown(ctx context.Context) error {
 		logger.WithFields(
 			"service.name", "Usage Cleanup Worker",
 		).Info("cleanup worker shutdown is managed by Launcher via OS signals")
+	}
+
+	if app.syncWorker != nil {
+		logger.WithFields(
+			"service.name", "Rule Sync Worker",
+		).Info("rule sync worker shutdown is managed by Launcher via OS signals")
 	}
 
 	return nil

@@ -548,6 +548,111 @@ func TestRuleEvaluator_MultipleScopesNoneMatch(t *testing.T) {
 	assert.False(t, result, "Rule should not match when no scope in the list matches the request account")
 }
 
+// TestRuleEvaluator_PreCompiledProgram verifies that when a rule has a pre-compiled
+// program (set by CacheAdapter), the evaluator uses it directly without calling Compile().
+func TestRuleEvaluator_PreCompiledProgram(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ruleID := testutil.MustDeterministicUUID(50)
+	accountID := testutil.MustDeterministicUUID(51)
+	requestID := testutil.MustDeterministicUUID(52)
+	now := testutil.FixedTime()
+
+	preCompiled := &cel.CompiledProgram{
+		ExpressionHash:   "pre-compiled-hash",
+		SourceExpression: "amount > 10",
+		CompiledAt:       now,
+		CompileTimeMs:    1,
+	}
+
+	rule := &model.Rule{
+		ID:              ruleID,
+		Name:            "Pre-compiled rule",
+		Expression:      "amount > 10",
+		Action:          model.DecisionDeny,
+		Status:          model.RuleStatusActive,
+		Scopes:          []model.Scope{},
+		CreatedAt:       now.Add(-24 * time.Hour),
+		UpdatedAt:       now.Add(-1 * time.Hour),
+		CompiledProgram: preCompiled, // Set by CacheAdapter
+	}
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("1500"),
+		Currency:             "USD",
+		TransactionTimestamp: now,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+	mockEval := NewMockExpressionEvaluator(ctrl)
+	// Compile should NOT be called — pre-compiled program is used
+	mockEval.EXPECT().Evaluate(gomock.Any(), preCompiled, request).Return(true, nil)
+
+	evaluator, err := NewRuleEvaluator(mockEval)
+	require.NoError(t, err)
+
+	result, err := evaluator.Evaluate(context.Background(), rule, request)
+
+	require.NoError(t, err)
+	assert.True(t, result, "Should use pre-compiled program and evaluate to true")
+}
+
+// TestRuleEvaluator_PreCompiledProgram_WrongType verifies that when CompiledProgram
+// is set to a wrong type, the evaluator falls back to Compile() (defense-in-depth).
+func TestRuleEvaluator_PreCompiledProgram_WrongType(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ruleID := testutil.MustDeterministicUUID(60)
+	accountID := testutil.MustDeterministicUUID(61)
+	requestID := testutil.MustDeterministicUUID(62)
+	now := testutil.FixedTime()
+
+	compiledByFallback := &cel.CompiledProgram{
+		ExpressionHash:   "fallback-hash",
+		SourceExpression: "amount > 10",
+		CompiledAt:       now,
+		CompileTimeMs:    1,
+	}
+
+	rule := &model.Rule{
+		ID:              ruleID,
+		Name:            "Wrong type rule",
+		Expression:      "amount > 10",
+		Action:          model.DecisionDeny,
+		Status:          model.RuleStatusActive,
+		Scopes:          []model.Scope{},
+		CreatedAt:       now.Add(-24 * time.Hour),
+		UpdatedAt:       now.Add(-1 * time.Hour),
+		CompiledProgram: "not-a-compiled-program", // Wrong type
+	}
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("1500"),
+		Currency:             "USD",
+		TransactionTimestamp: now,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+	mockEval := NewMockExpressionEvaluator(ctrl)
+	// Compile SHOULD be called as fallback since CompiledProgram is wrong type
+	mockEval.EXPECT().Compile(gomock.Any(), rule.Expression).Return(compiledByFallback, nil)
+	mockEval.EXPECT().Evaluate(gomock.Any(), compiledByFallback, request).Return(true, nil)
+
+	evaluator, err := NewRuleEvaluator(mockEval)
+	require.NoError(t, err)
+
+	result, err := evaluator.Evaluate(context.Background(), rule, request)
+
+	require.NoError(t, err)
+	assert.True(t, result, "Should fall back to Compile() and evaluate to true")
+}
+
 // TestRuleEvaluator_ScopeWithNilAccountID verifies that a scope with nil AccountID
 // acts as a wildcard ("match any") per Scope.Matches semantics, triggering expression evaluation.
 func TestRuleEvaluator_ScopeWithNilAccountID(t *testing.T) {

@@ -33,10 +33,13 @@ type ActivateRuleService struct {
 	expressionCompiler ExpressionCompiler
 	clock              clock.Clock
 	auditWriter        AuditWriter
+	cacheWriter        RuleCacheWriter
 }
 
 // NewActivateRuleService creates a new ActivateRuleService.
-func NewActivateRuleService(repository RuleRepository, expressionCompiler ExpressionCompiler, clk clock.Clock, auditWriter AuditWriter) (*ActivateRuleService, error) {
+// The cacheWriter parameter is optional (nil-safe); when set, it synchronously
+// updates the in-memory cache after a successful activation.
+func NewActivateRuleService(repository RuleRepository, expressionCompiler ExpressionCompiler, clk clock.Clock, auditWriter AuditWriter, cacheWriter RuleCacheWriter) (*ActivateRuleService, error) {
 	if repository == nil {
 		return nil, ErrActivateNilRepository
 	}
@@ -54,6 +57,7 @@ func NewActivateRuleService(repository RuleRepository, expressionCompiler Expres
 		expressionCompiler: expressionCompiler,
 		clock:              clk,
 		auditWriter:        auditWriter,
+		cacheWriter:        cacheWriter,
 	}, nil
 }
 
@@ -130,7 +134,8 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 		"rule.id", ruleID.String(),
 	).Info("Validating expression for rule")
 
-	if _, err := s.expressionCompiler.Compile(ctx, rule.Expression); err != nil {
+	program, err := s.expressionCompiler.Compile(ctx, rule.Expression)
+	if err != nil {
 		businessErr := libCommons.ValidateBusinessError(constant.ErrExpressionSyntax, err.Error())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Expression compilation failed", businessErr)
 		logger.WithFields(
@@ -208,6 +213,10 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 				"error", err.Error(),
 			).Warn("Failed to record audit event")
 		}
+	}
+
+	if s.cacheWriter != nil {
+		s.cacheWriter.UpsertRule(updatedRule, program)
 	}
 
 	return updatedRule, nil

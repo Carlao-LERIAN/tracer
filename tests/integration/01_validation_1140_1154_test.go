@@ -613,15 +613,26 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 		expectedUsage, foundLimit.CurrentUsage)
 }
 
-// Test 1.1.47: Validation accepts amount exceeding int64 max (decimal.Decimal supports arbitrary precision)
-func TestValidation_1_1_47_AcceptsAmountExceedingInt64Max(t *testing.T) {
+// Test 1.1.47: Validation rejects amount exceeding CEL float64 safe precision (2^53).
+// The CEL expression engine converts decimal amounts to float64, which loses precision
+// beyond 2^53. The precision guard rejects such amounts to prevent silent rounding errors.
+// A rule must be active so the amount goes through CEL evaluation (no rules → no CEL).
+// Returns HTTP 400 Bad Request with error code TRC-0089.
+func TestValidation_1_1_47_RejectsAmountExceedingCELPrecision(t *testing.T) {
+	// Create and activate a rule so the validation path invokes CEL.
+	// The expression "amount > 0" matches any positive amount, forcing CEL evaluation.
+	ruleName := "cel-precision-guard-test-" + testutil.MustDeterministicUUID(1209).String()[:8]
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 0", "DENY")
+	t.Cleanup(func() { testutil.CleanupRule(t, ruleID) })
+	testutil.ActivateRule(t, ruleID)
+
 	accountID := testutil.MustDeterministicUUID(1070).String()
 
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
 
-	// 9223372036854775808 is int64 max + 1; decimal.Decimal handles arbitrary precision,
-	// so this value is accepted instead of causing an overflow error.
+	// 9223372036854775808 is int64 max + 1, which also exceeds 2^53 (9007199254740992),
+	// the maximum safe integer for float64. The CEL precision guard rejects this.
 	rawJSON := fmt.Sprintf(`{
 		"requestId": "%s",
 		"transactionType": "CARD",
@@ -643,8 +654,64 @@ func TestValidation_1_1_47_AcceptsAmountExceedingInt64Max(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode,
-		"Amount exceeding int64 max should be accepted with decimal.Decimal: %s", string(body))
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		"Amount exceeding CEL precision (2^53) should return 400: %s", string(body))
+
+	var errResp map[string]interface{}
+	require.NoError(t, json.Unmarshal(body, &errResp), "Response body should be valid JSON")
+	assert.Equal(t, "TRC-0089", errResp["code"], "Error code should be TRC-0089 (amount exceeds precision)")
+	assert.Equal(t, "Bad Request", errResp["title"])
+}
+
+// Test 1.1.47b: Validation accepts the maximum safe amount for CEL evaluation (2^53).
+// 9007199254740992 is exactly 2^53, the boundary for float64 integer precision.
+// Amounts at or below this threshold are safe for CEL's float64 arithmetic.
+func TestValidation_1_1_47b_AcceptsMaxSafeCELAmount(t *testing.T) {
+	// Create and activate a rule so the validation path invokes CEL and the precision guard.
+	// Without this, the request would be ALLOW'd without ever reaching CEL evaluation.
+	ruleName := "cel-precision-boundary-test-" + testutil.MustDeterministicUUID(1210).String()[:8]
+	ruleID := testutil.CreateTestRuleWithExpression(t, ruleName, "amount > 0", "DENY")
+	t.Cleanup(func() { testutil.CleanupRule(t, ruleID) })
+	testutil.ActivateRule(t, ruleID)
+
+	accountID := testutil.MustDeterministicUUID(1072).String()
+
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	// 2^53 = 9007199254740992 — the largest integer that float64 represents exactly.
+	rawJSON := fmt.Sprintf(`{
+		"requestId": "%s",
+		"transactionType": "CARD",
+		"amount": "9007199254740992",
+		"currency": "BRL",
+		"transactionTimestamp": "%s",
+		"account": {"accountId": "%s"}
+	}`, testutil.MustDeterministicUUID(1073).String(), testutil.FixedTime().UTC().Format(time.RFC3339), accountID)
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/validations", bytes.NewReader([]byte(rawJSON)))
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode,
+		"Amount at CEL precision boundary (2^53) should pass the precision guard: %s", string(body))
+
+	// Verify CEL actually evaluated the expression (decision DENY proves the amount
+	// went through CEL evaluation, not just a no-rules pass-through).
+	var result testutil.ValidationResponse
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.Equal(t, "DENY", result.Decision,
+		"Rule 'amount > 0' should match and DENY, proving CEL evaluated the boundary amount")
+	assert.Contains(t, result.MatchedRuleIDs, ruleID,
+		"matchedRuleIds should contain the CEL precision boundary rule")
 }
 
 // Test 1.1.48: Validation with empty metadata object

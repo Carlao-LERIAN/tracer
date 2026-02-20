@@ -20,20 +20,38 @@ import (
 	"tracer/pkg/model"
 )
 
+// Sentinel errors for DeactivateRuleService constructor validation.
+var (
+	ErrDeactivateNilRepository = errors.New("repository is required")
+	ErrDeactivateNilClock      = errors.New("clock is required")
+)
+
 // DeactivateRuleService handles rule deactivation (ACTIVE/DRAFT → INACTIVE).
 type DeactivateRuleService struct {
 	repository  RuleRepository
 	clock       clock.Clock
 	auditWriter AuditWriter
+	cacheWriter RuleCacheWriter
 }
 
 // NewDeactivateRuleService creates a new DeactivateRuleService.
-func NewDeactivateRuleService(repository RuleRepository, clk clock.Clock, auditWriter AuditWriter) *DeactivateRuleService {
+// The cacheWriter parameter is optional (nil-safe); when set, it synchronously
+// removes the rule from the in-memory cache after a successful deactivation.
+func NewDeactivateRuleService(repository RuleRepository, clk clock.Clock, auditWriter AuditWriter, cacheWriter RuleCacheWriter) (*DeactivateRuleService, error) {
+	if repository == nil {
+		return nil, ErrDeactivateNilRepository
+	}
+
+	if clk == nil {
+		return nil, ErrDeactivateNilClock
+	}
+
 	return &DeactivateRuleService{
 		repository:  repository,
 		clock:       clk,
 		auditWriter: auditWriter,
-	}
+		cacheWriter: cacheWriter,
+	}, nil
 }
 
 // Execute deactivates a rule by updating status to INACTIVE.
@@ -159,6 +177,10 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 				"error", err.Error(),
 			).Warn("Failed to record audit event")
 		}
+	}
+
+	if s.cacheWriter != nil {
+		s.cacheWriter.RemoveRule(updatedRule.ID)
 	}
 
 	return updatedRule, nil

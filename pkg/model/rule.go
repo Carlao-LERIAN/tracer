@@ -53,6 +53,12 @@ type Rule struct {
 	ActivatedAt   *time.Time `json:"activatedAt,omitempty" format:"date-time"`
 	DeactivatedAt *time.Time `json:"deactivatedAt,omitempty" format:"date-time"`
 	DeletedAt     *time.Time `json:"deletedAt,omitempty" format:"date-time"`
+
+	// CompiledProgram holds the pre-compiled CEL expression program.
+	// Transient field — not persisted, not serialized. Used to pass
+	// compiled programs from cache to evaluator, avoiding recompilation
+	// on the hot evaluation path.
+	CompiledProgram any `json:"-"`
 }
 
 // MaxRuleNameLength defines the maximum length for rule names (aligned with VARCHAR(255) in database)

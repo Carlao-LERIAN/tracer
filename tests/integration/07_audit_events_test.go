@@ -2031,23 +2031,16 @@ func TestAuditEvents_11_9_7_InvalidCursorReturns400(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// Invalid cursor may return 400 or 500 depending on when the error is caught
-	// Accept both as valid behavior (implementation detail)
-	assert.True(t,
-		resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError,
-		"should return 400 Bad Request or 500 Internal Server Error for invalid cursor (got %d)", resp.StatusCode)
-
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.NotEmpty(t, body, "error response should not be empty")
 
-	// Verify structured error response for 400 errors
-	if resp.StatusCode == http.StatusBadRequest {
-		errResp := testutil.ParseErrorResponse(t, body)
-		assert.Equal(t, "TRC-0044", errResp.Code, "Error response should have TRC-0044 for invalid cursor")
-		assert.Equal(t, "Bad Request", errResp.Title, "Error title should be Bad Request")
-		assert.Equal(t, "Invalid pagination cursor", errResp.Message, "Error message should indicate invalid cursor")
-	}
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		"invalid cursor should return 400 Bad Request: %s", string(body))
+
+	errResp := testutil.ParseErrorResponse(t, body)
+	assert.Equal(t, "TRC-0044", errResp.Code, "Error response should have TRC-0044 for invalid cursor")
+	assert.Equal(t, "Bad Request", errResp.Title, "Error title should be Bad Request")
+	assert.Equal(t, "Invalid pagination cursor", errResp.Message, "Error message should indicate invalid cursor")
 }
 
 // TestAuditEvents_11_9_8_ZeroLimitReturnsError tests limit=0 behavior.

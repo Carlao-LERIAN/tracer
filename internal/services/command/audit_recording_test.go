@@ -82,7 +82,7 @@ func TestAuditEventRecording_ActivateRule(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	service, err := NewActivateRuleService(mockRepo, mockCEL, testutil.NewDefaultMockClock(), auditWriter)
+	service, err := NewActivateRuleService(mockRepo, mockCEL, testutil.NewDefaultMockClock(), auditWriter, nil)
 	require.NoError(t, err)
 	_, err = service.Execute(context.Background(), ruleID)
 	require.NoError(t, err)
@@ -114,8 +114,9 @@ func TestAuditEventRecording_DeactivateRule(t *testing.T) {
 		gomock.Any(),
 	).Return(nil).Times(1)
 
-	service := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
-	_, err := service.Execute(context.Background(), ruleID)
+	service, err := NewDeactivateRuleService(mockRepo, testutil.NewDefaultMockClock(), auditWriter, nil)
+	require.NoError(t, err)
+	_, err = service.Execute(context.Background(), ruleID)
 	require.NoError(t, err)
 }
 

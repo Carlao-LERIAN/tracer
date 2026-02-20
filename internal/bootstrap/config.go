@@ -24,6 +24,7 @@ import (
 	"tracer/internal/adapters/http/in"
 	"tracer/internal/adapters/postgres"
 	"tracer/internal/services"
+	"tracer/internal/services/cache"
 	"tracer/internal/services/command"
 	"tracer/internal/services/query"
 	"tracer/internal/services/workers"
@@ -31,6 +32,7 @@ import (
 	"tracer/pkg/constant"
 	"tracer/pkg/migration"
 	"tracer/pkg/model"
+	"tracer/pkg/resilience"
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -59,8 +61,7 @@ type Config struct {
 	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS"`
 
 	// CEL Expression Engine
-	CELCostLimit    string `env:"CEL_COST_LIMIT"`
-	CELCacheMaxSize string `env:"CEL_CACHE_MAX_SIZE"`
+	CELCostLimit string `env:"CEL_COST_LIMIT"`
 
 	// Rule Evaluation Feature Flags
 	DefaultDecisionWhenNoMatch string `env:"DEFAULT_DECISION_WHEN_NO_MATCH"`
@@ -74,6 +75,14 @@ type Config struct {
 	CleanupIntervalHours string `env:"CLEANUP_INTERVAL_HOURS"`
 	// CleanupRetentionDays is how many days to retain usage counters (default: 90)
 	CleanupRetentionDays string `env:"CLEANUP_RETENTION_DAYS"`
+
+	// Rule Sync Worker
+	// RuleSyncPollIntervalSeconds is how often the worker polls for rule changes (default: 10)
+	RuleSyncPollIntervalSeconds string `env:"RULE_SYNC_POLL_INTERVAL_SECONDS"`
+	// RuleSyncStalenessThresholdSeconds is when the cache is considered stale for health checks (default: 50)
+	RuleSyncStalenessThresholdSeconds string `env:"RULE_SYNC_STALENESS_THRESHOLD_SECONDS"`
+	// RuleSyncOverlapBufferSeconds is the overlap buffer for delta queries in seconds (default: 2)
+	RuleSyncOverlapBufferSeconds string `env:"RULE_SYNC_OVERLAP_BUFFER_SECONDS"`
 }
 
 // minAPIKeyLength is the minimum recommended length for API keys.
@@ -106,28 +115,6 @@ func parseCELCostLimit(s string) (uint64, error) {
 
 	if v == 0 {
 		return 0, fmt.Errorf("CEL_COST_LIMIT must be positive, got 0")
-	}
-
-	return v, nil
-}
-
-// parseCELCacheMaxSize parses the CEL cache max size from string to int64.
-// Returns default value (1000) if empty.
-// Returns error if value is invalid or non-positive.
-func parseCELCacheMaxSize(s string) (int64, error) {
-	const defaultValue int64 = 1000
-
-	if s == "" {
-		return defaultValue, nil
-	}
-
-	v, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid CEL_CACHE_MAX_SIZE value '%s': %w", s, err)
-	}
-
-	if v <= 0 {
-		return 0, fmt.Errorf("CEL_CACHE_MAX_SIZE must be positive, got %d", v)
 	}
 
 	return v, nil
@@ -243,6 +230,94 @@ func parseCleanupRetentionDays(s string) (time.Duration, error) {
 	return time.Duration(days) * 24 * time.Hour, nil
 }
 
+// parseRuleSyncPollInterval parses the poll interval from string to time.Duration.
+// Returns default value (10 seconds) if empty.
+// Returns error if value is invalid, non-positive, or exceeds maximum.
+func parseRuleSyncPollInterval(s string) (time.Duration, error) {
+	const (
+		defaultSeconds    = 10
+		maxAllowedSeconds = 3600
+	)
+
+	if s == "" {
+		return time.Duration(defaultSeconds) * time.Second, nil
+	}
+
+	seconds, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid RULE_SYNC_POLL_INTERVAL_SECONDS value '%s': %w", s, err)
+	}
+
+	if seconds <= 0 {
+		return 0, fmt.Errorf("RULE_SYNC_POLL_INTERVAL_SECONDS must be positive, got %d", seconds)
+	}
+
+	if seconds > maxAllowedSeconds {
+		return 0, fmt.Errorf("RULE_SYNC_POLL_INTERVAL_SECONDS exceeds maximum allowed (%d seconds = 1 hour), got %d", maxAllowedSeconds, seconds)
+	}
+
+	return time.Duration(seconds) * time.Second, nil
+}
+
+// parseRuleSyncStalenessThreshold parses the staleness threshold from string to time.Duration.
+// Returns default value (50 seconds) if empty.
+// Returns error if value is invalid, non-positive, or exceeds maximum.
+func parseRuleSyncStalenessThreshold(s string) (time.Duration, error) {
+	const (
+		defaultSeconds    = 50
+		maxAllowedSeconds = 3600
+	)
+
+	if s == "" {
+		return time.Duration(defaultSeconds) * time.Second, nil
+	}
+
+	seconds, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid RULE_SYNC_STALENESS_THRESHOLD_SECONDS value '%s': %w", s, err)
+	}
+
+	if seconds <= 0 {
+		return 0, fmt.Errorf("RULE_SYNC_STALENESS_THRESHOLD_SECONDS must be positive, got %d", seconds)
+	}
+
+	if seconds > maxAllowedSeconds {
+		return 0, fmt.Errorf("RULE_SYNC_STALENESS_THRESHOLD_SECONDS exceeds maximum allowed (%d seconds = 1 hour), got %d", maxAllowedSeconds, seconds)
+	}
+
+	return time.Duration(seconds) * time.Second, nil
+}
+
+// parseRuleSyncOverlapBuffer parses the overlap buffer from string to time.Duration.
+// Returns default value (2 seconds) if empty.
+// Returns error if value is invalid, negative, or exceeds maximum.
+// Zero is allowed (no overlap buffer).
+func parseRuleSyncOverlapBuffer(s string) (time.Duration, error) {
+	const (
+		defaultSeconds    = 2
+		maxAllowedSeconds = 60
+	)
+
+	if s == "" {
+		return time.Duration(defaultSeconds) * time.Second, nil
+	}
+
+	seconds, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid RULE_SYNC_OVERLAP_BUFFER_SECONDS value '%s': %w", s, err)
+	}
+
+	if seconds < 0 {
+		return 0, fmt.Errorf("RULE_SYNC_OVERLAP_BUFFER_SECONDS must be non-negative, got %d", seconds)
+	}
+
+	if seconds > maxAllowedSeconds {
+		return 0, fmt.Errorf("RULE_SYNC_OVERLAP_BUFFER_SECONDS exceeds maximum allowed (%d seconds), got %d", maxAllowedSeconds, seconds)
+	}
+
+	return time.Duration(seconds) * time.Second, nil
+}
+
 // LoadCleanupWorkerConfig creates a UsageCleanupWorkerConfig from environment configuration.
 // Returns nil config if cleanup worker is disabled.
 // Returns error if config or logger is nil, or if config values are invalid.
@@ -284,6 +359,50 @@ func LoadCleanupWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.UsageC
 	return &workers.UsageCleanupWorkerConfig{
 		CleanupInterval: cleanupInterval,
 		RetentionPeriod: retentionPeriod,
+	}, nil
+}
+
+// LoadRuleSyncWorkerConfig creates a RuleSyncWorkerConfig from environment configuration.
+// Returns error if config or logger is nil, or if config values are invalid.
+func LoadRuleSyncWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.RuleSyncWorkerConfig, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
+
+	pollInterval, err := parseRuleSyncPollInterval(cfg.RuleSyncPollIntervalSeconds)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RULE_SYNC_POLL_INTERVAL_SECONDS: %w", err)
+	}
+
+	stalenessThreshold, err := parseRuleSyncStalenessThreshold(cfg.RuleSyncStalenessThresholdSeconds)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RULE_SYNC_STALENESS_THRESHOLD_SECONDS: %w", err)
+	}
+
+	overlapBuffer, err := parseRuleSyncOverlapBuffer(cfg.RuleSyncOverlapBufferSeconds)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RULE_SYNC_OVERLAP_BUFFER_SECONDS: %w", err)
+	}
+
+	if stalenessThreshold < pollInterval {
+		return nil, fmt.Errorf("invalid configuration: RULE_SYNC_STALENESS_THRESHOLD_SECONDS (%s) must be >= RULE_SYNC_POLL_INTERVAL_SECONDS (%s)",
+			stalenessThreshold, pollInterval)
+	}
+
+	logger.WithFields(
+		"poll_interval", pollInterval.String(),
+		"staleness_threshold", stalenessThreshold.String(),
+		"overlap_buffer", overlapBuffer.String(),
+	).Info("Rule sync worker configuration loaded")
+
+	return &workers.RuleSyncWorkerConfig{
+		PollInterval:       pollInterval,
+		StalenessThreshold: stalenessThreshold,
+		OverlapBuffer:      overlapBuffer,
 	}, nil
 }
 
@@ -330,14 +449,8 @@ func initCELAdapter(cfg *Config, logger libLog.Logger) (*cel.Adapter, error) {
 		return nil, fmt.Errorf("invalid CEL cost limit configuration: %w", err)
 	}
 
-	celCacheMaxSize, err := parseCELCacheMaxSize(cfg.CELCacheMaxSize)
-	if err != nil {
-		return nil, fmt.Errorf("invalid cache configuration: %w", err)
-	}
-
 	adapter, err := cel.NewAdapter(cel.AdapterConfig{
-		CostLimit:    celCostLimit,
-		CacheMaxSize: celCacheMaxSize,
+		CostLimit: celCostLimit,
 	}, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL adapter: %w", err)
@@ -402,20 +515,25 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Pos
 }
 
 // initRuleService creates the rule service with all its dependencies.
-func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter) (*services.RuleService, error) {
+// The cacheWriter parameter is optional (nil-safe); when provided, activate and
+// deactivate commands will synchronously update the in-memory cache.
+func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter) (*services.RuleService, error) {
 	celCompiler := &celCompilerAdapter{adapter: celAdapter}
 	clk := clock.New()
 
-	// Inject audit writer into all Rule commands for SOX/GLBA compliance
+	// Inject audit writer and cache writer into Rule commands
 	createRuleCmd := command.NewCreateRuleCommand(ruleRepo, celCompiler, clk, auditWriter)
 	updateRuleCmd := command.NewUpdateRuleCommand(ruleRepo, celCompiler, clk, auditWriter)
 
-	activateRuleCmd, err := command.NewActivateRuleService(ruleRepo, celCompiler, clk, auditWriter)
+	activateRuleCmd, err := command.NewActivateRuleService(ruleRepo, celCompiler, clk, auditWriter, cacheWriter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create activate rule service: %w", err)
 	}
 
-	deactivateRuleCmd := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter)
+	deactivateRuleCmd, err := command.NewDeactivateRuleService(ruleRepo, clk, auditWriter, cacheWriter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create deactivate rule service: %w", err)
+	}
 
 	draftRuleCmd, err := command.NewDraftRuleService(ruleRepo, clk, auditWriter)
 	if err != nil {
@@ -434,7 +552,9 @@ func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, aud
 }
 
 // initEvaluateRulesQuery creates the rule evaluation query with all its dependencies.
-func initEvaluateRulesQuery(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, evalConfig *query.EvaluationConfig) (*query.EvaluateRulesQuery, error) {
+// The activeRulesRepo parameter accepts any ActiveRulesRepository implementation
+// (e.g., *postgres.Repository for direct DB reads, or *cache.CacheAdapter for in-memory reads).
+func initEvaluateRulesQuery(activeRulesRepo query.ActiveRulesRepository, celAdapter *cel.Adapter, evalConfig *query.EvaluationConfig) (*query.EvaluateRulesQuery, error) {
 	ruleEvaluator, err := query.NewRuleEvaluator(celAdapter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rule evaluator: %w", err)
@@ -445,7 +565,7 @@ func initEvaluateRulesQuery(ruleRepo *postgres.Repository, celAdapter *cel.Adapt
 		return nil, fmt.Errorf("failed to create complete evaluator: %w", err)
 	}
 
-	getActiveRulesQuery, err := query.NewGetActiveRulesQuery(ruleRepo)
+	getActiveRulesQuery, err := query.NewGetActiveRulesQuery(activeRulesRepo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create get active rules query: %w", err)
 	}
@@ -544,6 +664,65 @@ func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepos
 	return cleanupWorker, nil
 }
 
+// initWorkers initializes all background workers and assembles the Service.
+// Extracted from InitServers to reduce cyclomatic complexity.
+func initWorkers(
+	cfg *Config,
+	limitDeps *limitServiceDeps,
+	syncWorker *workers.RuleSyncWorker,
+	serverAPI *HTTPServer,
+	logger libLog.Logger,
+) (*Service, error) {
+	cleanupWorker, err := initCleanupWorker(cfg, limitDeps.usageCounterRepo, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Service{
+		HTTPServer:    serverAPI,
+		Logger:        logger,
+		cleanupWorker: cleanupWorker,
+		syncWorker:    syncWorker,
+	}, nil
+}
+
+// initSyncWorker creates the rule sync worker.
+func initSyncWorker(
+	cfg *Config,
+	ruleCache *cache.RuleCache,
+	syncRepo *postgres.RuleSyncRepository,
+	celAdapter *cel.Adapter,
+	logger libLog.Logger,
+) (*workers.RuleSyncWorker, error) {
+	syncWorkerConfig, err := LoadRuleSyncWorkerConfig(cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("invalid rule sync worker configuration: %w", err)
+	}
+
+	// celCompilerAdapter satisfies workers.ExpressionCompiler (Compile returns (any, error))
+	compiler := &celCompilerAdapter{adapter: celAdapter}
+
+	// Configure circuit breaker for DB poll resilience
+	cbConfig := workers.DefaultSyncCircuitBreakerConfig()
+	cb := resilience.NewCircuitBreaker(cbConfig, logger)
+
+	syncWorker, err := workers.NewRuleSyncWorker(ruleCache, syncRepo, compiler, *syncWorkerConfig, logger, cb, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rule sync worker: %w", err)
+	}
+
+	logger.WithFields(
+		"component", "rule_sync_worker",
+		"poll_interval", syncWorkerConfig.PollInterval.String(),
+		"staleness_threshold", syncWorkerConfig.StalenessThreshold.String(),
+		"overlap_buffer", syncWorkerConfig.OverlapBuffer.String(),
+		"circuit_breaker.failure_threshold", cbConfig.FailureThresh,
+		"circuit_breaker.timeout", cbConfig.Timeout.String(),
+	).Info("Rule sync worker initialized with circuit breaker")
+
+	return syncWorker, nil
+}
+
 // initAuditEventService initializes the audit event service with all required queries.
 // Extracted to reduce cyclomatic complexity of InitServers.
 func initAuditEventService(auditEventRepo *postgres.AuditEventRepository) (*services.AuditEventService, error) {
@@ -629,19 +808,49 @@ func InitServers() (*Service, error) {
 	auditEventRepo := postgres.NewAuditEventRepository(postgresConn)
 	auditWriter := command.NewRecordAuditEventCommand(auditEventRepo)
 
-	// Init Rule service with audit writer for SOX/GLBA compliance
-	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter)
+	// Init Rule Cache: warm up from database, compile CEL expressions, wire into evaluation path
+	clk := clock.New()
+	ruleCache := cache.NewRuleCache(clk)
+	ruleSyncRepo := postgres.NewRuleSyncRepository(postgresConn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cacheCompiler := &celCompilerAdapter{adapter: celAdapter}
+
+	rulesLoaded, warmUpDuration, err := cache.WarmUp(ctx, ruleCache, ruleSyncRepo, cacheCompiler, logger, clk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to warm up rule cache: %w", err)
+	}
+
+	logger.Infof("Rule cache warmed up: %d rules in %v", rulesLoaded, warmUpDuration)
+
+	// Init sync worker for background polling (cross-instance consistency)
+	syncWorker, err := initSyncWorker(cfg, ruleCache, ruleSyncRepo, celAdapter, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	// Init Rule Evaluation components (T-008)
+	// Init Rule service with audit writer and rule cache for synchronous cache updates
+	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheAdapter, err := cache.NewCacheAdapter(ruleCache)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache adapter: %w", err)
+	}
+
+	healthChecker.SetCacheHealthProvider(ruleCache)
+
+	// Init Rule Evaluation components
 	evalConfig, err := LoadEvaluationConfig(cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("invalid evaluation configuration: %w", err)
 	}
 
-	evaluateRulesQuery, err := initEvaluateRulesQuery(ruleRepo, celAdapter, evalConfig)
+	evaluateRulesQuery, err := initEvaluateRulesQuery(cacheAdapter, celAdapter, evalConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -695,8 +904,8 @@ func InitServers() (*Service, error) {
 		return nil, fmt.Errorf("failed to create HTTP server: %w", err)
 	}
 
-	// Init Usage Cleanup Worker (optional, based on configuration)
-	cleanupWorker, err := initCleanupWorker(cfg, limitDeps.usageCounterRepo, logger)
+	// Init background workers
+	svc, err := initWorkers(cfg, limitDeps, syncWorker, serverAPI, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -704,11 +913,7 @@ func InitServers() (*Service, error) {
 	// Mark initialization as successful; defer cleanup will not close the connection.
 	initSuccess = true
 
-	return &Service{
-		HTTPServer:    serverAPI,
-		Logger:        logger,
-		cleanupWorker: cleanupWorker,
-	}, nil
+	return svc, nil
 }
 
 // runFunctionMigrations executes PostgreSQL function migrations before schema migrations.

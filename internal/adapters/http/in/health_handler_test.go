@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -66,7 +67,7 @@ func TestReadinessHandler_WithMockDB(t *testing.T) {
 				require.NoError(t, err, "failed to unmarshal response")
 
 				assert.Equal(t, StatusReady, response.Status, "status should be READY")
-				require.Len(t, response.Checks, 1, "should have 1 check")
+				require.Len(t, response.Checks, 2, "should have 2 checks (database + rule_cache)")
 				assert.Equal(t, ComponentDatabase, response.Checks[0].Component)
 				assert.Equal(t, StatusOK, response.Checks[0].Status)
 			},
@@ -82,7 +83,7 @@ func TestReadinessHandler_WithMockDB(t *testing.T) {
 				require.NoError(t, err, "failed to unmarshal response")
 
 				assert.Equal(t, StatusNotReady, response.Status)
-				require.Len(t, response.Checks, 1, "should have 1 check")
+				require.Len(t, response.Checks, 2, "should have 2 checks (database + rule_cache)")
 				assert.Equal(t, StatusFailed, response.Checks[0].Status)
 				assert.Equal(t, ErrConnectionNotEstablished.Error(), response.Checks[0].Message)
 			},
@@ -98,7 +99,7 @@ func TestReadinessHandler_WithMockDB(t *testing.T) {
 				require.NoError(t, err, "failed to unmarshal response")
 
 				assert.Equal(t, StatusNotReady, response.Status)
-				require.Len(t, response.Checks, 1, "should have 1 check")
+				require.Len(t, response.Checks, 2, "should have 2 checks (database + rule_cache)")
 				assert.Equal(t, StatusFailed, response.Checks[0].Status)
 				assert.Equal(t, ErrPingFailed.Error(), response.Checks[0].Message)
 			},
@@ -187,7 +188,7 @@ func TestReadinessHandler_GetDBError(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, StatusNotReady, response.Status)
-		require.Len(t, response.Checks, 1)
+		require.Len(t, response.Checks, 2)
 		assert.Equal(t, StatusFailed, response.Checks[0].Status)
 		assert.Equal(t, ErrConnectionFailed.Error(), response.Checks[0].Message)
 	})
@@ -215,7 +216,7 @@ func TestReadinessHandler_NilProvider(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, StatusNotReady, response.Status)
-		require.Len(t, response.Checks, 1)
+		require.Len(t, response.Checks, 2)
 		assert.Equal(t, StatusFailed, response.Checks[0].Status)
 		assert.Equal(t, ErrConnectionNotEstablished.Error(), response.Checks[0].Message)
 	})
@@ -345,3 +346,149 @@ func TestDefaultHealthCheckTimeout(t *testing.T) {
 		assert.Equal(t, DefaultHealthCheckTimeout, hc.timeout)
 	})
 }
+
+func TestReadiness_CacheNotReady_ReturnsDegraded(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ctrl := gomock.NewController(t)
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+	defer db.Close()
+	mock.ExpectPing()
+
+	provider := NewMockPostgresDBProvider(ctrl)
+	provider.EXPECT().IsConnected().Return(true)
+	provider.EXPECT().GetDB().Return(db, nil)
+
+	hc := NewTestableHealthChecker(provider)
+	mockCache := &mockCacheHealth{ready: false, staleness: time.Duration(math.MaxInt64), size: 0}
+	hc.SetCacheHealthProvider(mockCache)
+
+	app := createTestFiberApp(hc)
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	resp, err := app.Test(req, -1)
+
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "DEGRADED should return 200")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response api.ReadinessResponse
+	err = json.Unmarshal(body, &response)
+	require.NoError(t, err)
+	assert.Equal(t, StatusDegraded, response.Status)
+
+	// Verify cache component appears in checks
+	require.GreaterOrEqual(t, len(response.Checks), 1, "should include cache check")
+	cacheCheck := findCheckByComponent(response.Checks, ComponentRuleCache)
+	require.NotNil(t, cacheCheck, "should have rule_cache check")
+	assert.Equal(t, StatusFailed, cacheCheck.Status)
+	assert.Equal(t, "cache not ready", cacheCheck.Message)
+}
+
+func TestReadiness_CacheReady_ReturnsUp(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ctrl := gomock.NewController(t)
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+	defer db.Close()
+	mock.ExpectPing()
+
+	provider := NewMockPostgresDBProvider(ctrl)
+	provider.EXPECT().IsConnected().Return(true)
+	provider.EXPECT().GetDB().Return(db, nil)
+
+	hc := NewTestableHealthChecker(provider)
+	mockCache := &mockCacheHealth{ready: true, staleness: 5 * time.Second, size: 10}
+	hc.SetCacheHealthProvider(mockCache)
+
+	app := createTestFiberApp(hc)
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	resp, err := app.Test(req, -1)
+
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response api.ReadinessResponse
+	err = json.Unmarshal(body, &response)
+	require.NoError(t, err)
+	assert.Equal(t, StatusReady, response.Status)
+
+	// Verify cache component shows OK
+	cacheCheck := findCheckByComponent(response.Checks, ComponentRuleCache)
+	require.NotNil(t, cacheCheck, "should have rule_cache check")
+	assert.Equal(t, StatusOK, cacheCheck.Status)
+}
+
+func TestReadiness_CacheStalenessExceeded_ReturnsDegraded(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ctrl := gomock.NewController(t)
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+	defer db.Close()
+	mock.ExpectPing()
+
+	provider := NewMockPostgresDBProvider(ctrl)
+	provider.EXPECT().IsConnected().Return(true)
+	provider.EXPECT().GetDB().Return(db, nil)
+
+	hc := NewTestableHealthChecker(provider)
+	// Cache is ready but staleness exceeds threshold
+	mockCache := &mockCacheHealth{ready: true, staleness: 10 * time.Minute, size: 5}
+	hc.SetCacheHealthProvider(mockCache)
+
+	app := createTestFiberApp(hc)
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	resp, err := app.Test(req, -1)
+
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "DEGRADED should return 200")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response api.ReadinessResponse
+	err = json.Unmarshal(body, &response)
+	require.NoError(t, err)
+	assert.Equal(t, StatusDegraded, response.Status)
+
+	// Verify cache component shows stale status
+	cacheCheck := findCheckByComponent(response.Checks, ComponentRuleCache)
+	require.NotNil(t, cacheCheck, "should have rule_cache check")
+	assert.Equal(t, StatusFailed, cacheCheck.Status)
+	assert.Equal(t, "cache data stale", cacheCheck.Message)
+}
+
+// findCheckByComponent returns the health check for the given component, or nil if not found.
+func findCheckByComponent(checks []api.HealthCheck, component string) *api.HealthCheck {
+	for i := range checks {
+		if checks[i].Component == component {
+			return &checks[i]
+		}
+	}
+
+	return nil
+}
+
+// mockCacheHealth implements RuleCacheHealthProvider for testing.
+type mockCacheHealth struct {
+	ready     bool
+	staleness time.Duration
+	size      int
+}
+
+func (m *mockCacheHealth) IsReady() bool            { return m.ready }
+func (m *mockCacheHealth) Staleness() time.Duration { return m.staleness }
+func (m *mockCacheHealth) Size() int                { return m.size }
