@@ -763,8 +763,8 @@ func TestValidationRequest_Validate_PastTimestamp_Boundary(t *testing.T) {
 			expectedErr: constant.ErrValidationTimestampPast,
 		},
 		{
-			name:        "24h minus 1 second ago is accepted (alternate)",
-			timestamp:   time.Now().Add(-24*time.Hour + 1*time.Second),
+			name:        "24h minus 100 milliseconds ago is accepted",
+			timestamp:   time.Now().Add(-24*time.Hour + 100*time.Millisecond),
 			expectedErr: nil,
 		},
 	}

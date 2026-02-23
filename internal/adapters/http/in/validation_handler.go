@@ -164,6 +164,7 @@ var validationErrorMappings = map[error]validationErrorMapping{
 	constant.ErrValidationTimestampRequired:       {code: "TRC-0225", message: "transactionTimestamp is required"},
 	constant.ErrValidationTimestampFuture:         {code: "TRC-0226", message: "transactionTimestamp cannot be in the future"},
 	constant.ErrValidationAccountRequired:         {code: "TRC-0227", message: "account is required"},
+	constant.ErrValidationTimestampPast:           {code: "TRC-0228", message: "transactionTimestamp is too far in the past (max 24h)"},
 	constant.ErrValidationSegmentIDRequired:       {code: "TRC-0230", message: "segment.id is required when segment is provided"},
 	constant.ErrValidationPortfolioIDRequired:     {code: "TRC-0231", message: "portfolio.id is required when portfolio is provided"},
 	constant.ErrValidationSubTypeTooLong:          {code: "TRC-0232", message: "subType exceeds maximum length of 50 characters"},
