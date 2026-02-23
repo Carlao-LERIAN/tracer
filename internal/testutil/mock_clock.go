@@ -12,8 +12,9 @@ import (
 )
 
 // DefaultTestTime is the standard fixed time used in tests.
-// Value: 2024-01-15 10:30:00 UTC
-var DefaultTestTime = time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+// Set to 1 minute ago to stay within the 24-hour validation window
+// while remaining constant for the entire test process lifetime.
+var DefaultTestTime = time.Now().Add(-1 * time.Minute).UTC()
 
 // FixedTime returns the default fixed time for deterministic tests.
 // Use this instead of time.Now().UTC() in tests to ensure reproducibility.

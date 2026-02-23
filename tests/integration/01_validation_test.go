@@ -1743,7 +1743,7 @@ func TestValidation_1_1_30_RejectsTimestampWithoutTimezone(t *testing.T) {
 		},
 		{
 			name:      "valid local timezone with offset",
-			timestamp: "2024-01-15T10:30:00-03:00",
+			timestamp: testutil.FixedTime().In(time.FixedZone("BRT", -3*3600)).Format(time.RFC3339),
 			expected:  http.StatusOK,
 		},
 	}
