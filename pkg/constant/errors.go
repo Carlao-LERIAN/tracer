@@ -151,6 +151,7 @@ var (
 	// =============================================================================
 	ErrLimitCheckerNilLimitRepo        = errors.New("TRC-0200") // limit checker: limit repository cannot be nil
 	ErrLimitCheckerNilUsageCounterRepo = errors.New("TRC-0201") // limit checker: usage counter repository cannot be nil
+	ErrLimitCheckerNilClock            = errors.New("TRC-0202") // limit checker: clock cannot be nil
 
 	// =============================================================================
 	// Validation Request Errors (TRC-0220 to TRC-0249)
@@ -163,6 +164,7 @@ var (
 	ErrValidationTimestampRequired       = errors.New("TRC-0225") // timestamp is required
 	ErrValidationTimestampFuture         = errors.New("TRC-0226") // timestamp cannot be in the future
 	ErrValidationAccountRequired         = errors.New("TRC-0227") // account is required
+	ErrValidationTimestampPast           = errors.New("TRC-0228") // timestamp is too far in the past
 	ErrValidationTimeout                 = errors.New("TRC-0229") // validation timeout
 	ErrValidationSegmentIDRequired       = errors.New("TRC-0230") // segmentId is required when segment is provided
 	ErrValidationPortfolioIDRequired     = errors.New("TRC-0231") // portfolioId is required when portfolio is provided

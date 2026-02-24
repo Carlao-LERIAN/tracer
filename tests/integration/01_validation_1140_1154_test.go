@@ -805,14 +805,12 @@ func TestValidation_1_1_50_VeryOldTimestamp(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
-		"Very old timestamp should be accepted (no minimum age constraint): %s", string(body))
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		"Very old timestamp should be rejected (max age 24h): %s", string(body))
 
-	var result testutil.ValidationResponse
-	err := json.Unmarshal(body, &result)
-	require.NoError(t, err)
-
-	assert.Contains(t, []string{"ALLOW", "DENY", "REVIEW"}, result.Decision, "Decision should be valid")
+	errorResp := testutil.ParseErrorResponse(t, body)
+	assert.Equal(t, "TRC-0228", errorResp.Code,
+		"Error code should be TRC-0228 for timestamp too far in the past")
 }
 
 // Test 1.1.51: Validation rejects lowercase currency (ISO 4217 requires uppercase)

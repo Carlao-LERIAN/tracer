@@ -11,12 +11,13 @@ import (
 	"tracer/pkg/clock"
 )
 
-// DefaultTestTime is the standard fixed time used in tests.
-// Value: 2024-01-15 10:30:00 UTC
-var DefaultTestTime = time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+// DefaultTestTime is the standard test time, stable within a single test run.
+// Set to 1 minute ago to stay within the 24-hour validation window.
+// Not reproducible across runs; use a hardcoded time if cross-run determinism is needed.
+var DefaultTestTime = time.Now().Add(-1 * time.Minute).UTC()
 
-// FixedTime returns the default fixed time for deterministic tests.
-// Use this instead of time.Now().UTC() in tests to ensure reproducibility.
+// FixedTime returns DefaultTestTime, stable within a single test run.
+// Use this instead of time.Now() in tests to avoid timestamp validation failures.
 func FixedTime() time.Time {
 	return DefaultTestTime
 }
@@ -53,7 +54,7 @@ func NewMockClock(fixedTime time.Time) clock.Clock {
 	return MockClock{FixedTime: fixedTime}
 }
 
-// NewDefaultMockClock creates a MockClock with the default test time (2024-01-15 10:30:00 UTC).
+// NewDefaultMockClock creates a MockClock initialized with DefaultTestTime.
 func NewDefaultMockClock() clock.Clock {
 	return MockClock{FixedTime: DefaultTestTime}
 }

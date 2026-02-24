@@ -2,6 +2,7 @@
 
 # Component-specific variables
 SERVICE_NAME := tracer
+GOLANGCI_LINT_VERSION := v2.10.1
 BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 POSTGRES_SERVICE ?= tracer-postgres
@@ -198,7 +199,7 @@ dev-setup:
 	@echo "$(CYAN)Installing development tools...$(NC)"
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing golangci-lint v2...$(NC)"; \
-		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.8.0; \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 	fi
 	@if ! command -v swag >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \
