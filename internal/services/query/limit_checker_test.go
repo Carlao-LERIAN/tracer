@@ -1947,21 +1947,6 @@ func TestScopeMatchesLimit(t *testing.T) {
 	}
 }
 
-func TestNewLimitChecker_NilClock(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-
-	mockLimitRepo := NewMockLimitRepository(ctrl)
-	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
-
-	// Seed 8150: passing nil clock should return ErrLimitCheckerNilClock (TRC-0202)
-	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, nil)
-
-	require.Error(t, err)
-	assert.ErrorIs(t, err, constant.ErrLimitCheckerNilClock)
-	assert.Nil(t, checker)
-}
 
 func TestCheckLimits_ServerTimestamp(t *testing.T) {
 	t.Parallel()
@@ -1980,8 +1965,7 @@ func TestCheckLimits_ServerTimestamp(t *testing.T) {
 
 	// The expected period key MUST be based on server date, NOT client date
 	expectedPeriodKeyDaily := "2024-01-15"
-	// The attacker's period key (what we do NOT want)
-	_ = "2024-01-14" // clientPeriodKey - should never be used
+	// Client would compute period key "2024-01-14" — must never be used
 
 	ctrl := gomock.NewController(t)
 

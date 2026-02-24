@@ -883,7 +883,7 @@ func InitServers() (*Service, error) {
 	listTransactionValidationsQuery := query.NewListTransactionValidationsQuery(transactionValidationRepo)
 
 	// Init LimitChecker for ValidationService
-	limitChecker, err := query.NewLimitChecker(limitDeps.limitRepo, limitDeps.usageCounterRepo, clock.New())
+	limitChecker, err := query.NewLimitChecker(limitDeps.limitRepo, limitDeps.usageCounterRepo, clk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create limit checker: %w", err)
 	}
