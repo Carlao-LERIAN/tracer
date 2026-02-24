@@ -749,23 +749,20 @@ func initAuditEventService(auditEventRepo *postgres.AuditEventRepository) (*serv
 	return auditEventService, nil
 }
 
-// InitServers initiate http and grpc servers.
-func InitServers() (*Service, error) {
-	cfg := &Config{}
-
-	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		return nil, err
+// initObservability initializes logger, validates auth config, and sets up OpenTelemetry.
+func initObservability(cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
+	logger, err := libZap.InitializeLoggerWithError()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
-
-	logger := libZap.InitializeLogger()
 
 	// Validate authentication configuration (fail-fast if misconfigured)
 	if err := ValidateAuthConfig(cfg, logger); err != nil {
-		return nil, fmt.Errorf("invalid auth configuration: %w", err)
+		return nil, nil, fmt.Errorf("invalid auth configuration: %w", err)
 	}
 
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
-	telemetry := libOtel.InitializeTelemetry(&libOtel.TelemetryConfig{
+	telemetry, err := libOtel.InitializeTelemetryWithError(&libOtel.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -774,6 +771,25 @@ func InitServers() (*Service, error) {
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    logger,
 	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
+
+	return logger, telemetry, nil
+}
+
+// InitServers initiate http and grpc servers.
+func InitServers() (*Service, error) {
+	cfg := &Config{}
+
+	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
+		return nil, err
+	}
+
+	logger, telemetry, err := initObservability(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	// Init PostgreSQL connection pool
 	postgresConn, err := initPostgresConnection(cfg, logger)
