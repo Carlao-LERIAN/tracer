@@ -790,3 +790,61 @@ func TestValidationRequest_Validate_PastTimestamp_Boundary(t *testing.T) {
 		})
 	}
 }
+
+func TestValidationRequest_Validate_PastTimestamp_CustomMaxAge(t *testing.T) {
+	// No t.Parallel() — this test mutates the global MaxTimestampAge variable
+	original := MaxTimestampAge
+	MaxTimestampAge = 1 * time.Hour
+
+	defer func() { MaxTimestampAge = original }()
+
+	now := time.Now()
+
+	// validRequest builds a valid request using deterministic UUIDs from seed range 8120-8129.
+	validRequest := func() *ValidationRequest {
+		return &ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(8120),
+			TransactionType:      TransactionTypeWire,
+			Amount:               decimal.RequireFromString("100.00"),
+			Currency:             "EUR",
+			TransactionTimestamp: now,
+			Account: AccountContext{
+				ID:     testutil.MustDeterministicUUID(8121),
+				Type:   "checking",
+				Status: "active",
+			},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		timestamp   time.Time
+		expectedErr error
+	}{
+		{
+			name:        "2h ago rejected with 1h max age",
+			timestamp:   now.Add(-2 * time.Hour),
+			expectedErr: constant.ErrValidationTimestampPast,
+		},
+		{
+			name:        "30min ago accepted with 1h max age",
+			timestamp:   now.Add(-30 * time.Minute),
+			expectedErr: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := validRequest()
+			req.TransactionTimestamp = tc.timestamp
+
+			err := req.Validate()
+
+			if tc.expectedErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, tc.expectedErr)
+			}
+		})
+	}
+}
