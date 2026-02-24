@@ -18,6 +18,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"tracer/internal/testutil"
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
@@ -43,6 +44,7 @@ func TestNewLimitChecker(t *testing.T) {
 		name      string
 		limitRepo LimitRepository
 		usageRepo UsageCounterRepository
+		clock     clock.Clock
 		wantErr   bool
 		wantErrIs error
 	}{
@@ -50,12 +52,14 @@ func TestNewLimitChecker(t *testing.T) {
 			name:      "valid repositories",
 			limitRepo: mockLimitRepo,
 			usageRepo: mockUsageRepo,
+			clock:     testutil.NewDefaultMockClock(),
 			wantErr:   false,
 		},
 		{
 			name:      "nil limit repository",
 			limitRepo: nil,
 			usageRepo: mockUsageRepo,
+			clock:     testutil.NewDefaultMockClock(),
 			wantErr:   true,
 			wantErrIs: constant.ErrLimitCheckerNilLimitRepo,
 		},
@@ -63,14 +67,23 @@ func TestNewLimitChecker(t *testing.T) {
 			name:      "nil usage counter repository",
 			limitRepo: mockLimitRepo,
 			usageRepo: nil,
+			clock:     testutil.NewDefaultMockClock(),
 			wantErr:   true,
 			wantErrIs: constant.ErrLimitCheckerNilUsageCounterRepo,
+		},
+		{
+			name:      "nil clock",
+			limitRepo: mockLimitRepo,
+			usageRepo: mockUsageRepo,
+			clock:     nil,
+			wantErr:   true,
+			wantErrIs: constant.ErrLimitCheckerNilClock,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			checker, err := NewLimitChecker(tc.limitRepo, tc.usageRepo)
+			checker, err := NewLimitChecker(tc.limitRepo, tc.usageRepo, tc.clock)
 
 			if tc.wantErr {
 				require.Error(t, err)
@@ -94,7 +107,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 	counterID2 := testutil.MustDeterministicUUID(202)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := "2025-12-28"
+	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
 
 	tests := []struct {
 		name         string
@@ -521,7 +534,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				}, nil)
 
 				scopeKey := "acct:" + accountID.String()
-				periodKeyMonthly := "2025-12"
+				periodKeyMonthly := testutil.DefaultTestTime.Format("2006-01")
 				ucr.EXPECT().GetOrCreateForUpdate(gomock.Any(), limitID3, scopeKey, periodKeyMonthly).
 					Return(&model.UsageCounter{
 						ID:           counterID2,
@@ -718,7 +731,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 
 			ctx := setupTest(t)
 
-			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 			require.NoError(t, err)
 
 			output, err := checker.CheckLimits(ctx, tc.input)
@@ -752,7 +765,7 @@ func TestLimitCheckerService_RollbackUsage(t *testing.T) {
 	counterID1 := testutil.MustDeterministicUUID(201)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := "2025-12-28"
+	periodKeyDaily := "2025-12-28" // Rollback still uses client timestamp (changed in T12)
 
 	tests := []struct {
 		name         string
@@ -984,7 +997,7 @@ func TestLimitCheckerService_RollbackUsage(t *testing.T) {
 
 			ctx := setupTest(t)
 
-			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 			require.NoError(t, err)
 
 			err = checker.RollbackUsage(ctx, tc.input, tc.usageDetails)
@@ -1010,7 +1023,7 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 	counterID := testutil.MustDeterministicUUID(201)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := "2025-12-28"
+	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
 
 	const numGoroutines = 10
 	amountPerRequest := decimal.RequireFromString("10")
@@ -1062,7 +1075,7 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 
 	ctx := setupTest(t)
 
-	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 	require.NoError(t, err)
 
 	// Run concurrent CheckLimits calls
@@ -1121,7 +1134,7 @@ func TestLimitCheckerService_CheckLimits_TwoPhaseNoPartialIncrement(t *testing.T
 	counterID1 := testutil.MustDeterministicUUID(201)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := "2025-12-28"
+	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
 
 	ctrl := gomock.NewController(t)
 
@@ -1179,7 +1192,7 @@ func TestLimitCheckerService_CheckLimits_TwoPhaseNoPartialIncrement(t *testing.T
 
 	ctx := setupTest(t)
 
-	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 	require.NoError(t, err)
 
 	input := &model.CheckLimitsInput{
@@ -1207,7 +1220,7 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 	counterID := testutil.MustDeterministicUUID(201)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := "2025-12-28"
+	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
 
 	tests := []struct {
 		name         string
@@ -1307,7 +1320,7 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 
 			ctx := setupTest(t)
 
-			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 			require.NoError(t, err)
 
 			input := &model.CheckLimitsInput{
@@ -1396,7 +1409,7 @@ func TestLimitCheckerService_CheckLimits_PaginationLoop(t *testing.T) {
 	counterID3 := testutil.MustDeterministicUUID(203)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := "2025-12-28"
+	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
 
 	ctrl := gomock.NewController(t)
 
@@ -1493,7 +1506,7 @@ func TestLimitCheckerService_CheckLimits_PaginationLoop(t *testing.T) {
 
 	ctx := setupTest(t)
 
-	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 	require.NoError(t, err)
 
 	input := &model.CheckLimitsInput{
@@ -1530,7 +1543,7 @@ func TestLimitCheckerService_RollbackUsage_UnknownLimitType(t *testing.T) {
 
 	ctx := setupTest(t)
 
-	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 	require.NoError(t, err)
 
 	input := &model.CheckLimitsInput{
@@ -1570,7 +1583,7 @@ func TestLimitCheckerService_CheckLimits_NilInput(t *testing.T) {
 
 	ctx := setupTest(t)
 
-	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 	require.NoError(t, err)
 
 	// Call with nil input
@@ -1594,7 +1607,7 @@ func TestLimitCheckerService_RollbackUsage_NilInput(t *testing.T) {
 
 	ctx := setupTest(t)
 
-	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 	require.NoError(t, err)
 
 	usageDetails := []model.LimitUsageDetail{
@@ -1628,7 +1641,7 @@ func TestLimitCheckerService_CheckLimits_LargeDecimalValues(t *testing.T) {
 	counterID := testutil.MustDeterministicUUID(201)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := "2025-12-28"
+	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
 
 	ctrl := gomock.NewController(t)
 
@@ -1674,7 +1687,7 @@ func TestLimitCheckerService_CheckLimits_LargeDecimalValues(t *testing.T) {
 
 	ctx := setupTest(t)
 
-	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo)
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
 	require.NoError(t, err)
 
 	input := &model.CheckLimitsInput{
@@ -1932,4 +1945,257 @@ func TestScopeMatchesLimit(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestNewLimitChecker_NilClock(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	// Seed 8150: passing nil clock should return ErrLimitCheckerNilClock (TRC-0202)
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, nil)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, constant.ErrLimitCheckerNilClock)
+	assert.Nil(t, checker)
+}
+
+func TestCheckLimits_ServerTimestamp(t *testing.T) {
+	t.Parallel()
+
+	// Seed 8152-8159
+	limitID := testutil.MustDeterministicUUID(8152)
+	accountID := testutil.MustDeterministicUUID(8153)
+	counterID := testutil.MustDeterministicUUID(8154)
+
+	// Server clock: 2024-01-15 10:30:00 UTC
+	serverTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	// Client timestamp: 2024-01-14 08:00:00 UTC (yesterday - the attacker's manipulated date)
+	clientTimestamp := time.Date(2024, 1, 14, 8, 0, 0, 0, time.UTC)
+
+	// The expected period key MUST be based on server date, NOT client date
+	expectedPeriodKeyDaily := "2024-01-15"
+	// The attacker's period key (what we do NOT want)
+	_ = "2024-01-14" // clientPeriodKey - should never be used
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:        limitID,
+				Name:      "Daily Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: decimal.RequireFromString("1000"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// KEY ASSERTION: GetOrCreateForUpdate must be called with server-date period key "2024-01-15",
+	// NOT the client-supplied "2024-01-14". This is the core security verification.
+	mockUsageRepo.EXPECT().GetOrCreateForUpdate(gomock.Any(), limitID, scopeKey, expectedPeriodKeyDaily).
+		Return(&model.UsageCounter{
+			ID:           counterID,
+			LimitID:      limitID,
+			ScopeKey:     scopeKey,
+			PeriodKey:    expectedPeriodKeyDaily,
+			CurrentUsage: decimal.RequireFromString("500"),
+		}, nil)
+
+	mockUsageRepo.EXPECT().IncrementAtomic(gomock.Any(), counterID, decimal.RequireFromString("100")).Return(nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: clientTimestamp, // Attacker-controlled: yesterday
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed, "Transaction should be allowed (500 + 100 <= 1000)")
+	assert.Len(t, output.LimitUsageDetails, 1)
+
+	// If the mock for GetOrCreateForUpdate with "2024-01-15" was NOT called,
+	// gomock will fail the test -- proving the server timestamp was used.
+}
+
+func TestCheckLimits_ServerTimestamp_Monthly(t *testing.T) {
+	t.Parallel()
+
+	// Seed 8160-8167
+	limitID := testutil.MustDeterministicUUID(8160)
+	accountID := testutil.MustDeterministicUUID(8161)
+	counterID := testutil.MustDeterministicUUID(8162)
+
+	// Server clock: 2024-02-01 00:05:00 UTC (first day of February)
+	serverTime := time.Date(2024, 2, 1, 0, 5, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	// Client timestamp: 2024-01-31 23:55:00 UTC (last day of January - boundary attack)
+	clientTimestamp := time.Date(2024, 1, 31, 23, 55, 0, 0, time.UTC)
+
+	// The expected period key MUST be based on server date (February), NOT client date (January)
+	expectedPeriodKeyMonthly := "2024-02"
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:        limitID,
+				Name:      "Monthly Limit",
+				LimitType: model.LimitTypeMonthly,
+				MaxAmount: decimal.RequireFromString("5000"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// KEY ASSERTION: period key must be "2024-02" (server month), not "2024-01" (client month)
+	mockUsageRepo.EXPECT().GetOrCreateForUpdate(gomock.Any(), limitID, scopeKey, expectedPeriodKeyMonthly).
+		Return(&model.UsageCounter{
+			ID:           counterID,
+			LimitID:      limitID,
+			ScopeKey:     scopeKey,
+			PeriodKey:    expectedPeriodKeyMonthly,
+			CurrentUsage: decimal.RequireFromString("2000"),
+		}, nil)
+
+	mockUsageRepo.EXPECT().IncrementAtomic(gomock.Any(), counterID, decimal.RequireFromString("200")).Return(nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("200"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: clientTimestamp, // Attacker-controlled: last day of previous month
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed, "Transaction should be allowed (2000 + 200 <= 5000)")
+	assert.Len(t, output.LimitUsageDetails, 1)
+}
+
+func TestCheckLimits_PerTransactionUnaffectedByClock(t *testing.T) {
+	t.Parallel()
+
+	// Seed 8170-8177
+	limitID := testutil.MustDeterministicUUID(8170)
+	accountID := testutil.MustDeterministicUUID(8171)
+
+	// Server clock: some arbitrary date - should NOT matter for PER_TRANSACTION
+	serverTime := time.Date(2024, 6, 15, 12, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	// Client timestamp: completely different date - also should NOT matter
+	clientTimestamp := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:        limitID,
+				Name:      "Per Transaction Limit",
+				LimitType: model.LimitTypePerTransaction,
+				MaxAmount: decimal.RequireFromString("500"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// No UsageCounterRepository calls expected for PER_TRANSACTION limits.
+	// PER_TRANSACTION checks amount directly against maxAmount with no counters.
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("200"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: clientTimestamp,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed, "200 <= 500 should be allowed for PER_TRANSACTION")
+	assert.Empty(t, output.ExceededLimitIDs)
+	assert.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.Equal(t, limitID, detail.LimitID)
+	assert.True(t, decimal.Zero.Equal(detail.CurrentUsage), "PER_TRANSACTION has no persistent usage, should be 0")
+	assert.True(t, decimal.RequireFromString("200").Equal(detail.AttemptedAmount))
+	assert.False(t, detail.Exceeded)
+
+	// Verify that gomock saw NO calls to GetOrCreateForUpdate or IncrementAtomic.
+	// This confirms PER_TRANSACTION does not touch usage counters at all,
+	// regardless of what clock is injected.
 }
