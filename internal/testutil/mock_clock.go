@@ -54,7 +54,7 @@ func NewMockClock(fixedTime time.Time) clock.Clock {
 	return MockClock{FixedTime: fixedTime}
 }
 
-// NewDefaultMockClock creates a MockClock with the default test time (2024-01-15 10:30:00 UTC).
+// NewDefaultMockClock creates a MockClock initialized with DefaultTestTime.
 func NewDefaultMockClock() clock.Clock {
 	return MockClock{FixedTime: DefaultTestTime}
 }
