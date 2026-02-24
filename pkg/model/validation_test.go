@@ -646,15 +646,17 @@ func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
 func TestValidationRequest_Validate_PastTimestamp(t *testing.T) {
 	t.Parallel()
 
+	now := time.Now()
+
 	// validRequest builds a valid request using deterministic UUIDs from seed range 8100-8109.
-	// The timestamp is set to time.Now() so it passes all existing checks.
+	// The timestamp is set to now so it passes all existing checks.
 	validRequest := func() *ValidationRequest {
 		return &ValidationRequest{
 			RequestID:            testutil.MustDeterministicUUID(8100),
 			TransactionType:      TransactionTypeCard,
 			Amount:               decimal.RequireFromString("250.00"),
 			Currency:             "USD",
-			TransactionTimestamp: time.Now(), // will be overridden per test case
+			TransactionTimestamp: now, // will be overridden per test case
 			Account: AccountContext{
 				ID:     testutil.MustDeterministicUUID(8101),
 				Type:   "checking",
@@ -670,37 +672,37 @@ func TestValidationRequest_Validate_PastTimestamp(t *testing.T) {
 	}{
 		{
 			name:        "timestamp 25 hours ago is rejected as too old",
-			timestamp:   time.Now().Add(-25 * time.Hour),
+			timestamp:   now.Add(-25 * time.Hour),
 			expectedErr: constant.ErrValidationTimestampPast,
 		},
 		{
 			name:        "timestamp 48 hours ago is rejected as too old",
-			timestamp:   time.Now().Add(-48 * time.Hour),
+			timestamp:   now.Add(-48 * time.Hour),
 			expectedErr: constant.ErrValidationTimestampPast,
 		},
 		{
 			name:        "timestamp 7 days ago is rejected as too old",
-			timestamp:   time.Now().Add(-7 * 24 * time.Hour),
+			timestamp:   now.Add(-7 * 24 * time.Hour),
 			expectedErr: constant.ErrValidationTimestampPast,
 		},
 		{
 			name:        "timestamp 23 hours ago is accepted",
-			timestamp:   time.Now().Add(-23 * time.Hour),
+			timestamp:   now.Add(-23 * time.Hour),
 			expectedErr: nil,
 		},
 		{
 			name:        "timestamp 1 hour ago is accepted",
-			timestamp:   time.Now().Add(-1 * time.Hour),
+			timestamp:   now.Add(-1 * time.Hour),
 			expectedErr: nil,
 		},
 		{
 			name:        "timestamp 1 second ago is accepted",
-			timestamp:   time.Now().Add(-1 * time.Second),
+			timestamp:   now.Add(-1 * time.Second),
 			expectedErr: nil,
 		},
 		{
 			name:        "current timestamp is accepted",
-			timestamp:   time.Now(),
+			timestamp:   now,
 			expectedErr: nil,
 		},
 	}
@@ -726,6 +728,8 @@ func TestValidationRequest_Validate_PastTimestamp(t *testing.T) {
 func TestValidationRequest_Validate_PastTimestamp_Boundary(t *testing.T) {
 	t.Parallel()
 
+	now := time.Now()
+
 	// validRequest builds a valid request using deterministic UUIDs from seed range 8110-8119.
 	validRequest := func() *ValidationRequest {
 		return &ValidationRequest{
@@ -733,7 +737,7 @@ func TestValidationRequest_Validate_PastTimestamp_Boundary(t *testing.T) {
 			TransactionType:      TransactionTypePix,
 			Amount:               decimal.RequireFromString("500.00"),
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now(),
+			TransactionTimestamp: now,
 			Account: AccountContext{
 				ID:     testutil.MustDeterministicUUID(8111),
 				Type:   "savings",
@@ -749,30 +753,30 @@ func TestValidationRequest_Validate_PastTimestamp_Boundary(t *testing.T) {
 	}{
 		{
 			name:        "exactly 24h ago is rejected (boundary inclusive)",
-			timestamp:   time.Now().Add(-24 * time.Hour),
+			timestamp:   now.Add(-24 * time.Hour),
 			expectedErr: constant.ErrValidationTimestampPast,
 		},
 		{
 			name:        "24h minus 1 second ago is accepted (just inside window)",
-			timestamp:   time.Now().Add(-24*time.Hour + 1*time.Second),
+			timestamp:   now.Add(-24*time.Hour + 1*time.Second),
 			expectedErr: nil,
 		},
 		{
 			name:        "24h plus 1 second ago is rejected (just outside window)",
-			timestamp:   time.Now().Add(-24*time.Hour - 1*time.Second),
+			timestamp:   now.Add(-24*time.Hour - 1*time.Second),
 			expectedErr: constant.ErrValidationTimestampPast,
 		},
 		{
 			name:        "24h minus 100 milliseconds ago is accepted",
-			timestamp:   time.Now().Add(-24*time.Hour + 100*time.Millisecond),
+			timestamp:   now.Add(-24*time.Hour + 100*time.Millisecond),
 			expectedErr: nil,
 		},
 	}
 
+	// No t.Parallel() in subtests — boundary tests with tight margins (100ms)
+	// need deterministic timing between setup and validation
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			req := validRequest()
 			req.TransactionTimestamp = tc.timestamp
 
