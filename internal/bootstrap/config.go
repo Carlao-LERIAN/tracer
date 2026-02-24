@@ -749,8 +749,8 @@ func initAuditEventService(auditEventRepo *postgres.AuditEventRepository) (*serv
 	return auditEventService, nil
 }
 
-// initObservability initializes logger, validates auth config, and sets up OpenTelemetry.
-func initObservability(cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
+// initCoreInfra initializes logger, validates auth config, and sets up OpenTelemetry.
+func initCoreInfra(cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
 	logger, err := libZap.InitializeLoggerWithError()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize logger: %w", err)
@@ -786,7 +786,7 @@ func InitServers() (*Service, error) {
 		return nil, err
 	}
 
-	logger, telemetry, err := initObservability(cfg)
+	logger, telemetry, err := initCoreInfra(cfg)
 	if err != nil {
 		return nil, err
 	}

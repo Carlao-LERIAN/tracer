@@ -11,13 +11,13 @@ import (
 	"tracer/pkg/clock"
 )
 
-// DefaultTestTime is the standard fixed time used in tests.
-// Set to 1 minute ago to stay within the 24-hour validation window
-// while remaining constant for the entire test process lifetime.
+// DefaultTestTime is the standard test time, stable within a single test run.
+// Set to 1 minute ago to stay within the 24-hour validation window.
+// Not reproducible across runs; use a hardcoded time if cross-run determinism is needed.
 var DefaultTestTime = time.Now().Add(-1 * time.Minute).UTC()
 
-// FixedTime returns the default fixed time for deterministic tests.
-// Use this instead of time.Now().UTC() in tests to ensure reproducibility.
+// FixedTime returns DefaultTestTime, stable within a single test run.
+// Use this instead of time.Now() in tests to avoid timestamp validation failures.
 func FixedTime() time.Time {
 	return DefaultTestTime
 }
