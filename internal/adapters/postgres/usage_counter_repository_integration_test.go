@@ -495,7 +495,11 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_Concurrent_Integration(
 			ctx := context.Background()
 
 			_, err := repo.UpsertAndIncrementAtomic(ctx, limitID, scopeKey, periodKey, amount, maxAmount)
-			results <- err
+			if err != nil {
+				results <- fmt.Errorf("goroutine %d: %w", goroutineID, err)
+			} else {
+				results <- nil
+			}
 		}(i)
 	}
 
@@ -624,7 +628,11 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_InsertRace_Integration(
 			goroutineCtx := context.Background()
 
 			_, err := repo.UpsertAndIncrementAtomic(goroutineCtx, limitID, scopeKey, periodKey, amount, maxAmount)
-			results <- err
+			if err != nil {
+				results <- fmt.Errorf("goroutine %d: %w", goroutineID, err)
+			} else {
+				results <- nil
+			}
 		}(i)
 	}
 
@@ -772,7 +780,11 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_Boundary_Integration(t 
 			goroutineCtx := context.Background()
 
 			_, err := repo.UpsertAndIncrementAtomic(goroutineCtx, limitID, scopeKey, periodKey, amount, maxAmount)
-			results <- err
+			if err != nil {
+				results <- fmt.Errorf("goroutine %d: %w", goroutineID, err)
+			} else {
+				results <- nil
+			}
 		}(i)
 	}
 
