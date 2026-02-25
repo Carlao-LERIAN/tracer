@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"tracer/internal/testutil"
+	"tracer/pkg/model"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -606,13 +607,13 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 	require.NoError(t, err)
 
 	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
+		var usageResponse model.UsageSnapshot
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 
 		// If counters exist, verify the usage
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("200").Equal(usageResponse.Counters[0].CurrentUsage),
+		if !usageResponse.CurrentUsage.IsZero() {
+			assert.True(t, decimal.RequireFromString("200").Equal(usageResponse.CurrentUsage),
 				"currentUsage should be 200 after validation")
 		}
 	}
@@ -699,11 +700,11 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 	require.NoError(t, err)
 
 	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
+		var usageResponse model.UsageSnapshot
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("500").Equal(usageResponse.Counters[0].CurrentUsage),
+		if !usageResponse.CurrentUsage.IsZero() {
+			assert.True(t, decimal.RequireFromString("500").Equal(usageResponse.CurrentUsage),
 				"Usage should NOT be incremented on rule-based DENY")
 		}
 	}
@@ -790,11 +791,11 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 	require.NoError(t, err)
 
 	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
+		var usageResponse model.UsageSnapshot
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("300").Equal(usageResponse.Counters[0].CurrentUsage),
+		if !usageResponse.CurrentUsage.IsZero() {
+			assert.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage),
 				"Usage should NOT be incremented on REVIEW")
 		}
 	}
@@ -891,14 +892,14 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 	require.NoError(t, err)
 
 	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
+		var usageResponse model.UsageSnapshot
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 
-		if len(usageResponse.Counters) > 0 {
+		if !usageResponse.CurrentUsage.IsZero() {
 			// Final usage should be successCount * amountPerTx
 			expectedUsage := decimal.NewFromInt(int64(successCount * amountPerTx))
-			assert.True(t, expectedUsage.Equal(usageResponse.Counters[0].CurrentUsage),
+			assert.True(t, expectedUsage.Equal(usageResponse.CurrentUsage),
 				"Final currentUsage should be %s (based on %d successful validations)", expectedUsage, successCount)
 		}
 	}
@@ -1018,12 +1019,11 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, usageResp.StatusCode, "Get usage should succeed: %s", string(usageBody))
 
-	var usageResponse getLimitUsageResponse
+	var usageResponse model.UsageSnapshot
 	err = json.Unmarshal(usageBody, &usageResponse)
 	require.NoError(t, err)
 
-	require.NotEmpty(t, usageResponse.Counters, "Usage counters should exist")
-	assert.True(t, decimal.RequireFromString("1000").Equal(usageResponse.Counters[0].CurrentUsage),
+	assert.True(t, decimal.RequireFromString("1000").Equal(usageResponse.CurrentUsage),
 		"Final currentUsage should be 1000 (900 + 100)")
 }
 
@@ -1248,11 +1248,11 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 
 	var initialUsage decimal.Decimal
 	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
+		var usageResponse model.UsageSnapshot
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
-		if len(usageResponse.Counters) > 0 {
-			initialUsage = usageResponse.Counters[0].CurrentUsage
+		if !usageResponse.CurrentUsage.IsZero() {
+			initialUsage = usageResponse.CurrentUsage
 		}
 	}
 
@@ -1301,13 +1301,13 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 				return decimal.Zero, false, fmt.Errorf("unexpected status %d: %s", usageResp2.StatusCode, string(usageBody2))
 			}
 
-			var usageResponse2 getLimitUsageResponse
+			var usageResponse2 model.UsageSnapshot
 			if err := json.Unmarshal(usageBody2, &usageResponse2); err != nil {
 				return decimal.Zero, false, fmt.Errorf("unmarshal: %w", err)
 			}
 
-			if len(usageResponse2.Counters) > 0 {
-				return usageResponse2.Counters[0].CurrentUsage, true, nil
+			if !usageResponse2.CurrentUsage.IsZero() {
+				return usageResponse2.CurrentUsage, true, nil
 			}
 
 			return decimal.Zero, false, nil // no counters yet
@@ -1427,14 +1427,14 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 	require.NoError(t, err)
 
 	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
+		var usageResponse model.UsageSnapshot
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("800").Equal(usageResponse.Counters[0].CurrentUsage),
+		if !usageResponse.CurrentUsage.IsZero() {
+			assert.True(t, decimal.RequireFromString("800").Equal(usageResponse.CurrentUsage),
 				"currentUsage should be 800 in current period")
-			t.Logf("Current period usage: %s", usageResponse.Counters[0].CurrentUsage)
+			t.Logf("Current period usage: %s", usageResponse.CurrentUsage)
 		}
 	}
 }
@@ -1527,14 +1527,14 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 	require.NoError(t, err)
 
 	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
+		var usageResponse model.UsageSnapshot
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("4500").Equal(usageResponse.Counters[0].CurrentUsage),
+		if !usageResponse.CurrentUsage.IsZero() {
+			assert.True(t, decimal.RequireFromString("4500").Equal(usageResponse.CurrentUsage),
 				"currentUsage should be 4500 in current period")
-			t.Logf("Current period usage: %s", usageResponse.Counters[0].CurrentUsage)
+			t.Logf("Current period usage: %s", usageResponse.CurrentUsage)
 		}
 	}
 }
@@ -1594,21 +1594,19 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 	require.NoError(t, err)
 
 	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
+		var usageResponse model.UsageSnapshot
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 
-		// Note: Counter structure depends on API implementation
-		// Some implementations may not return detailed counter info
-		if len(usageResponse.Counters) > 0 {
-			counter := usageResponse.Counters[0]
-			t.Logf("Current counter - Period: %s, Usage: %s", counter.PeriodKey, counter.CurrentUsage)
+		// Verify usage snapshot
+		if !usageResponse.CurrentUsage.IsZero() {
+			t.Logf("Current usage - Amount: %s, Limit: %s, Utilization: %.2f%%",
+				usageResponse.CurrentUsage, usageResponse.LimitAmount, usageResponse.UtilizationPercent)
 
-			// Verify counter has expected structure
-			assert.NotEmpty(t, counter.PeriodKey, "Counter should have periodKey")
-			assert.True(t, decimal.RequireFromString("300").Equal(counter.CurrentUsage), "Counter should have expected usage")
+			// Verify usage has expected value
+			assert.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage), "Usage should be 300")
 		} else {
-			t.Log("No counters returned by usage API - counter details may be internal implementation")
+			t.Log("No usage returned - might be zero usage")
 			t.Logf("Usage response: %s", string(usageBody))
 		}
 	} else {
@@ -1737,12 +1735,11 @@ func TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, usageResp.StatusCode, "Get usage should succeed: %s", string(usageBody))
 
-	var usageResponse getLimitUsageResponse
+	var usageResponse model.UsageSnapshot
 	err = json.Unmarshal(usageBody, &usageResponse)
 	require.NoError(t, err)
 
-	require.NotEmpty(t, usageResponse.Counters, "Usage counters should exist")
-	assert.True(t, decimal.RequireFromString("10000").Equal(usageResponse.Counters[0].CurrentUsage),
+	assert.True(t, decimal.RequireFromString("10000").Equal(usageResponse.CurrentUsage),
 		"Final currentUsage should be 10000 (10 * 1000)")
 }
 
