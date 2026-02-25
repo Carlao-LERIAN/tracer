@@ -2071,6 +2071,97 @@ func TestCheckLimits_PerTransactionUnaffectedByClock(t *testing.T) {
 // T11 Rollback Tests - ST-11-01 and ST-11-02
 // =============================================================================
 
+// TestRollbackUsage_StoredPeriodKey verifies that RollbackUsage uses the stored
+// InternalPeriodKey from LimitUsageDetail, NOT a recalculated value from client timestamp.
+// This is critical for period boundary consistency: if CheckLimits runs at 23:59 and
+// produces period "2024-01-15", but rollback happens at 00:01, it MUST still use
+// "2024-01-15" (stored), not "2024-01-16" (recalculated from new time).
+// Seeds: 8190-8199
+func TestRollbackUsage_StoredPeriodKey(t *testing.T) {
+	t.Parallel()
+
+	// Seeds: 8190-8199 range
+	limitID := testutil.MustDeterministicUUID(8190)
+	accountID := testutil.MustDeterministicUUID(8191)
+	counterID := testutil.MustDeterministicUUID(8192)
+
+	// Server clock at 2024-01-15 10:30:00 UTC
+	// This would produce period key "2024-01-15" if used for recalculation
+	serverTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	// Stored period key from CheckLimits (server time when check occurred)
+	// This is the KEY value - rollback MUST use THIS, not recalculate
+	storedPeriodKey := "2024-01-15"
+
+	// Client timestamp is DIFFERENT day (2024-01-14 08:00:00 UTC)
+	// If the implementation incorrectly recalculates from client timestamp,
+	// it would produce "2024-01-14" - THIS MUST NOT HAPPEN
+	clientTimestamp := time.Date(2024, 1, 14, 8, 0, 0, 0, time.UTC)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	scopeKey := "acct:" + accountID.String()
+
+	// KEY ASSERTION: Expect GetForUpdate with storedPeriodKey ("2024-01-15")
+	// NOT with "2024-01-14" (from client timestamp)
+	// If the implementation uses client timestamp, this mock expectation will FAIL
+	mockUsageRepo.EXPECT().GetForUpdate(gomock.Any(), limitID, scopeKey, storedPeriodKey).
+		Return(&model.UsageCounter{
+			ID:           counterID,
+			LimitID:      limitID,
+			ScopeKey:     scopeKey,
+			PeriodKey:    storedPeriodKey,
+			CurrentUsage: decimal.RequireFromString("550"),
+		}, nil)
+
+	// Verify DecrementAtomic is called successfully
+	mockUsageRepo.EXPECT().DecrementAtomic(gomock.Any(), counterID, decimal.RequireFromString("50")).Return(nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	// Input with client timestamp that's different from the stored period key
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("50"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: clientTimestamp, // 2024-01-14 - DIFFERENT from stored key
+	}
+
+	// LimitUsageDetail with stored InternalPeriodKey from CheckLimits
+	// This simulates what CheckLimits produces when it increments the counter
+	usageDetails := []model.LimitUsageDetail{
+		{
+			LimitID:           limitID,
+			LimitAmount:       decimal.RequireFromString("1000"),
+			InternalLimitType: model.LimitTypeDaily,
+			Scopes:            []model.Scope{{AccountID: &accountID}},
+			CurrentUsage:      decimal.RequireFromString("550"),
+			AttemptedAmount:   decimal.RequireFromString("50"),
+			Exceeded:          false,
+			InternalPeriodKey: storedPeriodKey, // "2024-01-15" - stored during CheckLimits
+		},
+	}
+
+	err = checker.RollbackUsage(ctx, input, usageDetails)
+
+	// Test PASSES if:
+	// 1. GetForUpdate was called with "2024-01-15" (storedPeriodKey)
+	// 2. DecrementAtomic was called successfully
+	// 3. No error returned
+	//
+	// Test FAILS (RED) if:
+	// - Implementation recalculates period key from client timestamp ("2024-01-14")
+	// - Mock expectation not met (GetForUpdate called with wrong period key)
+	require.NoError(t, err)
+}
+
 // TestLimitCheckerService_RollbackUsage_UsesStoredPeriodKey verifies that RollbackUsage
 // uses detail.InternalPeriodKey instead of recalculating from input.TransactionTimestamp.
 // This prevents period key mismatch when rollback crosses a period boundary.
