@@ -12,12 +12,15 @@ import (
 	"os"
 	"testing"
 
+	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"tracer/internal/adapters/http/in/middleware"
 	"tracer/internal/adapters/http/in/mocks"
 	"tracer/internal/testutil"
 	"tracer/pkg/model"
@@ -45,13 +48,13 @@ type testRouterDeps struct {
 	ValidationService            *mocks.MockValidationService
 	TransactionValidationService *mocks.MockTransactionValidationService
 	AuditEventService            *MockAuditEventService
-	cfg                          *RouteConfig
+	guardCfg                     middleware.AuthGuardConfig
 	t                            *testing.T
 }
 
 // newTestRouterDeps creates test dependencies without any mock expectations.
 // Tests should configure expectations on the returned mocks before calling build().
-func newTestRouterDeps(t *testing.T, cfg *RouteConfig) *testRouterDeps {
+func newTestRouterDeps(t *testing.T, guardCfg middleware.AuthGuardConfig) *testRouterDeps {
 	ctrl := gomock.NewController(t)
 
 	return &testRouterDeps{
@@ -60,41 +63,48 @@ func newTestRouterDeps(t *testing.T, cfg *RouteConfig) *testRouterDeps {
 		ValidationService:            mocks.NewMockValidationService(ctrl),
 		TransactionValidationService: mocks.NewMockTransactionValidationService(ctrl),
 		AuditEventService:            NewMockAuditEventService(ctrl),
-		cfg:                          cfg,
+		guardCfg:                     guardCfg,
 		t:                            t,
 	}
 }
 
 // build creates the Fiber app with the configured dependencies.
 func (d *testRouterDeps) build() *fiber.App {
-	logger := testutil.NewMockLogger()
+	mockLogger := testutil.NewMockLogger()
 	telemetry := &libOtel.Telemetry{
 		TelemetryConfig: libOtel.TelemetryConfig{
 			ServiceName:     "tracer-test",
 			EnableTelemetry: false,
-			Logger:          logger,
+			Logger:          mockLogger,
 		},
 	}
 
-	return NewRoutes(logger, telemetry, &HealthChecker{}, d.cfg, d.RuleService, d.LimitService, d.ValidationService, d.TransactionValidationService, d.AuditEventService)
+	var logger libLog.Logger = mockLogger
+	authClient := authMiddleware.NewAuthClient("", d.guardCfg.PluginAuthEnabled, &logger)
+	guard := middleware.NewAuthGuard(d.guardCfg, authClient)
+
+	routeCfg := &RouteConfig{}
+
+	return NewRoutes(mockLogger, telemetry, &HealthChecker{}, routeCfg, d.RuleService, d.LimitService, d.ValidationService, d.TransactionValidationService, d.AuditEventService, guard)
 }
 
-// createTestRouter creates a test router with the given RouteConfig.
+// createTestRouter creates a test router with the given AuthGuardConfig.
 // For auth/route protection tests that don't exercise service handlers.
 // No mock expectations are set - requests that reach handlers will fail with gomock errors,
 // which helps catch accidental handler invocations during refactors.
-func createTestRouter(t *testing.T, cfg *RouteConfig) *fiber.App {
-	deps := newTestRouterDeps(t, cfg)
+func createTestRouter(t *testing.T, guardCfg middleware.AuthGuardConfig) *fiber.App {
+	deps := newTestRouterDeps(t, guardCfg)
 	return deps.build()
 }
 
 func TestRoutes_PublicEndpoints_NoAuthRequired(t *testing.T) {
 	// Note: SKIP_LIB_COMMONS_TELEMETRY=true is set in TestMain to skip telemetry middleware that causes data races.
-	cfg := &RouteConfig{
+	guardCfg := middleware.AuthGuardConfig{
 		APIKey:        "test-secret-key-32-characters-long",
 		APIKeyEnabled: true,
+		AppName:       "tracer",
 	}
-	app := createTestRouter(t, cfg)
+	app := createTestRouter(t, guardCfg)
 
 	testCases := []struct {
 		name             string
@@ -136,13 +146,6 @@ func TestRoutes_ProtectedEndpoints_RequireAuth(t *testing.T) {
 		expectedCode   string
 	}{
 		{
-			name:           "GET /v1/test returns 401 without API key",
-			method:         http.MethodGet,
-			path:           "/v1/test",
-			expectedStatus: http.StatusUnauthorized,
-			expectedCode:   "Unauthenticated",
-		},
-		{
 			name:           "POST /v1/validations returns 401 without API key",
 			method:         http.MethodPost,
 			path:           "/v1/validations",
@@ -168,11 +171,12 @@ func TestRoutes_ProtectedEndpoints_RequireAuth(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create router per subtest for proper isolation
-			cfg := &RouteConfig{
+			guardCfg := middleware.AuthGuardConfig{
 				APIKey:        "test-secret-key-32-characters-long",
 				APIKeyEnabled: true,
+				AppName:       "tracer",
 			}
-			app := createTestRouter(t, cfg)
+			app := createTestRouter(t, guardCfg)
 
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			// Note: NO X-API-Key header
@@ -209,12 +213,6 @@ func TestRoutes_ProtectedEndpoints_ValidKey(t *testing.T) {
 		needsMock string // "rules", "limits", or "" for no mock needed
 	}{
 		{
-			name:      "GET /v1/test accessible with valid API key",
-			method:    http.MethodGet,
-			path:      "/v1/test",
-			needsMock: "",
-		},
-		{
 			name:      "POST /v1/validations accessible with valid API key",
 			method:    http.MethodPost,
 			path:      "/v1/validations",
@@ -236,11 +234,12 @@ func TestRoutes_ProtectedEndpoints_ValidKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &RouteConfig{
+			guardCfg := middleware.AuthGuardConfig{
 				APIKey:        validAPIKey,
 				APIKeyEnabled: true,
+				AppName:       "tracer",
 			}
-			deps := newTestRouterDeps(t, cfg)
+			deps := newTestRouterDeps(t, guardCfg)
 
 			// Set expectations only for endpoints that actually hit handlers
 			switch tt.needsMock {
@@ -271,25 +270,35 @@ func TestRoutes_ProtectedEndpoints_ValidKey(t *testing.T) {
 
 func TestRoutes_ProtectedEndpoints_AuthDisabled(t *testing.T) {
 	tests := []struct {
-		name   string
-		method string
-		path   string
+		name      string
+		method    string
+		path      string
+		needsMock string
 	}{
 		{
-			name:   "GET /v1/test accessible when auth disabled",
-			method: http.MethodGet,
-			path:   "/v1/test",
+			name:      "GET /v1/rules accessible when auth disabled",
+			method:    http.MethodGet,
+			path:      "/v1/rules",
+			needsMock: "rules",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create router per subtest for proper isolation
-			cfg := &RouteConfig{
+			guardCfg := middleware.AuthGuardConfig{
 				APIKey:        "some-key",
 				APIKeyEnabled: false, // Auth disabled
+				AppName:       "tracer",
 			}
-			app := createTestRouter(t, cfg)
+			deps := newTestRouterDeps(t, guardCfg)
+
+			switch tt.needsMock {
+			case "rules":
+				deps.RuleService.EXPECT().ListRules(gomock.Any(), gomock.Any()).
+					Return(&model.ListRulesResult{Rules: []model.Rule{}}, nil).Times(1)
+			}
+
+			app := deps.build()
 
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			// Note: NO X-API-Key header
@@ -299,7 +308,6 @@ func TestRoutes_ProtectedEndpoints_AuthDisabled(t *testing.T) {
 			defer resp.Body.Close()
 
 			// With auth disabled, should NOT get 401 Unauthorized
-			// Might get 404, but not 401
 			assert.NotEqual(t, http.StatusUnauthorized, resp.StatusCode,
 				"With auth disabled, endpoint %s should not return 401", tt.path)
 		})

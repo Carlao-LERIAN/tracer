@@ -35,19 +35,20 @@ func getCORSAllowedOrigins(configured string) string {
 	return configured
 }
 
-// RouteConfig holds configuration for route setup.
+// RouteConfig holds non-auth configuration for route setup.
+// Auth configuration lives in middleware.AuthGuardConfig.
 type RouteConfig struct {
-	// APIKey is the expected API key value for authentication.
-	APIKey string
-
-	// APIKeyEnabled controls whether API key authentication is enforced.
-	// When false, all requests pass through without validation (dev mode).
-	APIKeyEnabled bool
-
 	// CORSAllowedOrigins is a comma-separated list of allowed origins.
 	// If empty, defaults to restrictive behavior (no wildcard in production).
 	// Set to "*" explicitly for development environments only.
 	CORSAllowedOrigins string
+
+	// APIKeyOnlyValidation enables API-key-only auth for the validation endpoint.
+	// When true AND PluginAuthEnabled=true (dual mode):
+	// - Routes registered with guard.With(..., true) use API key auth only, bypassing plugin auth.
+	// - Routes registered with guard.With(..., false) use plugin auth exclusively (no fallback).
+	// When PluginAuthEnabled=false, all routes use API key auth regardless of this flag.
+	APIKeyOnlyValidation bool
 }
 
 // skipTelemetryPaths returns true for paths that should skip detailed telemetry.
@@ -61,7 +62,7 @@ func skipTelemetryPaths(c *fiber.Ctx) bool {
 	}
 }
 
-func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *RouteConfig, ruleService RuleService, limitService LimitService, validationService ValidationService, transactionValidationService TransactionValidationService, auditEventService AuditEventService) *fiber.App {
+func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *RouteConfig, ruleService RuleService, limitService LimitService, validationService ValidationService, transactionValidationService TransactionValidationService, auditEventService AuditEventService, guard *middleware.AuthGuard) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -124,52 +125,48 @@ func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *
 	// Doc Swagger
 	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
 
-	// API Key middleware for protected routes
-	apiKeyMiddleware := middleware.APIKeyAuth(middleware.APIKeyConfig{
-		Key:     cfg.APIKey,
-		Enabled: cfg.APIKeyEnabled,
-	})
-
 	// Protected API group (uses /v1/ prefix per API Design v1.3.0)
-	api := f.Group("/v1", apiKeyMiddleware)
+	// Auth is handled per-endpoint by AuthGuard based on configuration flags.
+	api := f.Group("/v1")
 
 	// Rule endpoints
 	ruleHandler := NewHandler(ruleService)
-	api.Post("/rules", ruleHandler.CreateRule)
-	api.Get("/rules", ruleHandler.ListRules)
-	api.Get("/rules/:id", ruleHandler.GetRule)
-	api.Patch("/rules/:id", ruleHandler.UpdateRule)
-	api.Delete("/rules/:id", ruleHandler.DeleteRule)
-	api.Post("/rules/:id/activate", ruleHandler.ActivateRule)
-	api.Post("/rules/:id/deactivate", ruleHandler.DeactivateRule)
-	api.Post("/rules/:id/draft", ruleHandler.DraftRule)
+	api.Post("/rules", guard.With("rules", "post", false), ruleHandler.CreateRule)
+	api.Get("/rules", guard.With("rules", "get", false), ruleHandler.ListRules)
+	api.Get("/rules/:id", guard.With("rules", "get", false), ruleHandler.GetRule)
+	api.Patch("/rules/:id", guard.With("rules", "patch", false), ruleHandler.UpdateRule)
+	api.Delete("/rules/:id", guard.With("rules", "delete", false), ruleHandler.DeleteRule)
+	api.Post("/rules/:id/activate", guard.With("rules", "post", false), ruleHandler.ActivateRule)
+	api.Post("/rules/:id/deactivate", guard.With("rules", "post", false), ruleHandler.DeactivateRule)
+	api.Post("/rules/:id/draft", guard.With("rules", "post", false), ruleHandler.DraftRule)
 
 	// Limit endpoints
 	limitHandler := NewLimitHandler(limitService)
-	api.Post("/limits", limitHandler.CreateLimit)
-	api.Get("/limits", limitHandler.ListLimits)
-	api.Get("/limits/:id", limitHandler.GetLimit)
-	api.Get("/limits/:id/usage", limitHandler.GetLimitUsage)
-	api.Patch("/limits/:id", limitHandler.UpdateLimit)
-	api.Delete("/limits/:id", limitHandler.DeleteLimit)
-	api.Post("/limits/:id/activate", limitHandler.ActivateLimit)
-	api.Post("/limits/:id/deactivate", limitHandler.DeactivateLimit)
-	api.Post("/limits/:id/draft", limitHandler.DraftLimit)
+	api.Post("/limits", guard.With("limits", "post", false), limitHandler.CreateLimit)
+	api.Get("/limits", guard.With("limits", "get", false), limitHandler.ListLimits)
+	api.Get("/limits/:id", guard.With("limits", "get", false), limitHandler.GetLimit)
+	api.Get("/limits/:id/usage", guard.With("limits", "get", false), limitHandler.GetLimitUsage)
+	api.Patch("/limits/:id", guard.With("limits", "patch", false), limitHandler.UpdateLimit)
+	api.Delete("/limits/:id", guard.With("limits", "delete", false), limitHandler.DeleteLimit)
+	api.Post("/limits/:id/activate", guard.With("limits", "post", false), limitHandler.ActivateLimit)
+	api.Post("/limits/:id/deactivate", guard.With("limits", "post", false), limitHandler.DeactivateLimit)
+	api.Post("/limits/:id/draft", guard.With("limits", "post", false), limitHandler.DraftLimit)
 
 	// Transaction Validation endpoints (read-only per SOX/GLBA requirements)
 	transactionValidationHandler := NewTransactionValidationHandler(transactionValidationService)
-	api.Get("/validations", transactionValidationHandler.ListTransactionValidations)
-	api.Get("/validations/:id", transactionValidationHandler.GetTransactionValidation)
+	api.Get("/validations", guard.With("validations", "get", false), transactionValidationHandler.ListTransactionValidations)
+	api.Get("/validations/:id", guard.With("validations", "get", false), transactionValidationHandler.GetTransactionValidation)
 
-	// Validation endpoint
+	// Validation endpoint POST
+	// When APIKeyOnlyValidation=true, uses API key auth only (bypasses plugin auth)
 	validationHandler := NewValidationHandler(validationService)
-	api.Post("/validations", validationHandler.Validate)
+	api.Post("/validations", guard.With("validations", "post", cfg.APIKeyOnlyValidation), validationHandler.Validate)
 
 	// Audit Event endpoints (read-only per SOX/GLBA requirements)
 	auditEventHandler := NewAuditEventHandler(auditEventService)
-	api.Get("/audit-events", auditEventHandler.ListAuditEvents)
-	api.Get("/audit-events/:id", auditEventHandler.GetAuditEvent)
-	api.Get("/audit-events/:id/verify", auditEventHandler.VerifyHashChain)
+	api.Get("/audit-events", guard.With("audit-events", "get", false), auditEventHandler.ListAuditEvents)
+	api.Get("/audit-events/:id", guard.With("audit-events", "get", false), auditEventHandler.GetAuditEvent)
+	api.Get("/audit-events/:id/verify", guard.With("audit-events", "get", false), auditEventHandler.VerifyHashChain)
 
 	// End tracing spans middleware - skipped when telemetry is disabled
 	if !skipTelemetry {

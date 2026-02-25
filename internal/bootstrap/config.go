@@ -14,6 +14,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -22,6 +23,7 @@ import (
 
 	"tracer/internal/adapters/cel"
 	"tracer/internal/adapters/http/in"
+	httpMiddleware "tracer/internal/adapters/http/in/middleware"
 	"tracer/internal/adapters/postgres"
 	"tracer/internal/services"
 	"tracer/internal/services/cache"
@@ -54,8 +56,11 @@ type Config struct {
 	MigrationPath           string `env:"MIGRATIONS_PATH"`
 
 	// Authentication
-	APIKey        string `env:"API_KEY"`
-	APIKeyEnabled bool   `env:"API_KEY_ENABLED"`
+	APIKey               string `env:"API_KEY"`
+	APIKeyEnabled        bool   `env:"API_KEY_ENABLED"`
+	APIKeyOnlyValidation bool   `env:"API_KEY_ENABLED_ONLY_VALIDATION"`
+	PluginAuthAddress    string `env:"PLUGIN_AUTH_ADDRESS"`
+	PluginAuthEnabled    bool   `env:"PLUGIN_AUTH_ENABLED"`
 
 	// CORS
 	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS"`
@@ -483,6 +488,22 @@ func ValidateAuthConfig(cfg *Config, logger libLog.Logger) error {
 	return nil
 }
 
+// ValidateAccessManagerConfig validates the Access Manager plugin configuration.
+// It warns when plugin auth is disabled (operator should be aware).
+// It fails if plugin auth is enabled but the address is missing.
+func ValidateAccessManagerConfig(cfg *Config, logger libLog.Logger) error {
+	if !cfg.PluginAuthEnabled {
+		logger.WithFields("config", "PLUGIN_AUTH_ENABLED").Warn("Access Manager plugin authentication is DISABLED")
+		return nil
+	}
+
+	if cfg.PluginAuthAddress == "" {
+		return fmt.Errorf("PLUGIN_AUTH_ADDRESS must be set when PLUGIN_AUTH_ENABLED=true")
+	}
+
+	return nil
+}
+
 // initPostgresConnection creates and connects a PostgreSQL connection pool.
 func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.PostgresConnection, error) {
 	sslMode := cfg.DBSSLMode
@@ -761,6 +782,11 @@ func initCoreInfra(cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
 		return nil, nil, fmt.Errorf("invalid auth configuration: %w", err)
 	}
 
+	// Validate Access Manager plugin configuration (fail-fast if misconfigured)
+	if err := ValidateAccessManagerConfig(cfg, logger); err != nil {
+		return nil, nil, fmt.Errorf("invalid access manager configuration: %w", err)
+	}
+
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
 	telemetry, err := libOtel.InitializeTelemetryWithError(&libOtel.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -906,14 +932,22 @@ func InitServers() (*Service, error) {
 		return nil, err
 	}
 
-	// Route configuration with API key authentication and CORS settings
+	// Route configuration with CORS settings
 	routeConfig := &in.RouteConfig{
-		APIKey:             cfg.APIKey,
-		APIKeyEnabled:      cfg.APIKeyEnabled,
-		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
+		APIKeyOnlyValidation: cfg.APIKeyOnlyValidation,
 	}
 
-	httpApp := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService)
+	// Create auth guard with all authentication configuration
+	authClient := authMiddleware.NewAuthClient(cfg.PluginAuthAddress, cfg.PluginAuthEnabled, &logger)
+	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{
+		APIKey:            cfg.APIKey,
+		APIKeyEnabled:     cfg.APIKeyEnabled,
+		PluginAuthEnabled: cfg.PluginAuthEnabled,
+		AppName:           constant.ApplicationName,
+	}, authClient)
+
+	httpApp := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard)
 
 	serverAPI, err := NewHTTPServer(cfg, httpApp, logger, telemetry)
 	if err != nil {
