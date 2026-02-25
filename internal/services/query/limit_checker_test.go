@@ -26,6 +26,13 @@ import (
 // errDatabase is a sentinel error for testing database error paths.
 var errDatabase = errors.New("database error")
 
+// serverPeriodKeyDaily and serverPeriodKeyMonthly are derived from the
+// deterministic mock clock so period-key expectations stay in sync.
+var (
+	serverPeriodKeyDaily   = testutil.DefaultTestTime.Format("2006-01-02")
+	serverPeriodKeyMonthly = testutil.DefaultTestTime.Format("2006-01")
+)
+
 // setupTest creates test context with tracing setup.
 func setupTest(t *testing.T) context.Context {
 	t.Helper()
@@ -107,7 +114,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 	counterID2 := testutil.MustDeterministicUUID(202)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
+	periodKeyDaily := serverPeriodKeyDaily
 
 	tests := []struct {
 		name         string
@@ -534,7 +541,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				}, nil)
 
 				scopeKey := "acct:" + accountID.String()
-				periodKeyMonthly := testutil.DefaultTestTime.Format("2006-01")
+				periodKeyMonthly := serverPeriodKeyMonthly
 				ucr.EXPECT().GetOrCreateForUpdate(gomock.Any(), limitID3, scopeKey, periodKeyMonthly).
 					Return(&model.UsageCounter{
 						ID:           counterID2,
@@ -1023,7 +1030,7 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 	counterID := testutil.MustDeterministicUUID(201)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
+	periodKeyDaily := serverPeriodKeyDaily
 
 	const numGoroutines = 10
 	amountPerRequest := decimal.RequireFromString("10")
@@ -1134,7 +1141,7 @@ func TestLimitCheckerService_CheckLimits_TwoPhaseNoPartialIncrement(t *testing.T
 	counterID1 := testutil.MustDeterministicUUID(201)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
+	periodKeyDaily := serverPeriodKeyDaily
 
 	ctrl := gomock.NewController(t)
 
@@ -1220,7 +1227,7 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 	counterID := testutil.MustDeterministicUUID(201)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
+	periodKeyDaily := serverPeriodKeyDaily
 
 	tests := []struct {
 		name         string
@@ -1409,7 +1416,7 @@ func TestLimitCheckerService_CheckLimits_PaginationLoop(t *testing.T) {
 	counterID3 := testutil.MustDeterministicUUID(203)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
+	periodKeyDaily := serverPeriodKeyDaily
 
 	ctrl := gomock.NewController(t)
 
@@ -1641,7 +1648,7 @@ func TestLimitCheckerService_CheckLimits_LargeDecimalValues(t *testing.T) {
 	counterID := testutil.MustDeterministicUUID(201)
 
 	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
-	periodKeyDaily := testutil.DefaultTestTime.Format("2006-01-02")
+	periodKeyDaily := serverPeriodKeyDaily
 
 	ctrl := gomock.NewController(t)
 
@@ -1980,6 +1987,7 @@ func TestCheckLimits_ServerTimestamp(t *testing.T) {
 		Status:   &status,
 		Currency: &currency,
 		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
 			{
@@ -2062,6 +2070,7 @@ func TestCheckLimits_ServerTimestamp_Monthly(t *testing.T) {
 		Status:   &status,
 		Currency: &currency,
 		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
 			{
@@ -2135,6 +2144,7 @@ func TestCheckLimits_PerTransactionUnaffectedByClock(t *testing.T) {
 		Status:   &status,
 		Currency: &currency,
 		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
 	}).Return(&model.ListLimitsResult{
 		Limits: []model.Limit{
 			{
