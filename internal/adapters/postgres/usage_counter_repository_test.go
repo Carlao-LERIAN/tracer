@@ -944,9 +944,9 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
-						sqlmock.AnyArg(), // $2 limit_id
-						sqlmock.AnyArg(), // $3 scope_key
-						sqlmock.AnyArg(), // $4 period_key
+						limitID.String(), // $2 limit_id
+						scopeKey,         // $3 scope_key
+						periodKey,        // $4 period_key
 						sqlmock.AnyArg(), // $5 current_usage (initial = amount for INSERT)
 						sqlmock.AnyArg(), // $6 last_updated_at
 						sqlmock.AnyArg(), // $7 amount (for DO UPDATE SET)
@@ -977,9 +977,9 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
-						sqlmock.AnyArg(), // $2 limit_id
-						sqlmock.AnyArg(), // $3 scope_key
-						sqlmock.AnyArg(), // $4 period_key
+						testutil.MustDeterministicUUID(8011).String(), // $2 limit_id
+						"acct:8011",      // $3 scope_key
+						"2025-06",        // $4 period_key
 						sqlmock.AnyArg(), // $5 current_usage
 						sqlmock.AnyArg(), // $6 last_updated_at
 						sqlmock.AnyArg(), // $7 amount
@@ -1022,6 +1022,8 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 
 	limitID := testutil.MustDeterministicUUID(8020)
 
+	wantUsage1000 := decimal.RequireFromString("1000")
+
 	tests := []struct {
 		name      string
 		limitID   uuid.UUID
@@ -1031,6 +1033,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 		maxAmount decimal.Decimal
 		mockSetup func(mock sqlmock.Sqlmock)
 		wantErr   error
+		wantUsage *decimal.Decimal // if non-nil, assert exact usage value
 	}{
 		{
 			name:      "Error - amount exceeds maxAmount pre-check rejects before SQL",
@@ -1077,7 +1080,8 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 					).
 					WillReturnRows(rows)
 			},
-			wantErr: nil, // Should succeed; pre-check only rejects amount > maxAmount
+			wantErr:   nil, // Should succeed; pre-check only rejects amount > maxAmount
+			wantUsage: &wantUsage1000,
 		},
 		{
 			name:      "Zero amount is a no-op (returns zero usage)",
@@ -1156,8 +1160,10 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 			}
 
 			require.NoError(t, err)
-			// Contract: when amount.IsZero(), UpsertAndIncrementAtomic must short-circuit and return (decimal.Zero, nil)
-			if tt.amount.IsZero() {
+			if tt.wantUsage != nil {
+				assert.True(t, tt.wantUsage.Equal(usage), "expected usage %s, got %s", tt.wantUsage, usage)
+			} else if tt.amount.IsZero() {
+				// Contract: when amount.IsZero(), UpsertAndIncrementAtomic must short-circuit and return (decimal.Zero, nil)
 				assert.True(t, usage.IsZero(), "expected zero usage for zero amount, got %s", usage)
 			}
 		})
@@ -1308,7 +1314,6 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ContextCancellation(t *
 
 	usage, err := repo.UpsertAndIncrementAtomic(ctx, limitID, "acct:8040", "2025-06", decimal.RequireFromString("100"), decimal.RequireFromString("1000"))
 
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, context.Canceled), "expected context.Canceled, got: %v", err)
+	require.ErrorIs(t, err, context.Canceled)
 	assert.True(t, usage.IsZero(), "expected zero usage on cancellation, got %s", usage)
 }
