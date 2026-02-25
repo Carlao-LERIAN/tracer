@@ -2566,7 +2566,12 @@ func TestCheckLimits_MultiLimitPartialRollback(t *testing.T) {
 		decimal.RequireFromString("5000"),
 	).Return(decimal.RequireFromString("500"), nil)
 
-	// Limit C: pre-check fails (500 > 300), NO UpsertAndIncrementAtomic call
+	// Limit C: pre-check fails (500 > 300), GetUsageForLimits is called to fetch current usage
+	mockUsageRepo.EXPECT().GetUsageForLimits(gomock.Any(), []uuid.UUID{limitIDC}, scopeKey, periodKeyDaily).
+		Return(map[uuid.UUID]decimal.Decimal{
+			limitIDC: decimal.RequireFromString("200"), // Current usage for Limit C
+		}, nil)
+	// No UpsertAndIncrementAtomic call for Limit C (pre-check rejects)
 	// This triggers rollback for A and B
 
 	// Rollback for Limit A: GetForUpdate + DecrementAtomic

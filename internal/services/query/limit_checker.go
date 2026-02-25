@@ -278,12 +278,22 @@ func (s *LimitCheckerService) processLimitAtomic(
 
 	// Pre-check: amount > maxAmount would always fail (INSERT path has no WHERE guard)
 	if input.Amount.GreaterThan(limit.MaxAmount) {
+		// Fetch current usage to report projected total accurately
+		currentUsage := decimal.Zero
+		usageMap, err := s.usageCounterRepo.GetUsageForLimits(ctx, []uuid.UUID{limit.ID}, scopeKey, periodKey)
+		if err == nil {
+			if usage, found := usageMap[limit.ID]; found {
+				currentUsage = usage
+			}
+		}
+		// If GetUsageForLimits fails, use zero (pessimistic: underreports total)
+
 		detail := &model.LimitUsageDetail{
 			LimitID:           limit.ID,
 			LimitAmount:       limit.MaxAmount,
 			Scope:             formatScopeString(limit.Scopes),
 			Period:            limit.LimitType,
-			CurrentUsage:      input.Amount, // Would-be usage if allowed
+			CurrentUsage:      currentUsage.Add(input.Amount), // Projected total: existing + attempted
 			AttemptedAmount:   input.Amount,
 			Exceeded:          true,
 			InternalLimitType: limit.LimitType,
