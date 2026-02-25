@@ -302,6 +302,11 @@ type LimitUsageDetail struct {
 	// scopeKey without needing to re-fetch the limit from the database.
 	// This eliminates N+1 queries during rollback operations.
 	Scopes []Scope `json:"-"`
+	// InternalPeriodKey stores the period key computed during CheckLimits.
+	// Used by RollbackUsage to target the exact same period counter that was incremented,
+	// preventing period key mismatch when rollback crosses a period boundary.
+	// Empty for PER_TRANSACTION limits (no period counters).
+	InternalPeriodKey string `json:"-"`
 }
 
 // ValidationResponse is the output of transaction validation.
