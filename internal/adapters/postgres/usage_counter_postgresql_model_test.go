@@ -127,8 +127,6 @@ func TestUsageCounterPostgreSQLModel_RoundTrip(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			testID := testutil.MustDeterministicUUID(int64(7 + i*2))
 			testLimitID := testutil.MustDeterministicUUID(int64(8 + i*2))
 			fixedTime := testutil.FixedTime()

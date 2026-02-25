@@ -174,8 +174,6 @@ func TestRulePostgreSQLModel_ToEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			// Act
 			result, err := tt.dbModel.ToEntity()
 
@@ -317,8 +315,6 @@ func TestRulePostgreSQLModel_FromEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			// Act
 			var dbModel RulePostgreSQLModel
 			err := dbModel.FromEntity(tt.entity)
@@ -541,8 +537,6 @@ func TestRulePostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			result, err := tt.dbModel.ToEntity()
 			tt.validate(t, result, err)
 		})
