@@ -46,6 +46,7 @@ type RuleEvaluator interface {
 // LimitChecker checks transaction limits.
 type LimitChecker interface {
 	CheckLimits(ctx context.Context, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error)
+	RollbackUsage(ctx context.Context, input *model.CheckLimitsInput, usageDetails []model.LimitUsageDetail) error
 }
 
 // ValidationService orchestrates transaction validation.
@@ -191,7 +192,27 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		return response, nil
 	}
 
-	// Step 3: If rules returned REVIEW, keep REVIEW
+	// Step 3: If rules returned REVIEW, rollback usage increments
+	// REVIEW means "manual review required" - don't count transaction against limits
+	if evalResult.Decision == model.DecisionReview {
+		if err := s.limitChecker.RollbackUsage(ctx, limitInput, limitOutput.LimitUsageDetails); err != nil {
+			// Log rollback failure but don't fail the validation
+			// Usage counters are eventually consistent (reset at period boundaries)
+			logger.WithFields(
+				"operation", "service.validation.orchestrate",
+				"request.id", req.RequestID,
+				"error", err.Error(),
+			).Warn("Failed to rollback usage for REVIEW decision")
+		}
+
+		logger.WithFields(
+			"operation", "service.validation.orchestrate",
+			"request.id", req.RequestID,
+			"decision", "REVIEW",
+		).Info("Validation completed (REVIEW - usage rolled back)")
+	}
+
+	// Step 4: If rules returned REVIEW, keep REVIEW
 	// If rules returned ALLOW (with or without matched rules), keep ALLOW
 
 	response.ProcessingTimeMs = time.Since(startTime).Milliseconds()
