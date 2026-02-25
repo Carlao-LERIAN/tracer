@@ -196,12 +196,13 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// REVIEW means "manual review required" - don't count transaction against limits
 	if evalResult.Decision == model.DecisionReview {
 		rollbackErr := s.limitChecker.RollbackUsage(ctx, limitInput, limitOutput.LimitUsageDetails)
-		
+
 		rollbackStatus := "succeeded"
 		if rollbackErr != nil {
 			// Log rollback failure but don't fail the validation
 			// Usage counters are eventually consistent (reset at period boundaries)
 			rollbackStatus = "failed"
+
 			logger.WithFields(
 				"operation", "service.validation.orchestrate",
 				"request.id", req.RequestID,

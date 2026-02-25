@@ -535,7 +535,8 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 	err = db.QueryRowContext(ctx, query, args...).Scan(&currentUsage, &succeeded)
 	if err != nil {
 		libOtel.HandleSpanError(&span, "Database error in CTE upsert", err)
-		return decimal.Zero, fmt.Errorf("failed to scan CTE result for limit %s scope %s period %s: %w", 
+
+		return decimal.Zero, fmt.Errorf("failed to scan CTE result for limit %s scope %s period %s: %w",
 			limitID, scopeKey, periodKey, err)
 	}
 
