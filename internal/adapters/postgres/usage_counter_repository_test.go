@@ -803,7 +803,6 @@ func TestUsageCounterRepository_DeleteExpiredCounters(t *testing.T) {
 }
 
 func TestUsageCounterRepository_UpsertAndIncrementAtomic_WithinLimit(t *testing.T) {
-	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	limitID := testutil.MustDeterministicUUID(8001)
@@ -909,7 +908,6 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_WithinLimit(t *testing.
 }
 
 func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing.T) {
-	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	limitID := testutil.MustDeterministicUUID(8010)
@@ -925,6 +923,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 		maxAmount decimal.Decimal
 		mockSetup func(mock sqlmock.Sqlmock)
 		wantErr   error
+		wantUsage decimal.Decimal
 	}{
 		{
 			name:      "Error - increment would exceed limit (0 rows from RETURNING)",
@@ -957,7 +956,8 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 					).
 					WillReturnRows(rows)
 			},
-			wantErr: constant.ErrUsageCounterExceedsLimit,
+			wantErr:   constant.ErrUsageCounterExceedsLimit,
+			wantUsage: decimal.Zero,
 		},
 		{
 			name:      "Boundary - amount exactly at boundary still succeeds",
@@ -989,7 +989,8 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 					).
 					WillReturnRows(rows)
 			},
-			wantErr: nil, // Should succeed, not error
+			wantErr:   nil,
+			wantUsage: decimal.RequireFromString("1000"),
 		},
 	}
 
@@ -1006,18 +1007,17 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 			if tt.wantErr != nil {
 				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.wantErr)
-				assert.True(t, usage.IsZero(), "expected zero usage on error, got %s", usage)
+				assert.True(t, tt.wantUsage.Equal(usage), "expected usage %s, got %s", tt.wantUsage, usage)
 				return
 			}
 
 			require.NoError(t, err)
-			assert.False(t, usage.IsZero(), "expected non-zero usage on success")
+			assert.True(t, tt.wantUsage.Equal(usage), "expected usage %s, got %s", tt.wantUsage, usage)
 		})
 	}
 }
 
 func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) {
-	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	limitID := testutil.MustDeterministicUUID(8020)
@@ -1151,6 +1151,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 			if tt.wantErr != nil {
 				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.wantErr)
+				assert.True(t, usage.IsZero(), "expected zero usage on error, got %s", usage)
 				return
 			}
 
@@ -1164,7 +1165,6 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 }
 
 func TestUsageCounterRepository_UpsertAndIncrementAtomic_ConnectionError(t *testing.T) {
-	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
@@ -1175,14 +1175,14 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ConnectionError(t *test
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	_, err := repo.UpsertAndIncrementAtomic(ctx, testutil.MustDeterministicUUID(8029), "acct:8029", "2025-06", decimal.RequireFromString("100"), decimal.RequireFromString("1000"))
+	usage, err := repo.UpsertAndIncrementAtomic(ctx, testutil.MustDeterministicUUID(8029), "acct:8029", "2025-06", decimal.RequireFromString("100"), decimal.RequireFromString("1000"))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
+	assert.True(t, usage.IsZero(), "expected zero usage on error, got %s", usage)
 }
 
 func TestUsageCounterRepository_UpsertAndIncrementAtomic_ErrorPropagation(t *testing.T) {
-	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	limitID := testutil.MustDeterministicUUID(8030)
@@ -1278,7 +1278,6 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ErrorPropagation(t *tes
 }
 
 func TestUsageCounterRepository_UpsertAndIncrementAtomic_ContextCancellation(t *testing.T) {
-	t.Parallel()
 	testutil.SetupTestTracing(t)
 
 	limitID := testutil.MustDeterministicUUID(8040)
