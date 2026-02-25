@@ -611,11 +611,9 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 
-		// If counters exist, verify the usage
-		if !usageResponse.CurrentUsage.IsZero() {
-			assert.True(t, decimal.RequireFromString("200").Equal(usageResponse.CurrentUsage),
-				"currentUsage should be 200 after validation")
-		}
+		// Verify the usage directly (no defensive guard)
+		assert.True(t, decimal.RequireFromString("200").Equal(usageResponse.CurrentUsage),
+			"currentUsage should be 200 after validation")
 	}
 }
 
@@ -896,12 +894,11 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 
-		if !usageResponse.CurrentUsage.IsZero() {
-			// Final usage should be successCount * amountPerTx
-			expectedUsage := decimal.NewFromInt(int64(successCount * amountPerTx))
-			assert.True(t, expectedUsage.Equal(usageResponse.CurrentUsage),
-				"Final currentUsage should be %s (based on %d successful validations)", expectedUsage, successCount)
-		}
+		// Final usage should be successCount * amountPerTx  
+		// Assert directly without defensive guard
+		expectedUsage := decimal.NewFromInt(int64(successCount * amountPerTx))
+		assert.True(t, expectedUsage.Equal(usageResponse.CurrentUsage),
+			"Final currentUsage should be %s (based on %d successful validations)", expectedUsage, successCount)
 	}
 
 	// All transactions should succeed (limit is high enough)
