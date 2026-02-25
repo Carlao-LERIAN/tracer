@@ -514,6 +514,10 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 	txScope := buildTransactionScope(input)
 	scopeKey := model.CalculateScopeKey(txScope)
 
+	// Calculate server time once for consistent period key fallback
+	// Prevents period key mismatch when rollback crosses period boundary
+	serverTime := s.clock.Now()
+
 	for _, detail := range usageDetails {
 		// PER_TRANSACTION limits don't have persistent counters - skip without DB lookup
 		// InternalLimitType is now included in LimitUsageDetail to avoid N+1 queries
@@ -528,7 +532,7 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 			// Fallback for legacy callers or external rollback calls without stored period key
 			var calcErr error
 
-			periodKey, calcErr = model.CalculatePeriodKey(detail.InternalLimitType, s.clock.Now())
+			periodKey, calcErr = model.CalculatePeriodKey(detail.InternalLimitType, serverTime)
 			if calcErr != nil {
 				logger.WithFields(
 					"operation", "service.limit_checker.rollback_usage",
