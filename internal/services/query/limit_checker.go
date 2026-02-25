@@ -151,11 +151,11 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 			// but compensation MUST complete to maintain data integrity.
 			if len(incrementedDetails) > 0 {
 				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+				defer cancel()
 				// Preserve trace context for observability
 				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
 				//nolint:contextcheck // Intentional: using detached context for compensation
 				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, scopeKey)
-				cancel()
 			}
 
 			libOtel.HandleSpanError(&span, "Failed to process limit atomically", err)
@@ -173,11 +173,11 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 			// of request cancellation to prevent false limit exhaustion.
 			if len(incrementedDetails) > 0 {
 				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+				defer cancel()
 				// Preserve trace context for observability
 				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
 				//nolint:contextcheck // Intentional: using detached context for compensation
 				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, scopeKey)
-				cancel()
 			}
 
 			break
