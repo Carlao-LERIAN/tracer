@@ -1745,3 +1745,399 @@ func TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement(t *testing.T)
 	assert.True(t, decimal.RequireFromString("10000").Equal(usageResponse.Counters[0].CurrentUsage),
 		"Final currentUsage should be 10000 (10 * 1000)")
 }
+
+// =============================================================================
+// 5.4 Timestamp Bypass Prevention
+// =============================================================================
+
+// TestLimitsVerification_5_4_1_BackdatedTimestampBypass verifies that
+// backdated timestamps cannot be used to bypass daily limits.
+//
+// Test spec 5.4.1: Backdated timestamp bypass prevention
+//
+// Scenario: Create DAILY limit of 5000, exhaust with 5 current-time transactions,
+// then attempt 5 more with yesterday's timestamps. All backdated attempts must be denied.
+func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(90200).String()
+
+	// Create DAILY limit of 5000
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "5000")
+	testutil.ActivateLimit(t, limitID)
+	t.Cleanup(func() {
+		testutil.CleanupLimit(t, limitID)
+	})
+
+	// Exhaust the limit with 5 current-time transactions of 1000 each
+	for i := 0; i < 5; i++ {
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(int64(90201 + i)).String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("1000"),
+			Currency:             "BRL",
+			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction %d should succeed: %s", i+1, string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// All 5 should be approved (limit not exceeded)
+		assert.NotEqual(t, "DENY", result.Decision,
+			"Transaction %d should not be denied, limit not yet exhausted", i+1)
+	}
+
+	// Now attempt 5 more transactions with yesterday's timestamp (backdated)
+	// These should all be DENIED because:
+	// 1. Period key is calculated from server time, not client timestamp
+	// 2. The limit is already exhausted for today's period
+	yesterdayTimestamp := time.Now().UTC().Add(-23 * time.Hour).Format(time.RFC3339) // Within 24h tolerance but backdated
+
+	deniedCount := 0
+	for i := 0; i < 5; i++ {
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(int64(90206 + i)).String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("1000"),
+			Currency:             "BRL",
+			TransactionTimestamp: yesterdayTimestamp,
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Backdated transaction %d should return 200: %s", i+1, string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// All backdated transactions should be denied due to limit exceeded
+		if result.Decision == "DENY" && result.Reason == "limit_exceeded" {
+			deniedCount++
+		}
+	}
+
+	// All 5 backdated transactions must be denied
+	assert.Equal(t, 5, deniedCount, "All 5 backdated transactions should be denied due to limit exceeded")
+
+	t.Log("Backdated timestamp bypass prevention verified: server time used for period key calculation")
+}
+
+// TestLimitsVerification_5_4_2_PastTimestampRejection verifies that
+// transactions with timestamps older than MaxTimestampAge (24h) are rejected
+// at the validation layer with TRC-0228.
+//
+// Test spec 5.4.2: Past timestamp rejected with TRC-0228
+func TestLimitsVerification_5_4_2_PastTimestampRejection(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(90210).String()
+
+	// Submit transaction with timestamp 48h in the past (beyond MaxTimestampAge)
+	pastTimestamp := time.Now().UTC().Add(-48 * time.Hour).Format(time.RFC3339)
+
+	req := &testutil.ValidationRequest{
+		RequestID:            testutil.MustDeterministicUUID(90211).String(),
+		TransactionType:      "PIX",
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "BRL",
+		TransactionTimestamp: pastTimestamp,
+		Account: &testutil.AccountContext{
+			ID: accountID,
+		},
+	}
+
+	resp, body := testutil.CreateValidation(t, req)
+	defer resp.Body.Close()
+
+	// Should return HTTP 400 (validation error)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		"Timestamp 48h in past should be rejected with 400: %s", string(body))
+
+	var errResp testutil.ErrorResponse
+	err := json.Unmarshal(body, &errResp)
+	require.NoError(t, err)
+
+	// Error code should be TRC-0228
+	assert.Equal(t, "TRC-0228", errResp.Code,
+		"Error code should be TRC-0228 (timestamp too far in past)")
+
+	t.Logf("Past timestamp rejection verified: timestamps older than 24h rejected with TRC-0228")
+}
+
+// TestLimitsVerification_5_4_3_MaxTimestampAgeBoundary verifies the exact
+// boundary behavior of MaxTimestampAge validation (24h).
+//
+// Test spec 5.4.3: MaxTimestampAge boundary test
+func TestLimitsVerification_5_4_3_MaxTimestampAgeBoundary(t *testing.T) {
+	// Test 1: Timestamp (24h - 1min) in past should be ACCEPTED
+	t.Run("within_threshold_accepted", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90220).String()
+
+		// 24h - 1min = within threshold
+		acceptedTimestamp := time.Now().UTC().Add(-(24*time.Hour - time.Minute)).Format(time.RFC3339)
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90221).String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("100"),
+			Currency:             "BRL",
+			TransactionTimestamp: acceptedTimestamp,
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		// Should return HTTP 200 (accepted)
+		require.Equal(t, http.StatusOK, resp.StatusCode,
+			"Timestamp (24h - 1min) in past should be accepted: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Should have a validationId (processed successfully)
+		assert.NotEmpty(t, result.ValidationID, "Should return validationId for accepted request")
+
+		t.Logf("Boundary test: timestamp 24h-1min in past accepted")
+	})
+
+	// Test 2: Timestamp (24h + 1min) in past should be REJECTED
+	t.Run("beyond_threshold_rejected", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90222).String()
+
+		// 24h + 1min = beyond threshold
+		rejectedTimestamp := time.Now().UTC().Add(-(24*time.Hour + time.Minute)).Format(time.RFC3339)
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90223).String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("100"),
+			Currency:             "BRL",
+			TransactionTimestamp: rejectedTimestamp,
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		// Should return HTTP 400 (rejected)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+			"Timestamp (24h + 1min) in past should be rejected: %s", string(body))
+
+		var errResp testutil.ErrorResponse
+		err := json.Unmarshal(body, &errResp)
+		require.NoError(t, err)
+
+		assert.Equal(t, "TRC-0228", errResp.Code,
+			"Error code should be TRC-0228 for timestamp beyond MaxTimestampAge")
+
+		t.Logf("Boundary test: timestamp 24h+1min in past rejected with TRC-0228")
+	})
+}
+
+// TestLimitsVerification_5_4_4_AuditTrailPreservation verifies that
+// the original transaction timestamp is preserved in the audit trail.
+//
+// Test spec 5.4.4: Audit trail preservation
+func TestLimitsVerification_5_4_4_AuditTrailPreservation(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(90230).String()
+
+	// Submit transaction with timestamp 2h in past (within tolerance)
+	pastTimestamp := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
+
+	req := &testutil.ValidationRequest{
+		RequestID:            testutil.MustDeterministicUUID(90231).String(),
+		TransactionType:      "PIX",
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "BRL",
+		TransactionTimestamp: pastTimestamp,
+		Account: &testutil.AccountContext{
+			ID: accountID,
+		},
+	}
+
+	resp, body := testutil.CreateValidation(t, req)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode,
+		"Transaction with 2h-old timestamp should be accepted: %s", string(body))
+
+	var result testutil.ValidationResponse
+	err := json.Unmarshal(body, &result)
+	require.NoError(t, err)
+
+	validationID := result.ValidationID
+	require.NotEmpty(t, validationID, "Should return validationId")
+
+	// Retrieve the validation via GET /v1/validations/{id}
+	getResp, getBody := testutil.GetValidation(t, validationID)
+	defer getResp.Body.Close()
+
+	require.Equal(t, http.StatusOK, getResp.StatusCode,
+		"GET validation should succeed: %s", string(getBody))
+
+	var detail testutil.ValidationDetailResponse
+	err = json.Unmarshal(getBody, &detail)
+	require.NoError(t, err)
+
+	// Parse the stored timestamp
+	storedTimestamp, err := time.Parse(time.RFC3339, detail.TransactionTimestamp)
+	require.NoError(t, err, "Stored timestamp should be valid RFC3339")
+
+	// Parse the original timestamp
+	originalTimestamp, err := time.Parse(time.RFC3339, pastTimestamp)
+	require.NoError(t, err, "Original timestamp should be valid RFC3339")
+
+	// The stored timestamp should match the original (not server time)
+	// Allow 1 second tolerance for RFC3339 formatting differences
+	timeDiff := storedTimestamp.Sub(originalTimestamp).Abs()
+	assert.LessOrEqual(t, timeDiff, time.Second,
+		"Stored timestamp should match original (within 1s tolerance), got diff: %v", timeDiff)
+
+	t.Logf("Audit trail preservation verified: original timestamp %s stored as %s",
+		pastTimestamp, detail.TransactionTimestamp)
+}
+
+// TestLimitsVerification_5_4_5_PerTransactionUnaffected verifies that
+// PER_TRANSACTION limits are not affected by timestamp manipulation
+// since they check amount only, not accumulated usage.
+//
+// Test spec 5.4.5: PER_TRANSACTION limit checks value only
+func TestLimitsVerification_5_4_5_PerTransactionUnaffected(t *testing.T) {
+	transactionType := "CARD"
+
+	// Create PER_TRANSACTION limit of 50000
+	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, "50000")
+	testutil.ActivateLimit(t, limitID)
+	t.Cleanup(func() {
+		testutil.CleanupLimit(t, limitID)
+	})
+
+	// Test 1: Current timestamp with amount < limit (should be accepted)
+	t.Run("current_timestamp_under_limit", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90240).String()
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90241).String(),
+			TransactionType:      transactionType,
+			Amount:               decimal.RequireFromString("30000"),
+			Currency:             "BRL",
+			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode,
+			"Transaction under limit should return 200: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Should not be denied due to limit
+		for _, detail := range result.LimitUsageDetails {
+			if detail.LimitID == limitID {
+				assert.False(t, detail.Exceeded, "PER_TRANSACTION limit should not be exceeded for 30000 < 50000")
+				break
+			}
+		}
+	})
+
+	// Test 2: Past timestamp (2h) with amount < limit (should be accepted)
+	t.Run("past_timestamp_under_limit", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90242).String()
+
+		pastTimestamp := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90243).String(),
+			TransactionType:      transactionType,
+			Amount:               decimal.RequireFromString("30000"),
+			Currency:             "BRL",
+			TransactionTimestamp: pastTimestamp,
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode,
+			"Transaction with past timestamp under limit should return 200: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Should not be denied due to limit (PER_TRANSACTION checks amount only)
+		for _, detail := range result.LimitUsageDetails {
+			if detail.LimitID == limitID {
+				assert.False(t, detail.Exceeded, "PER_TRANSACTION limit should not be exceeded for 30000 < 50000")
+				break
+			}
+		}
+	})
+
+	// Test 3: Amount > limit (should be denied regardless of timestamp)
+	t.Run("over_limit_denied", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90244).String()
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90245).String(),
+			TransactionType:      transactionType,
+			Amount:               decimal.RequireFromString("60000"), // Exceeds 50000 limit
+			Currency:             "BRL",
+			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode,
+			"Transaction over limit should return 200 with DENY: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Should be denied due to PER_TRANSACTION limit exceeded
+		assert.Equal(t, "DENY", result.Decision, "Should be DENY when amount exceeds PER_TRANSACTION limit")
+		assert.Equal(t, "limit_exceeded", result.Reason, "Reason should be limit_exceeded")
+
+		// Verify exceeded flag
+		foundLimit := false
+		for _, detail := range result.LimitUsageDetails {
+			if detail.LimitID == limitID {
+				foundLimit = true
+				assert.True(t, detail.Exceeded, "PER_TRANSACTION limit should be exceeded for 60000 > 50000")
+				break
+			}
+		}
+		assert.True(t, foundLimit, "PER_TRANSACTION limit should be in response")
+	})
+
+	t.Log("PER_TRANSACTION limit behavior verified: checks amount only, not accumulated usage")
+}
