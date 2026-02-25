@@ -279,8 +279,6 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			// Act
 			result, err := tt.dbModel.ToEntity()
 
@@ -567,8 +565,6 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			// Act
 			var dbModel TransactionValidationPostgreSQLModel
 			err := dbModel.FromEntity(tt.entity)
@@ -893,8 +889,6 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			result, err := tt.dbModel.ToEntity()
 			require.NoError(t, err, "ToEntity should not return error for edge cases")
 			tt.validate(t, result)
@@ -939,8 +933,6 @@ func TestParseUUIDArrayString(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
 				result, err := parseUUIDArrayString(tt.input)
 				require.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
@@ -965,8 +957,6 @@ func TestParseUUIDArrayString(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
 				_, err := parseUUIDArrayString(tt.input)
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "invalid UUID")
@@ -1010,8 +1000,6 @@ func TestFormatUUIDArrayString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			result := formatUUIDArrayString(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -1054,8 +1042,6 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_InvalidUUIDs(t *testing.T
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			dbModel := TransactionValidationPostgreSQLModel{
 				ID:                   testID.String(),
 				RequestID:            testRequestID.String(),
