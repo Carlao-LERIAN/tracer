@@ -801,3 +801,534 @@ func TestUsageCounterRepository_DeleteExpiredCounters(t *testing.T) {
 		})
 	}
 }
+
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_WithinLimit(t *testing.T) {
+	t.Parallel()
+	testutil.SetupTestTracing(t)
+
+	limitID := testutil.MustDeterministicUUID(8001)
+	scopeKey := "acct:8001"
+	periodKey := "2025-06"
+
+	tests := []struct {
+		name      string
+		limitID   uuid.UUID
+		scopeKey  string
+		periodKey string
+		amount    decimal.Decimal
+		maxAmount decimal.Decimal
+		mockSetup func(mock sqlmock.Sqlmock)
+		wantUsage decimal.Decimal
+		// wantErr is always false here; error paths are covered in ST-04-03 (exceeds) and ST-04-05 (propagation)
+		wantErr bool
+	}{
+		{
+			name:      "Success - existing counter ON CONFLICT UPDATE path returns new usage",
+			limitID:   limitID,
+			scopeKey:  scopeKey,
+			periodKey: periodKey,
+			amount:    decimal.RequireFromString("200"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// The upsert query uses INSERT ... ON CONFLICT ... DO UPDATE ... WHERE ... RETURNING current_usage
+				// When the counter exists and current_usage + amount <= maxAmount, it returns the new usage.
+				rows := sqlmock.NewRows([]string{"current_usage"}).
+					AddRow(decimal.RequireFromString("700"))
+
+				mock.ExpectQuery(regexp.QuoteMeta(
+					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+				)).
+					WithArgs(
+						sqlmock.AnyArg(), // $1 id (generated UUID)
+						limitID.String(), // $2 limit_id
+						scopeKey,         // $3 scope_key
+						periodKey,        // $4 period_key
+						sqlmock.AnyArg(), // $5 current_usage (initial = amount for INSERT)
+						sqlmock.AnyArg(), // $6 last_updated_at
+						sqlmock.AnyArg(), // $7 amount (for DO UPDATE SET)
+						sqlmock.AnyArg(), // $8 last_updated_at (for DO UPDATE SET)
+						sqlmock.AnyArg(), // $9 amount (for WHERE guard)
+						sqlmock.AnyArg(), // $10 maxAmount (for WHERE guard)
+					).
+					WillReturnRows(rows)
+			},
+			wantUsage: decimal.RequireFromString("700"),
+		},
+		{
+			name:      "Success - new counter INSERT path returns initial amount",
+			limitID:   testutil.MustDeterministicUUID(8002),
+			scopeKey:  "acct:8002",
+			periodKey: "2025-07",
+			amount:    decimal.RequireFromString("300"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// INSERT succeeds (no conflict), RETURNING returns the inserted current_usage.
+				rows := sqlmock.NewRows([]string{"current_usage"}).
+					AddRow(decimal.RequireFromString("300"))
+
+				mock.ExpectQuery(regexp.QuoteMeta(
+					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+				)).
+					WithArgs(
+						sqlmock.AnyArg(), // $1 id (generated UUID)
+						sqlmock.AnyArg(), // $2 limit_id
+						sqlmock.AnyArg(), // $3 scope_key
+						sqlmock.AnyArg(), // $4 period_key
+						sqlmock.AnyArg(), // $5 current_usage (initial = amount)
+						sqlmock.AnyArg(), // $6 last_updated_at
+						sqlmock.AnyArg(), // $7 amount
+						sqlmock.AnyArg(), // $8 last_updated_at
+						sqlmock.AnyArg(), // $9 amount
+						sqlmock.AnyArg(), // $10 maxAmount
+					).
+					WillReturnRows(rows)
+			},
+			wantUsage: decimal.RequireFromString("300"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			defer cleanup()
+
+			tt.mockSetup(sqlMock)
+
+			ctx := context.Background()
+			usage, err := repo.UpsertAndIncrementAtomic(ctx, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.True(t, tt.wantUsage.Equal(usage), "expected usage %s, got %s", tt.wantUsage, usage)
+		})
+	}
+}
+
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing.T) {
+	t.Parallel()
+	testutil.SetupTestTracing(t)
+
+	limitID := testutil.MustDeterministicUUID(8010)
+	scopeKey := "acct:8010"
+	periodKey := "2025-06"
+
+	tests := []struct {
+		name      string
+		limitID   uuid.UUID
+		scopeKey  string
+		periodKey string
+		amount    decimal.Decimal
+		maxAmount decimal.Decimal
+		mockSetup func(mock sqlmock.Sqlmock)
+		wantErr   error
+	}{
+		{
+			name:      "Error - increment would exceed limit (0 rows from RETURNING)",
+			limitID:   limitID,
+			scopeKey:  scopeKey,
+			periodKey: periodKey,
+			amount:    decimal.RequireFromString("600"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// The ON CONFLICT UPDATE WHERE guard rejects the update because
+				// current_usage (500) + amount (600) = 1100 > maxAmount (1000).
+				// RETURNING returns 0 rows because the WHERE clause prevented the UPDATE.
+				// sql.ErrNoRows is returned by QueryRowContext.Scan when no rows returned.
+				rows := sqlmock.NewRows([]string{"current_usage"})
+
+				mock.ExpectQuery(regexp.QuoteMeta(
+					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+				)).
+					WithArgs(
+						sqlmock.AnyArg(), // $1 id (generated UUID)
+						sqlmock.AnyArg(), // $2 limit_id
+						sqlmock.AnyArg(), // $3 scope_key
+						sqlmock.AnyArg(), // $4 period_key
+						sqlmock.AnyArg(), // $5 current_usage (initial = amount for INSERT)
+						sqlmock.AnyArg(), // $6 last_updated_at
+						sqlmock.AnyArg(), // $7 amount (for DO UPDATE SET)
+						sqlmock.AnyArg(), // $8 last_updated_at (for DO UPDATE SET)
+						sqlmock.AnyArg(), // $9 amount (for WHERE guard)
+						sqlmock.AnyArg(), // $10 maxAmount (for WHERE guard)
+					).
+					WillReturnRows(rows)
+			},
+			wantErr: constant.ErrUsageCounterExceedsLimit,
+		},
+		{
+			name:      "Boundary - amount exactly at boundary still succeeds",
+			limitID:   testutil.MustDeterministicUUID(8011),
+			scopeKey:  "acct:8011",
+			periodKey: "2025-06",
+			amount:    decimal.RequireFromString("500"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// current_usage (500) + amount (500) = 1000 <= maxAmount (1000)
+				// This is a boundary success case: the WHERE guard allows the update.
+				rows := sqlmock.NewRows([]string{"current_usage"}).
+					AddRow(decimal.RequireFromString("1000"))
+
+				mock.ExpectQuery(regexp.QuoteMeta(
+					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+				)).
+					WithArgs(
+						sqlmock.AnyArg(), // $1 id (generated UUID)
+						sqlmock.AnyArg(), // $2 limit_id
+						sqlmock.AnyArg(), // $3 scope_key
+						sqlmock.AnyArg(), // $4 period_key
+						sqlmock.AnyArg(), // $5 current_usage
+						sqlmock.AnyArg(), // $6 last_updated_at
+						sqlmock.AnyArg(), // $7 amount
+						sqlmock.AnyArg(), // $8 last_updated_at
+						sqlmock.AnyArg(), // $9 amount
+						sqlmock.AnyArg(), // $10 maxAmount
+					).
+					WillReturnRows(rows)
+			},
+			wantErr: nil, // Should succeed, not error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			defer cleanup()
+
+			tt.mockSetup(sqlMock)
+
+			ctx := context.Background()
+			usage, err := repo.UpsertAndIncrementAtomic(ctx, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount)
+
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tt.wantErr)
+				assert.True(t, usage.IsZero(), "expected zero usage on error, got %s", usage)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.False(t, usage.IsZero(), "expected non-zero usage on success")
+		})
+	}
+}
+
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) {
+	t.Parallel()
+	testutil.SetupTestTracing(t)
+
+	limitID := testutil.MustDeterministicUUID(8020)
+
+	tests := []struct {
+		name      string
+		limitID   uuid.UUID
+		scopeKey  string
+		periodKey string
+		amount    decimal.Decimal
+		maxAmount decimal.Decimal
+		mockSetup func(mock sqlmock.Sqlmock)
+		wantErr   error
+	}{
+		{
+			name:      "Error - amount exceeds maxAmount pre-check rejects before SQL",
+			limitID:   limitID,
+			scopeKey:  "acct:8020",
+			periodKey: "2025-06",
+			amount:    decimal.RequireFromString("1500"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// No SQL should be executed because the Go pre-check catches this.
+				// If any SQL is executed, sqlmock will fail the test with
+				// "call to Query/Exec was not expected".
+			},
+			wantErr: constant.ErrUsageCounterExceedsLimit,
+		},
+		{
+			name:      "Error - amount equals maxAmount on fresh counter is allowed (boundary)",
+			limitID:   testutil.MustDeterministicUUID(8021),
+			scopeKey:  "acct:8021",
+			periodKey: "2025-06",
+			amount:    decimal.RequireFromString("1000"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// amount == maxAmount: the pre-check should NOT reject this because
+				// for a fresh INSERT (current_usage=0), 0 + 1000 = 1000 <= 1000 is valid.
+				// The pre-check only rejects when amount > maxAmount (strictly greater).
+				rows := sqlmock.NewRows([]string{"current_usage"}).
+					AddRow(decimal.RequireFromString("1000"))
+
+				mock.ExpectQuery(regexp.QuoteMeta(
+					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+				)).
+					WithArgs(
+						sqlmock.AnyArg(), // $1 id (generated UUID)
+						sqlmock.AnyArg(), // $2 limit_id
+						sqlmock.AnyArg(), // $3 scope_key
+						sqlmock.AnyArg(), // $4 period_key
+						sqlmock.AnyArg(), // $5 current_usage
+						sqlmock.AnyArg(), // $6 last_updated_at
+						sqlmock.AnyArg(), // $7 amount
+						sqlmock.AnyArg(), // $8 last_updated_at
+						sqlmock.AnyArg(), // $9 amount
+						sqlmock.AnyArg(), // $10 maxAmount
+					).
+					WillReturnRows(rows)
+			},
+			wantErr: nil, // Should succeed; pre-check only rejects amount > maxAmount
+		},
+		{
+			name:      "Zero amount is a no-op (returns zero usage)",
+			limitID:   testutil.MustDeterministicUUID(8022),
+			scopeKey:  "acct:8022",
+			periodKey: "2025-06",
+			amount:    decimal.RequireFromString("0"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// Zero amount should be a no-op; no SQL executed.
+			},
+			wantErr: nil,
+		},
+		{
+			name:      "Error - negative amount returns increment-non-negative error",
+			limitID:   testutil.MustDeterministicUUID(8023),
+			scopeKey:  "acct:8023",
+			periodKey: "2025-06",
+			amount:    decimal.RequireFromString("-10"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// Negative amount should be rejected before SQL execution.
+			},
+			wantErr: constant.ErrUsageCounterIncrementNonNegative,
+		},
+		{
+			// maxAmount=0 means the limit is configured to deny everything.
+			// Any positive amount satisfies amount.GreaterThan(decimal.Zero) == true,
+			// so the pre-check must catch it before SQL is executed.
+			name:      "zero maxAmount rejects any positive amount",
+			limitID:   testutil.MustDeterministicUUID(8041),
+			scopeKey:  "acct:test-zero-max",
+			periodKey: "2024-01-15",
+			amount:    decimal.RequireFromString("1"),
+			maxAmount: decimal.Zero,
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// No SQL should be executed: the Go pre-check (amount > maxAmount)
+				// fires because 1 > 0. If any query is issued, sqlmock will fail
+				// the test with "call to Query/Exec was not expected".
+			},
+			wantErr: constant.ErrUsageCounterExceedsLimit,
+		},
+		{
+			// zero amount against zero maxAmount: 0.GreaterThan(0) == false, so
+			// the pre-check does NOT reject it. The INSERT path creates a new
+			// counter with current_usage=0, which satisfies 0 <= 0 and is valid.
+			name:      "zero amount with zero maxAmount passes pre-check and succeeds",
+			limitID:   testutil.MustDeterministicUUID(8042),
+			scopeKey:  "acct:test-zero-max-zero-amount",
+			periodKey: "2024-01-15",
+			amount:    decimal.Zero,
+			maxAmount: decimal.Zero,
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// Pre-check is skipped (0 is not > 0). The INSERT path executes
+				// and RETURNING returns current_usage=0.
+				rows := sqlmock.NewRows([]string{"current_usage"}).
+					AddRow(decimal.Zero)
+
+				mock.ExpectQuery(regexp.QuoteMeta(
+					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+				)).
+					WithArgs(
+						sqlmock.AnyArg(), // $1 id (generated UUID)
+						sqlmock.AnyArg(), // $2 limit_id
+						sqlmock.AnyArg(), // $3 scope_key
+						sqlmock.AnyArg(), // $4 period_key
+						sqlmock.AnyArg(), // $5 current_usage (0)
+						sqlmock.AnyArg(), // $6 last_updated_at
+						sqlmock.AnyArg(), // $7 amount (0)
+						sqlmock.AnyArg(), // $8 last_updated_at
+						sqlmock.AnyArg(), // $9 amount (0, for WHERE guard)
+						sqlmock.AnyArg(), // $10 maxAmount (0, for WHERE guard)
+					).
+					WillReturnRows(rows)
+			},
+			wantErr: nil, // Should succeed; 0 is not > 0
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			defer cleanup()
+
+			tt.mockSetup(sqlMock)
+
+			ctx := context.Background()
+			usage, err := repo.UpsertAndIncrementAtomic(ctx, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount)
+
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			// Contract: when amount.IsZero(), UpsertAndIncrementAtomic must short-circuit and return (decimal.Zero, nil)
+			if tt.amount.IsZero() {
+				assert.True(t, usage.IsZero(), "expected zero usage for zero amount, got %s", usage)
+			}
+		})
+	}
+}
+
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_ConnectionError(t *testing.T) {
+	t.Parallel()
+	testutil.SetupTestTracing(t)
+
+	ctrl := gomock.NewController(t)
+
+	mockConn := mocks.NewMockConnection(ctrl)
+	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+
+	repo := NewUsageCounterRepositoryWithConnection(mockConn)
+
+	ctx := context.Background()
+	_, err := repo.UpsertAndIncrementAtomic(ctx, testutil.MustDeterministicUUID(8029), "acct:8029", "2025-06", decimal.RequireFromString("100"), decimal.RequireFromString("1000"))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get database connection")
+}
+
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_ErrorPropagation(t *testing.T) {
+	t.Parallel()
+	testutil.SetupTestTracing(t)
+
+	limitID := testutil.MustDeterministicUUID(8030)
+
+	tests := []struct {
+		name      string
+		limitID   uuid.UUID
+		scopeKey  string
+		periodKey string
+		amount    decimal.Decimal
+		maxAmount decimal.Decimal
+		mockSetup func(mock sqlmock.Sqlmock)
+		wantErr   bool
+		errMsg    string
+	}{
+		{
+			name:      "Error - database error is propagated with wrapping",
+			limitID:   limitID,
+			scopeKey:  "acct:8030",
+			periodKey: "2025-06",
+			amount:    decimal.RequireFromString("100"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(regexp.QuoteMeta(
+					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+				)).
+					WithArgs(
+						sqlmock.AnyArg(), // $1 id (generated UUID)
+						sqlmock.AnyArg(), // $2 limit_id
+						sqlmock.AnyArg(), // $3 scope_key
+						sqlmock.AnyArg(), // $4 period_key
+						sqlmock.AnyArg(), // $5 current_usage
+						sqlmock.AnyArg(), // $6 last_updated_at
+						sqlmock.AnyArg(), // $7 amount
+						sqlmock.AnyArg(), // $8 last_updated_at
+						sqlmock.AnyArg(), // $9 amount
+						sqlmock.AnyArg(), // $10 maxAmount
+					).
+					WillReturnError(errors.New("disk full"))
+			},
+			wantErr: true,
+			errMsg:  "disk full",
+		},
+		{
+			name:      "Error - scan error is propagated",
+			limitID:   testutil.MustDeterministicUUID(8031),
+			scopeKey:  "acct:8031",
+			periodKey: "2025-06",
+			amount:    decimal.RequireFromString("100"),
+			maxAmount: decimal.RequireFromString("1000"),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// Return a row with an incompatible type to trigger a scan error
+				rows := sqlmock.NewRows([]string{"current_usage"}).
+					AddRow("not-a-decimal")
+
+				mock.ExpectQuery(regexp.QuoteMeta(
+					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+				)).
+					WithArgs(
+						sqlmock.AnyArg(), // $1 id (generated UUID)
+						sqlmock.AnyArg(), // $2 limit_id
+						sqlmock.AnyArg(), // $3 scope_key
+						sqlmock.AnyArg(), // $4 period_key
+						sqlmock.AnyArg(), // $5 current_usage
+						sqlmock.AnyArg(), // $6 last_updated_at
+						sqlmock.AnyArg(), // $7 amount
+						sqlmock.AnyArg(), // $8 last_updated_at
+						sqlmock.AnyArg(), // $9 amount
+						sqlmock.AnyArg(), // $10 maxAmount
+					).
+					WillReturnRows(rows)
+			},
+			wantErr: true,
+			errMsg:  "failed to scan",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			defer cleanup()
+
+			tt.mockSetup(sqlMock)
+
+			ctx := context.Background()
+			usage, err := repo.UpsertAndIncrementAtomic(ctx, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errMsg)
+			assert.True(t, usage.IsZero(), "expected zero usage on error, got %s", usage)
+		})
+	}
+}
+
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_ContextCancellation(t *testing.T) {
+	t.Parallel()
+	testutil.SetupTestTracing(t)
+
+	limitID := testutil.MustDeterministicUUID(8040)
+
+	repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+	defer cleanup()
+
+	// When context is cancelled, the database driver returns context.Canceled
+	sqlMock.ExpectQuery(regexp.QuoteMeta(
+		`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+	)).
+		WithArgs(
+			sqlmock.AnyArg(), // $1 id (generated UUID)
+			sqlmock.AnyArg(), // $2 limit_id
+			sqlmock.AnyArg(), // $3 scope_key
+			sqlmock.AnyArg(), // $4 period_key
+			sqlmock.AnyArg(), // $5 current_usage
+			sqlmock.AnyArg(), // $6 last_updated_at
+			sqlmock.AnyArg(), // $7 amount
+			sqlmock.AnyArg(), // $8 last_updated_at
+			sqlmock.AnyArg(), // $9 amount
+			sqlmock.AnyArg(), // $10 maxAmount
+		).
+		WillReturnError(context.Canceled)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	usage, err := repo.UpsertAndIncrementAtomic(ctx, limitID, "acct:8040", "2025-06", decimal.RequireFromString("100"), decimal.RequireFromString("1000"))
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, context.Canceled), "expected context.Canceled, got: %v", err)
+	assert.True(t, usage.IsZero(), "expected zero usage on cancellation, got %s", usage)
+}

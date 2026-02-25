@@ -132,6 +132,7 @@ var (
 	ErrUsageCounterCurrentUsageNegative = errors.New("TRC-0164") // usage counter currentUsage must be non-negative
 	ErrUsageCounterIncrementNonNegative = errors.New("TRC-0165") // increment amount must be non-negative
 	ErrUsageCounterNotFound             = errors.New("TRC-0166") // usage counter not found
+	ErrUsageCounterExceedsLimit         = errors.New("TRC-0167") // usage counter increment would exceed limit maximum
 	ErrUsageCounterDecrementNonNegative = errors.New("TRC-0168") // decrement amount must be non-negative
 
 	// =============================================================================

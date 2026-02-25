@@ -425,6 +425,113 @@ func (r *UsageCounterRepository) DecrementAtomic(ctx context.Context, counterID 
 	return nil
 }
 
+// UpsertAndIncrementAtomic atomically creates or increments a usage counter.
+// Uses INSERT ... ON CONFLICT DO UPDATE ... WHERE current_usage + amount <= maxAmount RETURNING current_usage.
+//
+// IMPORTANT: The WHERE guard only applies to the DO UPDATE (conflict) path.
+// The INSERT path creates a new counter with current_usage = amount without a WHERE guard.
+// Therefore, the caller MUST pre-check amount > maxAmount before calling this method.
+func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
+	ctx context.Context,
+	limitID uuid.UUID,
+	scopeKey string,
+	periodKey string,
+	amount decimal.Decimal,
+	maxAmount decimal.Decimal,
+) (decimal.Decimal, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.usage_counter.upsert_and_increment_atomic")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	// Early return for zero amount: no-op, avoids unnecessary DB round-trip.
+	if amount.IsZero() {
+		return decimal.Zero, nil
+	}
+
+	// Pre-check: reject negative amounts before any SQL.
+	if amount.IsNegative() {
+		return decimal.Zero, constant.ErrUsageCounterIncrementNonNegative
+	}
+
+	// Pre-check: amount > maxAmount means even a brand-new counter would exceed the limit.
+	// This is MANDATORY because the INSERT path has no WHERE guard.
+	if amount.GreaterThan(maxAmount) {
+		logger.WithFields(
+			"operation", "repository.usage_counter.upsert_and_increment_atomic",
+			"amount", amount.String(),
+			"max_amount", maxAmount.String(),
+			"limit_id", limitID.String(),
+		).Info("Amount exceeds maxAmount (pre-check)")
+		libOtel.HandleSpanBusinessErrorEvent(&span, "Amount exceeds limit (pre-check)", constant.ErrUsageCounterExceedsLimit)
+
+		return decimal.Zero, constant.ErrUsageCounterExceedsLimit
+	}
+
+	now := time.Now().UTC()
+	counterID := uuid.New()
+
+	// Build the atomic upsert query using raw SQL via Squirrel Expr.
+	// INSERT with ON CONFLICT DO UPDATE + WHERE guard + RETURNING.
+	query, args, err := sq.Insert("usage_counters").
+		Columns("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
+		Values(counterID.String(), limitID.String(), scopeKey, periodKey, amount, now).
+		Suffix(
+			"ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET "+
+				"current_usage = usage_counters.current_usage + ?, "+
+				"last_updated_at = ? "+
+				"WHERE usage_counters.current_usage + ? <= ? "+
+				"RETURNING current_usage",
+			amount, now, amount, maxAmount,
+		).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to build upsert query", err)
+		return decimal.Zero, fmt.Errorf("failed to build upsert query: %w", err)
+	}
+
+	db, err := r.conn.GetDB()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		return decimal.Zero, fmt.Errorf("failed to get database connection: %w", err)
+	}
+
+	var newUsage decimal.Decimal
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(&newUsage)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// WHERE guard failed: current_usage + amount > maxAmount
+			logger.WithFields(
+				"operation", "repository.usage_counter.upsert_and_increment_atomic",
+				"limit_id", limitID.String(),
+				"scope_key", scopeKey,
+				"period_key", periodKey,
+			).Info("Limit exceeded (WHERE guard)")
+			libOtel.HandleSpanBusinessErrorEvent(&span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
+
+			return decimal.Zero, constant.ErrUsageCounterExceedsLimit
+		}
+
+		libOtel.HandleSpanError(&span, "Database error in upsert", err)
+
+		return decimal.Zero, fmt.Errorf("failed to scan upsert result: %w", err)
+	}
+
+	logger.WithFields(
+		"operation", "repository.usage_counter.upsert_and_increment_atomic",
+		"limit_id", limitID.String(),
+		"scope_key", scopeKey,
+		"period_key", periodKey,
+		"new_usage", newUsage.String(),
+	).Info("Upsert and increment completed")
+
+	return newUsage, nil
+}
+
 // GetByLimitID retrieves all usage counters for a specific limit.
 func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.UUID) ([]model.UsageCounter, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
