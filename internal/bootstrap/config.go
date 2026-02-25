@@ -784,7 +784,7 @@ func initCoreInfra(cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
 
 	// Validate Access Manager plugin configuration (fail-fast if misconfigured)
 	if err := ValidateAccessManagerConfig(cfg, logger); err != nil {
-		return nil, fmt.Errorf("invalid access manager configuration: %w", err)
+		return nil, nil, fmt.Errorf("invalid access manager configuration: %w", err)
 	}
 
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
