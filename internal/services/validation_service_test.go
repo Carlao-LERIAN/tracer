@@ -182,8 +182,9 @@ func TestValidateTransaction(t *testing.T) {
 					Return(limitOutput, nil)
 
 				// REVIEW decision triggers rollback of usage increments
+				// Assert that RollbackUsage receives the expected LimitUsageDetails from CheckLimits
 				limitCheck.EXPECT().
-					RollbackUsage(gomock.Any(), gomock.Any(), gomock.Any()).
+					RollbackUsage(gomock.Any(), gomock.Any(), gomock.Eq(limitOutput.LimitUsageDetails)).
 					Return(nil)
 
 				// Audit should be inserted - signal completion via channel
@@ -234,8 +235,9 @@ func TestValidateTransaction(t *testing.T) {
 					Return(limitOutput, nil)
 
 				// REVIEW decision triggers rollback - ROLLBACK FAILS (DB timeout)
+				// Assert that RollbackUsage receives the expected LimitUsageDetails from CheckLimits
 				limitCheck.EXPECT().
-					RollbackUsage(gomock.Any(), gomock.Any(), gomock.Any()).
+					RollbackUsage(gomock.Any(), gomock.Any(), gomock.Eq(limitOutput.LimitUsageDetails)).
 					Return(errors.New("database timeout during rollback"))
 
 				// Audit should still be inserted despite rollback failure
