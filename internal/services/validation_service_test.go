@@ -181,6 +181,11 @@ func TestValidateTransaction(t *testing.T) {
 					CheckLimits(gomock.Any(), gomock.Any()).
 					Return(limitOutput, nil)
 
+				// REVIEW decision triggers rollback of usage increments
+				limitCheck.EXPECT().
+					RollbackUsage(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil)
+
 				// Audit should be inserted - signal completion via channel
 				transactionValidationRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ *model.TransactionValidation) error {
