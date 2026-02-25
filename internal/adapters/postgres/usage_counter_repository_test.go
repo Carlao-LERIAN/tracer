@@ -54,6 +54,10 @@ func usageCounterColumns() []string {
 	return []string{"id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at"}
 }
 
+// upsertAtomicSQL is the expected SQL for UpsertAndIncrementAtomic, extracted
+// to avoid repeating the long literal across 8+ test cases.
+const upsertAtomicSQL = `INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`
+
 // testUsageCounter creates a test usage counter with default values.
 func testUsageCounter(limitID uuid.UUID) *model.UsageCounter {
 	return &model.UsageCounter{
@@ -835,7 +839,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_WithinLimit(t *testing.
 					AddRow(decimal.RequireFromString("700"))
 
 				mock.ExpectQuery(regexp.QuoteMeta(
-					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+					upsertAtomicSQL,
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
@@ -866,7 +870,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_WithinLimit(t *testing.
 					AddRow(decimal.RequireFromString("300"))
 
 				mock.ExpectQuery(regexp.QuoteMeta(
-					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+					upsertAtomicSQL,
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
@@ -940,7 +944,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 				rows := sqlmock.NewRows([]string{"current_usage"})
 
 				mock.ExpectQuery(regexp.QuoteMeta(
-					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+					upsertAtomicSQL,
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
@@ -973,7 +977,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 					AddRow(decimal.RequireFromString("1000"))
 
 				mock.ExpectQuery(regexp.QuoteMeta(
-					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+					upsertAtomicSQL,
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
@@ -1064,7 +1068,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 					AddRow(decimal.RequireFromString("1000"))
 
 				mock.ExpectQuery(regexp.QuoteMeta(
-					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+					upsertAtomicSQL,
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
@@ -1213,7 +1217,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ErrorPropagation(t *tes
 			maxAmount: decimal.RequireFromString("1000"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(regexp.QuoteMeta(
-					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+					upsertAtomicSQL,
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
@@ -1245,7 +1249,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ErrorPropagation(t *tes
 					AddRow("not-a-decimal")
 
 				mock.ExpectQuery(regexp.QuoteMeta(
-					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+					upsertAtomicSQL,
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
@@ -1293,7 +1297,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ContextCancellation(t *
 
 	// When context is cancelled, the database driver returns context.Canceled
 	sqlMock.ExpectQuery(regexp.QuoteMeta(
-		`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
+		upsertAtomicSQL,
 	)).
 		WithArgs(
 			sqlmock.AnyArg(), // $1 id (generated UUID)
