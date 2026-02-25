@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
@@ -44,6 +45,7 @@ type LimitChecker interface {
 type LimitCheckerService struct {
 	limitRepo        LimitRepository
 	usageCounterRepo UsageCounterRepository
+	clock            clock.Clock
 }
 
 // limitCheckResult holds the result of checking a single limit.
@@ -55,8 +57,8 @@ type limitCheckResult struct {
 }
 
 // NewLimitChecker creates a new LimitCheckerService.
-// Returns error if either repository is nil.
-func NewLimitChecker(limitRepo LimitRepository, usageCounterRepo UsageCounterRepository) (*LimitCheckerService, error) {
+// Returns error if any dependency is nil.
+func NewLimitChecker(limitRepo LimitRepository, usageCounterRepo UsageCounterRepository, clk clock.Clock) (*LimitCheckerService, error) {
 	if limitRepo == nil {
 		return nil, constant.ErrLimitCheckerNilLimitRepo
 	}
@@ -65,9 +67,14 @@ func NewLimitChecker(limitRepo LimitRepository, usageCounterRepo UsageCounterRep
 		return nil, constant.ErrLimitCheckerNilUsageCounterRepo
 	}
 
+	if clk == nil {
+		return nil, constant.ErrLimitCheckerNilClock
+	}
+
 	return &LimitCheckerService{
 		limitRepo:        limitRepo,
 		usageCounterRepo: usageCounterRepo,
+		clock:            clk,
 	}, nil
 }
 
@@ -431,7 +438,9 @@ func (s *LimitCheckerService) checkSingleLimitWithoutIncrement(ctx context.Conte
 	txScope := buildTransactionScope(input)
 	scopeKey := model.CalculateScopeKey(txScope)
 
-	periodKey, err := model.CalculatePeriodKey(limit.LimitType, input.TransactionTimestamp)
+	serverNow := s.clock.Now()
+
+	periodKey, err := model.CalculatePeriodKey(limit.LimitType, serverNow)
 	if err != nil {
 		libOtel.HandleSpanError(&span, "Failed to calculate period key", err)
 		return nil, err
