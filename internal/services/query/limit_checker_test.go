@@ -1954,7 +1954,6 @@ func TestScopeMatchesLimit(t *testing.T) {
 	}
 }
 
-
 func TestCheckLimits_ServerTimestamp(t *testing.T) {
 	t.Parallel()
 

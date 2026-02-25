@@ -871,9 +871,9 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_WithinLimit(t *testing.
 				)).
 					WithArgs(
 						sqlmock.AnyArg(), // $1 id (generated UUID)
-						sqlmock.AnyArg(), // $2 limit_id
-						sqlmock.AnyArg(), // $3 scope_key
-						sqlmock.AnyArg(), // $4 period_key
+						testutil.MustDeterministicUUID(8002).String(), // $2 limit_id
+						"acct:8002",      // $3 scope_key
+						"2025-07",        // $4 period_key
 						sqlmock.AnyArg(), // $5 current_usage (initial = amount)
 						sqlmock.AnyArg(), // $6 last_updated_at
 						sqlmock.AnyArg(), // $7 amount
