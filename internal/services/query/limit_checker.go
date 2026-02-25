@@ -17,12 +17,18 @@ import (
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
 )
+
+// rollbackTimeout bounds rollback compensation operations to prevent unbounded resource consumption.
+// 5 seconds is sufficient for typical database operations under normal conditions.
+// Follows the pattern established by validationPersistTimeout in validation_service.go.
+const rollbackTimeout = 5 * time.Second
 
 // LimitChecker defines the interface for checking limits against transactions.
 type LimitChecker interface {
@@ -141,8 +147,14 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 		detail, exceeded, err := s.processLimitAtomic(ctx, limit, input, scopeKey, serverNow)
 		if err != nil {
 			// DB error - rollback already-incremented counters and return error
+			// Use detached context for rollback - request context may be canceled,
+			// but compensation MUST complete to maintain data integrity.
 			if len(incrementedDetails) > 0 {
-				s.rollbackIncrementedCounters(ctx, input, incrementedDetails, scopeKey)
+				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+				// Preserve trace context for observability
+				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
+				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, scopeKey)
+				cancel()
 			}
 
 			libOtel.HandleSpanError(&span, "Failed to process limit atomically", err)
@@ -156,8 +168,14 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 			// Limit exceeded - rollback already-incremented counters and break
 			exceededLimitID = &limit.ID
 
+			// Rollback with detached context - compensation must complete regardless
+			// of request cancellation to prevent false limit exhaustion.
 			if len(incrementedDetails) > 0 {
-				s.rollbackIncrementedCounters(ctx, input, incrementedDetails, scopeKey)
+				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+				// Preserve trace context for observability
+				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
+				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, scopeKey)
+				cancel()
 			}
 
 			break
