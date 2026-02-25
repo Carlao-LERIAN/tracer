@@ -28,11 +28,14 @@ import (
 // This prevents long-running locks on large tables by breaking the delete into smaller batches.
 const DefaultDeleteBatchSize = 1000
 
+// usageCountersTable is the PostgreSQL table name for usage counters.
+// Using a constant prevents SQL injection via table name interpolation.
+const usageCountersTable = "usage_counters"
+
 // UsageCounterRepository implements query.UsageCounterRepository using PostgreSQL.
 // Provides atomic usage counter operations with row-level locking (SELECT FOR UPDATE).
 type UsageCounterRepository struct {
 	conn            pgdb.Connection
-	tableName       string
 	deleteBatchSize int
 }
 
@@ -40,7 +43,6 @@ type UsageCounterRepository struct {
 func NewUsageCounterRepository(conn *libPostgres.PostgresConnection) *UsageCounterRepository {
 	return &UsageCounterRepository{
 		conn:            pgdb.NewPostgresConnectionAdapter(conn),
-		tableName:       "usage_counters",
 		deleteBatchSize: DefaultDeleteBatchSize,
 	}
 }
@@ -50,7 +52,6 @@ func NewUsageCounterRepository(conn *libPostgres.PostgresConnection) *UsageCount
 func NewUsageCounterRepositoryWithConnection(conn pgdb.Connection) *UsageCounterRepository {
 	return &UsageCounterRepository{
 		conn:            conn,
-		tableName:       "usage_counters",
 		deleteBatchSize: DefaultDeleteBatchSize,
 	}
 }
@@ -81,7 +82,7 @@ func (r *UsageCounterRepository) GetForUpdate(ctx context.Context, limitID uuid.
 	).Info("Getting usage counter with lock")
 
 	selectQuery := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
-		From(r.tableName).
+		From(usageCountersTable).
 		Where(sq.Eq{
 			"limit_id":   limitID,
 			"scope_key":  scopeKey,
@@ -138,7 +139,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 	// Try to get existing counter with FOR UPDATE lock
 	selectQuery := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
-		From(r.tableName).
+		From(usageCountersTable).
 		Where(sq.Eq{
 			"limit_id":   limitID,
 			"scope_key":  scopeKey,
@@ -182,7 +183,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 		return nil, fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
-	insertQuery := sq.Insert(r.tableName).
+	insertQuery := sq.Insert(usageCountersTable).
 		Columns("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
 		Values(dbModel.ID, dbModel.LimitID, dbModel.ScopeKey, dbModel.PeriodKey, dbModel.CurrentUsage, dbModel.LastUpdatedAt).
 		PlaceholderFormat(sq.Dollar)
@@ -206,7 +207,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 		// Handle concurrent insert race condition
 		// Another transaction inserted the counter, try to select it again
 		selectQuery = sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
-			From(r.tableName).
+			From(usageCountersTable).
 			Where(sq.Eq{
 				"limit_id":   limitID,
 				"scope_key":  scopeKey,
@@ -241,7 +242,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 	// Re-select the inserted row with FOR UPDATE to acquire the row-level lock
 	// This ensures the returned counter has the lock, matching the existing row path
 	selectInserted := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
-		From(r.tableName).
+		From(usageCountersTable).
 		Where(sq.Eq{"id": newCounter.ID}).
 		Suffix("FOR UPDATE").
 		PlaceholderFormat(sq.Dollar)
@@ -291,7 +292,7 @@ func (r *UsageCounterRepository) IncrementAtomic(ctx context.Context, counterID 
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	updateQuery := sq.Update(r.tableName).
+	updateQuery := sq.Update(usageCountersTable).
 		Set("current_usage", sq.Expr("current_usage + ?", amount)).
 		Set("last_updated_at", time.Now().UTC()).
 		Where(sq.Eq{"id": counterID}).
@@ -357,7 +358,7 @@ func (r *UsageCounterRepository) DecrementAtomic(ctx context.Context, counterID 
 	// Perform atomic conditional decrement in a single UPDATE.
 	// The WHERE clause ensures we only decrement if current_usage >= amount,
 	// preventing negative values and TOCTOU race conditions.
-	updateQuery := sq.Update(r.tableName).
+	updateQuery := sq.Update(usageCountersTable).
 		Set("current_usage", sq.Expr("current_usage - ?", amount)).
 		Set("last_updated_at", time.Now().UTC()).
 		Where(sq.Eq{"id": counterID}).
@@ -386,7 +387,7 @@ func (r *UsageCounterRepository) DecrementAtomic(ctx context.Context, counterID 
 		// No rows affected: either counter doesn't exist or insufficient balance.
 		// Run a minimal SELECT to distinguish between the two cases.
 		selectQuery := sq.Select("current_usage").
-			From(r.tableName).
+			From(usageCountersTable).
 			Where(sq.Eq{"id": counterID}).
 			PlaceholderFormat(sq.Dollar)
 
@@ -491,19 +492,19 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 	// Result: Always returns (current_usage, succeeded) in a single round-trip.
 	query := `
 		WITH attempt AS (
-			INSERT INTO ` + r.tableName + ` (id, limit_id, scope_key, period_key, current_usage, last_updated_at)
+			INSERT INTO ` + usageCountersTable + ` (id, limit_id, scope_key, period_key, current_usage, last_updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6)
 			ON CONFLICT (limit_id, scope_key, period_key) 
 			DO UPDATE SET 
-				current_usage = ` + r.tableName + `.current_usage + $7,
+				current_usage = ` + usageCountersTable + `.current_usage + $7,
 				last_updated_at = $8
-			WHERE ` + r.tableName + `.current_usage + $9 <= $10
+			WHERE ` + usageCountersTable + `.current_usage + $9 <= $10
 			RETURNING current_usage, true as succeeded
 		)
 		SELECT 
 			COALESCE(
 				(SELECT current_usage FROM attempt),
-				(SELECT current_usage FROM ` + r.tableName + ` 
+				(SELECT current_usage FROM ` + usageCountersTable + ` 
 				 WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4),
 				$5
 			) as current_usage,
@@ -583,7 +584,7 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	}
 
 	query := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
-		From(r.tableName).
+		From(usageCountersTable).
 		Where(sq.Eq{"limit_id": limitID}).
 		OrderBy("period_key DESC", "scope_key ASC").
 		PlaceholderFormat(sq.Dollar)
@@ -652,7 +653,7 @@ func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs
 	}
 
 	query := sq.Select("limit_id", "current_usage").
-		From(r.tableName).
+		From(usageCountersTable).
 		Where(sq.Eq{
 			"limit_id":   limitIDs,
 			"scope_key":  scopeKey,
@@ -813,7 +814,7 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, olde
 		// PostgreSQL doesn't support LIMIT directly on DELETE, so we use a subquery approach.
 		deleteQuery := fmt.Sprintf(
 			"DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE last_updated_at < $1 LIMIT $2)",
-			r.tableName, r.tableName,
+			usageCountersTable, usageCountersTable,
 		)
 
 		result, err := db.ExecContext(ctx, deleteQuery, olderThan, r.deleteBatchSize)
