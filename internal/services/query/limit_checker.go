@@ -132,6 +132,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 	// Process each limit with atomic upsert (increment happens in DB)
 	usageDetails := make([]model.LimitUsageDetail, 0, len(limits))
 	incrementedDetails := make([]model.LimitUsageDetail, 0, len(limits))
+
 	var exceededLimitID *uuid.UUID
 
 	for i := range limits {
@@ -506,14 +507,28 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 		// This prevents period key mismatch when rollback crosses a period boundary
 		periodKey := detail.InternalPeriodKey
 		if periodKey == "" {
+			// Fallback for legacy callers or external rollback calls without stored period key
+			var calcErr error
+
+			periodKey, calcErr = model.CalculatePeriodKey(detail.InternalLimitType, s.clock.Now())
+			if calcErr != nil {
+				logger.WithFields(
+					"operation", "service.limit_checker.rollback_usage",
+					"limit_id", detail.LimitID.String(),
+					"limit_type", string(detail.InternalLimitType),
+					"error", calcErr.Error(),
+				).Warn("Failed to calculate fallback period key, skipping")
+
+				failedLimits = append(failedLimits, detail.LimitID)
+
+				continue
+			}
+
 			logger.WithFields(
 				"operation", "service.limit_checker.rollback_usage",
 				"limit_id", detail.LimitID.String(),
-			).Warn("No period key stored for rollback, skipping")
-
-			failedLimits = append(failedLimits, detail.LimitID)
-
-			continue
+				"period_key", periodKey,
+			).Info("Using server clock fallback for period key")
 		}
 
 		// Get existing counter (do NOT create one - rollback should only affect existing counters)
