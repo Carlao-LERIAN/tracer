@@ -40,6 +40,12 @@ type UsageCounterRepository interface {
 	// Returns constant.ErrUsageCounterCurrentUsageNegative if decrement would result in negative usage.
 	DecrementAtomic(ctx context.Context, counterID uuid.UUID, amount decimal.Decimal) error
 
+	// UpsertAndIncrementAtomic performs an atomic INSERT ... ON CONFLICT DO UPDATE
+	// to create or increment a usage counter. Returns the new current_usage.
+	// Returns ErrUsageCounterExceedsLimit if the increment would exceed maxAmount.
+	// IMPORTANT: Caller MUST pre-check amount > maxAmount before calling (INSERT path has no WHERE guard).
+	UpsertAndIncrementAtomic(ctx context.Context, limitID uuid.UUID, scopeKey string, periodKey string, amount decimal.Decimal, maxAmount decimal.Decimal) (decimal.Decimal, error)
+
 	// GetByLimitID retrieves all usage counters for a specific limit.
 	// Used for the GET /limits/{id}/usage endpoint.
 	// Returns empty slice if no counters exist.

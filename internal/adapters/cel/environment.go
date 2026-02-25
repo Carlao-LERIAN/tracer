@@ -12,6 +12,7 @@ import (
 	"math"
 	"strings"
 
+	"tracer/pkg/constant"
 	"tracer/pkg/model"
 
 	"github.com/google/cel-go/cel"
@@ -148,11 +149,11 @@ var maxSafeAmountForFloat64 = decimal.NewFromInt(1 << 53)
 func validateAmountForCEL(amount decimal.Decimal) error {
 	f := amount.InexactFloat64()
 	if math.IsInf(f, 0) || math.IsNaN(f) {
-		return fmt.Errorf("amount %s is outside float64 range for CEL evaluation", amount.String())
+		return fmt.Errorf("amount %s is outside float64 range for CEL evaluation: %w", amount.String(), constant.ErrAmountExceedsPrecision)
 	}
 
 	if amount.Abs().GreaterThan(maxSafeAmountForFloat64) {
-		return fmt.Errorf("amount %s exceeds safe precision for CEL evaluation (max: ±2^53)", amount.String())
+		return fmt.Errorf("amount %s exceeds safe precision for CEL evaluation (max: ±2^53): %w", amount.String(), constant.ErrAmountExceedsPrecision)
 	}
 
 	return nil

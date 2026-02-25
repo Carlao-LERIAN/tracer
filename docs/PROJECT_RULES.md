@@ -2546,6 +2546,40 @@ b.RunParallel(func(pb *testing.PB) {
 })
 ```
 
+### t.Parallel() Convention
+
+Follow the existing convention of each test file. Do **not** mix `t.Parallel()` and serial tests in the same file:
+
+- **If the file already uses `t.Parallel()`** — new tests should also use it.
+- **If the file runs tests serially** (no `t.Parallel()`) — new tests must **not** add it.
+- **Never nest `t.Parallel()` in subtests** when the parent test uses `t.Run` with table-driven patterns and a shared `sqlmock`. The `sqlmock` instance is not goroutine-safe, so concurrent subtests race on its internal state, causing data races and deadlocks. Safe alternatives: either avoid `t.Parallel()` in subtests (preferred), or create an independent `sqlmock` per subtest before calling `t.Parallel()`.
+
+```go
+// WRONG - nested t.Parallel() races on shared sqlmock (not goroutine-safe)
+func TestFoo(t *testing.T) {
+    t.Parallel()
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            t.Parallel() // DATA RACE: subtests share one sqlmock instance
+            // ...
+        })
+    }
+}
+
+// CORRECT - only top-level t.Parallel() if file convention allows
+func TestFoo(t *testing.T) {
+    t.Parallel()
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // No t.Parallel() here
+            repo, mock, cleanup := setupMockDB(t)
+            defer cleanup()
+            // ...
+        })
+    }
+}
+```
+
 ### Mock Generation
 
 Add `//go:generate mockgen` directive to interfaces and run `go generate` to generate mocks:

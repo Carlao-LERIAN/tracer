@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,7 @@ func validPayload(t *testing.T) []byte {
 		"transactionType":      "PIX",
 		"amount":               "100.00",
 		"currency":             "BRL",
-		"transactionTimestamp": "2024-01-15T10:30:00Z",
+		"transactionTimestamp": testutil.FixedTime().Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": "550e8400-e29b-41d4-a716-446655440001",
 			"type":      "checking",

@@ -22,8 +22,7 @@ func newTestAdapter(t testing.TB) *Adapter {
 
 	logger := testutil.NewMockLogger()
 	cfg := AdapterConfig{
-		CostLimit:    DefaultCostLimit,
-		CacheMaxSize: DefaultCacheMaxSize,
+		CostLimit: DefaultCostLimit,
 	}
 
 	adapter, err := NewAdapter(cfg, logger)
@@ -32,14 +31,13 @@ func newTestAdapter(t testing.TB) *Adapter {
 	return adapter
 }
 
-// newTestAdapterWithConfig creates an adapter with custom config.
-func newTestAdapterWithConfig(t testing.TB, costLimit uint64, cacheMaxSize int64) *Adapter {
+// newTestAdapterWithCostLimit creates an adapter with a custom cost limit.
+func newTestAdapterWithCostLimit(t testing.TB, costLimit uint64) *Adapter {
 	t.Helper()
 
 	logger := testutil.NewMockLogger()
 	cfg := AdapterConfig{
-		CostLimit:    costLimit,
-		CacheMaxSize: cacheMaxSize,
+		CostLimit: costLimit,
 	}
 
 	adapter, err := NewAdapter(cfg, logger)

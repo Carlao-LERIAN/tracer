@@ -153,63 +153,6 @@ func TestParseCELCostLimit(t *testing.T) {
 	}
 }
 
-func TestParseCELCacheMaxSize(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		input       string
-		expected    int64
-		expectError bool
-	}{
-		{
-			name:        "empty string returns default",
-			input:       "",
-			expected:    1000,
-			expectError: false,
-		},
-		{
-			name:        "valid number",
-			input:       "500",
-			expected:    500,
-			expectError: false,
-		},
-		{
-			name:        "invalid string returns error",
-			input:       "invalid",
-			expectError: true,
-		},
-		{
-			name:        "negative number returns error",
-			input:       "-100",
-			expectError: true,
-		},
-		{
-			name:        "zero returns error",
-			input:       "0",
-			expectError: true,
-		},
-		{
-			name:        "large number",
-			input:       "100000",
-			expected:    100000,
-			expectError: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := parseCELCacheMaxSize(tc.input)
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-
 func TestValidateAuthConfig_TableDriven(t *testing.T) {
 	t.Parallel()
 
@@ -448,8 +391,7 @@ func TestCelCompilerAdapter_Compile(t *testing.T) {
 			// Arrange
 			logger := testutil.NewMockLogger()
 			adapter, err := cel.NewAdapter(cel.AdapterConfig{
-				CostLimit:    10000,
-				CacheMaxSize: 100,
+				CostLimit: 10000,
 			}, logger)
 			require.NoError(t, err)
 
@@ -884,6 +826,347 @@ func TestParseCleanupRetentionDays(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseRuleSyncPollInterval(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    time.Duration
+		expectError bool
+	}{
+		{
+			name:        "empty string returns default 10 seconds",
+			input:       "",
+			expected:    10 * time.Second,
+			expectError: false,
+		},
+		{
+			name:        "valid number",
+			input:       "30",
+			expected:    30 * time.Second,
+			expectError: false,
+		},
+		{
+			name:        "invalid string returns error",
+			input:       "invalid",
+			expectError: true,
+		},
+		{
+			name:        "zero returns error",
+			input:       "0",
+			expectError: true,
+		},
+		{
+			name:        "negative number returns error",
+			input:       "-1",
+			expectError: true,
+		},
+		{
+			name:        "maximum allowed value - 1 hour",
+			input:       "3600",
+			expected:    3600 * time.Second,
+			expectError: false,
+		},
+		{
+			name:        "exceeds maximum returns error",
+			input:       "3601",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseRuleSyncPollInterval(tc.input)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestParseRuleSyncStalenessThreshold(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    time.Duration
+		expectError bool
+	}{
+		{
+			name:        "empty string returns default 50 seconds",
+			input:       "",
+			expected:    50 * time.Second,
+			expectError: false,
+		},
+		{
+			name:        "valid number",
+			input:       "120",
+			expected:    120 * time.Second,
+			expectError: false,
+		},
+		{
+			name:        "invalid string returns error",
+			input:       "invalid",
+			expectError: true,
+		},
+		{
+			name:        "zero returns error",
+			input:       "0",
+			expectError: true,
+		},
+		{
+			name:        "negative number returns error",
+			input:       "-5",
+			expectError: true,
+		},
+		{
+			name:        "maximum allowed value - 1 hour",
+			input:       "3600",
+			expected:    3600 * time.Second,
+			expectError: false,
+		},
+		{
+			name:        "exceeds maximum returns error",
+			input:       "3601",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseRuleSyncStalenessThreshold(tc.input)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestParseRuleSyncOverlapBuffer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    time.Duration
+		expectError bool
+	}{
+		{
+			name:        "empty string returns default 2 seconds",
+			input:       "",
+			expected:    2 * time.Second,
+			expectError: false,
+		},
+		{
+			name:        "valid number",
+			input:       "5",
+			expected:    5 * time.Second,
+			expectError: false,
+		},
+		{
+			name:        "zero is allowed",
+			input:       "0",
+			expected:    0,
+			expectError: false,
+		},
+		{
+			name:        "invalid string returns error",
+			input:       "invalid",
+			expectError: true,
+		},
+		{
+			name:        "negative number returns error",
+			input:       "-1",
+			expectError: true,
+		},
+		{
+			name:        "maximum allowed value - 60 seconds",
+			input:       "60",
+			expected:    60 * time.Second,
+			expectError: false,
+		},
+		{
+			name:        "exceeds maximum returns error",
+			input:       "61",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseRuleSyncOverlapBuffer(tc.input)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestLoadRuleSyncWorkerConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		pollInterval         string
+		stalenessThreshold   string
+		overlapBuffer        string
+		expectedPollInterval time.Duration
+		expectedStaleness    time.Duration
+		expectedOverlap      time.Duration
+		expectError          bool
+		expectedErrContains  string
+	}{
+		{
+			name:                 "default values when empty",
+			pollInterval:         "",
+			stalenessThreshold:   "",
+			overlapBuffer:        "",
+			expectedPollInterval: 10 * time.Second,
+			expectedStaleness:    50 * time.Second,
+			expectedOverlap:      2 * time.Second,
+			expectError:          false,
+		},
+		{
+			name:                 "custom poll interval",
+			pollInterval:         "30",
+			stalenessThreshold:   "",
+			overlapBuffer:        "",
+			expectedPollInterval: 30 * time.Second,
+			expectedStaleness:    50 * time.Second,
+			expectedOverlap:      2 * time.Second,
+			expectError:          false,
+		},
+		{
+			name:                 "custom staleness threshold",
+			pollInterval:         "",
+			stalenessThreshold:   "120",
+			overlapBuffer:        "",
+			expectedPollInterval: 10 * time.Second,
+			expectedStaleness:    120 * time.Second,
+			expectedOverlap:      2 * time.Second,
+			expectError:          false,
+		},
+		{
+			name:                 "custom overlap buffer",
+			pollInterval:         "",
+			stalenessThreshold:   "",
+			overlapBuffer:        "5",
+			expectedPollInterval: 10 * time.Second,
+			expectedStaleness:    50 * time.Second,
+			expectedOverlap:      5 * time.Second,
+			expectError:          false,
+		},
+		{
+			name:                 "all custom values",
+			pollInterval:         "15",
+			stalenessThreshold:   "60",
+			overlapBuffer:        "3",
+			expectedPollInterval: 15 * time.Second,
+			expectedStaleness:    60 * time.Second,
+			expectedOverlap:      3 * time.Second,
+			expectError:          false,
+		},
+		{
+			name:                "invalid poll interval returns error",
+			pollInterval:        "invalid",
+			stalenessThreshold:  "",
+			overlapBuffer:       "",
+			expectError:         true,
+			expectedErrContains: "invalid RULE_SYNC_POLL_INTERVAL_SECONDS",
+		},
+		{
+			name:                "invalid staleness threshold returns error",
+			pollInterval:        "",
+			stalenessThreshold:  "invalid",
+			overlapBuffer:       "",
+			expectError:         true,
+			expectedErrContains: "invalid RULE_SYNC_STALENESS_THRESHOLD_SECONDS",
+		},
+		{
+			name:                "invalid overlap buffer returns error",
+			pollInterval:        "",
+			stalenessThreshold:  "",
+			overlapBuffer:       "invalid",
+			expectError:         true,
+			expectedErrContains: "invalid RULE_SYNC_OVERLAP_BUFFER_SECONDS",
+		},
+		{
+			name:                 "zero overlap buffer is allowed",
+			pollInterval:         "",
+			stalenessThreshold:   "",
+			overlapBuffer:        "0",
+			expectedPollInterval: 10 * time.Second,
+			expectedStaleness:    50 * time.Second,
+			expectedOverlap:      0,
+			expectError:          false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{
+				RuleSyncPollIntervalSeconds:       tc.pollInterval,
+				RuleSyncStalenessThresholdSeconds: tc.stalenessThreshold,
+				RuleSyncOverlapBufferSeconds:      tc.overlapBuffer,
+			}
+
+			logger := testutil.NewMockLogger()
+			result, err := LoadRuleSyncWorkerConfig(cfg, logger)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.expectedErrContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrContains)
+				}
+
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tc.expectedPollInterval, result.PollInterval)
+				assert.Equal(t, tc.expectedStaleness, result.StalenessThreshold)
+				assert.Equal(t, tc.expectedOverlap, result.OverlapBuffer)
+			}
+		})
+	}
+}
+
+func TestLoadRuleSyncWorkerConfig_NilConfig(t *testing.T) {
+	t.Parallel()
+
+	logger := testutil.NewMockLogger()
+	result, err := LoadRuleSyncWorkerConfig(nil, logger)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "config cannot be nil")
+	assert.Nil(t, result)
+}
+
+func TestLoadRuleSyncWorkerConfig_NilLogger(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{}
+	result, err := LoadRuleSyncWorkerConfig(cfg, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "logger cannot be nil")
+	assert.Nil(t, result)
 }
 
 func TestLoadCleanupWorkerConfig(t *testing.T) {

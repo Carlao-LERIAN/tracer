@@ -103,17 +103,23 @@ func (e *RuleEvaluator) Evaluate(ctx context.Context, rule *model.Rule, req *mod
 		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
 	}
 
-	// Compile the expression
-	program, err := e.exprEval.Compile(ctx, rule.Expression)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to compile expression", err)
+	// Use pre-compiled program from cache if available (hot-path optimization).
+	// Falls back to Compile() if the program is nil or wrong type (defense-in-depth).
+	program, ok := rule.CompiledProgram.(*cel.CompiledProgram)
+	if !ok || program == nil {
+		var err error
 
-		logger.WithFields(
-			"rule.id", rule.ID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to compile expression")
+		program, err = e.exprEval.Compile(ctx, rule.Expression)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to compile expression", err)
 
-		return false, fmt.Errorf("failed to compile expression: %w", err)
+			logger.WithFields(
+				"rule.id", rule.ID.String(),
+				"error.message", err.Error(),
+			).Error("Failed to compile expression")
+
+			return false, fmt.Errorf("failed to compile expression: %w", err)
+		}
 	}
 
 	// Evaluate the compiled expression

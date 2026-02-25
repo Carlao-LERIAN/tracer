@@ -45,6 +45,16 @@ const DefaultClockSkewTolerance = 1 * time.Minute
 // this value at startup to adjust tolerance (e.g., 100-500ms for stricter checks).
 var ClockSkewTolerance = DefaultClockSkewTolerance
 
+// DefaultMaxTimestampAge is the default maximum age allowed for a transaction timestamp.
+// Transactions with timestamps older than this duration from the current time are rejected.
+// This prevents replay attacks and stale transaction processing.
+const DefaultMaxTimestampAge = 24 * time.Hour
+
+// MaxTimestampAge is the configurable maximum age allowed for a transaction timestamp.
+// Callers can override this value at startup to adjust the window (e.g., 1h for stricter,
+// 48h for more lenient). Timestamps older than now minus MaxTimestampAge are rejected.
+var MaxTimestampAge = DefaultMaxTimestampAge
+
 // Decision represents the validation decision
 type Decision string
 
@@ -380,9 +390,16 @@ func (r *ValidationRequest) validateRequiredFields() error {
 		return constant.ErrValidationTimestampRequired
 	}
 
-	maxAllowedTime := time.Now().Add(ClockSkewTolerance)
+	now := time.Now()
+
+	maxAllowedTime := now.Add(ClockSkewTolerance)
 	if r.TransactionTimestamp.After(maxAllowedTime) {
 		return constant.ErrValidationTimestampFuture
+	}
+
+	minAllowedTime := now.Add(-MaxTimestampAge)
+	if !r.TransactionTimestamp.After(minAllowedTime) {
+		return constant.ErrValidationTimestampPast
 	}
 
 	if r.Account.ID == uuid.Nil {
