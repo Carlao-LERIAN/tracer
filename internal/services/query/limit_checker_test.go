@@ -2266,8 +2266,7 @@ func TestLimitCheckerService_RollbackUsage_UsesStoredPeriodKey(t *testing.T) {
 // and limit type is NOT PER_TRANSACTION, RollbackUsage falls back to computing
 // the period key from s.clock.Now().
 // Seeds: 8200-8209 range
-// NOTE: This test may FAIL (RED) if the fallback behavior is not implemented.
-// T12 will implement the fallback.
+// Fallback behavior implemented — test validates server-clock fallback.
 func TestRollbackUsage_FallbackToServerClock(t *testing.T) {
 	t.Parallel()
 
