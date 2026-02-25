@@ -193,11 +193,15 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	}
 
 	// Step 3: If rules returned REVIEW, rollback usage increments
+	// rollbackStatus tracks whether rollback succeeded/failed for REVIEW decisions.
+	// Empty string indicates non-REVIEW path (ALLOW/DENY).
+	var rollbackStatus string
+
 	// REVIEW means "manual review required" - don't count transaction against limits
 	if evalResult.Decision == model.DecisionReview {
 		rollbackErr := s.limitChecker.RollbackUsage(ctx, limitInput, limitOutput.LimitUsageDetails)
 
-		rollbackStatus := "succeeded"
+		rollbackStatus = "succeeded"
 		if rollbackErr != nil {
 			// Log rollback failure but don't fail the validation
 			// Usage counters are eventually consistent (reset at period boundaries)
@@ -209,13 +213,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 				"error", rollbackErr.Error(),
 			).Warn("Failed to rollback usage for REVIEW decision")
 		}
-
-		logger.WithFields(
-			"operation", "service.validation.orchestrate",
-			"request.id", req.RequestID,
-			"decision", "REVIEW",
-			"rollback_status", rollbackStatus,
-		).Info("Validation completed (REVIEW)")
+		// NOTE: Duplicate "Validation completed (REVIEW)" log removed - unified log below
 	}
 
 	// Step 4: If rules returned REVIEW, keep REVIEW
@@ -225,11 +223,21 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	s.persistTransactionValidation(ctx, req, response, logger)
 	s.persistAuditEvent(ctx, req, response, logger)
 
-	logger.WithFields(
-		"operation", "service.validation.orchestrate",
-		"request.id", req.RequestID,
-		"decision", response.Decision,
-	).Info("Validation completed")
+	// Single unified completion log for all decision types
+	if rollbackStatus != "" {
+		logger.WithFields(
+			"operation", "service.validation.orchestrate",
+			"request.id", req.RequestID,
+			"decision", response.Decision,
+			"rollback_status", rollbackStatus,
+		).Info("Validation completed")
+	} else {
+		logger.WithFields(
+			"operation", "service.validation.orchestrate",
+			"request.id", req.RequestID,
+			"decision", response.Decision,
+		).Info("Validation completed")
+	}
 
 	return response, nil
 }
