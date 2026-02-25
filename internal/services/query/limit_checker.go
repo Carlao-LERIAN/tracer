@@ -153,6 +153,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
 				// Preserve trace context for observability
 				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
+				//nolint:contextcheck // Intentional: using detached context for compensation
 				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, scopeKey)
 				cancel()
 			}
@@ -174,6 +175,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
 				// Preserve trace context for observability
 				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
+				//nolint:contextcheck // Intentional: using detached context for compensation
 				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, scopeKey)
 				cancel()
 			}
