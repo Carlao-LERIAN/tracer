@@ -846,7 +846,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_WithinLimit(t *testing.
 		maxAmount decimal.Decimal
 		mockSetup func(mock sqlmock.Sqlmock)
 		wantUsage decimal.Decimal
-		// wantErr is always false here; error paths are covered in ST-04-03 (exceeds) and ST-04-05 (propagation)
+		// wantErr is always false here; error paths are covered in separate tests for exceeds and propagation scenarios
 		wantErr bool
 	}{
 		{

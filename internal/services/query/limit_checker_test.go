@@ -2068,7 +2068,7 @@ func TestCheckLimits_PerTransactionUnaffectedByClock(t *testing.T) {
 }
 
 // =============================================================================
-// T11 Rollback Tests - ST-11-01 and ST-11-02
+// Rollback Tests
 // =============================================================================
 
 // TestRollbackUsage_StoredPeriodKey verifies that RollbackUsage uses the stored
@@ -2331,9 +2331,6 @@ func TestRollbackUsage_FallbackToServerClock(t *testing.T) {
 
 	err = checker.RollbackUsage(ctx, input, usageDetails)
 
-	// NOTE: This test may FAIL if the fallback behavior is not implemented.
-	// Current implementation logs a warning and skips when InternalPeriodKey is empty.
-	// T12 will implement the fallback.
 	require.NoError(t, err)
 }
 
