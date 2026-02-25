@@ -54,9 +54,33 @@ func usageCounterColumns() []string {
 	return []string{"id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at"}
 }
 
-// upsertAtomicSQL is the expected SQL for UpsertAndIncrementAtomic, extracted
-// to avoid repeating the long literal across 8+ test cases.
-const upsertAtomicSQL = `INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`
+// upsertAtomicSQL is the expected SQL for UpsertAndIncrementAtomic using CTE.
+// The CTE (WITH attempt) tries the upsert and returns (current_usage, succeeded) flag.
+// COALESCE falls back to SELECT + false when WHERE guard fails.
+// This eliminates the need for a second query when limit is exceeded.
+const upsertAtomicSQL = `
+		WITH attempt AS (
+			INSERT INTO usage_counters (id, limit_id, scope_key, period_key, current_usage, last_updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (limit_id, scope_key, period_key) 
+			DO UPDATE SET 
+				current_usage = usage_counters.current_usage + $7,
+				last_updated_at = $8
+			WHERE usage_counters.current_usage + $9 <= $10
+			RETURNING current_usage, true as succeeded
+		)
+		SELECT 
+			COALESCE(
+				(SELECT current_usage FROM attempt),
+				(SELECT current_usage FROM usage_counters 
+				 WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4),
+				$5
+			) as current_usage,
+			COALESCE(
+				(SELECT succeeded FROM attempt),
+				false
+			) as succeeded
+	`
 
 // testUsageCounter creates a test usage counter with default values.
 func testUsageCounter(limitID uuid.UUID) *model.UsageCounter {
@@ -833,10 +857,10 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_WithinLimit(t *testing.
 			amount:    decimal.RequireFromString("200"),
 			maxAmount: decimal.RequireFromString("1000"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				// The upsert query uses INSERT ... ON CONFLICT ... DO UPDATE ... WHERE ... RETURNING current_usage
-				// When the counter exists and current_usage + amount <= maxAmount, it returns the new usage.
-				rows := sqlmock.NewRows([]string{"current_usage"}).
-					AddRow(decimal.RequireFromString("700"))
+				// The upsert query uses INSERT ... ON CONFLICT ... DO UPDATE ... WHERE ... RETURNING current_usage, succeeded
+				// When the counter exists and current_usage + amount <= maxAmount, it returns the new usage and true.
+				rows := sqlmock.NewRows([]string{"current_usage", "succeeded"}).
+					AddRow(decimal.RequireFromString("700"), true)
 
 				mock.ExpectQuery(regexp.QuoteMeta(
 					upsertAtomicSQL,
@@ -865,9 +889,9 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_WithinLimit(t *testing.
 			amount:    decimal.RequireFromString("300"),
 			maxAmount: decimal.RequireFromString("1000"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				// INSERT succeeds (no conflict), RETURNING returns the inserted current_usage.
-				rows := sqlmock.NewRows([]string{"current_usage"}).
-					AddRow(decimal.RequireFromString("300"))
+				// INSERT succeeds (no conflict), RETURNING returns the inserted current_usage and true.
+				rows := sqlmock.NewRows([]string{"current_usage", "succeeded"}).
+					AddRow(decimal.RequireFromString("300"), true)
 
 				mock.ExpectQuery(regexp.QuoteMeta(
 					upsertAtomicSQL,
@@ -930,18 +954,19 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 		wantUsage decimal.Decimal
 	}{
 		{
-			name:      "Error - increment would exceed limit (0 rows from RETURNING)",
+			name:      "Error - increment would exceed limit (CTE returns current_usage)",
 			limitID:   limitID,
 			scopeKey:  scopeKey,
 			periodKey: periodKey,
 			amount:    decimal.RequireFromString("600"),
 			maxAmount: decimal.RequireFromString("1000"),
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				// The ON CONFLICT UPDATE WHERE guard rejects the update because
+				// The CTE's INSERT...ON CONFLICT WHERE guard rejects the update because
 				// current_usage (500) + amount (600) = 1100 > maxAmount (1000).
-				// RETURNING returns 0 rows because the WHERE clause prevented the UPDATE.
-				// sql.ErrNoRows is returned by QueryRowContext.Scan when no rows returned.
-				rows := sqlmock.NewRows([]string{"current_usage"})
+				// The CTE's attempt subquery returns no rows, so COALESCE falls back to
+				// the SELECT from usage_counters, which returns current_usage = 500 and succeeded = false.
+				rows := sqlmock.NewRows([]string{"current_usage", "succeeded"}).
+					AddRow(decimal.RequireFromString("500"), false)
 
 				mock.ExpectQuery(regexp.QuoteMeta(
 					upsertAtomicSQL,
@@ -961,7 +986,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 					WillReturnRows(rows)
 			},
 			wantErr:   constant.ErrUsageCounterExceedsLimit,
-			wantUsage: decimal.Zero,
+			wantUsage: decimal.RequireFromString("500"), // Returns current usage when limit exceeded
 		},
 		{
 			name:      "Boundary - amount exactly at boundary still succeeds",
@@ -973,8 +998,8 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// current_usage (500) + amount (500) = 1000 <= maxAmount (1000)
 				// This is a boundary success case: the WHERE guard allows the update.
-				rows := sqlmock.NewRows([]string{"current_usage"}).
-					AddRow(decimal.RequireFromString("1000"))
+				rows := sqlmock.NewRows([]string{"current_usage", "succeeded"}).
+					AddRow(decimal.RequireFromString("1000"), true)
 
 				mock.ExpectQuery(regexp.QuoteMeta(
 					upsertAtomicSQL,
@@ -1064,8 +1089,8 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 				// amount == maxAmount: the pre-check should NOT reject this because
 				// for a fresh INSERT (current_usage=0), 0 + 1000 = 1000 <= 1000 is valid.
 				// The pre-check only rejects when amount > maxAmount (strictly greater).
-				rows := sqlmock.NewRows([]string{"current_usage"}).
-					AddRow(decimal.RequireFromString("1000"))
+				rows := sqlmock.NewRows([]string{"current_usage", "succeeded"}).
+					AddRow(decimal.RequireFromString("1000"), true)
 
 				mock.ExpectQuery(regexp.QuoteMeta(
 					upsertAtomicSQL,

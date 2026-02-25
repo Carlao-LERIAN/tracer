@@ -473,63 +473,98 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 	now := time.Now().UTC()
 	counterID := uuid.New()
 
-	// Build the atomic upsert query using raw SQL via Squirrel Expr.
-	// INSERT with ON CONFLICT DO UPDATE + WHERE guard + RETURNING.
-	query, args, err := sq.Insert(r.tableName).
-		Columns("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
-		Values(counterID.String(), limitID.String(), scopeKey, periodKey, amount, now).
-		Suffix(
-			"ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET "+
-				"current_usage = "+r.tableName+".current_usage + ?, "+
-				"last_updated_at = ? "+
-				"WHERE "+r.tableName+".current_usage + ? <= ? "+
-				"RETURNING current_usage",
-			amount, now, amount, maxAmount,
-		).
-		PlaceholderFormat(sq.Dollar).
-		ToSql()
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build upsert query", err)
-		return decimal.Zero, fmt.Errorf("failed to build upsert query: %w", err)
-	}
-
 	db, err := r.conn.GetDB()
 	if err != nil {
 		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
 		return decimal.Zero, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	var newUsage decimal.Decimal
+	// Build CTE query that always returns current_usage AND a success flag.
+	// This eliminates the need for a second SELECT when limit is exceeded.
+	//
+	// Strategy:
+	// 1. CTE 'attempt' tries INSERT ... ON CONFLICT DO UPDATE with WHERE guard
+	// 2. If succeeds: returns (new current_usage, true)
+	// 3. If WHERE guard fails: CTE returns 0 rows
+	// 4. Outer query uses COALESCE: if CTE empty, fallback to SELECT + false flag
+	//
+	// Result: Always returns (current_usage, succeeded) in a single round-trip.
+	query := `
+		WITH attempt AS (
+			INSERT INTO ` + r.tableName + ` (id, limit_id, scope_key, period_key, current_usage, last_updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (limit_id, scope_key, period_key) 
+			DO UPDATE SET 
+				current_usage = ` + r.tableName + `.current_usage + $7,
+				last_updated_at = $8
+			WHERE ` + r.tableName + `.current_usage + $9 <= $10
+			RETURNING current_usage, true as succeeded
+		)
+		SELECT 
+			COALESCE(
+				(SELECT current_usage FROM attempt),
+				(SELECT current_usage FROM ` + r.tableName + ` 
+				 WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4),
+				$5
+			) as current_usage,
+			COALESCE(
+				(SELECT succeeded FROM attempt),
+				false
+			) as succeeded
+	`
 
-	err = db.QueryRowContext(ctx, query, args...).Scan(&newUsage)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// WHERE guard failed: current_usage + amount > maxAmount
-			logger.WithFields(
-				"operation", "repository.usage_counter.upsert_and_increment_atomic",
-				"limit_id", limitID.String(),
-				"scope_key", scopeKey,
-				"period_key", periodKey,
-			).Info("Limit exceeded (WHERE guard)")
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
-
-			return decimal.Zero, constant.ErrUsageCounterExceedsLimit
-		}
-
-		libOtel.HandleSpanError(&span, "Database error in upsert", err)
-
-		return decimal.Zero, fmt.Errorf("failed to scan upsert result: %w", err)
+	args := []any{
+		counterID.String(), // $1
+		limitID.String(),   // $2
+		scopeKey,           // $3
+		periodKey,          // $4
+		amount,             // $5 (INSERT initial value)
+		now,                // $6 (INSERT last_updated_at)
+		amount,             // $7 (UPDATE increment)
+		now,                // $8 (UPDATE last_updated_at)
+		amount,             // $9 (WHERE guard check)
+		maxAmount,          // $10 (WHERE guard limit)
 	}
 
+	var (
+		currentUsage decimal.Decimal
+		succeeded    bool
+	)
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(&currentUsage, &succeeded)
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Database error in CTE upsert", err)
+		return decimal.Zero, fmt.Errorf("failed to scan CTE result: %w", err)
+	}
+
+	// Check the succeeded flag to determine if the operation was successful
+	if !succeeded {
+		// WHERE guard failed: current_usage + amount > maxAmount
+		// The CTE attempt returned no rows, so COALESCE returned the old current_usage
+		logger.WithFields(
+			"operation", "repository.usage_counter.upsert_and_increment_atomic",
+			"limit_id", limitID.String(),
+			"scope_key", scopeKey,
+			"period_key", periodKey,
+			"current_usage", currentUsage.String(),
+			"amount", amount.String(),
+			"max_amount", maxAmount.String(),
+		).Info("Limit exceeded (WHERE guard)")
+		libOtel.HandleSpanBusinessErrorEvent(&span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
+
+		return currentUsage, constant.ErrUsageCounterExceedsLimit
+	}
+
+	// Success: counter was incremented
 	logger.WithFields(
 		"operation", "repository.usage_counter.upsert_and_increment_atomic",
 		"limit_id", limitID.String(),
 		"scope_key", scopeKey,
 		"period_key", periodKey,
-		"new_usage", newUsage.String(),
+		"new_usage", currentUsage.String(),
 	).Info("Upsert and increment completed")
 
-	return newUsage, nil
+	return currentUsage, nil
 }
 
 // GetByLimitID retrieves all usage counters for a specific limit.
