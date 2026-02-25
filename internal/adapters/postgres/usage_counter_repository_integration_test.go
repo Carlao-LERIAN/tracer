@@ -735,8 +735,8 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_Boundary_Integration(t 
 
 	// Pre-seed the counter with current_usage=200 via direct SQL INSERT
 	_, err := db.ExecContext(ctx, `
-		INSERT INTO usage_counters (id, limit_id, scope_key, period_key, current_usage, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+		INSERT INTO usage_counters (id, limit_id, scope_key, period_key, current_usage, last_updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW())
 	`, counterID, limitID, scopeKey, periodKey, preSeededUsage)
 	require.NoError(t, err, "Failed to pre-seed counter")
 
