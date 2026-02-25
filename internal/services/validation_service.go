@@ -195,13 +195,17 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// Step 3: If rules returned REVIEW, rollback usage increments
 	// REVIEW means "manual review required" - don't count transaction against limits
 	if evalResult.Decision == model.DecisionReview {
-		if err := s.limitChecker.RollbackUsage(ctx, limitInput, limitOutput.LimitUsageDetails); err != nil {
+		rollbackErr := s.limitChecker.RollbackUsage(ctx, limitInput, limitOutput.LimitUsageDetails)
+		
+		rollbackStatus := "succeeded"
+		if rollbackErr != nil {
 			// Log rollback failure but don't fail the validation
 			// Usage counters are eventually consistent (reset at period boundaries)
+			rollbackStatus = "failed"
 			logger.WithFields(
 				"operation", "service.validation.orchestrate",
 				"request.id", req.RequestID,
-				"error", err.Error(),
+				"error", rollbackErr.Error(),
 			).Warn("Failed to rollback usage for REVIEW decision")
 		}
 
@@ -209,7 +213,8 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 			"operation", "service.validation.orchestrate",
 			"request.id", req.RequestID,
 			"decision", "REVIEW",
-		).Info("Validation completed (REVIEW - usage rolled back)")
+			"rollback_status", rollbackStatus,
+		).Info("Validation completed (REVIEW)")
 	}
 
 	// Step 4: If rules returned REVIEW, keep REVIEW
