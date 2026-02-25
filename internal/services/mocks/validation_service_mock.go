@@ -94,3 +94,17 @@ func (mr *MockLimitCheckerMockRecorder) CheckLimits(ctx, input any) *gomock.Call
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckLimits", reflect.TypeOf((*MockLimitChecker)(nil).CheckLimits), ctx, input)
 }
+
+// RollbackUsage mocks base method.
+func (m *MockLimitChecker) RollbackUsage(ctx context.Context, input *model.CheckLimitsInput, usageDetails []model.LimitUsageDetail) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RollbackUsage", ctx, input, usageDetails)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RollbackUsage indicates an expected call of RollbackUsage.
+func (mr *MockLimitCheckerMockRecorder) RollbackUsage(ctx, input, usageDetails any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RollbackUsage", reflect.TypeOf((*MockLimitChecker)(nil).RollbackUsage), ctx, input, usageDetails)
+}
