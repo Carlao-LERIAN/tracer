@@ -606,15 +606,17 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse model.UsageSnapshot
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	// Assert status code first (fail-fast)
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
 
-		// Verify the usage directly (no defensive guard)
-		assert.True(t, decimal.RequireFromString("200").Equal(usageResponse.CurrentUsage),
-			"currentUsage should be 200 after validation")
-	}
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	// Verify the usage directly
+	assert.True(t, decimal.RequireFromString("200").Equal(usageResponse.CurrentUsage),
+		"currentUsage should be 200 after validation")
 }
 
 // TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny verifies that
@@ -697,15 +699,16 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse model.UsageSnapshot
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
-		if !usageResponse.CurrentUsage.IsZero() {
-			assert.True(t, decimal.RequireFromString("500").Equal(usageResponse.CurrentUsage),
-				"Usage should NOT be incremented on rule-based DENY")
-		}
-	}
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
+
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("500").Equal(usageResponse.CurrentUsage),
+		"Usage should NOT be incremented on rule-based DENY")
 }
 
 // TestLimitsVerification_5_2_3_DoesNotIncrementOnReview verifies that
@@ -788,15 +791,16 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse model.UsageSnapshot
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
-		if !usageResponse.CurrentUsage.IsZero() {
-			assert.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage),
-				"Usage should NOT be incremented on REVIEW")
-		}
-	}
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
+
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage),
+		"Usage should NOT be incremented on REVIEW")
 }
 
 // TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly verifies that
@@ -889,17 +893,18 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse model.UsageSnapshot
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
 
-		// Final usage should be successCount * amountPerTx  
-		// Assert directly without defensive guard
-		expectedUsage := decimal.NewFromInt(int64(successCount * amountPerTx))
-		assert.True(t, expectedUsage.Equal(usageResponse.CurrentUsage),
-			"Final currentUsage should be %s (based on %d successful validations)", expectedUsage, successCount)
-	}
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	// Final usage should be successCount * amountPerTx
+	expectedUsage := decimal.NewFromInt(int64(successCount * amountPerTx))
+	assert.True(t, expectedUsage.Equal(usageResponse.CurrentUsage),
+		"Final currentUsage should be %s (based on %d successful validations)", expectedUsage, successCount)
 
 	// All transactions should succeed (limit is high enough)
 	assert.Equal(t, numConcurrent, successCount, "All 10 concurrent transactions should succeed")
@@ -1243,15 +1248,15 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	var initialUsage decimal.Decimal
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse model.UsageSnapshot
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
-		if !usageResponse.CurrentUsage.IsZero() {
-			initialUsage = usageResponse.CurrentUsage
-		}
-	}
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
+
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	initialUsage := usageResponse.CurrentUsage
 
 	// Try to trigger a validation with fault injection (if supported)
 	// This simulates a failure after increment but before commit
@@ -1423,17 +1428,17 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse model.UsageSnapshot
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
 
-		if !usageResponse.CurrentUsage.IsZero() {
-			assert.True(t, decimal.RequireFromString("800").Equal(usageResponse.CurrentUsage),
-				"currentUsage should be 800 in current period")
-			t.Logf("Current period usage: %s", usageResponse.CurrentUsage)
-		}
-	}
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("800").Equal(usageResponse.CurrentUsage),
+		"currentUsage should be 800 in current period")
+	t.Logf("Current period usage: %s", usageResponse.CurrentUsage)
 }
 
 // TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod verifies that
@@ -1523,17 +1528,17 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse model.UsageSnapshot
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
 
-		if !usageResponse.CurrentUsage.IsZero() {
-			assert.True(t, decimal.RequireFromString("4500").Equal(usageResponse.CurrentUsage),
-				"currentUsage should be 4500 in current period")
-			t.Logf("Current period usage: %s", usageResponse.CurrentUsage)
-		}
-	}
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("4500").Equal(usageResponse.CurrentUsage),
+		"currentUsage should be 4500 in current period")
+	t.Logf("Current period usage: %s", usageResponse.CurrentUsage)
 }
 
 // TestLimitsVerification_5_3_4_OldCountersCleanedUp verifies that
