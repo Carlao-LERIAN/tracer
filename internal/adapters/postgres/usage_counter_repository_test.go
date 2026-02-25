@@ -1047,7 +1047,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 			wantErr: constant.ErrUsageCounterExceedsLimit,
 		},
 		{
-			name:      "Error - amount equals maxAmount on fresh counter is allowed (boundary)",
+			name:      "Success - amount equals maxAmount on fresh counter is allowed (boundary)",
 			limitID:   testutil.MustDeterministicUUID(8021),
 			scopeKey:  "acct:8021",
 			periodKey: "2025-06",
@@ -1121,9 +1121,8 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 			wantErr: constant.ErrUsageCounterExceedsLimit,
 		},
 		{
-			// zero amount against zero maxAmount: 0.GreaterThan(0) == false, so
-			// the pre-check does NOT reject it. The INSERT path creates a new
-			// counter with current_usage=0, which satisfies 0 <= 0 and is valid.
+			// zero amount against zero maxAmount: amount.IsZero() short-circuits
+			// before any DB call, returning (decimal.Zero, nil) immediately.
 			name:      "zero amount with zero maxAmount passes pre-check and succeeds",
 			limitID:   testutil.MustDeterministicUUID(8042),
 			scopeKey:  "acct:test-zero-max-zero-amount",
@@ -1131,29 +1130,11 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 			amount:    decimal.Zero,
 			maxAmount: decimal.Zero,
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				// Pre-check is skipped (0 is not > 0). The INSERT path executes
-				// and RETURNING returns current_usage=0.
-				rows := sqlmock.NewRows([]string{"current_usage"}).
-					AddRow(decimal.Zero)
-
-				mock.ExpectQuery(regexp.QuoteMeta(
-					`INSERT INTO usage_counters (id,limit_id,scope_key,period_key,current_usage,last_updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET current_usage = usage_counters.current_usage + $7, last_updated_at = $8 WHERE usage_counters.current_usage + $9 <= $10 RETURNING current_usage`,
-				)).
-					WithArgs(
-						sqlmock.AnyArg(), // $1 id (generated UUID)
-						sqlmock.AnyArg(), // $2 limit_id
-						sqlmock.AnyArg(), // $3 scope_key
-						sqlmock.AnyArg(), // $4 period_key
-						sqlmock.AnyArg(), // $5 current_usage (0)
-						sqlmock.AnyArg(), // $6 last_updated_at
-						sqlmock.AnyArg(), // $7 amount (0)
-						sqlmock.AnyArg(), // $8 last_updated_at
-						sqlmock.AnyArg(), // $9 amount (0, for WHERE guard)
-						sqlmock.AnyArg(), // $10 maxAmount (0, for WHERE guard)
-					).
-					WillReturnRows(rows)
+				// No SQL should be executed: amount.IsZero() short-circuits
+				// before any DB call. If any query is issued, sqlmock will
+				// fail with "call to Query/Exec was not expected".
 			},
-			wantErr: nil, // Should succeed; 0 is not > 0
+			wantErr: nil, // Should succeed; amount.IsZero() returns early
 		},
 	}
 

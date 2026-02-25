@@ -475,14 +475,14 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 
 	// Build the atomic upsert query using raw SQL via Squirrel Expr.
 	// INSERT with ON CONFLICT DO UPDATE + WHERE guard + RETURNING.
-	query, args, err := sq.Insert("usage_counters").
+	query, args, err := sq.Insert(r.tableName).
 		Columns("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
 		Values(counterID.String(), limitID.String(), scopeKey, periodKey, amount, now).
 		Suffix(
 			"ON CONFLICT (limit_id, scope_key, period_key) DO UPDATE SET "+
-				"current_usage = usage_counters.current_usage + ?, "+
+				"current_usage = "+r.tableName+".current_usage + ?, "+
 				"last_updated_at = ? "+
-				"WHERE usage_counters.current_usage + ? <= ? "+
+				"WHERE "+r.tableName+".current_usage + ? <= ? "+
 				"RETURNING current_usage",
 			amount, now, amount, maxAmount,
 		).
