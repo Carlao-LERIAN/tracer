@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -911,13 +912,10 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 //
 // Test spec 5.2.5: Race condition prevented
 //
-// Note: This test verifies that the system handles concurrent transactions
-// near the limit boundary. The expected behavior is:
-// - If atomic locking: exactly 1 approved, 2 rejected
-// - If optimistic: possibly more approved, but final usage should not exceed limit by much
-//
-// The test documents the observed behavior and verifies the total processed
-// matches the expected count.
+// Scenario: DAILY limit of 1000, pre-loaded with currentUsage=900 (one validation of amount=900).
+// Action: 3 concurrent goroutines each with amount=100.
+// Assertions: Exactly 1 approved (900+100=1000), exactly 2 denied.
+// Verify final currentUsage=1000 via GET /v1/limits/{limitID}/usage.
 func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50250).String()
 
@@ -934,7 +932,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("900"),
 		Currency:             "BRL",
-		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
+		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -945,15 +943,13 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 	require.Equal(t, http.StatusOK, respSetup.StatusCode, "Setup validation should succeed: %s", string(bodySetup))
 
 	// Fire 3 parallel validations of amount=100 each
-	// Expected: Only 1 should succeed if atomic locking is implemented
-	// (900 + 100 = 1000 <= limit)
+	// Expected: Only 1 should succeed (atomic check-and-increment)
+	// (900 + 100 = 1000 <= limit, subsequent attempts exceed)
 	const numConcurrent = 3
-	const amountPerTx = 100
 
 	var wg sync.WaitGroup
-	approvedCount := 0
-	rejectedCount := 0
-	var mu sync.Mutex
+	var approvedCount int64
+	var deniedCount int64
 
 	for i := 0; i < numConcurrent; i++ {
 		wg.Add(1)
@@ -965,7 +961,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 				TransactionType:      "PIX",
 				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
-				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
+				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -974,45 +970,61 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 			resp, body := testutil.CreateValidation(t, req)
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK {
+			// Use assert (not require) inside goroutines to avoid panics
+			if !assert.Equal(t, http.StatusOK, resp.StatusCode, "Validation request should return 200 OK") {
 				return
 			}
 
 			var result testutil.ValidationResponse
 			if err := json.Unmarshal(body, &result); err != nil {
+				assert.NoError(t, err, "Failed to unmarshal validation response")
 				return
 			}
 
-			mu.Lock()
-			defer mu.Unlock()
-
 			if result.Decision == "DENY" && result.Reason == "limit_exceeded" {
-				rejectedCount++
+				atomic.AddInt64(&deniedCount, 1)
 			} else if result.Decision != "DENY" {
-				approvedCount++
+				atomic.AddInt64(&approvedCount, 1)
 			}
 		}(i)
 	}
 
 	wg.Wait()
 
+	// Load final counts
+	finalApproved := atomic.LoadInt64(&approvedCount)
+	finalDenied := atomic.LoadInt64(&deniedCount)
+
 	// Log observed behavior for documentation
-	t.Logf("Race condition test results: approved=%d, rejected=%d", approvedCount, rejectedCount)
+	t.Logf("Race condition test results: approved=%d, denied=%d", finalApproved, finalDenied)
 
-	// Verify: Total processed should equal numConcurrent
-	totalProcessed := approvedCount + rejectedCount
-	assert.Equal(t, numConcurrent, totalProcessed, "All %d transactions should be processed", numConcurrent)
+	// Verify: Exactly 1 approved and 2 denied (atomic enforcement)
+	assert.Equal(t, int64(1), finalApproved, "Exactly 1 transaction should be approved (atomic enforcement)")
+	assert.Equal(t, int64(2), finalDenied, "Exactly 2 transactions should be denied (limit exceeded)")
 
-	// Ideal behavior: exactly 1 approved (atomic check-and-increment)
-	// Current behavior may vary based on implementation
-	// This assertion documents expected behavior - adjust if optimistic locking is used
-	if approvedCount > 1 {
-		t.Logf("NOTE: %d transactions approved (expected 1 with atomic locking). "+
-			"This may indicate optimistic concurrency or a race condition.", approvedCount)
-	}
+	// Verify final usage via GET /v1/limits/{limitID}/usage
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
 
-	// At minimum, verify at least one transaction was processed
-	assert.GreaterOrEqual(t, totalProcessed, 1, "At least 1 transaction should be processed")
+	usageReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
+	require.NoError(t, err)
+	usageReq.Header.Set("X-API-Key", apiKey)
+
+	usageResp, err := testutil.HTTPClient.Do(usageReq)
+	require.NoError(t, err)
+	defer usageResp.Body.Close()
+
+	usageBody, err := io.ReadAll(usageResp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, usageResp.StatusCode, "Get usage should succeed: %s", string(usageBody))
+
+	var usageResponse getLimitUsageResponse
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, usageResponse.Counters, "Usage counters should exist")
+	assert.True(t, decimal.RequireFromString("1000").Equal(usageResponse.Counters[0].CurrentUsage),
+		"Final currentUsage should be 1000 (900 + 100)")
 }
 
 // =============================================================================
@@ -1612,4 +1624,124 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 	t.Log("  - For MONTHLY limits: counters older than 2 months")
 	t.Log("- Recent counters are preserved for auditing")
 	t.Log("- Cleanup does not affect current period counters")
+}
+
+// =============================================================================
+// 5.2.7 High Concurrency Atomic Enforcement
+// =============================================================================
+
+// TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement verifies that
+// atomic enforcement holds under high concurrency.
+//
+// Test spec 5.2.7: High concurrency atomic enforcement
+//
+// Scenario: 20 goroutines each send validation with amount=1000, limit=10000.
+// Expected: Exactly 10 approved, 10 denied.
+// Verify final currentUsage=10000 via GET /v1/limits/{limitID}/usage.
+func TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(90150).String()
+
+	// Create DAILY limit of 10000
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "10000")
+	testutil.ActivateLimit(t, limitID)
+	t.Cleanup(func() {
+		testutil.CleanupLimit(t, limitID)
+	})
+
+	// Fire 20 parallel validations of amount=1000 each
+	// Expected: 10 should succeed (10 * 1000 = 10000 <= limit), 10 should be denied
+	const numConcurrent = 20
+
+	var wg sync.WaitGroup
+	var approvedCount int64
+	var deniedCount int64
+
+	// Barrier sync: ready WaitGroup + start channel
+	ready := sync.WaitGroup{}
+	start := make(chan struct{})
+
+	for i := 0; i < numConcurrent; i++ {
+		wg.Add(1)
+		ready.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			req := &testutil.ValidationRequest{
+				RequestID:            testutil.MustDeterministicUUID(int64(90151 + idx)).String(),
+				TransactionType:      "PIX",
+				Amount:               decimal.RequireFromString("1000"),
+				Currency:             "BRL",
+				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				Account: &testutil.AccountContext{
+					ID: accountID,
+				},
+			}
+
+			// Signal ready and wait for start signal
+			ready.Done()
+			<-start
+
+			resp, body := testutil.CreateValidation(t, req)
+			defer resp.Body.Close()
+
+			// Use assert (not require) inside goroutines to avoid panics
+			if !assert.Equal(t, http.StatusOK, resp.StatusCode, "Validation request should return 200 OK") {
+				return
+			}
+
+			var result testutil.ValidationResponse
+			if err := json.Unmarshal(body, &result); err != nil {
+				assert.NoError(t, err, "Failed to unmarshal validation response")
+				return
+			}
+
+			if result.Decision == "DENY" && result.Reason == "limit_exceeded" {
+				atomic.AddInt64(&deniedCount, 1)
+			} else if result.Decision != "DENY" {
+				atomic.AddInt64(&approvedCount, 1)
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to be ready, then release them simultaneously
+	ready.Wait()
+	close(start)
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// Load final counts
+	finalApproved := atomic.LoadInt64(&approvedCount)
+	finalDenied := atomic.LoadInt64(&deniedCount)
+
+	// Log observed behavior for documentation
+	t.Logf("High concurrency test results: approved=%d, denied=%d", finalApproved, finalDenied)
+
+	// Verify: Exactly 10 approved and 10 denied (atomic enforcement)
+	assert.Equal(t, int64(10), finalApproved, "Exactly 10 transactions should be approved (atomic enforcement)")
+	assert.Equal(t, int64(10), finalDenied, "Exactly 10 transactions should be denied (limit exceeded)")
+
+	// Verify final usage via GET /v1/limits/{limitID}/usage
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	usageReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
+	require.NoError(t, err)
+	usageReq.Header.Set("X-API-Key", apiKey)
+
+	usageResp, err := testutil.HTTPClient.Do(usageReq)
+	require.NoError(t, err)
+	defer usageResp.Body.Close()
+
+	usageBody, err := io.ReadAll(usageResp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, usageResp.StatusCode, "Get usage should succeed: %s", string(usageBody))
+
+	var usageResponse getLimitUsageResponse
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, usageResponse.Counters, "Usage counters should exist")
+	assert.True(t, decimal.RequireFromString("10000").Equal(usageResponse.Counters[0].CurrentUsage),
+		"Final currentUsage should be 10000 (10 * 1000)")
 }

@@ -9,6 +9,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -435,4 +436,394 @@ func TestUsageCounterRepository_MixedOperations_Concurrent_Integration(t *testin
 
 	t.Logf("SUCCESS: Mixed ops (5 increments of %s, 5 decrements of %s) from %s, final = %s (expected %s)",
 		incrementAmount.String(), decrementAmount.String(), initialUsage.String(), finalUsage.String(), expectedFinalUsage.String())
+}
+
+// TestUsageCounterRepository_UpsertAndIncrementAtomic_Concurrent_Integration tests that
+// concurrent UpsertAndIncrementAtomic calls correctly enforce maxAmount limits under race conditions.
+//
+// Scenario 1: 20 goroutines concurrently increment a counter with maxAmount enforcement.
+// - Each goroutine calls UpsertAndIncrementAtomic with amount=100 and maxAmount=1000
+// - With barrier synchronization to maximize contention
+// - Expected: exactly 10 succeed (10 * 100 = 1000), exactly 10 fail with ErrUsageCounterExceedsLimit
+// - Final current_usage must be exactly 1000
+//
+// This validates that the atomic INSERT ... ON CONFLICT DO UPDATE ... WHERE guard correctly
+// prevents race conditions when enforcing limit maximums.
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_Concurrent_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	repo := NewUsageCounterRepositoryWithConnection(adapter)
+
+	// Test parameters
+	const numGoroutines = 20
+	amount := decimal.RequireFromString("100")
+	maxAmount := decimal.RequireFromString("1000")
+	expectedSuccesses := 10 // maxAmount(1000) / amount(100) = 10
+	expectedFailures := numGoroutines - expectedSuccesses
+	expectedFinalUsage := decimal.RequireFromString("1000")
+
+	// Create a test limit (required for FK constraint) using seed 90100
+	limitID := createTestLimit(t, db, 90100)
+	scopeKey := testutil.MustDeterministicUUID(90101).String()
+	periodKey := "2025-01"
+
+	// Cleanup: remove test limit (cascades to counters)
+	t.Cleanup(func() {
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	// Barrier synchronization: all goroutines wait until ready, then start simultaneously
+	var ready sync.WaitGroup
+	var start sync.WaitGroup
+
+	ready.Add(numGoroutines)
+	start.Add(1)
+
+	// Channel to collect results (nil = success, non-nil = error)
+	results := make(chan error, numGoroutines)
+
+	// Launch concurrent goroutines
+	for i := range numGoroutines {
+		go func(goroutineID int) {
+			// Signal ready and wait for start barrier
+			ready.Done()
+			start.Wait()
+
+			ctx := context.Background()
+
+			_, err := repo.UpsertAndIncrementAtomic(ctx, limitID, scopeKey, periodKey, amount, maxAmount)
+			results <- err
+		}(i)
+	}
+
+	// Wait for all goroutines to be ready
+	ready.Wait()
+
+	// Release all goroutines simultaneously to maximize contention
+	start.Done()
+
+	// Collect all results
+	var successCount, failCount int
+	var unexpectedErrors []error
+
+	for i := 0; i < numGoroutines; i++ {
+		err := <-results
+
+		if err == nil {
+			successCount++
+		} else if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
+			failCount++
+		} else {
+			unexpectedErrors = append(unexpectedErrors, fmt.Errorf("goroutine: unexpected error: %w", err))
+		}
+	}
+
+	close(results)
+
+	// Assert no unexpected errors
+	require.Empty(t, unexpectedErrors, "Should have no unexpected errors: %v", unexpectedErrors)
+
+	// Assert exactly 10 succeed
+	assert.Equal(t, expectedSuccesses, successCount,
+		"Expected exactly %d successes, got %d", expectedSuccesses, successCount)
+
+	// Assert exactly 10 fail with ErrUsageCounterExceedsLimit
+	assert.Equal(t, expectedFailures, failCount,
+		"Expected exactly %d failures with ErrUsageCounterExceedsLimit, got %d", expectedFailures, failCount)
+
+	// Verify final usage in database equals exactly 1000
+	ctx := context.Background()
+
+	var finalUsage decimal.Decimal
+
+	err := db.QueryRowContext(ctx,
+		"SELECT current_usage FROM usage_counters WHERE limit_id = $1 AND scope_key = $2 AND period_key = $3",
+		limitID, scopeKey, periodKey).Scan(&finalUsage)
+	require.NoError(t, err, "Failed to query final usage")
+
+	assert.True(t, expectedFinalUsage.Equal(finalUsage),
+		"Final usage should be exactly %s, but got %s",
+		expectedFinalUsage.String(), finalUsage.String())
+
+	t.Logf("SUCCESS: %d goroutines with amount=%s and maxAmount=%s: %d succeeded, %d failed (ErrUsageCounterExceedsLimit), final usage = %s",
+		numGoroutines, amount.String(), maxAmount.String(), successCount, failCount, finalUsage.String())
+}
+
+// TestUsageCounterRepository_UpsertAndIncrementAtomic_InsertRace_Integration tests that
+// concurrent UpsertAndIncrementAtomic calls correctly handle the INSERT-INSERT race condition
+// where multiple goroutines try to create a counter that does not exist yet.
+//
+// Scenario 2: 10 goroutines each call UpsertAndIncrementAtomic with amount=100 and maxAmount=500
+// where NO counter exists yet (INSERT-INSERT race).
+//
+// Expected behavior:
+// - Exactly 5 succeed (5 * 100 = 500)
+// - Exactly 5 fail with ErrUsageCounterExceedsLimit
+// - Final current_usage = 500
+// - Only 1 counter row exists (no duplicates from INSERT race)
+//
+// This validates that the atomic INSERT ... ON CONFLICT DO UPDATE ... WHERE guard correctly
+// handles the race condition when multiple transactions try to INSERT the same counter.
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_InsertRace_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	repo := NewUsageCounterRepositoryWithConnection(adapter)
+
+	// Test parameters
+	const numGoroutines = 10
+	amount := decimal.RequireFromString("100")
+	maxAmount := decimal.RequireFromString("500")
+	expectedSuccesses := 5 // maxAmount(500) / amount(100) = 5
+	expectedFailures := numGoroutines - expectedSuccesses
+	expectedFinalUsage := decimal.RequireFromString("500")
+
+	// Create a test limit (required for FK constraint) using seed 90110
+	limitID := createTestLimit(t, db, 90110)
+	scopeKey := testutil.MustDeterministicUUID(90111).String()
+	periodKey := "2025-02"
+
+	// Cleanup: remove test limit (cascades to counters)
+	t.Cleanup(func() {
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	// Verify no existing counter exists before the test
+	ctx := context.Background()
+
+	var existingCount int
+
+	err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM usage_counters WHERE limit_id = $1 AND scope_key = $2 AND period_key = $3",
+		limitID, scopeKey, periodKey).Scan(&existingCount)
+	require.NoError(t, err, "Failed to check for existing counter")
+	require.Equal(t, 0, existingCount, "No counter should exist before the test (INSERT-INSERT race scenario)")
+
+	// Barrier synchronization: all goroutines wait until ready, then start simultaneously
+	var ready sync.WaitGroup
+	var start sync.WaitGroup
+
+	ready.Add(numGoroutines)
+	start.Add(1)
+
+	// Channel to collect results (nil = success, non-nil = error)
+	results := make(chan error, numGoroutines)
+
+	// Launch concurrent goroutines
+	for i := range numGoroutines {
+		go func(goroutineID int) {
+			// Signal ready and wait for start barrier
+			ready.Done()
+			start.Wait()
+
+			goroutineCtx := context.Background()
+
+			_, err := repo.UpsertAndIncrementAtomic(goroutineCtx, limitID, scopeKey, periodKey, amount, maxAmount)
+			results <- err
+		}(i)
+	}
+
+	// Wait for all goroutines to be ready
+	ready.Wait()
+
+	// Release all goroutines simultaneously to maximize contention
+	start.Done()
+
+	// Collect all results
+	var successCount, failCount int
+	var unexpectedErrors []error
+
+	for i := 0; i < numGoroutines; i++ {
+		err := <-results
+
+		if err == nil {
+			successCount++
+		} else if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
+			failCount++
+		} else {
+			unexpectedErrors = append(unexpectedErrors, fmt.Errorf("goroutine: unexpected error: %w", err))
+		}
+	}
+
+	close(results)
+
+	// Assert no unexpected errors
+	require.Empty(t, unexpectedErrors, "Should have no unexpected errors: %v", unexpectedErrors)
+
+	// Assert exactly 5 succeed
+	assert.Equal(t, expectedSuccesses, successCount,
+		"Expected exactly %d successes, got %d", expectedSuccesses, successCount)
+
+	// Assert exactly 5 fail with ErrUsageCounterExceedsLimit
+	assert.Equal(t, expectedFailures, failCount,
+		"Expected exactly %d failures with ErrUsageCounterExceedsLimit, got %d", expectedFailures, failCount)
+
+	// Verify final usage in database equals exactly 500
+	var finalUsage decimal.Decimal
+
+	err = db.QueryRowContext(ctx,
+		"SELECT current_usage FROM usage_counters WHERE limit_id = $1 AND scope_key = $2 AND period_key = $3",
+		limitID, scopeKey, periodKey).Scan(&finalUsage)
+	require.NoError(t, err, "Failed to query final usage")
+
+	assert.True(t, expectedFinalUsage.Equal(finalUsage),
+		"Final usage should be exactly %s, but got %s",
+		expectedFinalUsage.String(), finalUsage.String())
+
+	// Verify only 1 counter row exists (no duplicates from INSERT race)
+	var rowCount int
+
+	err = db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM usage_counters WHERE limit_id = $1 AND scope_key = $2 AND period_key = $3",
+		limitID, scopeKey, periodKey).Scan(&rowCount)
+	require.NoError(t, err, "Failed to count counter rows")
+
+	assert.Equal(t, 1, rowCount,
+		"Expected exactly 1 counter row (no duplicates from INSERT race), got %d", rowCount)
+
+	t.Logf("SUCCESS: INSERT-INSERT race test with %d goroutines, amount=%s, maxAmount=%s: %d succeeded, %d failed (ErrUsageCounterExceedsLimit), final usage = %s, row count = %d",
+		numGoroutines, amount.String(), maxAmount.String(), successCount, failCount, finalUsage.String(), rowCount)
+}
+
+// TestUsageCounterRepository_UpsertAndIncrementAtomic_Boundary_Integration tests that
+// UpsertAndIncrementAtomic correctly enforces maxAmount limits when a counter already
+// has pre-seeded usage that puts it near the boundary.
+//
+// Scenario 3: maxAmount=500, pre-seed current_usage=200, then 10 goroutines each call
+// UpsertAndIncrementAtomic with amount=100.
+//
+// Expected behavior:
+// - Exactly 3 succeed (200 + 3*100 = 500)
+// - Exactly 7 fail with ErrUsageCounterExceedsLimit
+// - Final current_usage = 500
+//
+// This validates boundary condition handling where the counter starts with existing usage.
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_Boundary_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+
+	adapter := &testutil.IntegrationDBAdapter{DB: db}
+	repo := NewUsageCounterRepositoryWithConnection(adapter)
+
+	// Test parameters
+	const numGoroutines = 10
+	amount := decimal.RequireFromString("100")
+	maxAmount := decimal.RequireFromString("500")
+	preSeededUsage := decimal.RequireFromString("200")
+	expectedSuccesses := 3 // (maxAmount(500) - preSeededUsage(200)) / amount(100) = 3
+	expectedFailures := numGoroutines - expectedSuccesses
+	expectedFinalUsage := decimal.RequireFromString("500")
+
+	// Create a test limit (required for FK constraint) using seed 90120
+	limitID := createTestLimit(t, db, 90120)
+	scopeKey := testutil.MustDeterministicUUID(90121).String()
+	periodKey := "2025-03"
+	counterID := testutil.MustDeterministicUUID(90122)
+
+	// Cleanup: remove test limit (cascades to counters)
+	t.Cleanup(func() {
+		cleanupTestLimit(t, db, limitID)
+	})
+
+	ctx := context.Background()
+
+	// Pre-seed the counter with current_usage=200 via direct SQL INSERT
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO usage_counters (id, limit_id, scope_key, period_key, current_usage, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+	`, counterID, limitID, scopeKey, periodKey, preSeededUsage)
+	require.NoError(t, err, "Failed to pre-seed counter")
+
+	// Verify pre-seeded value via SELECT
+	var verifyUsage decimal.Decimal
+
+	err = db.QueryRowContext(ctx,
+		"SELECT current_usage FROM usage_counters WHERE id = $1",
+		counterID).Scan(&verifyUsage)
+	require.NoError(t, err, "Failed to verify pre-seeded counter")
+	require.True(t, preSeededUsage.Equal(verifyUsage),
+		"Pre-seeded usage should be %s, got %s", preSeededUsage.String(), verifyUsage.String())
+
+	t.Logf("Pre-seeded counter %s with current_usage=%s", counterID, preSeededUsage.String())
+
+	// Barrier synchronization: all goroutines wait until ready, then start simultaneously
+	var ready sync.WaitGroup
+	var start sync.WaitGroup
+
+	ready.Add(numGoroutines)
+	start.Add(1)
+
+	// Channel to collect results (nil = success, non-nil = error)
+	results := make(chan error, numGoroutines)
+
+	// Launch concurrent goroutines
+	for i := range numGoroutines {
+		go func(goroutineID int) {
+			// Signal ready and wait for start barrier
+			ready.Done()
+			start.Wait()
+
+			goroutineCtx := context.Background()
+
+			_, err := repo.UpsertAndIncrementAtomic(goroutineCtx, limitID, scopeKey, periodKey, amount, maxAmount)
+			results <- err
+		}(i)
+	}
+
+	// Wait for all goroutines to be ready
+	ready.Wait()
+
+	// Release all goroutines simultaneously to maximize contention
+	start.Done()
+
+	// Collect all results
+	var successCount, failCount int
+	var unexpectedErrors []error
+
+	for i := 0; i < numGoroutines; i++ {
+		err := <-results
+
+		if err == nil {
+			successCount++
+		} else if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
+			failCount++
+		} else {
+			unexpectedErrors = append(unexpectedErrors, fmt.Errorf("goroutine: unexpected error: %w", err))
+		}
+	}
+
+	close(results)
+
+	// Assert no unexpected errors
+	require.Empty(t, unexpectedErrors, "Should have no unexpected errors: %v", unexpectedErrors)
+
+	// Assert exactly 3 succeed (200 + 3*100 = 500)
+	assert.Equal(t, expectedSuccesses, successCount,
+		"Expected exactly %d successes (pre-seeded %s + %d*%s = %s), got %d",
+		expectedSuccesses, preSeededUsage.String(), expectedSuccesses, amount.String(), expectedFinalUsage.String(), successCount)
+
+	// Assert exactly 7 fail with ErrUsageCounterExceedsLimit
+	assert.Equal(t, expectedFailures, failCount,
+		"Expected exactly %d failures with ErrUsageCounterExceedsLimit, got %d", expectedFailures, failCount)
+
+	// Verify final usage in database equals exactly 500 via direct SQL
+	var finalUsage decimal.Decimal
+
+	err = db.QueryRowContext(ctx,
+		"SELECT current_usage FROM usage_counters WHERE id = $1",
+		counterID).Scan(&finalUsage)
+	require.NoError(t, err, "Failed to query final usage")
+
+	assert.True(t, expectedFinalUsage.Equal(finalUsage),
+		"Final usage should be exactly %s, but got %s",
+		expectedFinalUsage.String(), finalUsage.String())
+
+	t.Logf("SUCCESS: Boundary test with pre-seeded %s, %d goroutines with amount=%s and maxAmount=%s: %d succeeded, %d failed (ErrUsageCounterExceedsLimit), final usage = %s",
+		preSeededUsage.String(), numGoroutines, amount.String(), maxAmount.String(), successCount, failCount, finalUsage.String())
 }
