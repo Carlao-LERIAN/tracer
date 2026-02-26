@@ -1325,7 +1325,9 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 				return false // keep retrying on transient errors
 			}
 			if !hasCounters {
-				return true // no counters = zero usage = rollback complete
+				// Only accept missing counters if we started with zero usage
+				// If initialUsage was non-zero, missing counters indicates over-rollback bug
+				return initialUsage.IsZero() // no counters = rollback complete only if started at zero
 			}
 			return usage.Equal(initialUsage)
 		}, 2*time.Second, 100*time.Millisecond, "Usage should be rolled back to %s after failure", initialUsage)
