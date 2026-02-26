@@ -7,6 +7,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -1000,6 +1001,10 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 	scopeKey := "acct:" + accountID.String()
 
 	// Each concurrent call uses atomic upsert (returns incremental usage values)
+	// Use counter with mutex to simulate real atomic increment behavior
+	var mu sync.Mutex
+	callCounter := 0
+
 	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
 		gomock.Any(),
 		limitID,
@@ -1007,7 +1012,20 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 		periodKeyDaily,
 		amountPerRequest,
 		decimal.RequireFromString("1000"),
-	).Return(decimal.RequireFromString("10"), nil).Times(numGoroutines) // Returns mock post-increment usage
+	).DoAndReturn(func(
+		ctx context.Context,
+		limitID uuid.UUID,
+		scopeKey string,
+		periodKey string,
+		amount decimal.Decimal,
+		maxAmount decimal.Decimal,
+	) (decimal.Decimal, error) {
+		mu.Lock()
+		callCounter++
+		currentValue := callCounter * 10 // Each call increments by 10
+		mu.Unlock()
+		return decimal.RequireFromString(fmt.Sprintf("%d", currentValue)), nil
+	}).Times(numGoroutines)
 
 	ctx := setupTest(t)
 
