@@ -2880,6 +2880,11 @@ const docTemplate = `{
                     "type": "string",
                     "example": "500.00"
                 },
+                "hasCounters": {
+                    "description": "True if usage counters exist for this limit (false means no data, currentUsage=0 is default)\nThis distinguishes \"no counters yet\" from \"counters exist with zero usage\"",
+                    "type": "boolean",
+                    "example": true
+                },
                 "limitAmount": {
                     "description": "Total limit amount (from Limit.MaxAmount)",
                     "type": "string",
