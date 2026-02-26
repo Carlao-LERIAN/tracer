@@ -2472,6 +2472,61 @@ func TestRollbackUsage_SkipsPerTransaction(t *testing.T) {
 	// gomock will fail if GetForUpdate or DecrementAtomic were called unexpectedly.
 }
 
+func TestRollbackUsage_SkipsPerTransactionInFallbackPath(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that PER_TRANSACTION limits are skipped in the fallback path
+	// when InternalLimitType is empty but Period == PER_TRANSACTION (legacy details).
+	// Seeds: 8215-8219
+
+	limitID := testutil.MustDeterministicUUID(8215)
+	accountID := testutil.MustDeterministicUUID(8216)
+
+	serverTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	// KEY ASSERTION: No GetForUpdate or DecrementAtomic calls should be made
+	// because PER_TRANSACTION limits (even in fallback path) have no persistent counters.
+	// gomock will fail if unexpected calls are made.
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("50"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: testutil.FixedTime(),
+	}
+
+	// Simulate legacy detail: InternalLimitType empty, but Period == PER_TRANSACTION
+	usageDetails := []model.LimitUsageDetail{
+		{
+			LimitID:           limitID,
+			LimitAmount:       decimal.RequireFromString("100"),
+			Period:            model.LimitTypePerTransaction,
+			InternalLimitType: "", // Empty - forces fallback to Period field
+			Scopes:            []model.Scope{{AccountID: &accountID}},
+			CurrentUsage:      decimal.Zero,
+			Exceeded:          false,
+			InternalPeriodKey: "", // Empty - forces fallback path
+		},
+	}
+
+	err = checker.RollbackUsage(ctx, input, usageDetails)
+
+	require.NoError(t, err)
+	// gomock will fail if GetForUpdate or DecrementAtomic were called unexpectedly.
+	// This confirms PER_TRANSACTION was correctly skipped in the fallback path.
+}
+
 // TestRollbackIncrementedCounters_DecrementFailure verifies that rollback continues
 // even when DecrementAtomic fails for one limit (best-effort).
 // Seeds: 8230-8234 range

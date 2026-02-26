@@ -560,6 +560,12 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 				fallbackType = detail.Period
 			}
 
+			// Skip PER_TRANSACTION limits even in fallback path
+			// Legacy details may have empty InternalLimitType but Period == PER_TRANSACTION
+			if fallbackType == model.LimitTypePerTransaction {
+				continue
+			}
+
 			var calcErr error
 
 			periodKey, calcErr = model.CalculatePeriodKey(fallbackType, serverTime)
