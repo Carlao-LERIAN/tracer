@@ -222,6 +222,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 			rollbackStatus = "failed"
 
 			// Emit metric for alerting (use rollbackCtx to ensure metric is not dropped if request context was canceled)
+			//nolint:contextcheck // Intentional: using detached context for observability
 			if metricsFactory != nil {
 				metricsFactory.Counter(MetricValidationRollbackFailures).Add(rollbackCtx, 1)
 			}
