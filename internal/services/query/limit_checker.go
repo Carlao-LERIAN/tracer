@@ -534,9 +534,8 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 	// Note: PER_TRANSACTION limits don't have persistent counters and are skipped
 	var failedLimits []uuid.UUID
 
-	// Calculate scope key once for all limits
+	// Build transaction scope once; derive scope key per detail to match increment path
 	txScope := buildTransactionScope(input)
-	scopeKey := model.CalculateScopeKey(txScope)
 
 	// Calculate server time once for consistent period key fallback
 	// Prevents period key mismatch when rollback crosses period boundary
@@ -587,6 +586,15 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 				"limit_id", detail.LimitID.String(),
 				"period_key", periodKey,
 			).Info("Using server clock fallback for period key")
+		}
+
+		// Calculate scope key from the limit's scopes (stored in detail.Scopes)
+		// This ensures rollback uses the SAME key that was used during increment,
+		// preventing scope key mismatch when limits have different granularities.
+		// Legacy fallback: if Scopes is empty, use transaction scope (for backward compatibility)
+		scopeKey := model.CalculateScopeKey(txScope)
+		if len(detail.Scopes) > 0 {
+			scopeKey = calculateScopeKeyFromScopes(detail.Scopes, txScope)
 		}
 
 		// Get existing counter (do NOT create one - rollback should only affect existing counters)
