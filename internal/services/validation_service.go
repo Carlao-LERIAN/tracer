@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -29,6 +30,11 @@ import (
 // validationPersistTimeout is the maximum duration for transaction validation record persistence.
 // 5 seconds is sufficient for DB operations in normal conditions.
 const validationPersistTimeout = 5 * time.Second
+
+// validationRollbackTimeout bounds REVIEW rollback compensation operations to prevent unbounded resource consumption.
+// 5 seconds is sufficient for typical database operations under normal conditions.
+// Uses same timeout as validationPersistTimeout for consistency.
+const validationRollbackTimeout = 5 * time.Second
 
 // Sentinel errors for ValidationService constructor validation.
 var (
@@ -46,6 +52,7 @@ type RuleEvaluator interface {
 // LimitChecker checks transaction limits.
 type LimitChecker interface {
 	CheckLimits(ctx context.Context, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error)
+	RollbackUsage(ctx context.Context, input *model.CheckLimitsInput, usageDetails []model.LimitUsageDetail) error
 }
 
 // ValidationService orchestrates transaction validation.
@@ -99,7 +106,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		return nil, errors.New("validation request cannot be nil")
 	}
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricsFactory := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.validation.orchestrate")
 	defer span.End()
@@ -191,18 +198,66 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		return response, nil
 	}
 
-	// Step 3: If rules returned REVIEW, keep REVIEW
+	// Step 3: If rules returned REVIEW, rollback usage increments
+	// rollbackStatus tracks whether rollback succeeded/failed for REVIEW decisions.
+	// Empty string indicates non-REVIEW path (ALLOW/DENY).
+	var rollbackStatus string
+
+	// REVIEW means "manual review required" - don't count transaction against limits
+	if evalResult.Decision == model.DecisionReview {
+		// Use detached context for rollback - request context may be canceled,
+		// but compensation MUST complete to maintain data integrity.
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), validationRollbackTimeout)
+		defer cancel()
+		// Preserve trace context for observability
+		rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
+
+		//nolint:contextcheck // Intentional: using detached context for compensation
+		rollbackErr := s.limitChecker.RollbackUsage(rollbackCtx, limitInput, limitOutput.LimitUsageDetails)
+
+		rollbackStatus = "succeeded"
+		if rollbackErr != nil {
+			// Log rollback failure but don't fail the validation
+			// Usage counters are eventually consistent (reset at period boundaries)
+			rollbackStatus = "failed"
+
+			// Emit metric for alerting (use rollbackCtx to ensure metric is not dropped if request context was canceled)
+			//nolint:contextcheck // Intentional: using detached context for observability
+			if metricsFactory != nil {
+				metricsFactory.Counter(MetricValidationRollbackFailures).Add(rollbackCtx, 1)
+			}
+
+			logger.WithFields(
+				"operation", "service.validation.orchestrate",
+				"request.id", req.RequestID,
+				"error", rollbackErr.Error(),
+			).Warn("Failed to rollback usage for REVIEW decision")
+		}
+		// NOTE: Duplicate "Validation completed (REVIEW)" log removed - unified log below
+	}
+
+	// Step 4: If rules returned REVIEW, keep REVIEW
 	// If rules returned ALLOW (with or without matched rules), keep ALLOW
 
 	response.ProcessingTimeMs = time.Since(startTime).Milliseconds()
 	s.persistTransactionValidation(ctx, req, response, logger)
 	s.persistAuditEvent(ctx, req, response, logger)
 
-	logger.WithFields(
-		"operation", "service.validation.orchestrate",
-		"request.id", req.RequestID,
-		"decision", response.Decision,
-	).Info("Validation completed")
+	// Single unified completion log for all decision types
+	if rollbackStatus != "" {
+		logger.WithFields(
+			"operation", "service.validation.orchestrate",
+			"request.id", req.RequestID,
+			"decision", response.Decision,
+			"rollback_status", rollbackStatus,
+		).Info("Validation completed")
+	} else {
+		logger.WithFields(
+			"operation", "service.validation.orchestrate",
+			"request.id", req.RequestID,
+			"decision", response.Decision,
+		).Info("Validation completed")
+	}
 
 	return response, nil
 }

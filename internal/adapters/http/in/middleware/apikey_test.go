@@ -267,7 +267,7 @@ func TestAPIKeyAuth_SameErrorMessage(t *testing.T) {
 }
 
 // =============================================================================
-// APIKeyAuthWithLogger tests (TDD-RED phase)
+// APIKeyAuthWithLogger tests
 // =============================================================================
 
 func TestAPIKeyAuthWithLogger_MissingKey_LogsWarning(t *testing.T) {
@@ -486,7 +486,7 @@ func TestAPIKeyAuthWithLogger_DisabledAuth_NoLogging(t *testing.T) {
 }
 
 // =============================================================================
-// APIKeyAuthWithMetrics tests (TDD for ST-004-06)
+// APIKeyAuthWithMetrics tests
 // =============================================================================
 
 // MetricCall represents a single metric increment call for testing.

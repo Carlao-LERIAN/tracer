@@ -28,8 +28,3 @@ type usageCounterResponse struct {
 	CurrentUsage  decimal.Decimal `json:"currentUsage"`
 	LastUpdatedAt string          `json:"lastUpdatedAt"`
 }
-
-// getLimitUsageResponse represents the wrapper response from GET /limits/:id/usage.
-type getLimitUsageResponse struct {
-	Counters []usageCounterResponse `json:"counters"`
-}

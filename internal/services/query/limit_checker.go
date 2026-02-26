@@ -8,19 +8,27 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
 )
+
+// rollbackTimeout bounds rollback compensation operations to prevent unbounded resource consumption.
+// 5 seconds is sufficient for typical database operations under normal conditions.
+// Follows the pattern established by validationPersistTimeout in validation_service.go.
+const rollbackTimeout = 5 * time.Second
 
 // LimitChecker defines the interface for checking limits against transactions.
 type LimitChecker interface {
@@ -48,14 +56,6 @@ type LimitCheckerService struct {
 	clock            clock.Clock
 }
 
-// limitCheckResult holds the result of checking a single limit.
-// Used internally for two-phase check-then-increment logic.
-type limitCheckResult struct {
-	detail    *model.LimitUsageDetail
-	exceeded  bool
-	counterID *uuid.UUID // nil for PER_TRANSACTION limits
-}
-
 // NewLimitChecker creates a new LimitCheckerService.
 // Returns error if any dependency is nil.
 func NewLimitChecker(limitRepo LimitRepository, usageCounterRepo UsageCounterRepository, clk clock.Clock) (*LimitCheckerService, error) {
@@ -79,6 +79,7 @@ func NewLimitChecker(limitRepo LimitRepository, usageCounterRepo UsageCounterRep
 }
 
 // CheckLimits evaluates all applicable limits for a transaction.
+// Uses atomic upsert to prevent TOCTOU race conditions.
 func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -129,52 +130,80 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 		"applicable_limits_count", len(limits),
 	).Info("Found applicable limits")
 
-	// Phase 1: Check all limits WITHOUT incrementing counters
-	// This prevents partial increments if a later limit would be exceeded
-	checkResults := make([]limitCheckResult, 0, len(limits))
-	exceededIDs := make([]uuid.UUID, 0, len(limits))
+	// Build transaction scope once for all limits
+	txScope := buildTransactionScope(input)
+	serverNow := s.clock.Now()
+
+	// Process each limit with atomic upsert (increment happens in DB)
+	usageDetails := make([]model.LimitUsageDetail, 0, len(limits))
+	incrementedDetails := make([]model.LimitUsageDetail, 0, len(limits))
+
+	var exceededLimitID *uuid.UUID
 
 	for i := range limits {
 		limit := &limits[i]
 
-		result, err := s.checkSingleLimitWithoutIncrement(ctx, limit, input)
+		// Calculate scope key based on the limit's scope, not transaction's full scope.
+		// This prevents counter fragmentation when limits have different scope granularities.
+		// Example: account-only limit must use "acct:X" key, not "acct:X:seg:Y:port:Z".
+		scopeKey := calculateScopeKeyForLimit(limit, txScope)
+
+		detail, exceeded, err := s.processLimitAtomic(ctx, limit, input, scopeKey, serverNow)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to check limit", err)
+			// DB error - rollback already-incremented counters and return error
+			// Use detached context for rollback - request context may be canceled,
+			// but compensation MUST complete to maintain data integrity.
+			if len(incrementedDetails) > 0 {
+				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+				defer cancel()
+				// Preserve trace context for observability
+				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
+				//nolint:contextcheck // Intentional: using detached context for compensation
+				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, txScope)
+			}
+
+			libOtel.HandleSpanError(&span, "Failed to process limit atomically", err)
+
 			return nil, err
 		}
 
-		checkResults = append(checkResults, *result)
+		usageDetails = append(usageDetails, *detail)
 
-		if result.exceeded {
-			exceededIDs = append(exceededIDs, limit.ID)
+		if exceeded {
+			// Limit exceeded - rollback already-incremented counters and break
+			exceededLimitID = &limit.ID
+
+			// Rollback with detached context - compensation must complete regardless
+			// of request cancellation to prevent false limit exhaustion.
+			if len(incrementedDetails) > 0 {
+				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+				defer cancel()
+				// Preserve trace context for observability
+				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
+				//nolint:contextcheck // Intentional: using detached context for compensation
+				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, txScope)
+			}
+
+			break
 		}
-	}
 
-	// Build usage details from check results
-	usageDetails := make([]model.LimitUsageDetail, 0, len(checkResults))
-	for _, result := range checkResults {
-		usageDetails = append(usageDetails, *result.detail)
+		// Only track DAILY/MONTHLY limits for potential rollback (PER_TRANSACTION has no counters)
+		if limit.LimitType != model.LimitTypePerTransaction {
+			incrementedDetails = append(incrementedDetails, *detail)
+		}
 	}
 
 	output := model.NewCheckLimitsOutput(true).WithLimitUsageDetails(usageDetails)
 
-	if len(exceededIDs) > 0 {
-		// Some limits exceeded - do NOT increment any counters
-		output = output.WithExceededLimits(exceededIDs)
+	if exceededLimitID != nil {
+		output = output.WithExceededLimits([]uuid.UUID{*exceededLimitID})
 		output.Allowed = false
 
 		logger.WithFields(
 			"operation", "service.limit_checker.check_limits",
-			"exceeded_count", len(exceededIDs),
-			"exceeded_limit_ids", exceededIDs,
-		).Info("Limits exceeded")
+			"exceeded_limit_id", exceededLimitID.String(),
+		).Info("Limit exceeded")
 	} else {
-		// Phase 2: All limits passed - now increment all counters
-		if err := s.incrementAllCounters(ctx, checkResults, input.Amount); err != nil {
-			libOtel.HandleSpanError(&span, "Failed to increment counters", err)
-			return nil, err
-		}
-
 		logger.WithFields(
 			"operation", "service.limit_checker.check_limits",
 			"checked_count", len(usageDetails),
@@ -182,6 +211,281 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 	}
 
 	return output, nil
+}
+
+// processLimitAtomic processes a single limit using atomic upsert for DAILY/MONTHLY limits.
+// Returns the usage detail, whether the limit was exceeded, and any error.
+func (s *LimitCheckerService) processLimitAtomic(
+	ctx context.Context,
+	limit *model.Limit,
+	input *model.CheckLimitsInput,
+	scopeKey string,
+	serverNow time.Time,
+) (*model.LimitUsageDetail, bool, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.limit_checker.process_limit_atomic")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	if err := libOtel.SetSpanAttributesFromStruct(&span, "limit", map[string]any{
+		"id":        limit.ID.String(),
+		"name":      limit.Name,
+		"type":      string(limit.LimitType),
+		"maxAmount": limit.MaxAmount,
+	}); err != nil {
+		span.RecordError(err)
+
+		logger.WithFields(
+			"operation", "service.limit_checker.process_limit_atomic",
+			"limit_id", limit.ID.String(),
+			"limit_name", limit.Name,
+			"error", err.Error(),
+		).Warn("Failed to set span attributes for limit")
+	}
+
+	// For PER_TRANSACTION limits, check directly against maxAmount (no counter needed)
+	if limit.LimitType == model.LimitTypePerTransaction {
+		exceeded := input.Amount.GreaterThan(limit.MaxAmount)
+		detail := &model.LimitUsageDetail{
+			LimitID:           limit.ID,
+			LimitAmount:       limit.MaxAmount,
+			Scope:             formatScopeString(limit.Scopes),
+			Period:            limit.LimitType,
+			CurrentUsage:      decimal.Zero, // PER_TRANSACTION has no persistent usage
+			AttemptedAmount:   input.Amount,
+			Exceeded:          exceeded,
+			InternalLimitType: limit.LimitType,
+			Scopes:            append([]model.Scope(nil), limit.Scopes...),
+			InternalPeriodKey: "", // PER_TRANSACTION has no period key
+		}
+
+		logger.WithFields(
+			"operation", "service.limit_checker.process_limit_atomic",
+			"limit_id", limit.ID.String(),
+			"limit_type", "PER_TRANSACTION",
+			"max_amount", limit.MaxAmount.String(),
+			"transaction_amount", input.Amount.String(),
+			"exceeded", exceeded,
+		).Info("Checked PER_TRANSACTION limit")
+
+		return detail, exceeded, nil
+	}
+
+	// For DAILY/MONTHLY limits, use atomic upsert
+	periodKey, err := model.CalculatePeriodKey(limit.LimitType, serverNow)
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to calculate period key", err)
+		return nil, false, err
+	}
+
+	// Pre-check: amount > maxAmount would always fail (INSERT path has no WHERE guard)
+	if input.Amount.GreaterThan(limit.MaxAmount) {
+		// Fetch current usage to report projected total accurately
+		currentUsage := decimal.Zero
+
+		usageMap, err := s.usageCounterRepo.GetUsageForLimits(ctx, []uuid.UUID{limit.ID}, scopeKey, periodKey)
+		if err != nil {
+			libOtel.HandleSpanError(&span, "Failed to get existing usage for pre-check", err)
+			return nil, false, fmt.Errorf("failed to get existing usage for pre-check: %w", err)
+		}
+
+		if usage, found := usageMap[limit.ID]; found {
+			currentUsage = usage
+		}
+
+		detail := &model.LimitUsageDetail{
+			LimitID:           limit.ID,
+			LimitAmount:       limit.MaxAmount,
+			Scope:             formatScopeString(limit.Scopes),
+			Period:            limit.LimitType,
+			CurrentUsage:      currentUsage.Add(input.Amount), // Projected total: existing + attempted
+			AttemptedAmount:   input.Amount,
+			Exceeded:          true,
+			InternalLimitType: limit.LimitType,
+			Scopes:            append([]model.Scope(nil), limit.Scopes...),
+			InternalPeriodKey: periodKey,
+		}
+
+		logger.WithFields(
+			"operation", "service.limit_checker.process_limit_atomic",
+			"limit_id", limit.ID.String(),
+			"limit_type", string(limit.LimitType),
+			"max_amount", limit.MaxAmount.String(),
+			"transaction_amount", input.Amount.String(),
+			"exceeded", true,
+		).Info("Amount exceeds limit maximum (pre-check)")
+
+		return detail, true, nil
+	}
+
+	// Atomic upsert: create or increment counter, enforcing maxAmount in DB
+	newUsage, err := s.usageCounterRepo.UpsertAndIncrementAtomic(
+		ctx,
+		limit.ID,
+		scopeKey,
+		periodKey,
+		input.Amount,
+		limit.MaxAmount,
+	)
+
+	if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
+		// Limit exceeded - the counter was NOT incremented
+		libOtel.HandleSpanBusinessErrorEvent(&span, "Limit exceeded", err)
+
+		detail := &model.LimitUsageDetail{
+			LimitID:           limit.ID,
+			LimitAmount:       limit.MaxAmount,
+			Scope:             formatScopeString(limit.Scopes),
+			Period:            limit.LimitType,
+			CurrentUsage:      newUsage.Add(input.Amount), // Projected usage (what it would be)
+			AttemptedAmount:   input.Amount,
+			Exceeded:          true,
+			InternalLimitType: limit.LimitType,
+			Scopes:            append([]model.Scope(nil), limit.Scopes...),
+			InternalPeriodKey: periodKey,
+		}
+
+		logger.WithFields(
+			"operation", "service.limit_checker.process_limit_atomic",
+			"limit_id", limit.ID.String(),
+			"limit_type", string(limit.LimitType),
+			"max_amount", limit.MaxAmount.String(),
+			"transaction_amount", input.Amount.String(),
+			"exceeded", true,
+		).Info("Limit exceeded (atomic check)")
+
+		return detail, true, nil
+	}
+
+	if err != nil {
+		// DB error
+		libOtel.HandleSpanError(&span, "Failed to upsert and increment counter", err)
+		return nil, false, fmt.Errorf("failed to upsert and increment counter: %w", err)
+	}
+
+	// Success: counter was incremented
+	detail := &model.LimitUsageDetail{
+		LimitID:           limit.ID,
+		LimitAmount:       limit.MaxAmount,
+		Scope:             formatScopeString(limit.Scopes),
+		Period:            limit.LimitType,
+		CurrentUsage:      newUsage, // Actual new usage from DB
+		AttemptedAmount:   input.Amount,
+		Exceeded:          false,
+		InternalLimitType: limit.LimitType,
+		Scopes:            append([]model.Scope(nil), limit.Scopes...),
+		InternalPeriodKey: periodKey,
+	}
+
+	logger.WithFields(
+		"operation", "service.limit_checker.process_limit_atomic",
+		"limit_id", limit.ID.String(),
+		"limit_type", string(limit.LimitType),
+		"max_amount", limit.MaxAmount.String(),
+		"new_usage", newUsage.String(),
+		"transaction_amount", input.Amount.String(),
+		"period_key", periodKey,
+	).Info("Limit check passed (atomic upsert)")
+
+	return detail, false, nil
+}
+
+// rollbackIncrementedCounters decrements counters that were already incremented when a later limit fails.
+// Uses the InternalPeriodKey and Scopes stored in each detail to target the exact counter.
+// Best-effort: logs errors but continues (see EVENTUAL CONSISTENCY DESIGN in RollbackUsage).
+func (s *LimitCheckerService) rollbackIncrementedCounters(
+	ctx context.Context,
+	input *model.CheckLimitsInput,
+	incrementedDetails []model.LimitUsageDetail,
+	txScope *model.Scope,
+) {
+	logger, tracer, _, metricsFactory := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.limit_checker.rollback_incremented_counters")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	logger.WithFields(
+		"operation", "service.limit_checker.rollback_incremented_counters",
+		"details_count", len(incrementedDetails),
+	).Info("Rolling back incremented counters")
+
+	var failedLimits []uuid.UUID
+
+	for _, detail := range incrementedDetails {
+		// Use the stored period key (computed at increment time)
+		periodKey := detail.InternalPeriodKey
+
+		if periodKey == "" {
+			logger.WithFields(
+				"operation", "service.limit_checker.rollback_incremented_counters",
+				"limit_id", detail.LimitID.String(),
+			).Warn("No period key stored for rollback, skipping")
+
+			failedLimits = append(failedLimits, detail.LimitID)
+
+			continue
+		}
+
+		// Calculate scope key from the limit's scopes (stored in detail.Scopes)
+		// This ensures rollback uses the SAME key that was used during increment,
+		// preventing scope key mismatch when limits have different granularities.
+		scopeKey := calculateScopeKeyFromScopes(detail.Scopes, txScope)
+
+		// Get existing counter (do NOT create one - rollback should only affect existing counters)
+		counter, err := s.usageCounterRepo.GetForUpdate(ctx, detail.LimitID, scopeKey, periodKey)
+		if err != nil {
+			logger.WithFields(
+				"operation", "service.limit_checker.rollback_incremented_counters",
+				"limit_id", detail.LimitID.String(),
+				"period_key", periodKey,
+				"error", err.Error(),
+			).Warn("Failed to get counter for rollback, skipping")
+
+			failedLimits = append(failedLimits, detail.LimitID)
+
+			continue
+		}
+
+		if err := s.usageCounterRepo.DecrementAtomic(ctx, counter.ID, input.Amount); err != nil {
+			logger.WithFields(
+				"operation", "service.limit_checker.rollback_incremented_counters",
+				"limit_id", detail.LimitID.String(),
+				"counter_id", counter.ID.String(),
+				"amount", input.Amount.String(),
+				"error", err.Error(),
+			).Warn("Failed to decrement counter for rollback, skipping")
+
+			failedLimits = append(failedLimits, detail.LimitID)
+
+			continue
+		}
+
+		logger.WithFields(
+			"operation", "service.limit_checker.rollback_incremented_counters",
+			"limit_id", detail.LimitID.String(),
+			"counter_id", counter.ID.String(),
+			"amount", input.Amount.String(),
+		).Info("Rolled back counter")
+	}
+
+	if len(failedLimits) > 0 {
+		libOtel.HandleSpanBusinessErrorEvent(&span, "Some counters failed to rollback", fmt.Errorf("failed limits: %v", failedLimits))
+
+		// Emit metric for alerting
+		if metricsFactory != nil {
+			metricsFactory.Counter(MetricRollbackFailures).Add(ctx, int64(len(failedLimits)))
+		}
+
+		logger.WithFields(
+			"operation", "service.limit_checker.rollback_incremented_counters",
+			"failed_count", len(failedLimits),
+			"failed_limit_ids", failedLimits,
+		).Warn("Some counters failed to rollback")
+	}
 }
 
 // RollbackUsage decrements usage counters for limits that were previously incremented.
@@ -230,6 +534,13 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 	// Note: PER_TRANSACTION limits don't have persistent counters and are skipped
 	var failedLimits []uuid.UUID
 
+	// Build transaction scope once; derive scope key per detail to match increment path
+	txScope := buildTransactionScope(input)
+
+	// Calculate server time once for consistent period key fallback
+	// Prevents period key mismatch when rollback crosses period boundary
+	serverTime := s.clock.Now()
+
 	for _, detail := range usageDetails {
 		// PER_TRANSACTION limits don't have persistent counters - skip without DB lookup
 		// InternalLimitType is now included in LimitUsageDetail to avoid N+1 queries
@@ -237,21 +548,53 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 			continue
 		}
 
-		// Calculate scope key using transaction context from input
-		txScope := buildTransactionScope(input)
-		scopeKey := model.CalculateScopeKey(txScope)
+		// Use the stored period key (computed at increment time) to target exact counter
+		// This prevents period key mismatch when rollback crosses a period boundary
+		periodKey := detail.InternalPeriodKey
+		if periodKey == "" {
+			// Fallback for legacy callers or external rollback calls without stored period key
+			// Use InternalLimitType if populated, otherwise fall back to Period field
+			fallbackType := detail.InternalLimitType
+			if fallbackType == "" {
+				fallbackType = detail.Period
+			}
 
-		periodKey, err := model.CalculatePeriodKey(detail.InternalLimitType, input.TransactionTimestamp)
-		if err != nil {
+			// Skip PER_TRANSACTION limits even in fallback path
+			// Legacy details may have empty InternalLimitType but Period == PER_TRANSACTION
+			if fallbackType == model.LimitTypePerTransaction {
+				continue
+			}
+
+			var calcErr error
+
+			periodKey, calcErr = model.CalculatePeriodKey(fallbackType, serverTime)
+			if calcErr != nil {
+				logger.WithFields(
+					"operation", "service.limit_checker.rollback_usage",
+					"limit_id", detail.LimitID.String(),
+					"limit_type", string(fallbackType),
+					"error", calcErr.Error(),
+				).Warn("Failed to calculate fallback period key, skipping")
+
+				failedLimits = append(failedLimits, detail.LimitID)
+
+				continue
+			}
+
 			logger.WithFields(
 				"operation", "service.limit_checker.rollback_usage",
 				"limit_id", detail.LimitID.String(),
-				"error", err.Error(),
-			).Warn("Failed to calculate period key for rollback, skipping")
+				"period_key", periodKey,
+			).Info("Using server clock fallback for period key")
+		}
 
-			failedLimits = append(failedLimits, detail.LimitID)
-
-			continue
+		// Calculate scope key from the limit's scopes (stored in detail.Scopes)
+		// This ensures rollback uses the SAME key that was used during increment,
+		// preventing scope key mismatch when limits have different granularities.
+		// Legacy fallback: if Scopes is empty, use transaction scope (for backward compatibility)
+		scopeKey := model.CalculateScopeKey(txScope)
+		if len(detail.Scopes) > 0 {
+			scopeKey = calculateScopeKeyFromScopes(detail.Scopes, txScope)
 		}
 
 		// Get existing counter (do NOT create one - rollback should only affect existing counters)
@@ -260,6 +603,7 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 			logger.WithFields(
 				"operation", "service.limit_checker.rollback_usage",
 				"limit_id", detail.LimitID.String(),
+				"period_key", periodKey,
 				"error", err.Error(),
 			).Warn("Failed to get counter for rollback, skipping")
 
@@ -286,6 +630,7 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 			"operation", "service.limit_checker.rollback_usage",
 			"limit_id", detail.LimitID.String(),
 			"counter_id", counter.ID.String(),
+			"period_key", periodKey,
 			"amount", input.Amount.String(),
 		).Info("Rolled back usage for limit")
 	}
@@ -376,155 +721,6 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 	return applicable, nil
 }
 
-// checkSingleLimitWithoutIncrement checks a single limit and returns usage details.
-// Does NOT increment counters - that happens in incrementAllCounters after all limits pass.
-func (s *LimitCheckerService) checkSingleLimitWithoutIncrement(ctx context.Context, limit *model.Limit, input *model.CheckLimitsInput) (*limitCheckResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "service.limit_checker.check_single_limit")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "limit", map[string]any{
-		"id":        limit.ID.String(),
-		"name":      limit.Name,
-		"type":      string(limit.LimitType),
-		"maxAmount": limit.MaxAmount,
-	}); err != nil {
-		span.RecordError(err)
-
-		logger.WithFields(
-			"operation", "service.limit_checker.check_single_limit",
-			"limit_id", limit.ID.String(),
-			"limit_name", limit.Name,
-			"error", err.Error(),
-		).Warn("Failed to set span attributes for limit")
-	}
-
-	// For PER_TRANSACTION limits, check directly against maxAmount
-	if limit.LimitType == model.LimitTypePerTransaction {
-		exceeded := input.Amount.GreaterThan(limit.MaxAmount)
-		detail := &model.LimitUsageDetail{
-			LimitID:         limit.ID,
-			LimitAmount:     limit.MaxAmount,
-			Scope:           formatScopeString(limit.Scopes),
-			Period:          limit.LimitType,
-			CurrentUsage:    decimal.Zero, // PER_TRANSACTION has no persistent usage
-			AttemptedAmount: input.Amount,
-			Exceeded:        exceeded,
-			// Internal fields for rollback
-			InternalLimitType: limit.LimitType,
-			Scopes:            append([]model.Scope(nil), limit.Scopes...),
-		}
-
-		logger.WithFields(
-			"operation", "service.limit_checker.check_single_limit",
-			"limit_id", limit.ID.String(),
-			"limit_type", "PER_TRANSACTION",
-			"max_amount", limit.MaxAmount.String(),
-			"transaction_amount", input.Amount.String(),
-			"exceeded", exceeded,
-		).Info("Checked PER_TRANSACTION limit")
-
-		return &limitCheckResult{
-			detail:    detail,
-			exceeded:  exceeded,
-			counterID: nil, // PER_TRANSACTION has no counter
-		}, nil
-	}
-
-	// For DAILY/MONTHLY limits, get/create counter and check projected usage
-	txScope := buildTransactionScope(input)
-	scopeKey := model.CalculateScopeKey(txScope)
-
-	serverNow := s.clock.Now()
-
-	periodKey, err := model.CalculatePeriodKey(limit.LimitType, serverNow)
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to calculate period key", err)
-		return nil, err
-	}
-
-	// Get or create the counter with row-level lock
-	counter, err := s.usageCounterRepo.GetOrCreateForUpdate(ctx, limit.ID, scopeKey, periodKey)
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get usage counter", err)
-		return nil, err
-	}
-
-	// Calculate projected usage
-	projectedUsage := counter.CurrentUsage.Add(input.Amount)
-	exceeded := projectedUsage.GreaterThan(limit.MaxAmount)
-
-	logger.WithFields(
-		"operation", "service.limit_checker.check_single_limit",
-		"limit_id", limit.ID.String(),
-		"limit_type", string(limit.LimitType),
-		"max_amount", limit.MaxAmount.String(),
-		"current_usage", counter.CurrentUsage.String(),
-		"transaction_amount", input.Amount.String(),
-		"projected_usage", projectedUsage.String(),
-		"exceeded", exceeded,
-	).Info("Checked limit")
-
-	// CurrentUsage represents the projected usage after applying input.Amount,
-	// not the persisted/actual counter value. This projected value is returned
-	// regardless of whether the limit was exceeded or the increment was applied.
-	// When exceeded=true, the counter was NOT incremented but CurrentUsage still
-	// shows what the usage would have been if the transaction were allowed.
-	detail := &model.LimitUsageDetail{
-		LimitID:         limit.ID,
-		LimitAmount:     limit.MaxAmount,
-		Scope:           formatScopeString(limit.Scopes),
-		Period:          limit.LimitType,
-		CurrentUsage:    projectedUsage,
-		AttemptedAmount: input.Amount,
-		Exceeded:        exceeded,
-		// Internal fields for rollback
-		InternalLimitType: limit.LimitType,
-		Scopes:            append([]model.Scope(nil), limit.Scopes...),
-	}
-
-	return &limitCheckResult{
-		detail:    detail,
-		exceeded:  exceeded,
-		counterID: &counter.ID,
-	}, nil
-}
-
-// incrementAllCounters increments all counters after all limits have passed.
-// Only called when no limits are exceeded.
-func (s *LimitCheckerService) incrementAllCounters(ctx context.Context, results []limitCheckResult, amount decimal.Decimal) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "service.limit_checker.increment_all_counters")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	for _, result := range results {
-		// Skip PER_TRANSACTION limits (no persistent counter)
-		if result.counterID == nil {
-			continue
-		}
-
-		if err := s.usageCounterRepo.IncrementAtomic(ctx, *result.counterID, amount); err != nil {
-			libOtel.HandleSpanError(&span, "Failed to increment counter", err)
-			return err
-		}
-
-		logger.WithFields(
-			"operation", "service.limit_checker.increment_all_counters",
-			"limit_id", result.detail.LimitID.String(),
-			"counter_id", result.counterID.String(),
-			"increment_amount", amount.String(),
-		).Info("Incremented usage counter")
-	}
-
-	return nil
-}
-
 // buildTransactionScope creates a Scope from CheckLimitsInput fields.
 // This scope is used for matching against limit scopes and for scopeKey generation.
 func buildTransactionScope(input *model.CheckLimitsInput) *model.Scope {
@@ -561,6 +757,44 @@ func scopeMatchesLimit(limitScopes []model.Scope, txScope *model.Scope) bool {
 	}
 
 	return false
+}
+
+// calculateScopeKeyForLimit computes the scope key based on the limit's scope, not the transaction's.
+// This prevents counter fragmentation when limits have different scope granularities.
+// Returns the first matching limit scope's key, or "global" if limit has no scopes.
+//
+// Example:
+//   - Transaction: {AccountID: A, SegmentID: S, PortfolioID: P}
+//   - Limit scope: {AccountID: A}
+//   - Returns: "acct:A" (NOT "acct:A:seg:S:port:P")
+//
+// This ensures that account-level limits aggregate ALL transactions for that account,
+// regardless of segment/portfolio, which is the correct enforcement behavior.
+func calculateScopeKeyForLimit(limit *model.Limit, txScope *model.Scope) string {
+	return calculateScopeKeyFromScopes(limit.Scopes, txScope)
+}
+
+// calculateScopeKeyFromScopes computes the scope key from a list of scopes.
+// Used for both CheckLimits and rollback operations.
+// Returns the first matching scope's key, or "global" if no scopes.
+func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) string {
+	// Global limit (no scopes) uses "global" key
+	if len(scopes) == 0 {
+		return "global"
+	}
+
+	// Find the first scope that matches the transaction
+	// Use that scope (not the transaction scope) to calculate the key
+	for i := range scopes {
+		if scopes[i].Matches(txScope) {
+			// Calculate key from the matched scope, not the transaction's
+			return model.CalculateScopeKey(&scopes[i])
+		}
+	}
+
+	// Should never reach here - scopes were already filtered as applicable
+	// But defensively return a key based on transaction scope
+	return model.CalculateScopeKey(txScope)
 }
 
 // formatScopeString creates a human-readable string representation of scopes.

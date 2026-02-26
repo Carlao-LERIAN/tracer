@@ -172,14 +172,34 @@ func TestValidateTransaction(t *testing.T) {
 					Return(evalResult, nil)
 
 				// Limit check should be called (REVIEW doesn't short-circuit)
+				// Populate LimitUsageDetails with realistic data to verify RollbackUsage receives full payload
 				limitOutput := &model.CheckLimitsOutput{
-					Allowed:           true,
-					LimitUsageDetails: []model.LimitUsageDetail{},
-					ExceededLimitIDs:  []uuid.UUID{},
+					Allowed: true,
+					LimitUsageDetails: []model.LimitUsageDetail{
+						{
+							LimitID:           limitID,
+							LimitAmount:       decimal.RequireFromString("1000"),
+							Scope:             "acct:" + accountID.String(),
+							Period:            model.LimitTypeDaily,
+							CurrentUsage:      decimal.RequireFromString("100"),
+							AttemptedAmount:   decimal.RequireFromString("100"),
+							Exceeded:          false,
+							InternalLimitType: model.LimitTypeDaily,
+							Scopes:            []model.Scope{{AccountID: &accountID}},
+							InternalPeriodKey: "2025-01-15",
+						},
+					},
+					ExceededLimitIDs: []uuid.UUID{},
 				}
 				limitCheck.EXPECT().
 					CheckLimits(gomock.Any(), gomock.Any()).
 					Return(limitOutput, nil)
+
+				// REVIEW decision triggers rollback of usage increments
+				// Assert that RollbackUsage receives the expected LimitUsageDetails from CheckLimits
+				limitCheck.EXPECT().
+					RollbackUsage(gomock.Any(), gomock.Any(), gomock.Eq(limitOutput.LimitUsageDetails)).
+					Return(nil)
 
 				// Audit should be inserted - signal completion via channel
 				transactionValidationRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -193,6 +213,73 @@ func TestValidateTransaction(t *testing.T) {
 			expectedDecision: model.DecisionReview,
 			expectedReason:   "Rule requires review",
 			expectError:      false,
+		},
+		{
+			name:    "REVIEW rollback failure is non-fatal",
+			request: baseRequest,
+			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+				limitCheck := mocks.NewMockLimitChecker(ctrl)
+				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// AuditWriter mock - expects RecordValidationEvent call
+				auditWriter := mocks.NewMockAuditWriter(ctrl)
+				auditWriter.EXPECT().RecordValidationEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+				// Rule evaluation returns REVIEW
+				evalResult, err := model.NewEvaluationResult(
+					model.DecisionReview,
+					[]uuid.UUID{ruleID1},
+					[]uuid.UUID{ruleID1, ruleID2},
+					"Rule requires review",
+				)
+				require.NoError(t, err)
+				ruleEval.EXPECT().
+					Execute(gomock.Any(), gomock.Any()).
+					Return(evalResult, nil)
+
+				// Limit check should be called
+				// Populate LimitUsageDetails with realistic data to verify RollbackUsage receives full payload
+				limitOutput := &model.CheckLimitsOutput{
+					Allowed: true,
+					LimitUsageDetails: []model.LimitUsageDetail{
+						{
+							LimitID:           limitID,
+							LimitAmount:       decimal.RequireFromString("1000"),
+							Scope:             "acct:" + accountID.String(),
+							Period:            model.LimitTypeDaily,
+							CurrentUsage:      decimal.RequireFromString("100"),
+							AttemptedAmount:   decimal.RequireFromString("100"),
+							Exceeded:          false,
+							InternalLimitType: model.LimitTypeDaily,
+							Scopes:            []model.Scope{{AccountID: &accountID}},
+							InternalPeriodKey: "2025-01-15",
+						},
+					},
+					ExceededLimitIDs: []uuid.UUID{},
+				}
+				limitCheck.EXPECT().
+					CheckLimits(gomock.Any(), gomock.Any()).
+					Return(limitOutput, nil)
+
+				// REVIEW decision triggers rollback - ROLLBACK FAILS (DB timeout)
+				// Assert that RollbackUsage receives the expected LimitUsageDetails from CheckLimits
+				limitCheck.EXPECT().
+					RollbackUsage(gomock.Any(), gomock.Any(), gomock.Eq(limitOutput.LimitUsageDetails)).
+					Return(errors.New("database timeout during rollback"))
+
+				// Audit should still be inserted despite rollback failure
+				transactionValidationRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ *model.TransactionValidation) error {
+						close(persistDone)
+						return nil
+					})
+
+				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+			},
+			expectedDecision: model.DecisionReview,
+			expectedReason:   "Rule requires review",
+			expectError:      false, // Rollback failure should NOT fail the validation
 		},
 		{
 			name:    "DENY by limit takes precedence over REVIEW",

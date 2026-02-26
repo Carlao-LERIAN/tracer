@@ -12,10 +12,12 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"tracer/internal/testutil"
+	"tracer/pkg/model"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -604,17 +606,17 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	// Assert status code first (fail-fast)
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
 
-		// If counters exist, verify the usage
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("200").Equal(usageResponse.Counters[0].CurrentUsage),
-				"currentUsage should be 200 after validation")
-		}
-	}
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	// Verify the usage directly
+	assert.True(t, decimal.RequireFromString("200").Equal(usageResponse.CurrentUsage),
+		"currentUsage should be 200 after validation")
 }
 
 // TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny verifies that
@@ -697,15 +699,16 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("500").Equal(usageResponse.Counters[0].CurrentUsage),
-				"Usage should NOT be incremented on rule-based DENY")
-		}
-	}
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
+
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("500").Equal(usageResponse.CurrentUsage),
+		"Usage should NOT be incremented on rule-based DENY")
 }
 
 // TestLimitsVerification_5_2_3_DoesNotIncrementOnReview verifies that
@@ -788,15 +791,16 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("300").Equal(usageResponse.Counters[0].CurrentUsage),
-				"Usage should NOT be incremented on REVIEW")
-		}
-	}
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
+
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage),
+		"Usage should NOT be incremented on REVIEW")
 }
 
 // TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly verifies that
@@ -889,18 +893,18 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
 
-		if len(usageResponse.Counters) > 0 {
-			// Final usage should be successCount * amountPerTx
-			expectedUsage := decimal.NewFromInt(int64(successCount * amountPerTx))
-			assert.True(t, expectedUsage.Equal(usageResponse.Counters[0].CurrentUsage),
-				"Final currentUsage should be %s (based on %d successful validations)", expectedUsage, successCount)
-		}
-	}
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	// Final usage should be successCount * amountPerTx
+	expectedUsage := decimal.NewFromInt(int64(successCount * amountPerTx))
+	assert.True(t, expectedUsage.Equal(usageResponse.CurrentUsage),
+		"Final currentUsage should be %s (based on %d successful validations)", expectedUsage, successCount)
 
 	// All transactions should succeed (limit is high enough)
 	assert.Equal(t, numConcurrent, successCount, "All 10 concurrent transactions should succeed")
@@ -911,13 +915,10 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 //
 // Test spec 5.2.5: Race condition prevented
 //
-// Note: This test verifies that the system handles concurrent transactions
-// near the limit boundary. The expected behavior is:
-// - If atomic locking: exactly 1 approved, 2 rejected
-// - If optimistic: possibly more approved, but final usage should not exceed limit by much
-//
-// The test documents the observed behavior and verifies the total processed
-// matches the expected count.
+// Scenario: DAILY limit of 1000, pre-loaded with currentUsage=900 (one validation of amount=900).
+// Action: 3 concurrent goroutines each with amount=100.
+// Assertions: Exactly 1 approved (900+100=1000), exactly 2 denied.
+// Verify final currentUsage=1000 via GET /v1/limits/{limitID}/usage.
 func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(50250).String()
 
@@ -928,13 +929,17 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 		testutil.CleanupLimit(t, limitID)
 	})
 
+	// Freeze timestamp to avoid period-boundary flakes in concurrency tests
+	// All requests in this test must use the same timestamp to ensure they target the same period
+	fixedTimestamp := time.Now().UTC().Format(time.RFC3339)
+
 	// First, establish currentUsage = 900
 	setupReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50251).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("900"),
 		Currency:             "BRL",
-		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
+		TransactionTimestamp: fixedTimestamp,
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -945,15 +950,13 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 	require.Equal(t, http.StatusOK, respSetup.StatusCode, "Setup validation should succeed: %s", string(bodySetup))
 
 	// Fire 3 parallel validations of amount=100 each
-	// Expected: Only 1 should succeed if atomic locking is implemented
-	// (900 + 100 = 1000 <= limit)
+	// Expected: Only 1 should succeed (atomic check-and-increment)
+	// (900 + 100 = 1000 <= limit, subsequent attempts exceed)
 	const numConcurrent = 3
-	const amountPerTx = 100
 
 	var wg sync.WaitGroup
-	approvedCount := 0
-	rejectedCount := 0
-	var mu sync.Mutex
+	var approvedCount int64
+	var deniedCount int64
 
 	for i := 0; i < numConcurrent; i++ {
 		wg.Add(1)
@@ -965,7 +968,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 				TransactionType:      "PIX",
 				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
-				TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
+				TransactionTimestamp: fixedTimestamp,
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -974,45 +977,60 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 			resp, body := testutil.CreateValidation(t, req)
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK {
+			// Use assert (not require) inside goroutines to avoid panics
+			if !assert.Equal(t, http.StatusOK, resp.StatusCode, "Validation request should return 200 OK") {
 				return
 			}
 
 			var result testutil.ValidationResponse
 			if err := json.Unmarshal(body, &result); err != nil {
+				assert.NoError(t, err, "Failed to unmarshal validation response")
 				return
 			}
 
-			mu.Lock()
-			defer mu.Unlock()
-
 			if result.Decision == "DENY" && result.Reason == "limit_exceeded" {
-				rejectedCount++
+				atomic.AddInt64(&deniedCount, 1)
 			} else if result.Decision != "DENY" {
-				approvedCount++
+				atomic.AddInt64(&approvedCount, 1)
 			}
 		}(i)
 	}
 
 	wg.Wait()
 
+	// Load final counts
+	finalApproved := atomic.LoadInt64(&approvedCount)
+	finalDenied := atomic.LoadInt64(&deniedCount)
+
 	// Log observed behavior for documentation
-	t.Logf("Race condition test results: approved=%d, rejected=%d", approvedCount, rejectedCount)
+	t.Logf("Race condition test results: approved=%d, denied=%d", finalApproved, finalDenied)
 
-	// Verify: Total processed should equal numConcurrent
-	totalProcessed := approvedCount + rejectedCount
-	assert.Equal(t, numConcurrent, totalProcessed, "All %d transactions should be processed", numConcurrent)
+	// Verify: Exactly 1 approved and 2 denied (atomic enforcement)
+	assert.Equal(t, int64(1), finalApproved, "Exactly 1 transaction should be approved (atomic enforcement)")
+	assert.Equal(t, int64(2), finalDenied, "Exactly 2 transactions should be denied (limit exceeded)")
 
-	// Ideal behavior: exactly 1 approved (atomic check-and-increment)
-	// Current behavior may vary based on implementation
-	// This assertion documents expected behavior - adjust if optimistic locking is used
-	if approvedCount > 1 {
-		t.Logf("NOTE: %d transactions approved (expected 1 with atomic locking). "+
-			"This may indicate optimistic concurrency or a race condition.", approvedCount)
-	}
+	// Verify final usage via GET /v1/limits/{limitID}/usage
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
 
-	// At minimum, verify at least one transaction was processed
-	assert.GreaterOrEqual(t, totalProcessed, 1, "At least 1 transaction should be processed")
+	usageReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
+	require.NoError(t, err)
+	usageReq.Header.Set("X-API-Key", apiKey)
+
+	usageResp, err := testutil.HTTPClient.Do(usageReq)
+	require.NoError(t, err)
+	defer usageResp.Body.Close()
+
+	usageBody, err := io.ReadAll(usageResp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, usageResp.StatusCode, "Get usage should succeed: %s", string(usageBody))
+
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("1000").Equal(usageResponse.CurrentUsage),
+		"Final currentUsage should be 1000 (900 + 100)")
 }
 
 // =============================================================================
@@ -1234,15 +1252,15 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	var initialUsage decimal.Decimal
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
-		if len(usageResponse.Counters) > 0 {
-			initialUsage = usageResponse.Counters[0].CurrentUsage
-		}
-	}
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
+
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	initialUsage := usageResponse.CurrentUsage
 
 	// Try to trigger a validation with fault injection (if supported)
 	// This simulates a failure after increment but before commit
@@ -1266,50 +1284,44 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 		t.Log("Fault injection triggered 503 - verifying rollback behavior")
 
 		// Poll for rollback completion (avoid flaky fixed sleeps)
-		// Returns (usage, hasCounters, error) to distinguish network errors from empty counters.
-		checkUsage := func() (decimal.Decimal, bool, error) {
+		// Returns (usage, error) to distinguish transient network errors from actual usage values.
+		checkUsage := func() (decimal.Decimal, error) {
 			usageReq2, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
 			if err != nil {
-				return decimal.Zero, false, fmt.Errorf("create request: %w", err)
+				return decimal.Zero, fmt.Errorf("create request: %w", err)
 			}
 			usageReq2.Header.Set("X-API-Key", apiKey)
 
 			usageResp2, err := testutil.HTTPClient.Do(usageReq2)
 			if err != nil {
-				return decimal.Zero, false, fmt.Errorf("HTTP request: %w", err)
+				return decimal.Zero, fmt.Errorf("HTTP request: %w", err)
 			}
 			defer usageResp2.Body.Close()
 
 			usageBody2, err := io.ReadAll(usageResp2.Body)
 			if err != nil {
-				return decimal.Zero, false, fmt.Errorf("read body: %w", err)
+				return decimal.Zero, fmt.Errorf("read body: %w", err)
 			}
 
 			if usageResp2.StatusCode != http.StatusOK {
-				return decimal.Zero, false, fmt.Errorf("unexpected status %d: %s", usageResp2.StatusCode, string(usageBody2))
+				return decimal.Zero, fmt.Errorf("unexpected status %d: %s", usageResp2.StatusCode, string(usageBody2))
 			}
 
-			var usageResponse2 getLimitUsageResponse
+			var usageResponse2 model.UsageSnapshot
 			if err := json.Unmarshal(usageBody2, &usageResponse2); err != nil {
-				return decimal.Zero, false, fmt.Errorf("unmarshal: %w", err)
+				return decimal.Zero, fmt.Errorf("unmarshal: %w", err)
 			}
 
-			if len(usageResponse2.Counters) > 0 {
-				return usageResponse2.Counters[0].CurrentUsage, true, nil
-			}
-
-			return decimal.Zero, false, nil // no counters yet
+			return usageResponse2.CurrentUsage, nil
 		}
 
-		// Verify usage remains at initialUsage after rollback
+		// Verify usage returns to initialUsage after rollback
+		// Note: CurrentUsage=0 when no counters exist is acceptable if initialUsage was also 0
 		require.Eventually(t, func() bool {
-			usage, hasCounters, err := checkUsage()
+			usage, err := checkUsage()
 			if err != nil {
 				t.Logf("checkUsage error (retrying): %v", err)
 				return false // keep retrying on transient errors
-			}
-			if !hasCounters {
-				return true // no counters = zero usage = rollback complete
 			}
 			return usage.Equal(initialUsage)
 		}, 2*time.Second, 100*time.Millisecond, "Usage should be rolled back to %s after failure", initialUsage)
@@ -1414,17 +1426,17 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
 
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("800").Equal(usageResponse.Counters[0].CurrentUsage),
-				"currentUsage should be 800 in current period")
-			t.Logf("Current period usage: %s", usageResponse.Counters[0].CurrentUsage)
-		}
-	}
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("800").Equal(usageResponse.CurrentUsage),
+		"currentUsage should be 800 in current period")
+	t.Logf("Current period usage: %s", usageResponse.CurrentUsage)
 }
 
 // TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod verifies that
@@ -1514,17 +1526,17 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	// Assert status code first
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got: %s", string(usageBody))
 
-		if len(usageResponse.Counters) > 0 {
-			assert.True(t, decimal.RequireFromString("4500").Equal(usageResponse.Counters[0].CurrentUsage),
-				"currentUsage should be 4500 in current period")
-			t.Logf("Current period usage: %s", usageResponse.Counters[0].CurrentUsage)
-		}
-	}
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("4500").Equal(usageResponse.CurrentUsage),
+		"currentUsage should be 4500 in current period")
+	t.Logf("Current period usage: %s", usageResponse.CurrentUsage)
 }
 
 // TestLimitsVerification_5_3_4_OldCountersCleanedUp verifies that
@@ -1581,28 +1593,20 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse getLimitUsageResponse
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got %d: %s", usageResp.StatusCode, string(usageBody))
 
-		// Note: Counter structure depends on API implementation
-		// Some implementations may not return detailed counter info
-		if len(usageResponse.Counters) > 0 {
-			counter := usageResponse.Counters[0]
-			t.Logf("Current counter - Period: %s, Usage: %s", counter.PeriodKey, counter.CurrentUsage)
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
 
-			// Verify counter has expected structure
-			assert.NotEmpty(t, counter.PeriodKey, "Counter should have periodKey")
-			assert.True(t, decimal.RequireFromString("300").Equal(counter.CurrentUsage), "Counter should have expected usage")
-		} else {
-			t.Log("No counters returned by usage API - counter details may be internal implementation")
-			t.Logf("Usage response: %s", string(usageBody))
-		}
-	} else {
-		t.Logf("Usage endpoint returned status %d - counter query may not be implemented", usageResp.StatusCode)
-		t.Logf("Usage response: %s", string(usageBody))
-	}
+	// Verify usage snapshot - must be 300 after setup transaction
+	t.Logf("Current usage - Amount: %s, Limit: %s, Utilization: %.2f%%",
+		usageResponse.CurrentUsage, usageResponse.LimitAmount, usageResponse.UtilizationPercent)
+
+	// Verify usage has expected value (use require to fail test if wrong)
+	require.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage),
+		"Usage should be 300 after setup transaction, got %s", usageResponse.CurrentUsage)
 
 	// Document expected cleanup behavior
 	t.Log("Expected cleanup behavior:")
@@ -1612,4 +1616,530 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 	t.Log("  - For MONTHLY limits: counters older than 2 months")
 	t.Log("- Recent counters are preserved for auditing")
 	t.Log("- Cleanup does not affect current period counters")
+}
+
+// =============================================================================
+// 5.2.7 High Concurrency Atomic Enforcement
+// =============================================================================
+
+// TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement verifies that
+// atomic enforcement holds under high concurrency.
+//
+// Test spec 5.2.7: High concurrency atomic enforcement
+//
+// Scenario: 20 goroutines each send validation with amount=1000, limit=10000.
+// Expected: Exactly 10 approved, 10 denied.
+// Verify final currentUsage=10000 via GET /v1/limits/{limitID}/usage.
+func TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(90150).String()
+
+	// Create DAILY limit of 10000
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "10000")
+	testutil.ActivateLimit(t, limitID)
+	t.Cleanup(func() {
+		testutil.CleanupLimit(t, limitID)
+	})
+
+	// Fire 20 parallel validations of amount=1000 each
+	// Expected: 10 should succeed (10 * 1000 = 10000 <= limit), 10 should be denied
+	const numConcurrent = 20
+
+	// Freeze timestamp to avoid period-boundary flakes in concurrency tests
+	// All requests in this test must use the same timestamp to ensure they target the same period
+	fixedTimestamp := time.Now().UTC().Format(time.RFC3339)
+
+	var wg sync.WaitGroup
+	var approvedCount int64
+	var deniedCount int64
+
+	// Barrier sync: ready WaitGroup + start channel
+	ready := sync.WaitGroup{}
+	start := make(chan struct{})
+
+	for i := 0; i < numConcurrent; i++ {
+		wg.Add(1)
+		ready.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			req := &testutil.ValidationRequest{
+				RequestID:            testutil.MustDeterministicUUID(int64(90151 + idx)).String(),
+				TransactionType:      "PIX",
+				Amount:               decimal.RequireFromString("1000"),
+				Currency:             "BRL",
+				TransactionTimestamp: fixedTimestamp,
+				Account: &testutil.AccountContext{
+					ID: accountID,
+				},
+			}
+
+			// Signal ready and wait for start signal
+			ready.Done()
+			<-start
+
+			resp, body := testutil.CreateValidation(t, req)
+			defer resp.Body.Close()
+
+			// Use assert (not require) inside goroutines to avoid panics
+			if !assert.Equal(t, http.StatusOK, resp.StatusCode, "Validation request should return 200 OK") {
+				return
+			}
+
+			var result testutil.ValidationResponse
+			if err := json.Unmarshal(body, &result); err != nil {
+				assert.NoError(t, err, "Failed to unmarshal validation response")
+				return
+			}
+
+			if result.Decision == "DENY" && result.Reason == "limit_exceeded" {
+				atomic.AddInt64(&deniedCount, 1)
+			} else if result.Decision != "DENY" {
+				atomic.AddInt64(&approvedCount, 1)
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to be ready, then release them simultaneously
+	ready.Wait()
+	close(start)
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// Load final counts
+	finalApproved := atomic.LoadInt64(&approvedCount)
+	finalDenied := atomic.LoadInt64(&deniedCount)
+
+	// Log observed behavior for documentation
+	t.Logf("High concurrency test results: approved=%d, denied=%d", finalApproved, finalDenied)
+
+	// Verify: Exactly 10 approved and 10 denied (atomic enforcement)
+	assert.Equal(t, int64(10), finalApproved, "Exactly 10 transactions should be approved (atomic enforcement)")
+	assert.Equal(t, int64(10), finalDenied, "Exactly 10 transactions should be denied (limit exceeded)")
+
+	// Verify final usage via GET /v1/limits/{limitID}/usage
+	apiKey := testutil.GetAPIKey()
+	baseURL := testutil.GetBaseURL()
+
+	usageReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
+	require.NoError(t, err)
+	usageReq.Header.Set("X-API-Key", apiKey)
+
+	usageResp, err := testutil.HTTPClient.Do(usageReq)
+	require.NoError(t, err)
+	defer usageResp.Body.Close()
+
+	usageBody, err := io.ReadAll(usageResp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, usageResp.StatusCode, "Get usage should succeed: %s", string(usageBody))
+
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
+
+	assert.True(t, decimal.RequireFromString("10000").Equal(usageResponse.CurrentUsage),
+		"Final currentUsage should be 10000 (10 * 1000)")
+}
+
+// =============================================================================
+// 5.4 Timestamp Bypass Prevention
+// =============================================================================
+
+// TestLimitsVerification_5_4_1_BackdatedTimestampBypass verifies that
+// backdated timestamps cannot be used to bypass daily limits.
+//
+// Test spec 5.4.1: Backdated timestamp bypass prevention
+//
+// Scenario: Create DAILY limit of 5000, exhaust with 5 current-time transactions,
+// then attempt 5 more with yesterday's timestamps. All backdated attempts must be denied.
+func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(90200).String()
+
+	// Create DAILY limit of 5000
+	limitID := testutil.CreateLimitWithAccountScope(t, accountID, "5000")
+	testutil.ActivateLimit(t, limitID)
+	t.Cleanup(func() {
+		testutil.CleanupLimit(t, limitID)
+	})
+
+	// Capture base time once for consistent testing
+	baseNow := time.Now().UTC()
+	currentTimestamp := baseNow.Format(time.RFC3339)
+
+	// Exhaust the limit with 5 current-time transactions of 1000 each
+	for i := 0; i < 5; i++ {
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(int64(90201 + i)).String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("1000"),
+			Currency:             "BRL",
+			TransactionTimestamp: currentTimestamp,
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction %d should succeed: %s", i+1, string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// All 5 should be approved (limit not exceeded)
+		assert.NotEqual(t, "DENY", result.Decision,
+			"Transaction %d should not be denied, limit not yet exhausted", i+1)
+	}
+
+	// Now attempt 5 more transactions with yesterday's timestamp (backdated)
+	// These should all be DENIED because:
+	// 1. Period key is calculated from server time, not client timestamp
+	// 2. The limit is already exhausted for today's period
+
+	// Calculate yesterday's timestamp: start of today UTC - 1 second (guaranteed previous UTC day)
+	startOfTodayUTC := time.Date(baseNow.Year(), baseNow.Month(), baseNow.Day(), 0, 0, 0, 0, time.UTC)
+	yesterdayTimestamp := startOfTodayUTC.Add(-time.Second).Format(time.RFC3339) // Last second of previous day
+
+	deniedCount := 0
+	for i := 0; i < 5; i++ {
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(int64(90206 + i)).String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("1000"),
+			Currency:             "BRL",
+			TransactionTimestamp: yesterdayTimestamp,
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Backdated transaction %d should return 200: %s", i+1, string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// All backdated transactions should be denied due to limit exceeded
+		if result.Decision == "DENY" && result.Reason == "limit_exceeded" {
+			deniedCount++
+		}
+	}
+
+	// All 5 backdated transactions must be denied
+	assert.Equal(t, 5, deniedCount, "All 5 backdated transactions should be denied due to limit exceeded")
+
+	t.Log("Backdated timestamp bypass prevention verified: server time used for period key calculation")
+}
+
+// TestLimitsVerification_5_4_2_PastTimestampRejection verifies that
+// transactions with timestamps older than MaxTimestampAge (24h) are rejected
+// at the validation layer with TRC-0228.
+//
+// Test spec 5.4.2: Past timestamp rejected with TRC-0228
+func TestLimitsVerification_5_4_2_PastTimestampRejection(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(90210).String()
+
+	// Submit transaction with timestamp 48h in the past (beyond MaxTimestampAge)
+	pastTimestamp := time.Now().UTC().Add(-48 * time.Hour).Format(time.RFC3339)
+
+	req := &testutil.ValidationRequest{
+		RequestID:            testutil.MustDeterministicUUID(90211).String(),
+		TransactionType:      "PIX",
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "BRL",
+		TransactionTimestamp: pastTimestamp,
+		Account: &testutil.AccountContext{
+			ID: accountID,
+		},
+	}
+
+	resp, body := testutil.CreateValidation(t, req)
+	defer resp.Body.Close()
+
+	// Should return HTTP 400 (validation error)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+		"Timestamp 48h in past should be rejected with 400: %s", string(body))
+
+	var errResp testutil.ErrorResponse
+	err := json.Unmarshal(body, &errResp)
+	require.NoError(t, err)
+
+	// Error code should be TRC-0228
+	assert.Equal(t, "TRC-0228", errResp.Code,
+		"Error code should be TRC-0228 (timestamp too far in past)")
+
+	t.Logf("Past timestamp rejection verified: timestamps older than 24h rejected with TRC-0228")
+}
+
+// TestLimitsVerification_5_4_3_MaxTimestampAgeBoundary verifies the exact
+// boundary behavior of MaxTimestampAge validation (24h).
+//
+// Test spec 5.4.3: MaxTimestampAge boundary test
+func TestLimitsVerification_5_4_3_MaxTimestampAgeBoundary(t *testing.T) {
+	// Test 1: Timestamp (24h - 1min) in past should be ACCEPTED
+	t.Run("within_threshold_accepted", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90220).String()
+
+		// 24h - 1min = within threshold
+		acceptedTimestamp := time.Now().UTC().Add(-(24*time.Hour - time.Minute)).Format(time.RFC3339)
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90221).String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("100"),
+			Currency:             "BRL",
+			TransactionTimestamp: acceptedTimestamp,
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		// Should return HTTP 200 (accepted)
+		require.Equal(t, http.StatusOK, resp.StatusCode,
+			"Timestamp (24h - 1min) in past should be accepted: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Should have a validationId (processed successfully)
+		assert.NotEmpty(t, result.ValidationID, "Should return validationId for accepted request")
+
+		t.Logf("Boundary test: timestamp 24h-1min in past accepted")
+	})
+
+	// Test 2: Timestamp (24h + 1min) in past should be REJECTED
+	t.Run("beyond_threshold_rejected", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90222).String()
+
+		// 24h + 1min = beyond threshold
+		rejectedTimestamp := time.Now().UTC().Add(-(24*time.Hour + time.Minute)).Format(time.RFC3339)
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90223).String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("100"),
+			Currency:             "BRL",
+			TransactionTimestamp: rejectedTimestamp,
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		// Should return HTTP 400 (rejected)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+			"Timestamp (24h + 1min) in past should be rejected: %s", string(body))
+
+		var errResp testutil.ErrorResponse
+		err := json.Unmarshal(body, &errResp)
+		require.NoError(t, err)
+
+		assert.Equal(t, "TRC-0228", errResp.Code,
+			"Error code should be TRC-0228 for timestamp beyond MaxTimestampAge")
+
+		t.Logf("Boundary test: timestamp 24h+1min in past rejected with TRC-0228")
+	})
+}
+
+// TestLimitsVerification_5_4_4_AuditTrailPreservation verifies that
+// the original transaction timestamp is preserved in the audit trail.
+//
+// Test spec 5.4.4: Audit trail preservation
+func TestLimitsVerification_5_4_4_AuditTrailPreservation(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(90230).String()
+
+	// Submit transaction with timestamp 2h in past (within tolerance)
+	pastTimestamp := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
+
+	req := &testutil.ValidationRequest{
+		RequestID:            testutil.MustDeterministicUUID(90231).String(),
+		TransactionType:      "PIX",
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "BRL",
+		TransactionTimestamp: pastTimestamp,
+		Account: &testutil.AccountContext{
+			ID: accountID,
+		},
+	}
+
+	resp, body := testutil.CreateValidation(t, req)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode,
+		"Transaction with 2h-old timestamp should be accepted: %s", string(body))
+
+	var result testutil.ValidationResponse
+	err := json.Unmarshal(body, &result)
+	require.NoError(t, err)
+
+	validationID := result.ValidationID
+	require.NotEmpty(t, validationID, "Should return validationId")
+
+	// Retrieve the validation via GET /v1/validations/{id}
+	getResp, getBody := testutil.GetValidation(t, validationID)
+	defer getResp.Body.Close()
+
+	require.Equal(t, http.StatusOK, getResp.StatusCode,
+		"GET validation should succeed: %s", string(getBody))
+
+	var detail testutil.ValidationDetailResponse
+	err = json.Unmarshal(getBody, &detail)
+	require.NoError(t, err)
+
+	// Parse the stored timestamp
+	storedTimestamp, err := time.Parse(time.RFC3339, detail.TransactionTimestamp)
+	require.NoError(t, err, "Stored timestamp should be valid RFC3339")
+
+	// Parse the original timestamp
+	originalTimestamp, err := time.Parse(time.RFC3339, pastTimestamp)
+	require.NoError(t, err, "Original timestamp should be valid RFC3339")
+
+	// The stored timestamp should match the original (not server time)
+	// Allow 1 second tolerance for RFC3339 formatting differences
+	timeDiff := storedTimestamp.Sub(originalTimestamp).Abs()
+	assert.LessOrEqual(t, timeDiff, time.Second,
+		"Stored timestamp should match original (within 1s tolerance), got diff: %v", timeDiff)
+
+	t.Logf("Audit trail preservation verified: original timestamp %s stored as %s",
+		pastTimestamp, detail.TransactionTimestamp)
+}
+
+// TestLimitsVerification_5_4_5_PerTransactionUnaffected verifies that
+// PER_TRANSACTION limits are not affected by timestamp manipulation
+// since they check amount only, not accumulated usage.
+//
+// Test spec 5.4.5: PER_TRANSACTION limit checks value only
+func TestLimitsVerification_5_4_5_PerTransactionUnaffected(t *testing.T) {
+	transactionType := "CARD"
+
+	// Create PER_TRANSACTION limit of 50000
+	limitID := testutil.CreateLimitWithTransactionTypeScope(t, transactionType, "50000")
+	testutil.ActivateLimit(t, limitID)
+	t.Cleanup(func() {
+		testutil.CleanupLimit(t, limitID)
+	})
+
+	// Test 1: Current timestamp with amount < limit (should be accepted)
+	t.Run("current_timestamp_under_limit", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90240).String()
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90241).String(),
+			TransactionType:      transactionType,
+			Amount:               decimal.RequireFromString("30000"),
+			Currency:             "BRL",
+			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode,
+			"Transaction under limit should return 200: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Should not be denied due to limit
+		for _, detail := range result.LimitUsageDetails {
+			if detail.LimitID == limitID {
+				assert.False(t, detail.Exceeded, "PER_TRANSACTION limit should not be exceeded for 30000 < 50000")
+				break
+			}
+		}
+	})
+
+	// Test 2: Past timestamp (2h) with amount < limit (should be accepted)
+	t.Run("past_timestamp_under_limit", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90242).String()
+
+		pastTimestamp := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90243).String(),
+			TransactionType:      transactionType,
+			Amount:               decimal.RequireFromString("30000"),
+			Currency:             "BRL",
+			TransactionTimestamp: pastTimestamp,
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode,
+			"Transaction with past timestamp under limit should return 200: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Should not be denied due to limit (PER_TRANSACTION checks amount only)
+		for _, detail := range result.LimitUsageDetails {
+			if detail.LimitID == limitID {
+				assert.False(t, detail.Exceeded, "PER_TRANSACTION limit should not be exceeded for 30000 < 50000")
+				break
+			}
+		}
+	})
+
+	// Test 3: Amount > limit (should be denied regardless of timestamp)
+	t.Run("over_limit_denied", func(t *testing.T) {
+		accountID := testutil.MustDeterministicUUID(90244).String()
+
+		req := &testutil.ValidationRequest{
+			RequestID:            testutil.MustDeterministicUUID(90245).String(),
+			TransactionType:      transactionType,
+			Amount:               decimal.RequireFromString("60000"), // Exceeds 50000 limit
+			Currency:             "BRL",
+			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode,
+			"Transaction over limit should return 200 with DENY: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err := json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Should be denied due to PER_TRANSACTION limit exceeded
+		assert.Equal(t, "DENY", result.Decision, "Should be DENY when amount exceeds PER_TRANSACTION limit")
+		assert.Equal(t, "limit_exceeded", result.Reason, "Reason should be limit_exceeded")
+
+		// Verify exceeded flag
+		foundLimit := false
+		for _, detail := range result.LimitUsageDetails {
+			if detail.LimitID == limitID {
+				foundLimit = true
+				assert.True(t, detail.Exceeded, "PER_TRANSACTION limit should be exceeded for 60000 > 50000")
+				break
+			}
+		}
+		assert.True(t, foundLimit, "PER_TRANSACTION limit should be in response")
+	})
+
+	t.Log("PER_TRANSACTION limit behavior verified: checks amount only, not accumulated usage")
 }
