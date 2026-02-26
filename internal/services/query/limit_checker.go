@@ -280,6 +280,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 	if input.Amount.GreaterThan(limit.MaxAmount) {
 		// Fetch current usage to report projected total accurately
 		currentUsage := decimal.Zero
+
 		usageMap, err := s.usageCounterRepo.GetUsageForLimits(ctx, []uuid.UUID{limit.ID}, scopeKey, periodKey)
 		if err == nil {
 			if usage, found := usageMap[limit.ID]; found {

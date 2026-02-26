@@ -23,3 +23,14 @@ var MetricAuditPersistFailures = Metric{
 	Unit:        "1",
 	Description: "Total audit record persistence failures (compliance risk)",
 }
+
+// MetricValidationRollbackFailures tracks usage rollback failures during REVIEW decisions.
+// Name follows TRD Section 9.3 convention with tracer_ prefix.
+// This metric signals when usage counters could not be rolled back after a REVIEW decision.
+// Non-zero values indicate eventual consistency gaps that will self-correct at period boundaries.
+// Labels: none (request_id available in logs/spans for investigation)
+var MetricValidationRollbackFailures = Metric{
+	Name:        "tracer_validation_rollback_failures_total",
+	Unit:        "1",
+	Description: "Total usage rollback failures for REVIEW decisions",
+}

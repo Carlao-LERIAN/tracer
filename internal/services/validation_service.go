@@ -100,7 +100,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		return nil, errors.New("validation request cannot be nil")
 	}
 
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricsFactory := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.validation.orchestrate")
 	defer span.End()
@@ -206,6 +206,11 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 			// Log rollback failure but don't fail the validation
 			// Usage counters are eventually consistent (reset at period boundaries)
 			rollbackStatus = "failed"
+
+			// Emit metric for alerting
+			if metricsFactory != nil {
+				metricsFactory.Counter(MetricValidationRollbackFailures).Add(ctx, 1)
+			}
 
 			logger.WithFields(
 				"operation", "service.validation.orchestrate",
