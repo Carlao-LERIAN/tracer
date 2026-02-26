@@ -456,7 +456,9 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 					HasMore: false,
 				}, nil)
 
-				scopeKey := "acct:" + accountID.String()
+				// Global limit uses "global" scope key, not account-specific key.
+				// This ensures all transactions aggregate under a single counter.
+				scopeKey := "global"
 				// Atomic upsert: returns new usage (0 + 50 = 50)
 				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000")).
 					Return(decimal.RequireFromString("50"), nil)
@@ -2783,4 +2785,102 @@ func TestLimitCheckerService_CheckLimits_PreCheckGetUsageError(t *testing.T) {
 	require.Error(t, err, "Should return error when GetUsageForLimits fails in pre-check path")
 	assert.Contains(t, err.Error(), "failed to get existing usage for pre-check")
 	assert.Nil(t, output, "Output should be nil on error")
+}
+
+func TestLimitCheckerService_CheckLimits_ScopeKeyPerLimit(t *testing.T) {
+	// This test verifies that scopeKey is calculated per limit based on limit's scope,
+	// not once for all limits based on transaction scope.
+	// This prevents counter fragmentation when limits have different granularities.
+
+	limitID1 := testutil.MustDeterministicUUID(1) // Account-only limit
+	limitID2 := testutil.MustDeterministicUUID(2) // Account+Segment limit
+	accountID := testutil.MustDeterministicUUID(100)
+	segmentID := testutil.MustDeterministicUUID(200)
+
+	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
+	periodKeyDaily := serverPeriodKeyDaily
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:        limitID1,
+				Name:      "Account Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: decimal.RequireFromString("1000"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}}, // Account-only scope
+				Status:    model.LimitStatusActive,
+			},
+			{
+				ID:        limitID2,
+				Name:      "Account+Segment Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: decimal.RequireFromString("500"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID, SegmentID: &segmentID}}, // Account+Segment scope
+				Status:    model.LimitStatusActive,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// Limit 1: Account-only scope → should use "acct:X" key (NOT "acct:X:seg:Y")
+	scopeKey1 := "acct:" + accountID.String()
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID1,
+		scopeKey1, // Account-only key
+		periodKeyDaily,
+		decimal.RequireFromString("100"),
+		decimal.RequireFromString("1000"),
+	).Return(decimal.RequireFromString("100"), nil)
+
+	// Limit 2: Account+Segment scope → should use "acct:X|seg:Y" key (pipe separator)
+	scopeKey2 := "acct:" + accountID.String() + "|seg:" + segmentID.String()
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID2,
+		scopeKey2, // Account+Segment key
+		periodKeyDaily,
+		decimal.RequireFromString("100"),
+		decimal.RequireFromString("500"),
+	).Return(decimal.RequireFromString("100"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
+	require.NoError(t, err)
+
+	// Transaction has both AccountID and SegmentID
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		SegmentID:            &segmentID,
+		TransactionTimestamp: timestamp,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	assert.True(t, output.Allowed, "Both limits should allow the transaction")
+	assert.Len(t, output.LimitUsageDetails, 2, "Should have 2 limit details")
+
+	// Verify both limits were checked
+	limitIDs := []uuid.UUID{output.LimitUsageDetails[0].LimitID, output.LimitUsageDetails[1].LimitID}
+	assert.Contains(t, limitIDs, limitID1, "Should include account-only limit")
+	assert.Contains(t, limitIDs, limitID2, "Should include account+segment limit")
 }

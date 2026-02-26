@@ -130,9 +130,8 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 		"applicable_limits_count", len(limits),
 	).Info("Found applicable limits")
 
-	// Build transaction scope and compute server timestamp once for all limits
+	// Build transaction scope once for all limits
 	txScope := buildTransactionScope(input)
-	scopeKey := model.CalculateScopeKey(txScope)
 	serverNow := s.clock.Now()
 
 	// Process each limit with atomic upsert (increment happens in DB)
@@ -143,6 +142,11 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 
 	for i := range limits {
 		limit := &limits[i]
+
+		// Calculate scope key based on the limit's scope, not transaction's full scope.
+		// This prevents counter fragmentation when limits have different scope granularities.
+		// Example: account-only limit must use "acct:X" key, not "acct:X:seg:Y:port:Z".
+		scopeKey := calculateScopeKeyForLimit(limit, txScope)
 
 		detail, exceeded, err := s.processLimitAtomic(ctx, limit, input, scopeKey, serverNow)
 		if err != nil {
@@ -155,7 +159,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 				// Preserve trace context for observability
 				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
 				//nolint:contextcheck // Intentional: using detached context for compensation
-				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, scopeKey)
+				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, txScope)
 			}
 
 			libOtel.HandleSpanError(&span, "Failed to process limit atomically", err)
@@ -177,7 +181,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 				// Preserve trace context for observability
 				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
 				//nolint:contextcheck // Intentional: using detached context for compensation
-				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, scopeKey)
+				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, txScope)
 			}
 
 			break
@@ -389,13 +393,13 @@ func (s *LimitCheckerService) processLimitAtomic(
 }
 
 // rollbackIncrementedCounters decrements counters that were already incremented when a later limit fails.
-// Uses the InternalPeriodKey stored in each detail to target the exact counter.
+// Uses the InternalPeriodKey and Scopes stored in each detail to target the exact counter.
 // Best-effort: logs errors but continues (see EVENTUAL CONSISTENCY DESIGN in RollbackUsage).
 func (s *LimitCheckerService) rollbackIncrementedCounters(
 	ctx context.Context,
 	input *model.CheckLimitsInput,
 	incrementedDetails []model.LimitUsageDetail,
-	scopeKey string,
+	txScope *model.Scope,
 ) {
 	logger, tracer, _, metricsFactory := libCommons.NewTrackingFromContext(ctx)
 
@@ -425,6 +429,11 @@ func (s *LimitCheckerService) rollbackIncrementedCounters(
 
 			continue
 		}
+
+		// Calculate scope key from the limit's scopes (stored in detail.Scopes)
+		// This ensures rollback uses the SAME key that was used during increment,
+		// preventing scope key mismatch when limits have different granularities.
+		scopeKey := calculateScopeKeyFromScopes(detail.Scopes, txScope)
 
 		// Get existing counter (do NOT create one - rollback should only affect existing counters)
 		counter, err := s.usageCounterRepo.GetForUpdate(ctx, detail.LimitID, scopeKey, periodKey)
@@ -734,6 +743,44 @@ func scopeMatchesLimit(limitScopes []model.Scope, txScope *model.Scope) bool {
 	}
 
 	return false
+}
+
+// calculateScopeKeyForLimit computes the scope key based on the limit's scope, not the transaction's.
+// This prevents counter fragmentation when limits have different scope granularities.
+// Returns the first matching limit scope's key, or "global" if limit has no scopes.
+//
+// Example:
+//   - Transaction: {AccountID: A, SegmentID: S, PortfolioID: P}
+//   - Limit scope: {AccountID: A}
+//   - Returns: "acct:A" (NOT "acct:A:seg:S:port:P")
+//
+// This ensures that account-level limits aggregate ALL transactions for that account,
+// regardless of segment/portfolio, which is the correct enforcement behavior.
+func calculateScopeKeyForLimit(limit *model.Limit, txScope *model.Scope) string {
+	return calculateScopeKeyFromScopes(limit.Scopes, txScope)
+}
+
+// calculateScopeKeyFromScopes computes the scope key from a list of scopes.
+// Used for both CheckLimits and rollback operations.
+// Returns the first matching scope's key, or "global" if no scopes.
+func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) string {
+	// Global limit (no scopes) uses "global" key
+	if len(scopes) == 0 {
+		return "global"
+	}
+
+	// Find the first scope that matches the transaction
+	// Use that scope (not the transaction scope) to calculate the key
+	for i := range scopes {
+		if scopes[i].Matches(txScope) {
+			// Calculate key from the matched scope, not the transaction's
+			return model.CalculateScopeKey(&scopes[i])
+		}
+	}
+
+	// Should never reach here - scopes were already filtered as applicable
+	// But defensively return a key based on transaction scope
+	return model.CalculateScopeKey(txScope)
 }
 
 // formatScopeString creates a human-readable string representation of scopes.
