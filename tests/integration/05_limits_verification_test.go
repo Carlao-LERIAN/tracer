@@ -1589,22 +1589,20 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 	usageBody, err := io.ReadAll(usageResp.Body)
 	require.NoError(t, err)
 
-	if usageResp.StatusCode == http.StatusOK {
-		var usageResponse model.UsageSnapshot
-		err = json.Unmarshal(usageBody, &usageResponse)
-		require.NoError(t, err)
+	require.Equal(t, http.StatusOK, usageResp.StatusCode,
+		"Usage endpoint should return 200, got %d: %s", usageResp.StatusCode, string(usageBody))
 
-		// Verify usage snapshot - must be 300 after setup transaction
-		t.Logf("Current usage - Amount: %s, Limit: %s, Utilization: %.2f%%",
-			usageResponse.CurrentUsage, usageResponse.LimitAmount, usageResponse.UtilizationPercent)
+	var usageResponse model.UsageSnapshot
+	err = json.Unmarshal(usageBody, &usageResponse)
+	require.NoError(t, err)
 
-		// Verify usage has expected value (use require to fail test if wrong)
-		require.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage),
-			"Usage should be 300 after setup transaction, got %s", usageResponse.CurrentUsage)
-	} else {
-		t.Logf("Usage endpoint returned status %d - counter query may not be implemented", usageResp.StatusCode)
-		t.Logf("Usage response: %s", string(usageBody))
-	}
+	// Verify usage snapshot - must be 300 after setup transaction
+	t.Logf("Current usage - Amount: %s, Limit: %s, Utilization: %.2f%%",
+		usageResponse.CurrentUsage, usageResponse.LimitAmount, usageResponse.UtilizationPercent)
+
+	// Verify usage has expected value (use require to fail test if wrong)
+	require.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage),
+		"Usage should be 300 after setup transaction, got %s", usageResponse.CurrentUsage)
 
 	// Document expected cleanup behavior
 	t.Log("Expected cleanup behavior:")
