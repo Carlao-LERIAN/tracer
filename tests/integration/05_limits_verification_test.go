@@ -1756,6 +1756,10 @@ func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
 		testutil.CleanupLimit(t, limitID)
 	})
 
+	// Capture base time once for consistent testing
+	baseNow := time.Now().UTC()
+	currentTimestamp := baseNow.Format(time.RFC3339)
+
 	// Exhaust the limit with 5 current-time transactions of 1000 each
 	for i := 0; i < 5; i++ {
 		req := &testutil.ValidationRequest{
@@ -1763,7 +1767,7 @@ func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
 			TransactionType:      "PIX",
 			Amount:               decimal.RequireFromString("1000"),
 			Currency:             "BRL",
-			TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+			TransactionTimestamp: currentTimestamp,
 			Account: &testutil.AccountContext{
 				ID: accountID,
 			},
@@ -1787,7 +1791,10 @@ func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
 	// These should all be DENIED because:
 	// 1. Period key is calculated from server time, not client timestamp
 	// 2. The limit is already exhausted for today's period
-	yesterdayTimestamp := time.Now().UTC().Add(-23 * time.Hour).Format(time.RFC3339) // Within 24h tolerance but backdated
+	
+	// Calculate yesterday's timestamp: start of today UTC - 1 second (guaranteed previous UTC day)
+	startOfTodayUTC := time.Date(baseNow.Year(), baseNow.Month(), baseNow.Day(), 0, 0, 0, 0, time.UTC)
+	yesterdayTimestamp := startOfTodayUTC.Add(-time.Second).Format(time.RFC3339) // Last second of previous day
 
 	deniedCount := 0
 	for i := 0; i < 5; i++ {
