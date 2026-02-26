@@ -648,12 +648,6 @@ definitions:
         description: Current usage amount (sum of all counters)
         example: "500.00"
         type: string
-      hasCounters:
-        description: |-
-          True if usage counters exist for this limit (false means no data, currentUsage=0 is default)
-          This distinguishes "no counters yet" from "counters exist with zero usage"
-        example: true
-        type: boolean
       limitAmount:
         description: Total limit amount (from Limit.MaxAmount)
         example: "1000.00"

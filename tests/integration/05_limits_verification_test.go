@@ -1280,54 +1280,44 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 		t.Log("Fault injection triggered 503 - verifying rollback behavior")
 
 		// Poll for rollback completion (avoid flaky fixed sleeps)
-		// Returns (usage, hasCounters, error) to distinguish network errors from empty counters.
-		checkUsage := func() (decimal.Decimal, bool, error) {
+		// Returns (usage, error) to distinguish transient network errors from actual usage values.
+		checkUsage := func() (decimal.Decimal, error) {
 			usageReq2, err := http.NewRequest(http.MethodGet, baseURL+"/v1/limits/"+limitID+"/usage", nil)
 			if err != nil {
-				return decimal.Zero, false, fmt.Errorf("create request: %w", err)
+				return decimal.Zero, fmt.Errorf("create request: %w", err)
 			}
 			usageReq2.Header.Set("X-API-Key", apiKey)
 
 			usageResp2, err := testutil.HTTPClient.Do(usageReq2)
 			if err != nil {
-				return decimal.Zero, false, fmt.Errorf("HTTP request: %w", err)
+				return decimal.Zero, fmt.Errorf("HTTP request: %w", err)
 			}
 			defer usageResp2.Body.Close()
 
 			usageBody2, err := io.ReadAll(usageResp2.Body)
 			if err != nil {
-				return decimal.Zero, false, fmt.Errorf("read body: %w", err)
+				return decimal.Zero, fmt.Errorf("read body: %w", err)
 			}
 
 			if usageResp2.StatusCode != http.StatusOK {
-				return decimal.Zero, false, fmt.Errorf("unexpected status %d: %s", usageResp2.StatusCode, string(usageBody2))
+				return decimal.Zero, fmt.Errorf("unexpected status %d: %s", usageResp2.StatusCode, string(usageBody2))
 			}
 
 			var usageResponse2 model.UsageSnapshot
 			if err := json.Unmarshal(usageBody2, &usageResponse2); err != nil {
-				return decimal.Zero, false, fmt.Errorf("unmarshal: %w", err)
+				return decimal.Zero, fmt.Errorf("unmarshal: %w", err)
 			}
 
-			// Use HasCounters to distinguish "no data" from "zero usage"
-			// This prevents false-pass if over-rollback leaves CurrentUsage at 0
-			if !usageResponse2.HasCounters {
-				return decimal.Zero, false, nil // no counters yet
-			}
-
-			return usageResponse2.CurrentUsage, true, nil
+			return usageResponse2.CurrentUsage, nil
 		}
 
-		// Verify usage remains at initialUsage after rollback
+		// Verify usage returns to initialUsage after rollback
+		// Note: CurrentUsage=0 when no counters exist is acceptable if initialUsage was also 0
 		require.Eventually(t, func() bool {
-			usage, hasCounters, err := checkUsage()
+			usage, err := checkUsage()
 			if err != nil {
 				t.Logf("checkUsage error (retrying): %v", err)
 				return false // keep retrying on transient errors
-			}
-			if !hasCounters {
-				// Only accept missing counters if we started with zero usage
-				// If initialUsage was non-zero, missing counters indicates over-rollback bug
-				return initialUsage.IsZero() // no counters = rollback complete only if started at zero
 			}
 			return usage.Equal(initialUsage)
 		}, 2*time.Second, 100*time.Millisecond, "Usage should be rolled back to %s after failure", initialUsage)

@@ -1671,7 +1671,6 @@ func TestNewUsageSnapshot_DailyLimit(t *testing.T) {
 	assert.Equal(t, 50.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit, "50% should not be near limit")
 	assert.NotNil(t, snapshot.ResetAt, "DAILY limit should have resetAt")
-	assert.True(t, snapshot.HasCounters, "should have counters when non-empty slice provided")
 }
 
 // TestNewUsageSnapshot_NearLimitThreshold tests nearLimit flag at boundary.
@@ -1770,7 +1769,6 @@ func TestNewUsageSnapshot_PerTransactionLimit(t *testing.T) {
 	assert.Equal(t, 0.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit)
 	assert.Nil(t, snapshot.ResetAt, "PER_TRANSACTION should have nil resetAt")
-	assert.True(t, snapshot.HasCounters, "PER_TRANSACTION with counters should have HasCounters=true")
 }
 
 // TestNewUsageSnapshot_EmptyCounters tests snapshot with no counters.
@@ -1782,7 +1780,6 @@ func TestNewUsageSnapshot_EmptyCounters(t *testing.T) {
 	assert.True(t, decimal.RequireFromString("0").Equal(snapshot.CurrentUsage))
 	assert.Equal(t, 0.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit)
-	assert.False(t, snapshot.HasCounters, "empty slice should indicate no counters")
 }
 
 // TestNewUsageSnapshot_NilCounters tests snapshot with nil counters slice.
@@ -1794,7 +1791,6 @@ func TestNewUsageSnapshot_NilCounters(t *testing.T) {
 	assert.True(t, decimal.RequireFromString("0").Equal(snapshot.CurrentUsage))
 	assert.Equal(t, 0.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit)
-	assert.False(t, snapshot.HasCounters, "nil slice should indicate no counters")
 }
 
 // TestNewUsageSnapshot_MonthlyLimit tests MONTHLY limits include resetAt.
@@ -1818,5 +1814,4 @@ func TestNewUsageSnapshot_MonthlyLimit(t *testing.T) {
 	assert.True(t, decimal.RequireFromString("10000").Equal(snapshot.LimitAmount))
 	assert.Equal(t, 50.0, snapshot.UtilizationPercent)
 	assert.NotNil(t, snapshot.ResetAt, "MONTHLY limit should have resetAt")
-	assert.True(t, snapshot.HasCounters, "should have counters when non-empty slice provided")
 }
