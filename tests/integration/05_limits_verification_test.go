@@ -1789,7 +1789,7 @@ func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
 	// These should all be DENIED because:
 	// 1. Period key is calculated from server time, not client timestamp
 	// 2. The limit is already exhausted for today's period
-	
+
 	// Calculate yesterday's timestamp: start of today UTC - 1 second (guaranteed previous UTC day)
 	startOfTodayUTC := time.Date(baseNow.Year(), baseNow.Month(), baseNow.Day(), 0, 0, 0, 0, time.UTC)
 	yesterdayTimestamp := startOfTodayUTC.Add(-time.Second).Format(time.RFC3339) // Last second of previous day
