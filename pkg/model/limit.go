@@ -618,6 +618,9 @@ type UsageSnapshot struct {
 	NearLimit bool `json:"nearLimit" example:"false"`
 	// When counter resets (nil for PER_TRANSACTION)
 	ResetAt *time.Time `json:"resetAt,omitempty" format:"date-time"`
+	// True if usage counters exist for this limit (false means no data, currentUsage=0 is default)
+	// This distinguishes "no counters yet" from "counters exist with zero usage"
+	HasCounters bool `json:"hasCounters" example:"true"`
 }
 
 // NearLimitThreshold is the threshold percentage (80%) above which nearLimit is true.
@@ -627,6 +630,7 @@ const NearLimitThreshold = 80.0
 // For PER_TRANSACTION limits, currentUsage is always 0 and resetAt is nil.
 func NewUsageSnapshot(limit *Limit, counters []UsageCounter) *UsageSnapshot {
 	currentUsage := decimal.Zero
+	hasCounters := len(counters) > 0
 
 	// For PER_TRANSACTION limits, currentUsage is always 0
 	if limit.LimitType != LimitTypePerTransaction {
@@ -658,5 +662,6 @@ func NewUsageSnapshot(limit *Limit, counters []UsageCounter) *UsageSnapshot {
 		UtilizationPercent: utilizationPercent,
 		NearLimit:          nearLimit,
 		ResetAt:            resetAt,
+		HasCounters:        hasCounters,
 	}
 }

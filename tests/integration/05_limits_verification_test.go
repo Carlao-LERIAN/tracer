@@ -1308,11 +1308,13 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 				return decimal.Zero, false, fmt.Errorf("unmarshal: %w", err)
 			}
 
-			if !usageResponse2.CurrentUsage.IsZero() {
-				return usageResponse2.CurrentUsage, true, nil
+			// Use HasCounters to distinguish "no data" from "zero usage"
+			// This prevents false-pass if over-rollback leaves CurrentUsage at 0
+			if !usageResponse2.HasCounters {
+				return decimal.Zero, false, nil // no counters yet
 			}
 
-			return decimal.Zero, false, nil // no counters yet
+			return usageResponse2.CurrentUsage, true, nil
 		}
 
 		// Verify usage remains at initialUsage after rollback
