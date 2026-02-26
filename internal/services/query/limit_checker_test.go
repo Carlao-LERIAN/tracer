@@ -2939,3 +2939,110 @@ func TestLimitCheckerService_CheckLimits_ScopeKeyPerLimit(t *testing.T) {
 	assert.Contains(t, limitIDs, limitID1, "Should include account-only limit")
 	assert.Contains(t, limitIDs, limitID2, "Should include account+segment limit")
 }
+func TestLimitCheckerService_RollbackUsage_ScopeKeyPerLimit(t *testing.T) {
+	// This test verifies that RollbackUsage calculates scopeKey per limit based on limit's scope,
+	// not once for all limits based on transaction scope.
+	// This prevents scope key mismatch when limits have different granularities.
+	// Mirrors TestLimitCheckerService_CheckLimits_ScopeKeyPerLimit but for rollback path.
+
+	limitID1 := testutil.MustDeterministicUUID(1) // Account-only limit
+	limitID2 := testutil.MustDeterministicUUID(2) // Account+Segment limit
+	accountID := testutil.MustDeterministicUUID(100)
+	segmentID := testutil.MustDeterministicUUID(200)
+	counterID1 := testutil.MustDeterministicUUID(201)
+	counterID2 := testutil.MustDeterministicUUID(202)
+
+	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
+	periodKeyDaily := serverPeriodKeyDaily
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	// Limit 1: Account-only scope → should use "acct:X" key (NOT "acct:X:seg:Y")
+	scopeKey1 := "acct:" + accountID.String()
+	mockUsageRepo.EXPECT().GetForUpdate(
+		gomock.Any(),
+		limitID1,
+		scopeKey1, // Account-only key
+		periodKeyDaily,
+	).Return(&model.UsageCounter{
+		ID:           counterID1,
+		LimitID:      limitID1,
+		ScopeKey:     scopeKey1,
+		PeriodKey:    periodKeyDaily,
+		CurrentUsage: decimal.RequireFromString("100"),
+	}, nil)
+
+	mockUsageRepo.EXPECT().DecrementAtomic(
+		gomock.Any(),
+		counterID1,
+		decimal.RequireFromString("100"),
+	).Return(nil)
+
+	// Limit 2: Account+Segment scope → should use "acct:X|seg:Y" key (pipe separator)
+	scopeKey2 := "acct:" + accountID.String() + "|seg:" + segmentID.String()
+	mockUsageRepo.EXPECT().GetForUpdate(
+		gomock.Any(),
+		limitID2,
+		scopeKey2, // Account+Segment key
+		periodKeyDaily,
+	).Return(&model.UsageCounter{
+		ID:           counterID2,
+		LimitID:      limitID2,
+		ScopeKey:     scopeKey2,
+		PeriodKey:    periodKeyDaily,
+		CurrentUsage: decimal.RequireFromString("100"),
+	}, nil)
+
+	mockUsageRepo.EXPECT().DecrementAtomic(
+		gomock.Any(),
+		counterID2,
+		decimal.RequireFromString("100"),
+	).Return(nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
+	require.NoError(t, err)
+
+	// Transaction has both AccountID and SegmentID
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		SegmentID:            &segmentID,
+		TransactionTimestamp: timestamp,
+	}
+
+	// LimitUsageDetails with different scope granularities
+	usageDetails := []model.LimitUsageDetail{
+		{
+			LimitID:           limitID1,
+			LimitAmount:       decimal.RequireFromString("1000"),
+			InternalLimitType: model.LimitTypeDaily,
+			Scopes:            []model.Scope{{AccountID: &accountID}}, // Account-only scope
+			CurrentUsage:      decimal.RequireFromString("100"),
+			Exceeded:          false,
+			InternalPeriodKey: periodKeyDaily,
+		},
+		{
+			LimitID:           limitID2,
+			LimitAmount:       decimal.RequireFromString("500"),
+			InternalLimitType: model.LimitTypeDaily,
+			Scopes:            []model.Scope{{AccountID: &accountID, SegmentID: &segmentID}}, // Account+Segment scope
+			CurrentUsage:      decimal.RequireFromString("100"),
+			Exceeded:          false,
+			InternalPeriodKey: periodKeyDaily,
+		},
+	}
+
+	err = checker.RollbackUsage(ctx, input, usageDetails)
+
+	require.NoError(t, err, "RollbackUsage should succeed with distinct scope keys")
+
+	// Mock expectations verify that GetForUpdate was called with the correct scope keys:
+	// - limitID1 with scopeKey1 ("acct:X")
+	// - limitID2 with scopeKey2 ("acct:X|seg:Y")
+}
