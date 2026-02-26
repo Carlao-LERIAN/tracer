@@ -1594,17 +1594,13 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 		err = json.Unmarshal(usageBody, &usageResponse)
 		require.NoError(t, err)
 
-		// Verify usage snapshot
-		if !usageResponse.CurrentUsage.IsZero() {
-			t.Logf("Current usage - Amount: %s, Limit: %s, Utilization: %.2f%%",
-				usageResponse.CurrentUsage, usageResponse.LimitAmount, usageResponse.UtilizationPercent)
+		// Verify usage snapshot - must be 300 after setup transaction
+		t.Logf("Current usage - Amount: %s, Limit: %s, Utilization: %.2f%%",
+			usageResponse.CurrentUsage, usageResponse.LimitAmount, usageResponse.UtilizationPercent)
 
-			// Verify usage has expected value
-			assert.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage), "Usage should be 300")
-		} else {
-			t.Log("No usage returned - might be zero usage")
-			t.Logf("Usage response: %s", string(usageBody))
-		}
+		// Verify usage has expected value (use require to fail test if wrong)
+		require.True(t, decimal.RequireFromString("300").Equal(usageResponse.CurrentUsage),
+			"Usage should be 300 after setup transaction, got %s", usageResponse.CurrentUsage)
 	} else {
 		t.Logf("Usage endpoint returned status %d - counter query may not be implemented", usageResp.StatusCode)
 		t.Logf("Usage response: %s", string(usageBody))
