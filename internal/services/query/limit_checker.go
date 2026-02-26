@@ -543,14 +543,20 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 		periodKey := detail.InternalPeriodKey
 		if periodKey == "" {
 			// Fallback for legacy callers or external rollback calls without stored period key
+			// Use InternalLimitType if populated, otherwise fall back to Period field
+			fallbackType := detail.InternalLimitType
+			if fallbackType == "" {
+				fallbackType = detail.Period
+			}
+
 			var calcErr error
 
-			periodKey, calcErr = model.CalculatePeriodKey(detail.InternalLimitType, serverTime)
+			periodKey, calcErr = model.CalculatePeriodKey(fallbackType, serverTime)
 			if calcErr != nil {
 				logger.WithFields(
 					"operation", "service.limit_checker.rollback_usage",
 					"limit_id", detail.LimitID.String(),
-					"limit_type", string(detail.InternalLimitType),
+					"limit_type", string(fallbackType),
 					"error", calcErr.Error(),
 				).Warn("Failed to calculate fallback period key, skipping")
 

@@ -2334,6 +2334,72 @@ func TestRollbackUsage_FallbackToServerClock(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestRollbackUsage_FallbackToPeriodfieldWhenInternalLimitTypeEmpty verifies that
+// when both InternalPeriodKey and InternalLimitType are empty, RollbackUsage falls
+// back to using the Period field to compute the period key.
+// Seeds: 8215-8219 range
+func TestRollbackUsage_FallbackToPeriodFieldWhenInternalLimitTypeEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Seed 8215-8219
+	limitID := testutil.MustDeterministicUUID(8215)
+	accountID := testutil.MustDeterministicUUID(8216)
+	counterID := testutil.MustDeterministicUUID(8217)
+
+	serverTime := time.Date(2024, 2, 10, 14, 0, 0, 0, time.UTC)
+	expectedPeriodKeyMonthly := "2024-02" // Server clock computes this for MONTHLY
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	scopeKey := "acct:" + accountID.String()
+
+	// KEY ASSERTION: When InternalPeriodKey AND InternalLimitType are empty,
+	// fallback should use Period field to compute period key from server clock.
+	mockUsageRepo.EXPECT().GetForUpdate(gomock.Any(), limitID, scopeKey, expectedPeriodKeyMonthly).
+		Return(&model.UsageCounter{
+			ID:           counterID,
+			LimitID:      limitID,
+			ScopeKey:     scopeKey,
+			PeriodKey:    expectedPeriodKeyMonthly,
+			CurrentUsage: decimal.RequireFromString("200"),
+		}, nil)
+
+	mockUsageRepo.EXPECT().DecrementAtomic(gomock.Any(), counterID, decimal.RequireFromString("75")).Return(nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("75"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: testutil.FixedTime(),
+	}
+
+	usageDetails := []model.LimitUsageDetail{
+		{
+			LimitID:           limitID,
+			LimitAmount:       decimal.RequireFromString("500"),
+			Period:            model.LimitTypeMonthly, // Fallback uses this field
+			InternalLimitType: "",                     // EMPTY - should fall back to Period
+			Scopes:            []model.Scope{{AccountID: &accountID}},
+			CurrentUsage:      decimal.RequireFromString("275"),
+			Exceeded:          false,
+			InternalPeriodKey: "", // EMPTY - triggers fallback to server clock
+		},
+	}
+
+	err = checker.RollbackUsage(ctx, input, usageDetails)
+
+	require.NoError(t, err)
+}
+
 // TestRollbackUsage_SkipsPerTransaction verifies that PER_TRANSACTION limits
 // are skipped during rollback (no DB calls).
 // Seeds: 8210 range
