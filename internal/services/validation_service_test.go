@@ -172,10 +172,24 @@ func TestValidateTransaction(t *testing.T) {
 					Return(evalResult, nil)
 
 				// Limit check should be called (REVIEW doesn't short-circuit)
+				// Populate LimitUsageDetails with realistic data to verify RollbackUsage receives full payload
 				limitOutput := &model.CheckLimitsOutput{
-					Allowed:           true,
-					LimitUsageDetails: []model.LimitUsageDetail{},
-					ExceededLimitIDs:  []uuid.UUID{},
+					Allowed: true,
+					LimitUsageDetails: []model.LimitUsageDetail{
+						{
+							LimitID:           limitID,
+							LimitAmount:       decimal.RequireFromString("1000"),
+							Scope:             "acct:" + accountID.String(),
+							Period:            model.LimitTypeDaily,
+							CurrentUsage:      decimal.RequireFromString("100"),
+							AttemptedAmount:   decimal.RequireFromString("100"),
+							Exceeded:          false,
+							InternalLimitType: model.LimitTypeDaily,
+							Scopes:            []model.Scope{{AccountID: &accountID}},
+							InternalPeriodKey: "2025-01-15",
+						},
+					},
+					ExceededLimitIDs: []uuid.UUID{},
 				}
 				limitCheck.EXPECT().
 					CheckLimits(gomock.Any(), gomock.Any()).
@@ -225,10 +239,24 @@ func TestValidateTransaction(t *testing.T) {
 					Return(evalResult, nil)
 
 				// Limit check should be called
+				// Populate LimitUsageDetails with realistic data to verify RollbackUsage receives full payload
 				limitOutput := &model.CheckLimitsOutput{
-					Allowed:           true,
-					LimitUsageDetails: []model.LimitUsageDetail{},
-					ExceededLimitIDs:  []uuid.UUID{},
+					Allowed: true,
+					LimitUsageDetails: []model.LimitUsageDetail{
+						{
+							LimitID:           limitID,
+							LimitAmount:       decimal.RequireFromString("1000"),
+							Scope:             "acct:" + accountID.String(),
+							Period:            model.LimitTypeDaily,
+							CurrentUsage:      decimal.RequireFromString("100"),
+							AttemptedAmount:   decimal.RequireFromString("100"),
+							Exceeded:          false,
+							InternalLimitType: model.LimitTypeDaily,
+							Scopes:            []model.Scope{{AccountID: &accountID}},
+							InternalPeriodKey: "2025-01-15",
+						},
+					},
+					ExceededLimitIDs: []uuid.UUID{},
 				}
 				limitCheck.EXPECT().
 					CheckLimits(gomock.Any(), gomock.Any()).
