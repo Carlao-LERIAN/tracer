@@ -929,13 +929,17 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 		testutil.CleanupLimit(t, limitID)
 	})
 
+	// Freeze timestamp to avoid period-boundary flakes in concurrency tests
+	// All requests in this test must use the same timestamp to ensure they target the same period
+	fixedTimestamp := time.Now().UTC().Format(time.RFC3339)
+
 	// First, establish currentUsage = 900
 	setupReq := &testutil.ValidationRequest{
 		RequestID:            testutil.MustDeterministicUUID(50251).String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("900"),
 		Currency:             "BRL",
-		TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		TransactionTimestamp: fixedTimestamp,
 		Account: &testutil.AccountContext{
 			ID: accountID,
 		},
@@ -964,7 +968,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 				TransactionType:      "PIX",
 				Amount:               decimal.RequireFromString("100"),
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: fixedTimestamp,
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
@@ -1640,6 +1644,10 @@ func TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement(t *testing.T)
 	// Expected: 10 should succeed (10 * 1000 = 10000 <= limit), 10 should be denied
 	const numConcurrent = 20
 
+	// Freeze timestamp to avoid period-boundary flakes in concurrency tests
+	// All requests in this test must use the same timestamp to ensure they target the same period
+	fixedTimestamp := time.Now().UTC().Format(time.RFC3339)
+
 	var wg sync.WaitGroup
 	var approvedCount int64
 	var deniedCount int64
@@ -1659,7 +1667,7 @@ func TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement(t *testing.T)
 				TransactionType:      "PIX",
 				Amount:               decimal.RequireFromString("1000"),
 				Currency:             "BRL",
-				TransactionTimestamp: time.Now().UTC().Format(time.RFC3339),
+				TransactionTimestamp: fixedTimestamp,
 				Account: &testutil.AccountContext{
 					ID: accountID,
 				},
