@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -29,6 +30,11 @@ import (
 // validationPersistTimeout is the maximum duration for transaction validation record persistence.
 // 5 seconds is sufficient for DB operations in normal conditions.
 const validationPersistTimeout = 5 * time.Second
+
+// validationRollbackTimeout bounds REVIEW rollback compensation operations to prevent unbounded resource consumption.
+// 5 seconds is sufficient for typical database operations under normal conditions.
+// Uses same timeout as validationPersistTimeout for consistency.
+const validationRollbackTimeout = 5 * time.Second
 
 // Sentinel errors for ValidationService constructor validation.
 var (
@@ -199,7 +205,15 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 
 	// REVIEW means "manual review required" - don't count transaction against limits
 	if evalResult.Decision == model.DecisionReview {
-		rollbackErr := s.limitChecker.RollbackUsage(ctx, limitInput, limitOutput.LimitUsageDetails)
+		// Use detached context for rollback - request context may be canceled,
+		// but compensation MUST complete to maintain data integrity.
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), validationRollbackTimeout)
+		defer cancel()
+		// Preserve trace context for observability
+		rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
+
+		//nolint:contextcheck // Intentional: using detached context for compensation
+		rollbackErr := s.limitChecker.RollbackUsage(rollbackCtx, limitInput, limitOutput.LimitUsageDetails)
 
 		rollbackStatus = "succeeded"
 		if rollbackErr != nil {
