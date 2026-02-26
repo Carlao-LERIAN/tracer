@@ -2718,3 +2718,69 @@ func TestCheckLimits_MultiLimitPartialRollback(t *testing.T) {
 	require.NotNil(t, limitCDetail, "Should have detail for Limit C")
 	assert.True(t, limitCDetail.Exceeded, "Limit C should be marked as exceeded")
 }
+
+func TestLimitCheckerService_CheckLimits_PreCheckGetUsageError(t *testing.T) {
+	// This test verifies that when amount > maxAmount (pre-check path),
+	// and GetUsageForLimits fails, the error is propagated instead of being silently ignored.
+
+	limitID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(100)
+
+	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
+	periodKeyDaily := serverPeriodKeyDaily
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	// Mock limit with maxAmount=100, but we'll try to transact 500 (triggers pre-check)
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:        limitID,
+				Name:      "Daily Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: decimal.RequireFromString("100"), // Amount=500 > 100 -> pre-check
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	scopeKey := "acct:" + accountID.String()
+
+	// GetUsageForLimits fails (DB error)
+	expectedErr := errors.New("database connection lost")
+	mockUsageRepo.EXPECT().GetUsageForLimits(gomock.Any(), []uuid.UUID{limitID}, scopeKey, periodKeyDaily).
+		Return(nil, expectedErr)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("500"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: timestamp,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	// Should return error instead of silently using zero usage
+	require.Error(t, err, "Should return error when GetUsageForLimits fails in pre-check path")
+	assert.Contains(t, err.Error(), "failed to get existing usage for pre-check")
+	assert.Nil(t, output, "Output should be nil on error")
+}

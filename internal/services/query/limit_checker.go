@@ -282,12 +282,14 @@ func (s *LimitCheckerService) processLimitAtomic(
 		currentUsage := decimal.Zero
 
 		usageMap, err := s.usageCounterRepo.GetUsageForLimits(ctx, []uuid.UUID{limit.ID}, scopeKey, periodKey)
-		if err == nil {
-			if usage, found := usageMap[limit.ID]; found {
-				currentUsage = usage
-			}
+		if err != nil {
+			libOtel.HandleSpanError(&span, "Failed to get existing usage for pre-check", err)
+			return nil, false, fmt.Errorf("failed to get existing usage for pre-check: %w", err)
 		}
-		// If GetUsageForLimits fails, use zero (pessimistic: underreports total)
+
+		if usage, found := usageMap[limit.ID]; found {
+			currentUsage = usage
+		}
 
 		detail := &model.LimitUsageDetail{
 			LimitID:           limit.ID,
