@@ -267,7 +267,7 @@ func TestAPIKeyAuth_SameErrorMessage(t *testing.T) {
 }
 
 // =============================================================================
-// APIKeyAuthWithLogger tests (TDD-RED phase)
+// APIKeyAuthWithLogger tests
 // =============================================================================
 
 func TestAPIKeyAuthWithLogger_MissingKey_LogsWarning(t *testing.T) {
