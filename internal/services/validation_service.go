@@ -221,9 +221,9 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 			// Usage counters are eventually consistent (reset at period boundaries)
 			rollbackStatus = "failed"
 
-			// Emit metric for alerting
+			// Emit metric for alerting (use rollbackCtx to ensure metric is not dropped if request context was canceled)
 			if metricsFactory != nil {
-				metricsFactory.Counter(MetricValidationRollbackFailures).Add(ctx, 1)
+				metricsFactory.Counter(MetricValidationRollbackFailures).Add(rollbackCtx, 1)
 			}
 
 			logger.WithFields(
