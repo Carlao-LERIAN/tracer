@@ -3,17 +3,14 @@
 ## Pull Request Type
 [//]: # (Check the appropriate box for the type of pull request.)
 
-- [ ] Documentation
+- [ ] Core
 - [ ] Pipeline
-- [ ] Infra
-- [ ] Ledger
-- [ ] Onboarding
-- [ ] Transaction
-- [ ] CRM
 - [ ] Tests
+- [ ] Documentation
+- [ ] Helm
 
 ## Checklist
-Check each item after completion.
+Please check each item after it's completed.
 
 - [ ] I have tested these changes locally.
 - [ ] I have updated the documentation accordingly.
@@ -24,7 +21,6 @@ Check each item after completion.
 - [ ] I have updated the version appropriately (if applicable).
 - [ ] I have confirmed this code is ready for review.
 
-**Important:** Always target your PR to the develop branch instead of main.
-
 ## Additional Notes
 [//]: # (Add any additional notes, context, or explanation that could be helpful for reviewers.)
+## Obs: Please, always remember to target your PR to develop branch instead of main.
