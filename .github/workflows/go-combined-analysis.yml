@@ -25,7 +25,7 @@ on:
 jobs:
   go-analysis:
     name: Go Analysis
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.15.0
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.16.0-beta.14
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       app_name_prefix: "tracer"
@@ -39,5 +39,7 @@ jobs:
       enable_tests: true
       enable_coverage: true
       enable_build: true
+      enable_integration_tests: true
+      enable_test_determinism: true
       go_private_modules: "github.com/LerianStudio/*"
     secrets: inherit
