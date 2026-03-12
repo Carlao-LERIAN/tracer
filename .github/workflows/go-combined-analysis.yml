@@ -39,5 +39,7 @@ jobs:
       enable_tests: true
       enable_coverage: true
       enable_build: true
+      enable_integration_tests: true
+      enable_test_determinism: true
       go_private_modules: "github.com/LerianStudio/*"
     secrets: inherit
