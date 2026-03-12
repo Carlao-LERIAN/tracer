@@ -3,7 +3,7 @@ FROM golang:1.26-alpine3.22 AS builder
 # Pin package versions for reproducible builds (Alpine 3.22)
 ARG CA_CERTIFICATES_VERSION=20250911-r0
 ARG GIT_VERSION=2.49.1-r0
-ARG TZDATA_VERSION=2025c-r0
+ARG TZDATA_VERSION=2026a-r0
 
 WORKDIR /app
 
