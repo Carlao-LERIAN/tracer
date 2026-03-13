@@ -24,7 +24,8 @@ type TimeOfDay struct {
 
 // NewTimeOfDay creates a TimeOfDay from a string in "HH:MM" format.
 // Returns ErrTimeOfDayInvalidFormat if the format is invalid or values are out of range.
-// Uses time.Parse("15:04") which enforces zero-padded two-digit hour/minute.
+// Accepts single-digit hour (e.g., "9:30") since time.Parse handles it correctly.
+// String() always returns zero-padded format ("09:30"), matching the DB constraint.
 func NewTimeOfDay(s string) (TimeOfDay, error) {
 	s = strings.TrimSpace(s)
 

@@ -70,33 +70,21 @@ func TestErrorConstants_LimitExtended(t *testing.T) {
 			category: "custom period validation",
 		},
 		{
-			name:     "ErrTimeOfDayInvalidHour exists",
-			err:      ErrTimeOfDayInvalidHour,
-			code:     "TRC-0308",
-			category: "time of day parsing",
-		},
-		{
-			name:     "ErrTimeOfDayInvalidMinute exists",
-			err:      ErrTimeOfDayInvalidMinute,
-			code:     "TRC-0309",
-			category: "time of day parsing",
-		},
-		{
-			name:     "ErrLimitCustomPeriodExpired exists with code TRC-0310",
+			name:     "ErrLimitCustomPeriodExpired exists with code TRC-0308",
 			err:      ErrLimitCustomPeriodExpired,
-			code:     "TRC-0310",
+			code:     "TRC-0308",
 			category: "custom period validation",
 		},
 		{
-			name:     "ErrLimitInvalidCustomStartFormat exists with code TRC-0311",
+			name:     "ErrLimitInvalidCustomStartFormat exists with code TRC-0309",
 			err:      ErrLimitInvalidCustomStartFormat,
-			code:     "TRC-0311",
+			code:     "TRC-0309",
 			category: "custom period validation",
 		},
 		{
-			name:     "ErrLimitInvalidCustomEndFormat exists with code TRC-0312",
+			name:     "ErrLimitInvalidCustomEndFormat exists with code TRC-0310",
 			err:      ErrLimitInvalidCustomEndFormat,
-			code:     "TRC-0312",
+			code:     "TRC-0310",
 			category: "custom period validation",
 		},
 	}
@@ -130,11 +118,9 @@ func TestErrorConstants_UniquenessTRC0300Range(t *testing.T) {
 		ErrLimitCustomDatesNotAllowed,    // TRC-0305
 		ErrLimitUnknownType,              // TRC-0306
 		ErrLimitCustomPeriodTooLong,      // TRC-0307
-		ErrTimeOfDayInvalidHour,          // TRC-0308
-		ErrTimeOfDayInvalidMinute,        // TRC-0309
-		ErrLimitCustomPeriodExpired,      // TRC-0310
-		ErrLimitInvalidCustomStartFormat, // TRC-0311
-		ErrLimitInvalidCustomEndFormat,   // TRC-0312
+		ErrLimitCustomPeriodExpired,      // TRC-0308
+		ErrLimitInvalidCustomStartFormat, // TRC-0309
+		ErrLimitInvalidCustomEndFormat,   // TRC-0310
 	}
 
 	// Check for duplicates using error messages

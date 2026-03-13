@@ -116,6 +116,7 @@ func TestNewTimeOfDay(t *testing.T) {
 			errorIs:     constant.ErrTimeOfDayInvalidFormat,
 		},
 		{
+			// "9:30" is accepted; String() returns "09:30" which satisfies the DB constraint.
 			name:         "accepts single-digit hour",
 			input:        "9:30",
 			expectedHour: 9,

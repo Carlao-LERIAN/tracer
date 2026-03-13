@@ -4,10 +4,7 @@
 
 package clock
 
-import (
-	"sync"
-	"time"
-)
+import "time"
 
 // Clock provides time operations. Allows injection for testing.
 type Clock interface {
@@ -48,12 +45,11 @@ func (c FixedClock) Now() time.Time {
 }
 
 // NewTicker returns a channel that never fires (fixed clock has no real ticks).
+// Stop is a no-op, matching time.Ticker.Stop() which does not close its channel.
 func (c FixedClock) NewTicker(_ time.Duration) (<-chan time.Time, func()) {
 	ch := make(chan time.Time)
 
-	var once sync.Once
-
-	return ch, func() { once.Do(func() { close(ch) }) }
+	return ch, func() {}
 }
 
 // NewFixedClock creates a FixedClock that always returns the given time.
