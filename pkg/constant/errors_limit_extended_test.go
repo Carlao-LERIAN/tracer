@@ -164,6 +164,26 @@ func TestErrorConstants_NonEmptyMessages(t *testing.T) {
 			name: "custom period too long has non-empty message",
 			err:  ErrLimitCustomPeriodTooLong,
 		},
+		{
+			name: "invalid time of day format has non-empty message",
+			err:  ErrTimeOfDayInvalidFormat,
+		},
+		{
+			name: "unknown limit type has non-empty message",
+			err:  ErrLimitUnknownType,
+		},
+		{
+			name: "custom period expired has non-empty message",
+			err:  ErrLimitCustomPeriodExpired,
+		},
+		{
+			name: "invalid custom start format has non-empty message",
+			err:  ErrLimitInvalidCustomStartFormat,
+		},
+		{
+			name: "invalid custom end format has non-empty message",
+			err:  ErrLimitInvalidCustomEndFormat,
+		},
 	}
 
 	for _, tc := range tests {
