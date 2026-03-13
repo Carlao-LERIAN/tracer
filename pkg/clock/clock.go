@@ -4,7 +4,10 @@
 
 package clock
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // Clock provides time operations. Allows injection for testing.
 type Clock interface {
@@ -32,4 +35,28 @@ func (RealClock) NewTicker(d time.Duration) (<-chan time.Time, func()) {
 // New returns a new RealClock instance.
 func New() Clock {
 	return RealClock{}
+}
+
+// FixedClock implements Clock with a fixed time. Used for MOCK_TIME support.
+type FixedClock struct {
+	fixedTime time.Time
+}
+
+// Now returns the fixed time.
+func (c FixedClock) Now() time.Time {
+	return c.fixedTime
+}
+
+// NewTicker returns a channel that never fires (fixed clock has no real ticks).
+func (c FixedClock) NewTicker(_ time.Duration) (<-chan time.Time, func()) {
+	ch := make(chan time.Time)
+
+	var once sync.Once
+
+	return ch, func() { once.Do(func() { close(ch) }) }
+}
+
+// NewFixedClock creates a FixedClock that always returns the given time.
+func NewFixedClock(t time.Time) Clock {
+	return FixedClock{fixedTime: t}
 }

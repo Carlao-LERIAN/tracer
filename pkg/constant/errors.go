@@ -194,6 +194,23 @@ var (
 	// =============================================================================
 	ErrRuleCacheWarmUpFailed = errors.New("TRC-0280") // rule cache warm-up failed
 	ErrRuleCacheNotReady     = errors.New("TRC-0281") // rule cache is not ready
+
+	// =============================================================================
+	// Limit Extended Errors - Time Window & Custom Period (TRC-0300 to TRC-0319)
+	// =============================================================================
+	ErrLimitTimeWindowMismatch       = errors.New("TRC-0300") // activeTimeStart and activeTimeEnd must both be set or both be nil
+	ErrLimitTimeWindowZeroWidth      = errors.New("TRC-0301") // activeTimeStart cannot equal activeTimeEnd
+	ErrTimeOfDayInvalidFormat        = errors.New("TRC-0302") // invalid time of day format, expected HH:MM
+	ErrLimitCustomDatesRequired      = errors.New("TRC-0303") // customStartDate and customEndDate required for CUSTOM limitType
+	ErrLimitCustomDatesOrder         = errors.New("TRC-0304") // customStartDate must be before customEndDate
+	ErrLimitCustomDatesNotAllowed    = errors.New("TRC-0305") // customStartDate/customEndDate only allowed for CUSTOM limitType
+	ErrLimitUnknownType              = errors.New("TRC-0306") // unknown limit type
+	ErrLimitCustomPeriodTooLong      = errors.New("TRC-0307") // custom period cannot exceed 5 years
+	ErrTimeOfDayInvalidHour          = errors.New("TRC-0308") // hour must be between 0 and 23
+	ErrTimeOfDayInvalidMinute        = errors.New("TRC-0309") // minute must be between 0 and 59
+	ErrLimitCustomPeriodExpired      = errors.New("TRC-0310") // custom period end date must be in the future
+	ErrLimitInvalidCustomStartFormat = errors.New("TRC-0311") // invalid customStartDate format, expected RFC3339
+	ErrLimitInvalidCustomEndFormat   = errors.New("TRC-0312") // invalid customEndDate format, expected RFC3339
 )
 
 // Error code constants for HTTP responses.
