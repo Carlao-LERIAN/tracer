@@ -176,7 +176,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 			req := validRequest()
 			tt.modify(req)
 
-			err := req.Validate()
+			err := req.Validate(time.Now())
 
 			if tt.expectedErr == nil {
 				assert.NoError(t, err)

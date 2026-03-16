@@ -94,6 +94,7 @@ type ValidationRequest struct {
 //
 // For strict post-JSON-parse validation without currency normalization, use NormalizeAndValidate() instead.
 func NewValidationRequest(
+	now time.Time,
 	requestID uuid.UUID,
 	transactionType TransactionType,
 	subType *string,
@@ -125,44 +126,10 @@ func NewValidationRequest(
 		maps.Copy(metadataCopy, metadata)
 	}
 
-	// Defensive copy of nested context metadata maps
-	var segmentCopy *SegmentContext
-	if segment != nil {
-		segmentCopy = &SegmentContext{
-			ID:   segment.ID,
-			Name: segment.Name,
-		}
-		if segment.Metadata != nil {
-			segmentCopy.Metadata = make(map[string]any, len(segment.Metadata))
-			maps.Copy(segmentCopy.Metadata, segment.Metadata)
-		}
-	}
-
-	var portfolioCopy *PortfolioContext
-	if portfolio != nil {
-		portfolioCopy = &PortfolioContext{
-			ID:   portfolio.ID,
-			Name: portfolio.Name,
-		}
-		if portfolio.Metadata != nil {
-			portfolioCopy.Metadata = make(map[string]any, len(portfolio.Metadata))
-			maps.Copy(portfolioCopy.Metadata, portfolio.Metadata)
-		}
-	}
-
-	var merchantCopy *MerchantContext
-	if merchant != nil {
-		merchantCopy = &MerchantContext{
-			ID:       merchant.ID,
-			Name:     merchant.Name,
-			Category: merchant.Category,
-			Country:  merchant.Country,
-		}
-		if merchant.Metadata != nil {
-			merchantCopy.Metadata = make(map[string]any, len(merchant.Metadata))
-			maps.Copy(merchantCopy.Metadata, merchant.Metadata)
-		}
-	}
+	// Defensive copy of nested context metadata maps using Clone() methods
+	segmentCopy := segment.Clone()
+	portfolioCopy := portfolio.Clone()
+	merchantCopy := merchant.Clone()
 
 	req := &ValidationRequest{
 		RequestID:            requestID,
@@ -178,8 +145,7 @@ func NewValidationRequest(
 		Metadata:             metadataCopy,
 	}
 
-	// Validate after construction
-	if err := req.Validate(); err != nil {
+	if err := req.Validate(now); err != nil {
 		return nil, err
 	}
 
@@ -203,7 +169,7 @@ func NewValidationRequest(
 // - You want to enforce that clients send properly formatted currency codes
 //
 // For programmatic construction with automatic currency normalization, use NewValidationRequest() instead.
-func (r *ValidationRequest) NormalizeAndValidate() error {
+func (r *ValidationRequest) NormalizeAndValidate(now time.Time) error {
 	// Prepare normalized values without mutating the receiver yet
 	var normalizedSubType *string
 
@@ -224,36 +190,13 @@ func (r *ValidationRequest) NormalizeAndValidate() error {
 	temp.SubType = normalizedSubType
 	temp.Metadata = metadataCopy
 
-	// Deep copy nested context metadata to prevent shared references
-	if temp.Segment != nil && temp.Segment.Metadata != nil {
-		segmentMetaCopy := make(map[string]any, len(temp.Segment.Metadata))
-		maps.Copy(segmentMetaCopy, temp.Segment.Metadata)
-
-		segmentCopy := *temp.Segment
-		segmentCopy.Metadata = segmentMetaCopy
-		temp.Segment = &segmentCopy
-	}
-
-	if temp.Portfolio != nil && temp.Portfolio.Metadata != nil {
-		portfolioMetaCopy := make(map[string]any, len(temp.Portfolio.Metadata))
-		maps.Copy(portfolioMetaCopy, temp.Portfolio.Metadata)
-
-		portfolioCopy := *temp.Portfolio
-		portfolioCopy.Metadata = portfolioMetaCopy
-		temp.Portfolio = &portfolioCopy
-	}
-
-	if temp.Merchant != nil && temp.Merchant.Metadata != nil {
-		merchantMetaCopy := make(map[string]any, len(temp.Merchant.Metadata))
-		maps.Copy(merchantMetaCopy, temp.Merchant.Metadata)
-
-		merchantCopy := *temp.Merchant
-		merchantCopy.Metadata = merchantMetaCopy
-		temp.Merchant = &merchantCopy
-	}
+	// Deep copy nested context metadata to prevent shared references using Clone() methods
+	temp.Segment = temp.Segment.Clone()
+	temp.Portfolio = temp.Portfolio.Clone()
+	temp.Merchant = temp.Merchant.Clone()
 
 	// Validate on temp - if error, original r remains unchanged
-	if err := temp.Validate(); err != nil {
+	if err := temp.Validate(now); err != nil {
 		return err
 	}
 
@@ -291,6 +234,12 @@ type LimitUsageDetail struct {
 	// Per API Design v1.3.2 section 4.1.1.
 	AttemptedAmount decimal.Decimal `json:"attemptedAmount" swaggertype:"string" example:"100.00"`
 	Exceeded        bool            `json:"exceeded"`
+	// Skipped indicates whether this limit was skipped during evaluation (not enforced).
+	// When true, the counter was NOT incremented and Exceeded is always false.
+	Skipped bool `json:"skipped,omitempty"`
+	// SkipReason explains why the limit was skipped (only set when Skipped=true).
+	// Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
+	SkipReason string `json:"skipReason,omitempty"`
 
 	// Internal fields for rollback operations - not serialized to JSON.
 	// InternalLimitType stores the persistent limit type for rollback logic.
@@ -313,11 +262,12 @@ type LimitUsageDetail struct {
 // Embeds EvaluationResult to avoid field duplication.
 // Aligned with TRD v1.2.4: arrays for matched/evaluated rules and limit details.
 type ValidationResponse struct {
-	ValidationID uuid.UUID `json:"validationId" swaggertype:"string" format:"uuid"`
-	RequestID    uuid.UUID `json:"requestId" swaggertype:"string" format:"uuid"`
-	EvaluationResult
+	ValidationID      uuid.UUID `json:"validationId" swaggertype:"string" format:"uuid"`
+	RequestID         uuid.UUID `json:"requestId" swaggertype:"string" format:"uuid"`
+	EvaluationResult  `swaggerignore:"true"`
 	LimitUsageDetails []LimitUsageDetail `json:"limitUsageDetails"`
 	ProcessingTimeMs  int64              `json:"processingTimeMs"`
+	EvaluatedAt       time.Time          `json:"evaluatedAt" format:"date-time"`
 }
 
 // NewValidationResponse creates a ValidationResponse with initialized slices.
@@ -353,9 +303,12 @@ func (d Decision) String() string {
 }
 
 // Validate checks that all required fields in ValidationRequest are present and valid.
+// The now parameter is used for timestamp validation, enabling deterministic testing
+// via clock injection. In production, pass time.Now() from a clock interface.
+// In tests with MOCK_TIME, pass the mocked time.
 // Returns specific error constants for each validation failure.
-func (r *ValidationRequest) Validate() error {
-	if err := r.validateRequiredFields(); err != nil {
+func (r *ValidationRequest) Validate(now time.Time) error {
+	if err := r.validateRequiredFields(now); err != nil {
 		return err
 	}
 
@@ -370,7 +323,7 @@ func (r *ValidationRequest) Validate() error {
 	return r.validateMetadata()
 }
 
-func (r *ValidationRequest) validateRequiredFields() error {
+func (r *ValidationRequest) validateRequiredFields(now time.Time) error {
 	if r.RequestID == uuid.Nil {
 		return constant.ErrValidationRequestIDRequired
 	}
@@ -395,8 +348,7 @@ func (r *ValidationRequest) validateRequiredFields() error {
 		return constant.ErrValidationTimestampRequired
 	}
 
-	now := time.Now()
-
+	// Use injected `now` instead of time.Now() for testability and MOCK_TIME support
 	maxAllowedTime := now.Add(ClockSkewTolerance)
 	if r.TransactionTimestamp.After(maxAllowedTime) {
 		return constant.ErrValidationTimestampFuture
@@ -463,12 +415,12 @@ func (r *ValidationRequest) validateMetadata() error {
 		return nil
 	}
 
-	if len(r.Metadata) > 50 {
+	if len(r.Metadata) > constant.MaxMetadataEntries {
 		return constant.ErrMetadataEntriesExceeded
 	}
 
 	for key := range r.Metadata {
-		if len(key) > 64 {
+		if len(key) > constant.MaxMetadataKeyLength {
 			return constant.ErrMetadataKeyLengthExceeded
 		}
 

@@ -179,6 +179,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	}
 
 	response.LimitUsageDetails = limitOutput.LimitUsageDetails
+	response.EvaluatedAt = limitOutput.EvaluatedAt
 
 	// If limit exceeded, return DENY
 	if !limitOutput.Allowed {

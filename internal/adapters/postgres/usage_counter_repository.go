@@ -32,6 +32,44 @@ const DefaultDeleteBatchSize = 1000
 // Using a constant prevents SQL injection via table name interpolation.
 const usageCountersTable = "usage_counters"
 
+// upsertAndIncrementCTEQuery is the CTE query for atomic upsert+increment operations.
+// This query always returns (current_usage, succeeded) in a single round-trip.
+//
+// Strategy:
+// 1. CTE 'attempt' tries INSERT ... ON CONFLICT DO UPDATE with WHERE guard
+// 2. If succeeds: returns (new current_usage, true)
+// 3. If WHERE guard fails: CTE returns 0 rows
+// 4. Outer query uses COALESCE: if CTE empty, fallback to SELECT + false flag
+//
+// Parameters: $1=counterID, $2=limitID, $3=scopeKey, $4=periodKey, $5=amount (INSERT),
+//
+//	$6=now (INSERT last_updated_at), $7=amount (UPDATE), $8=now (UPDATE last_updated_at),
+//	$9=amount (WHERE check), $10=maxAmount, $11=expiresAt
+const upsertAndIncrementCTEQuery = `
+	WITH attempt AS (
+		INSERT INTO usage_counters (id, limit_id, scope_key, period_key, current_usage, last_updated_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $11)
+		ON CONFLICT (limit_id, scope_key, period_key) 
+		DO UPDATE SET 
+			current_usage = usage_counters.current_usage + $7,
+			last_updated_at = $8,
+			expires_at = $11
+		WHERE usage_counters.current_usage + $9 <= $10
+		RETURNING current_usage, true as succeeded
+	)
+	SELECT 
+		COALESCE(
+			(SELECT current_usage FROM attempt),
+			(SELECT current_usage FROM usage_counters 
+			 WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4),
+			$5
+		) as current_usage,
+		COALESCE(
+			(SELECT succeeded FROM attempt),
+			false
+		) as succeeded
+`
+
 // UsageCounterRepository implements query.UsageCounterRepository using PostgreSQL.
 // Provides atomic usage counter operations with row-level locking (SELECT FOR UPDATE).
 type UsageCounterRepository struct {
@@ -432,6 +470,9 @@ func (r *UsageCounterRepository) DecrementAtomic(ctx context.Context, counterID 
 // IMPORTANT: The WHERE guard only applies to the DO UPDATE (conflict) path.
 // The INSERT path creates a new counter with current_usage = amount without a WHERE guard.
 // Therefore, the caller MUST pre-check amount > maxAmount before calling this method.
+//
+// The expiresAt parameter specifies when the counter should be eligible for cleanup.
+// If expiresAt is nil, the counter will never be automatically deleted (fail-safe behavior).
 func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 	ctx context.Context,
 	limitID uuid.UUID,
@@ -439,6 +480,7 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 	periodKey string,
 	amount decimal.Decimal,
 	maxAmount decimal.Decimal,
+	expiresAt *time.Time,
 ) (decimal.Decimal, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -480,39 +522,8 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 		return decimal.Zero, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	// Build CTE query that always returns current_usage AND a success flag.
-	// This eliminates the need for a second SELECT when limit is exceeded.
-	//
-	// Strategy:
-	// 1. CTE 'attempt' tries INSERT ... ON CONFLICT DO UPDATE with WHERE guard
-	// 2. If succeeds: returns (new current_usage, true)
-	// 3. If WHERE guard fails: CTE returns 0 rows
-	// 4. Outer query uses COALESCE: if CTE empty, fallback to SELECT + false flag
-	//
-	// Result: Always returns (current_usage, succeeded) in a single round-trip.
-	query := `
-		WITH attempt AS (
-			INSERT INTO ` + usageCountersTable + ` (id, limit_id, scope_key, period_key, current_usage, last_updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			ON CONFLICT (limit_id, scope_key, period_key) 
-			DO UPDATE SET 
-				current_usage = ` + usageCountersTable + `.current_usage + $7,
-				last_updated_at = $8
-			WHERE ` + usageCountersTable + `.current_usage + $9 <= $10
-			RETURNING current_usage, true as succeeded
-		)
-		SELECT 
-			COALESCE(
-				(SELECT current_usage FROM attempt),
-				(SELECT current_usage FROM ` + usageCountersTable + ` 
-				 WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4),
-				$5
-			) as current_usage,
-			COALESCE(
-				(SELECT succeeded FROM attempt),
-				false
-			) as succeeded
-	`
+	// Use pre-defined CTE query for atomic upsert+increment
+	query := upsertAndIncrementCTEQuery
 
 	args := []any{
 		counterID.String(), // $1
@@ -525,6 +536,7 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 		now,                // $8 (UPDATE last_updated_at)
 		amount,             // $9 (WHERE guard check)
 		maxAmount,          // $10 (WHERE guard limit)
+		expiresAt,          // $11 (expires_at for cleanup)
 	}
 
 	var (
@@ -771,23 +783,23 @@ func (r *UsageCounterRepository) scanCounterFromRows(ctx context.Context, rows *
 	return counter, nil
 }
 
-// DeleteExpiredCounters removes usage counters that haven't been updated since the specified time.
-// This is used for cleanup of old period counters that are no longer relevant.
+// DeleteExpiredCounters removes usage counters whose expires_at is before now.
+// Counters with NULL expires_at are preserved (never deleted).
 // Deletes are performed in batches to prevent long-running locks on large tables.
 // Returns the total number of deleted counters.
-func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, olderThan time.Time) (int64, error) {
+func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now time.Time) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "repository.usage_counter.delete_expired_counters")
+	ctx, span := tracer.Start(ctx, "repository.usage_counter.delete_expired_counters_by_expires_at")
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)
 
 	logger.WithFields(
-		"operation", "repository.usage_counter.delete_expired_counters",
-		"older_than", olderThan.Format(time.RFC3339),
+		"operation", "repository.usage_counter.delete_expired_counters_by_expires_at",
+		"now", now.Format(time.RFC3339),
 		"batch_size", r.deleteBatchSize,
-	).Info("Deleting expired usage counters in batches")
+	).Info("Deleting expired usage counters by expires_at in batches")
 
 	var totalDeleted int64
 
@@ -795,7 +807,7 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, olde
 		// Check for context cancellation before each batch to allow graceful shutdown
 		if err := ctx.Err(); err != nil {
 			logger.WithFields(
-				"operation", "repository.usage_counter.delete_expired_counters",
+				"operation", "repository.usage_counter.delete_expired_counters_by_expires_at",
 				"total_deleted", totalDeleted,
 				"reason", err.Error(),
 			).Info("Stopping batch deletion due to context cancellation")
@@ -812,17 +824,18 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, olde
 		}
 
 		// Build batched delete query using subquery:
-		// DELETE FROM usage_counters WHERE id IN (SELECT id FROM usage_counters WHERE last_updated_at < $1 LIMIT $2)
+		// DELETE FROM usage_counters WHERE id IN (SELECT id FROM usage_counters WHERE expires_at IS NOT NULL AND expires_at < $1 LIMIT $2)
 		// PostgreSQL doesn't support LIMIT directly on DELETE, so we use a subquery approach.
+		// Counters with NULL expires_at are preserved (never deleted automatically).
 		deleteQuery := fmt.Sprintf(
-			"DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE last_updated_at < $1 LIMIT $2)",
+			"DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE expires_at IS NOT NULL AND expires_at < $1 LIMIT $2)",
 			usageCountersTable, usageCountersTable,
 		)
 
-		result, err := db.ExecContext(ctx, deleteQuery, olderThan, r.deleteBatchSize)
+		result, err := db.ExecContext(ctx, deleteQuery, now, r.deleteBatchSize)
 		if err != nil {
 			libOtel.HandleSpanError(&span, "Failed to delete expired counters batch", err)
-			return totalDeleted, fmt.Errorf("failed to delete expired counters: %w", err)
+			return totalDeleted, fmt.Errorf("failed to delete expired counters by expires_at: %w", err)
 		}
 
 		rowsAffected, err := result.RowsAffected()
@@ -834,7 +847,7 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, olde
 		totalDeleted += rowsAffected
 
 		logger.WithFields(
-			"operation", "repository.usage_counter.delete_expired_counters",
+			"operation", "repository.usage_counter.delete_expired_counters_by_expires_at",
 			"batch_deleted", rowsAffected,
 			"total_deleted", totalDeleted,
 		).Debug("Deleted batch of expired usage counters")
@@ -846,9 +859,9 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, olde
 	}
 
 	logger.WithFields(
-		"operation", "repository.usage_counter.delete_expired_counters",
+		"operation", "repository.usage_counter.delete_expired_counters_by_expires_at",
 		"deleted_count", totalDeleted,
-	).Info("Deleted expired usage counters")
+	).Info("Deleted expired usage counters by expires_at")
 
 	return totalDeleted, nil
 }

@@ -42,16 +42,16 @@ func (m *MockUsageCounterCleanupRepository) EXPECT() *MockUsageCounterCleanupRep
 }
 
 // DeleteExpiredCounters mocks base method.
-func (m *MockUsageCounterCleanupRepository) DeleteExpiredCounters(ctx context.Context, olderThan time.Time) (int64, error) {
+func (m *MockUsageCounterCleanupRepository) DeleteExpiredCounters(ctx context.Context, now time.Time) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteExpiredCounters", ctx, olderThan)
+	ret := m.ctrl.Call(m, "DeleteExpiredCounters", ctx, now)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteExpiredCounters indicates an expected call of DeleteExpiredCounters.
-func (mr *MockUsageCounterCleanupRepositoryMockRecorder) DeleteExpiredCounters(ctx, olderThan any) *gomock.Call {
+func (mr *MockUsageCounterCleanupRepositoryMockRecorder) DeleteExpiredCounters(ctx, now any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredCounters", reflect.TypeOf((*MockUsageCounterCleanupRepository)(nil).DeleteExpiredCounters), ctx, olderThan)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredCounters", reflect.TypeOf((*MockUsageCounterCleanupRepository)(nil).DeleteExpiredCounters), ctx, now)
 }

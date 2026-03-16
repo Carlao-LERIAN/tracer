@@ -85,12 +85,16 @@ func validateLimitStatus(fl validator.FieldLevel) bool {
 
 // CreateLimitInput represents the HTTP request body for creating a limit.
 type CreateLimitInput struct {
-	Name        string          `json:"name" validate:"required,min=1,max=255"`
-	Description *string         `json:"description,omitempty" validate:"omitempty,max=1000"`
-	LimitType   model.LimitType `json:"limitType" validate:"required,limittype"`
-	MaxAmount   decimal.Decimal `json:"maxAmount" validate:"required" swaggertype:"string" example:"1000.00"`
-	Currency    string          `json:"currency" validate:"required,len=3,uppercase" minLength:"3" maxLength:"3" example:"USD"`
-	Scopes      []model.Scope   `json:"scopes" validate:"required,min=1,max=100,dive,scopenotempty"`
+	Name            string           `json:"name" validate:"required,min=1,max=255"`
+	Description     *string          `json:"description,omitempty" validate:"omitempty,max=1000"`
+	LimitType       model.LimitType  `json:"limitType" validate:"required,limittype"`
+	MaxAmount       decimal.Decimal  `json:"maxAmount" validate:"required" swaggertype:"string" example:"1000.00"`
+	Currency        string           `json:"currency" validate:"required,len=3,uppercase" minLength:"3" maxLength:"3" example:"USD"`
+	Scopes          []model.Scope    `json:"scopes" validate:"required,min=1,max=100,dive,scopenotempty"`
+	ActiveTimeStart *model.TimeOfDay `json:"activeTimeStart,omitempty" swaggertype:"string" example:"09:00"`
+	ActiveTimeEnd   *model.TimeOfDay `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`
+	CustomStartDate *string          `json:"customStartDate,omitempty" format:"date-time" example:"2026-11-27T00:00:00Z"`
+	CustomEndDate   *string          `json:"customEndDate,omitempty" format:"date-time" example:"2026-11-29T00:00:00Z"`
 }
 
 // Validate validates the CreateLimitInput struct using validator/v10.
@@ -114,10 +118,14 @@ func (i *CreateLimitInput) Validate() error {
 
 // UpdateLimitInput represents the HTTP request body for updating a limit.
 type UpdateLimitInput struct {
-	Name        *string          `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
-	Description *string          `json:"description,omitempty" validate:"omitempty,max=1000"`
-	MaxAmount   *decimal.Decimal `json:"maxAmount,omitempty" swaggertype:"string" example:"1000.00"`
-	Scopes      *[]model.Scope   `json:"scopes,omitempty" validate:"omitempty,min=1,max=100,dive,scopenotempty"`
+	Name            *string          `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	Description     *string          `json:"description,omitempty" validate:"omitempty,max=1000"`
+	MaxAmount       *decimal.Decimal `json:"maxAmount,omitempty" swaggertype:"string" example:"1000.00"`
+	Scopes          *[]model.Scope   `json:"scopes,omitempty" validate:"omitempty,min=1,max=100,dive,scopenotempty"`
+	ActiveTimeStart *model.TimeOfDay `json:"activeTimeStart,omitempty" swaggertype:"string" example:"09:00"`
+	ActiveTimeEnd   *model.TimeOfDay `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`
+	CustomStartDate *string          `json:"customStartDate,omitempty" format:"date-time" example:"2026-11-27T00:00:00Z"`
+	CustomEndDate   *string          `json:"customEndDate,omitempty" format:"date-time" example:"2026-11-29T00:00:00Z"`
 }
 
 // Validate validates the UpdateLimitInput struct using validator/v10.
@@ -141,7 +149,8 @@ func (i *UpdateLimitInput) Validate() error {
 
 // IsEmpty returns true if no fields are set for update.
 func (i *UpdateLimitInput) IsEmpty() bool {
-	return i.Name == nil && i.MaxAmount == nil && i.Description == nil && i.Scopes == nil
+	return i.Name == nil && i.MaxAmount == nil && i.Description == nil && i.Scopes == nil &&
+		i.ActiveTimeStart == nil && i.ActiveTimeEnd == nil && i.CustomStartDate == nil && i.CustomEndDate == nil
 }
 
 // ListLimitsInput represents query parameters for listing limits.
@@ -312,21 +321,29 @@ func ToCreateLimitServiceInput(input *CreateLimitInput) *command.CreateLimitInpu
 	copy(scopes, input.Scopes)
 
 	return &command.CreateLimitInput{
-		Name:        input.Name,
-		Description: input.Description,
-		LimitType:   input.LimitType,
-		MaxAmount:   input.MaxAmount,
-		Currency:    input.Currency,
-		Scopes:      scopes,
+		Name:            input.Name,
+		Description:     input.Description,
+		LimitType:       input.LimitType,
+		MaxAmount:       input.MaxAmount,
+		Currency:        input.Currency,
+		Scopes:          scopes,
+		ActiveTimeStart: input.ActiveTimeStart,
+		ActiveTimeEnd:   input.ActiveTimeEnd,
+		CustomStartDate: input.CustomStartDate,
+		CustomEndDate:   input.CustomEndDate,
 	}
 }
 
 // ToUpdateLimitServiceInput converts HTTP UpdateLimitInput to service UpdateLimitInput.
 func ToUpdateLimitServiceInput(input *UpdateLimitInput) *command.UpdateLimitInput {
 	result := &command.UpdateLimitInput{
-		Name:        input.Name,
-		MaxAmount:   input.MaxAmount,
-		Description: input.Description,
+		Name:            input.Name,
+		MaxAmount:       input.MaxAmount,
+		Description:     input.Description,
+		ActiveTimeStart: input.ActiveTimeStart,
+		ActiveTimeEnd:   input.ActiveTimeEnd,
+		CustomStartDate: input.CustomStartDate,
+		CustomEndDate:   input.CustomEndDate,
 	}
 
 	if input.Scopes != nil {

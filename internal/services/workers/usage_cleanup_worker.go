@@ -174,6 +174,8 @@ func (w *UsageCleanupWorker) runCleanupCycle(ctx context.Context) {
 // Returns the number of deleted counters.
 // This method can be called directly for manual/on-demand cleanup,
 // or used by external schedulers (e.g., K8s CronJob).
+//
+//	Uses expires_at column for accurate cleanup timing.
 func (w *UsageCleanupWorker) RunOnce(ctx context.Context) (int64, error) {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
 
@@ -182,16 +184,17 @@ func (w *UsageCleanupWorker) RunOnce(ctx context.Context) (int64, error) {
 
 	logger := logging.WithTrace(ctx, w.logger)
 
-	// Calculate the cutoff time based on retention period
-	olderThan := w.clock.Now().UTC().Add(-w.config.RetentionPeriod)
+	// Use current time for expires_at comparison
+	// Counters with expires_at < now will be deleted
+	// Counters with NULL expires_at are preserved (never deleted)
+	now := w.clock.Now().UTC()
 
 	logger.WithFields(
 		"operation", "worker.usage_cleanup.run_once",
-		"older_than", olderThan.Format(time.RFC3339),
-		"retention_period", w.config.RetentionPeriod.String(),
-	).Info("Deleting expired usage counters")
+		"now", now.Format(time.RFC3339),
+	).Info("Deleting expired usage counters by expires_at")
 
-	deleted, err := w.repo.DeleteExpiredCounters(ctx, olderThan)
+	deleted, err := w.repo.DeleteExpiredCounters(ctx, now)
 	if err != nil {
 		libOtel.HandleSpanError(&span, "Failed to delete expired counters", err)
 

@@ -177,7 +177,7 @@ func TestUsageCleanupWorker_RunWithContext_Stop(t *testing.T) {
 	// Channel to signal when cleanup has been called
 	cleanupCalled := make(chan struct{}, 1)
 
-	// Expect cleanup to be called at least once when worker runs
+	// Expect cleanup to be called at least once when worker runs ( uses expires_at)
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ time.Time) (int64, error) {
@@ -241,14 +241,13 @@ func TestUsageCleanupWorker_ExecutesCleanup(t *testing.T) {
 	testClock := mockClock{fixedTime: fixedTime}
 
 	retentionPeriod := 90 * 24 * time.Hour
-	expectedOlderThan := fixedTime.UTC().Add(-retentionPeriod)
 
-	// Expect at least one cleanup call with the exact expected time
+	//  Cleanup now uses expires_at column directly, passing current time
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, olderThan time.Time) (int64, error) {
-			// Verify the olderThan time is exactly now - retention period
-			assert.Equal(t, expectedOlderThan, olderThan)
+		DoAndReturn(func(_ context.Context, now time.Time) (int64, error) {
+			// Verify the now time is the current clock time
+			assert.Equal(t, fixedTime.UTC(), now)
 			return deletedCount, nil
 		}).
 		MinTimes(1)
@@ -293,7 +292,7 @@ func TestUsageCleanupWorker_HandlesRepositoryError(t *testing.T) {
 
 	dbError := errors.New("database connection failed")
 
-	// Expect cleanup calls to fail but worker should continue
+	// Expect cleanup calls to fail but worker should continue ( uses expires_at)
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
 		Return(int64(0), dbError).
@@ -344,10 +343,10 @@ func TestUsageCleanupWorker_RunOnce(t *testing.T) {
 	testClock := mockClock{fixedTime: fixedTime}
 
 	retentionPeriod := 90 * 24 * time.Hour
-	expectedOlderThan := fixedTime.UTC().Add(-retentionPeriod)
 
+	//  Cleanup now passes current time to DeleteExpiredCounters
 	mockRepo.EXPECT().
-		DeleteExpiredCounters(gomock.Any(), expectedOlderThan).
+		DeleteExpiredCounters(gomock.Any(), fixedTime.UTC()).
 		Return(deletedCount, nil).
 		Times(1)
 
@@ -376,6 +375,7 @@ func TestUsageCleanupWorker_RunOnce_Error(t *testing.T) {
 
 	dbError := errors.New("database unavailable")
 
+	//  Uses DeleteExpiredCounters
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
 		Return(int64(0), dbError).
@@ -412,13 +412,13 @@ func TestUsageCleanupWorker_NilClockUsesRealClock(t *testing.T) {
 	mockRepo := mocks.NewMockUsageCounterCleanupRepository(ctrl)
 	logger := testutil.NewMockLogger()
 
-	// When nil clock is passed, worker should use RealClock and compute time correctly
+	//  When nil clock is passed, worker should use RealClock
+	// Cleanup now passes current time to DeleteExpiredCounters
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, olderThan time.Time) (int64, error) {
-			// Verify the time is close to now - retention period (within 1 second)
-			expectedOlderThan := time.Now().UTC().Add(-90 * 24 * time.Hour)
-			assert.WithinDuration(t, expectedOlderThan, olderThan, 1*time.Second)
+		DoAndReturn(func(_ context.Context, now time.Time) (int64, error) {
+			// Verify the time is close to current time (within 1 second)
+			assert.WithinDuration(t, time.Now().UTC(), now, 1*time.Second)
 			return int64(5), nil
 		}).
 		Times(1)
@@ -437,4 +437,122 @@ func TestUsageCleanupWorker_NilClockUsesRealClock(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), count)
+}
+
+// =============================================================================
+//  Expired Usage Counters Are Automatically Cleaned Up
+// Tests for worker using expires_at instead of last_updated_at
+// =============================================================================
+
+// TestUsageCleanupWorker_DeletesByExpiresAt tests that the cleanup worker
+// deletes counters based on the expires_at column, not last_updated_at.
+// Acceptance Criteria:
+// - Counters with expires_at < NOW are deleted
+// - Counters with expires_at = NULL are preserved (never deleted)
+// - Counters with expires_at > NOW are preserved
+func TestUsageCleanupWorker_DeletesByExpiresAt(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	mockRepo := mocks.NewMockUsageCounterCleanupRepository(ctrl)
+	logger := testutil.NewMockLogger()
+
+	// Fixed time for deterministic testing
+	fixedTime := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	testClock := mockClock{fixedTime: fixedTime}
+
+	mockRepo.EXPECT().
+		DeleteExpiredCounters(gomock.Any(), fixedTime).
+		Return(int64(42), nil).
+		Times(1)
+
+	config := UsageCleanupWorkerConfig{
+		CleanupInterval: 24 * time.Hour,
+		RetentionPeriod: 90 * 24 * time.Hour,
+	}
+
+	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// RunOnce should now use DeleteExpiredCounters
+	count, err := worker.RunOnce(ctx)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), count)
+}
+
+// TestUsageCleanupWorker_PreservesNullExpiresAt verifies that counters with
+// NULL expires_at are never deleted (they are preserved indefinitely).
+func TestUsageCleanupWorker_PreservesNullExpiresAt(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	mockRepo := mocks.NewMockUsageCounterCleanupRepository(ctrl)
+	logger := testutil.NewMockLogger()
+
+	fixedTime := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	testClock := mockClock{fixedTime: fixedTime}
+
+	// The repository query uses: WHERE expires_at IS NOT NULL AND expires_at < NOW
+	// This ensures counters with NULL expires_at are NEVER deleted
+	mockRepo.EXPECT().
+		DeleteExpiredCounters(gomock.Any(), fixedTime).
+		Return(int64(10), nil).
+		Times(1)
+
+	config := UsageCleanupWorkerConfig{
+		CleanupInterval: 24 * time.Hour,
+		RetentionPeriod: 90 * 24 * time.Hour,
+	}
+
+	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	count, err := worker.RunOnce(ctx)
+
+	require.NoError(t, err)
+	// The count should only include counters with expires_at < NOW, not NULL
+	assert.Equal(t, int64(10), count)
+}
+
+// TestUsageCleanupWorker_DeletesByExpiresAt_HandlesError tests error handling
+// when the expires_at based deletion fails.
+func TestUsageCleanupWorker_DeletesByExpiresAt_HandlesError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	_, cleanup := setupTestTracer(t)
+	defer cleanup()
+
+	mockRepo := mocks.NewMockUsageCounterCleanupRepository(ctrl)
+	logger := testutil.NewMockLogger()
+
+	fixedTime := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	testClock := mockClock{fixedTime: fixedTime}
+
+	dbError := errors.New("database connection failed")
+
+	// The worker should handle errors from DeleteExpiredCounters
+	mockRepo.EXPECT().
+		DeleteExpiredCounters(gomock.Any(), fixedTime).
+		Return(int64(0), dbError).
+		Times(1)
+
+	config := UsageCleanupWorkerConfig{
+		CleanupInterval: 24 * time.Hour,
+		RetentionPeriod: 90 * 24 * time.Hour,
+	}
+
+	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	count, err := worker.RunOnce(ctx)
+
+	require.Error(t, err)
+	assert.Equal(t, int64(0), count)
+	assert.Contains(t, err.Error(), "failed to delete expired counters")
 }

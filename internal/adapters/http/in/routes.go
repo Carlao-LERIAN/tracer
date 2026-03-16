@@ -17,6 +17,7 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 
 	"tracer/internal/adapters/http/in/middleware"
+	"tracer/pkg/clock"
 )
 
 // defaultCORSOrigins is the restrictive default when CORS_ALLOWED_ORIGINS is not set.
@@ -62,7 +63,7 @@ func skipTelemetryPaths(c *fiber.Ctx) bool {
 	}
 }
 
-func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *RouteConfig, ruleService RuleService, limitService LimitService, validationService ValidationService, transactionValidationService TransactionValidationService, auditEventService AuditEventService, guard *middleware.AuthGuard) *fiber.App {
+func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *RouteConfig, ruleService RuleService, limitService LimitService, validationService ValidationService, transactionValidationService TransactionValidationService, auditEventService AuditEventService, guard *middleware.AuthGuard, clk clock.Clock) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -159,7 +160,11 @@ func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *
 
 	// Validation endpoint POST
 	// When APIKeyOnlyValidation=true, uses API key auth only (bypasses plugin auth)
-	validationHandler := NewValidationHandler(validationService)
+	validationHandler, err := NewValidationHandler(validationService, clk)
+	if err != nil {
+		lg.Fatalf("failed to create validation handler: %v", err)
+	}
+
 	api.Post("/validations", guard.With("validations", "post", cfg.APIKeyOnlyValidation), validationHandler.Validate)
 
 	// Audit Event endpoints (read-only per SOX/GLBA requirements)

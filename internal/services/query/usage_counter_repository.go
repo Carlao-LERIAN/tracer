@@ -44,7 +44,9 @@ type UsageCounterRepository interface {
 	// to create or increment a usage counter. Returns the new current_usage.
 	// Returns ErrUsageCounterExceedsLimit if the increment would exceed maxAmount.
 	// IMPORTANT: Caller MUST pre-check amount > maxAmount before calling (INSERT path has no WHERE guard).
-	UpsertAndIncrementAtomic(ctx context.Context, limitID uuid.UUID, scopeKey string, periodKey string, amount decimal.Decimal, maxAmount decimal.Decimal) (decimal.Decimal, error)
+	// The expiresAt parameter specifies when the counter should be eligible for cleanup.
+	// If expiresAt is nil, the counter will never be automatically deleted (fail-safe behavior).
+	UpsertAndIncrementAtomic(ctx context.Context, limitID uuid.UUID, scopeKey string, periodKey string, amount decimal.Decimal, maxAmount decimal.Decimal, expiresAt *time.Time) (decimal.Decimal, error)
 
 	// GetByLimitID retrieves all usage counters for a specific limit.
 	// Used for the GET /limits/{id}/usage endpoint.
@@ -57,10 +59,10 @@ type UsageCounterRepository interface {
 	// Returns a map of limitID -> currentUsage. Missing entries mean usage is 0.
 	GetUsageForLimits(ctx context.Context, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]decimal.Decimal, error)
 
-	// DeleteExpiredCounters removes usage counters that haven't been updated since the specified time.
-	// This is used for cleanup of old period counters that are no longer relevant.
-	// Period counters become stale when a new period starts (e.g., new day for DAILY, new month for MONTHLY).
-	// The automatic reset happens via periodKey: new periods create new counters, old ones need cleanup.
+	// DeleteExpiredCounters removes usage counters where expires_at < now.
+	// Counters with NULL expires_at are preserved (never deleted).
+	// This provides more accurate cleanup based on when counters should actually expire
+	// rather than when they were last updated.
 	// Returns the number of deleted counters.
-	DeleteExpiredCounters(ctx context.Context, olderThan time.Time) (int64, error)
+	DeleteExpiredCounters(ctx context.Context, now time.Time) (int64, error)
 }

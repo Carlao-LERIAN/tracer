@@ -312,7 +312,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		originalCurrency := req.Currency
 
 		// Call NormalizeAndValidate - should fail due to invalid currency
-		err := req.NormalizeAndValidate()
+		err := req.NormalizeAndValidate(time.Now())
 
 		// Verify validation failed
 		assert.Error(t, err)
@@ -349,7 +349,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		originalSubTypePtr := req.SubType
 
 		// Call NormalizeAndValidate - should succeed
-		err := req.NormalizeAndValidate()
+		err := req.NormalizeAndValidate(time.Now())
 
 		// Verify validation succeeded
 		require.NoError(t, err)
@@ -381,7 +381,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		// Capture original currency before call
 		originalCurrency := req.Currency
 
-		err := req.NormalizeAndValidate()
+		err := req.NormalizeAndValidate(time.Now())
 
 		assert.Error(t, err)
 		assert.Nil(t, req.SubType, "SubType should remain nil")
@@ -445,7 +445,7 @@ func TestValidationRequest_Validate_MerchantID(t *testing.T) {
 			req := baseRequest()
 			tc.modify(&req)
 
-			err := req.Validate()
+			err := req.Validate(time.Now())
 
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
@@ -490,7 +490,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 		}
 
 		// Call NormalizeAndValidate
-		err := req.NormalizeAndValidate()
+		err := req.NormalizeAndValidate(time.Now())
 		require.NoError(t, err)
 
 		// Mutate original metadata maps
@@ -525,7 +525,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			Merchant:             nil,
 		}
 
-		err := req.NormalizeAndValidate()
+		err := req.NormalizeAndValidate(time.Now())
 		require.NoError(t, err)
 
 		// Verify nil contexts remain nil
@@ -561,7 +561,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			},
 		}
 
-		err := req.NormalizeAndValidate()
+		err := req.NormalizeAndValidate(time.Now())
 		require.NoError(t, err)
 
 		// Verify contexts exist but metadata remain nil
@@ -608,6 +608,7 @@ func TestNewValidationRequest_DefensiveCopyContextMetadata(t *testing.T) {
 
 	// Create request
 	req, err := NewValidationRequest(
+		fixedTime,
 		testutil.MustDeterministicUUID(10),
 		TransactionTypeCard,
 		nil,
@@ -714,7 +715,7 @@ func TestValidationRequest_Validate_PastTimestamp(t *testing.T) {
 			req := validRequest()
 			req.TransactionTimestamp = tc.timestamp
 
-			err := req.Validate()
+			err := req.Validate(now)
 
 			if tc.expectedErr == nil {
 				assert.NoError(t, err)
@@ -773,14 +774,12 @@ func TestValidationRequest_Validate_PastTimestamp_Boundary(t *testing.T) {
 		},
 	}
 
-	// No t.Parallel() in subtests — boundary tests with tight margins (100ms)
-	// need deterministic timing between setup and validation
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := validRequest()
 			req.TransactionTimestamp = tc.timestamp
 
-			err := req.Validate()
+			err := req.Validate(now)
 
 			if tc.expectedErr == nil {
 				assert.NoError(t, err)
@@ -838,7 +837,7 @@ func TestValidationRequest_Validate_PastTimestamp_CustomMaxAge(t *testing.T) {
 			req := validRequest()
 			req.TransactionTimestamp = tc.timestamp
 
-			err := req.Validate()
+			err := req.Validate(now)
 
 			if tc.expectedErr == nil {
 				assert.NoError(t, err)

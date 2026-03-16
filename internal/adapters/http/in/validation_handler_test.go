@@ -25,6 +25,7 @@ import (
 
 	"tracer/internal/adapters/http/in/mocks"
 	"tracer/internal/testutil"
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
@@ -410,7 +411,9 @@ func TestValidationHandler_Validate(t *testing.T) {
 
 			mockService := tt.mockSetup(ctrl)
 
-			handler := NewValidationHandler(mockService)
+			clk := clock.New()
+			handler, handlerErr := NewValidationHandler(mockService, clk)
+			require.NoError(t, handlerErr)
 
 			app := fiber.New()
 			app.Post("/v1/validations", handler.Validate)
@@ -545,7 +548,9 @@ func TestValidationHandler_Validate_PayloadSizeCheck(t *testing.T) {
 					}, nil)
 			}
 
-			handler := NewValidationHandler(mockService)
+			clk := clock.New()
+			handler, handlerErr := NewValidationHandler(mockService, clk)
+			require.NoError(t, handlerErr)
 
 			app := fiber.New()
 			app.Post("/v1/validations", handler.Validate)

@@ -339,6 +339,8 @@ type LimitUsageDetail struct {
 	Period          string          `json:"period"`
 	Scope           string          `json:"scope"`
 	AttemptedAmount decimal.Decimal `json:"attemptedAmount"`
+	Skipped         bool            `json:"skipped,omitempty"`
+	SkipReason      string          `json:"skipReason,omitempty"`
 }
 
 // ValidationResponse represents the response from transaction validation.
@@ -351,6 +353,7 @@ type ValidationResponse struct {
 	EvaluatedRuleIDs  []string           `json:"evaluatedRuleIds"`
 	LimitUsageDetails []LimitUsageDetail `json:"limitUsageDetails"`
 	ProcessingTimeMs  int64              `json:"processingTimeMs"`
+	EvaluatedAt       string             `json:"evaluatedAt,omitempty"`
 }
 
 // doRequest executes an HTTP request with common setup and returns response and body.

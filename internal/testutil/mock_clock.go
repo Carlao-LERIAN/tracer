@@ -5,6 +5,8 @@
 package testutil
 
 import (
+	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -20,6 +22,23 @@ var DefaultTestTime = time.Now().Add(-1 * time.Minute).UTC()
 // Use this instead of time.Now() in tests to avoid timestamp validation failures.
 func FixedTime() time.Time {
 	return DefaultTestTime
+}
+
+// TestNow returns the current time consistent with the server's clock.
+// If MOCK_TIME env var is set (integration tests with RestartServerWithConfig),
+// returns the mocked time so transactionTimestamps stay within the 24h validation window.
+// Otherwise returns time.Now() for unit tests and integration tests without MOCK_TIME.
+func TestNow() time.Time {
+	if mt := os.Getenv("MOCK_TIME"); mt != "" {
+		t, err := time.Parse(time.RFC3339, mt)
+		if err != nil {
+			panic(fmt.Sprintf("MOCK_TIME=%q is not valid RFC3339: %v", mt, err))
+		}
+
+		return t.UTC()
+	}
+
+	return time.Now().UTC()
 }
 
 // MockClock is a test double for clock.Clock that returns a fixed time.

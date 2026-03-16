@@ -23,6 +23,7 @@ import (
 	"tracer/internal/adapters/http/in/middleware"
 	"tracer/internal/adapters/http/in/mocks"
 	"tracer/internal/testutil"
+	"tracer/pkg/clock"
 	"tracer/pkg/model"
 )
 
@@ -85,7 +86,8 @@ func (d *testRouterDeps) build() *fiber.App {
 
 	routeCfg := &RouteConfig{}
 
-	return NewRoutes(mockLogger, telemetry, &HealthChecker{}, routeCfg, d.RuleService, d.LimitService, d.ValidationService, d.TransactionValidationService, d.AuditEventService, guard)
+	clk := clock.New()
+	return NewRoutes(mockLogger, telemetry, &HealthChecker{}, routeCfg, d.RuleService, d.LimitService, d.ValidationService, d.TransactionValidationService, d.AuditEventService, guard, clk)
 }
 
 // createTestRouter creates a test router with the given AuthGuardConfig.

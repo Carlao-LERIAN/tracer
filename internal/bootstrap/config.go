@@ -538,9 +538,8 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Pos
 // initRuleService creates the rule service with all its dependencies.
 // The cacheWriter parameter is optional (nil-safe); when provided, activate and
 // deactivate commands will synchronously update the in-memory cache.
-func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter) (*services.RuleService, error) {
+func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter, clk clock.Clock) (*services.RuleService, error) {
 	celCompiler := &celCompilerAdapter{adapter: celAdapter}
-	clk := clock.New()
 
 	// Inject audit writer and cache writer into Rule commands
 	createRuleCmd := command.NewCreateRuleCommand(ruleRepo, celCompiler, clk, auditWriter)
@@ -607,12 +606,9 @@ type limitServiceDeps struct {
 }
 
 // initLimitService creates the limit service with all its dependencies.
-func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter command.AuditWriter) (*limitServiceDeps, error) {
+func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter command.AuditWriter, clk clock.Clock) (*limitServiceDeps, error) {
 	limitRepo := postgres.NewLimitRepository(postgresConn)
 	usageCounterRepo := postgres.NewUsageCounterRepository(postgresConn)
-
-	// Inject audit writer into all Limit commands for SOX/GLBA compliance
-	clk := clock.New()
 
 	createLimitCmd, err := command.NewCreateLimitCommand(limitRepo, clk, auditWriter)
 	if err != nil {
@@ -804,6 +800,36 @@ func initCoreInfra(cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
 	return logger, telemetry, nil
 }
 
+// initClock creates a clock instance based on environment configuration.
+// If MOCK_TIME env var is set to a valid RFC3339 timestamp, returns a MockClock
+// with that fixed time (for integration tests). Otherwise, returns a RealClock.
+//
+// This allows integration tests to simulate specific times (e.g., 22:00 for nighttime
+// PIX limits, Black Friday dates for custom periods) without restarting the server
+// multiple times or waiting for real time to pass.
+//
+// SECURITY: MOCK_TIME is read once at server boot. It cannot be modified via HTTP
+// requests, preventing timestamp injection attacks. In production, MOCK_TIME should
+// never be set, ensuring the system always uses real time.
+func initClock() clock.Clock {
+	mockTime := os.Getenv("MOCK_TIME")
+	if mockTime == "" {
+		return clock.New()
+	}
+
+	t, err := time.Parse(time.RFC3339, mockTime)
+	if err != nil {
+		// Invalid format: fall back to real clock and log warning
+		// Don't fail server startup due to misconfigured test env var
+		fmt.Fprintf(os.Stderr, "WARNING: Invalid MOCK_TIME format '%s' (expected RFC3339), using real clock\n", mockTime)
+		return clock.New()
+	}
+
+	fmt.Fprintf(os.Stderr, "INFO: Using MOCK_TIME=%s (test mode)\n", mockTime)
+
+	return clock.NewFixedClock(t)
+}
+
 // InitServers initiate http and grpc servers.
 func InitServers() (*Service, error) {
 	cfg := &Config{}
@@ -850,8 +876,10 @@ func InitServers() (*Service, error) {
 	auditEventRepo := postgres.NewAuditEventRepository(postgresConn)
 	auditWriter := command.NewRecordAuditEventCommand(auditEventRepo)
 
+	// Init Clock (supports MOCK_TIME for integration tests)
+	clk := initClock()
+
 	// Init Rule Cache: warm up from database, compile CEL expressions, wire into evaluation path
-	clk := clock.New()
 	ruleCache := cache.NewRuleCache(clk)
 	ruleSyncRepo := postgres.NewRuleSyncRepository(postgresConn)
 
@@ -874,7 +902,7 @@ func InitServers() (*Service, error) {
 	}
 
 	// Init Rule service with audit writer and rule cache for synchronous cache updates
-	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache)
+	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -898,7 +926,7 @@ func InitServers() (*Service, error) {
 	}
 
 	// Init Limit service with audit writer for SOX/GLBA compliance
-	limitDeps, err := initLimitService(postgresConn, auditWriter)
+	limitDeps, err := initLimitService(postgresConn, auditWriter, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -947,7 +975,7 @@ func InitServers() (*Service, error) {
 		AppName:           constant.ApplicationName,
 	}, authClient)
 
-	httpApp := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard)
+	httpApp := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard, clk)
 
 	serverAPI, err := NewHTTPServer(cfg, httpApp, logger, telemetry)
 	if err != nil {

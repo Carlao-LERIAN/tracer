@@ -277,40 +277,47 @@ func TestCheckLimitsInput_Validate_Invalid(t *testing.T) {
 func TestNewCheckLimitsOutput_Allowed(t *testing.T) {
 	t.Parallel()
 
-	output := model.NewCheckLimitsOutput(true)
+	fixedTime := testutil.FixedTime()
+	output := model.NewCheckLimitsOutput(true, fixedTime)
 
 	assert.True(t, output.Allowed)
 	assert.Empty(t, output.ExceededLimitIDs)
 	assert.Empty(t, output.LimitUsageDetails)
+	assert.Equal(t, fixedTime, output.EvaluatedAt)
 }
 
 func TestNewCheckLimitsOutput_Denied(t *testing.T) {
 	t.Parallel()
 
-	output := model.NewCheckLimitsOutput(false)
+	fixedTime := testutil.FixedTime()
+	output := model.NewCheckLimitsOutput(false, fixedTime)
 
 	assert.False(t, output.Allowed)
 	assert.Empty(t, output.ExceededLimitIDs)
 	assert.Empty(t, output.LimitUsageDetails)
+	assert.Equal(t, fixedTime, output.EvaluatedAt)
 }
 
 func TestCheckLimitsOutput_WithExceededLimits(t *testing.T) {
 	t.Parallel()
 
+	fixedTime := testutil.FixedTime()
 	exceededIDs := []uuid.UUID{
 		testutil.MustDeterministicUUID(1),
 		testutil.MustDeterministicUUID(2),
 	}
 
-	output := model.NewCheckLimitsOutput(false).WithExceededLimits(exceededIDs)
+	output := model.NewCheckLimitsOutput(false, fixedTime).WithExceededLimits(exceededIDs)
 
 	assert.False(t, output.Allowed)
 	assert.Equal(t, exceededIDs, output.ExceededLimitIDs)
+	assert.Equal(t, fixedTime, output.EvaluatedAt)
 }
 
 func TestCheckLimitsOutput_WithLimitUsageDetails(t *testing.T) {
 	t.Parallel()
 
+	fixedTime := testutil.FixedTime()
 	details := []model.LimitUsageDetail{
 		{
 			LimitID:      testutil.MustDeterministicUUID(1),
@@ -320,15 +327,17 @@ func TestCheckLimitsOutput_WithLimitUsageDetails(t *testing.T) {
 		},
 	}
 
-	output := model.NewCheckLimitsOutput(true).WithLimitUsageDetails(details)
+	output := model.NewCheckLimitsOutput(true, fixedTime).WithLimitUsageDetails(details)
 
 	assert.True(t, output.Allowed)
 	assert.Equal(t, details, output.LimitUsageDetails)
+	assert.Equal(t, fixedTime, output.EvaluatedAt)
 }
 
 func TestCheckLimitsOutput_ChainedMethods(t *testing.T) {
 	t.Parallel()
 
+	fixedTime := testutil.FixedTime()
 	exceededIDs := []uuid.UUID{testutil.MustDeterministicUUID(1)}
 	details := []model.LimitUsageDetail{
 		{
@@ -339,19 +348,21 @@ func TestCheckLimitsOutput_ChainedMethods(t *testing.T) {
 		},
 	}
 
-	output := model.NewCheckLimitsOutput(false).
+	output := model.NewCheckLimitsOutput(false, fixedTime).
 		WithExceededLimits(exceededIDs).
 		WithLimitUsageDetails(details)
 
 	assert.False(t, output.Allowed)
 	assert.Equal(t, exceededIDs, output.ExceededLimitIDs)
 	assert.Equal(t, details, output.LimitUsageDetails)
+	assert.Equal(t, fixedTime, output.EvaluatedAt)
 }
 
 func TestCheckLimitsOutput_WithNilSlices(t *testing.T) {
 	t.Parallel()
 
-	output := model.NewCheckLimitsOutput(true).
+	fixedTime := testutil.FixedTime()
+	output := model.NewCheckLimitsOutput(true, fixedTime).
 		WithExceededLimits(nil).
 		WithLimitUsageDetails(nil)
 
@@ -359,12 +370,14 @@ func TestCheckLimitsOutput_WithNilSlices(t *testing.T) {
 	assert.NotNil(t, output.LimitUsageDetails, "LimitUsageDetails should not be nil")
 	assert.Empty(t, output.ExceededLimitIDs)
 	assert.Empty(t, output.LimitUsageDetails)
+	assert.Equal(t, fixedTime, output.EvaluatedAt)
 }
 
 func TestCheckLimitsOutput_JSONSerializesEmptyArrays(t *testing.T) {
 	t.Parallel()
 
-	output := model.NewCheckLimitsOutput(true).
+	fixedTime := testutil.FixedTime()
+	output := model.NewCheckLimitsOutput(true, fixedTime).
 		WithExceededLimits(nil).
 		WithLimitUsageDetails(nil)
 
@@ -374,6 +387,7 @@ func TestCheckLimitsOutput_JSONSerializesEmptyArrays(t *testing.T) {
 	jsonStr := string(jsonBytes)
 	assert.Contains(t, jsonStr, `"exceededLimitIds":[]`)
 	assert.Contains(t, jsonStr, `"limitUsageDetails":[]`)
+	assert.Contains(t, jsonStr, `"evaluatedAt":`)
 	assert.NotContains(t, jsonStr, "null")
 }
 
@@ -632,4 +646,65 @@ func TestCheckLimitsInput_Validate_SubTypeExactlyAtLimit(t *testing.T) {
 	err := input.Validate()
 
 	require.NoError(t, err)
+}
+
+// TestCheckLimitsOutput_EvaluatedAt tests that the EvaluatedAt timestamp is:
+// 1. Preserved in the output structure
+// 2. Serialized to JSON in ISO 8601 UTC format
+// Seed range: 11000-11099
+func TestCheckLimitsOutput_EvaluatedAt(t *testing.T) {
+	t.Parallel()
+
+	// Use deterministic timestamp for reproducible tests
+	evaluatedAt := time.Date(2026, 3, 10, 14, 30, 15, 0, time.UTC)
+
+	// Test 1: EvaluatedAt field is preserved in constructor
+	output := model.NewCheckLimitsOutput(true, evaluatedAt)
+
+	require.Equal(t, evaluatedAt, output.EvaluatedAt,
+		"EvaluatedAt should be preserved in the output")
+	assert.True(t, output.Allowed)
+
+	// Test 2: JSON serialization produces ISO 8601 UTC format
+	jsonBytes, err := json.Marshal(output)
+	require.NoError(t, err, "failed to marshal output to JSON")
+
+	var parsed map[string]any
+	err = json.Unmarshal(jsonBytes, &parsed)
+	require.NoError(t, err, "failed to unmarshal JSON")
+
+	// Verify evaluatedAt field exists in JSON
+	require.Contains(t, parsed, "evaluatedAt",
+		"JSON output should contain evaluatedAt field")
+
+	// Verify ISO 8601 format: "2026-03-10T14:30:15Z"
+	expectedISO8601 := "2026-03-10T14:30:15Z"
+	assert.Equal(t, expectedISO8601, parsed["evaluatedAt"],
+		"evaluatedAt should be serialized in ISO 8601 UTC format")
+}
+
+// TestCheckLimitsOutput_EvaluatedAt_WithUsageDetails verifies that EvaluatedAt
+// is preserved when chaining methods like WithExceededLimits and WithLimitUsageDetails.
+func TestCheckLimitsOutput_EvaluatedAt_WithUsageDetails(t *testing.T) {
+	t.Parallel()
+
+	evaluatedAt := time.Date(2026, 3, 10, 14, 30, 15, 0, time.UTC)
+	limitID := testutil.MustDeterministicUUID(11001)
+
+	details := []model.LimitUsageDetail{
+		{
+			LimitID:      limitID,
+			LimitAmount:  decimal.RequireFromString("1000"),
+			CurrentUsage: decimal.RequireFromString("500"),
+			Exceeded:     false,
+		},
+	}
+
+	output := model.NewCheckLimitsOutput(true, evaluatedAt).
+		WithLimitUsageDetails(details)
+
+	// EvaluatedAt should be preserved through method chaining
+	assert.Equal(t, evaluatedAt, output.EvaluatedAt,
+		"EvaluatedAt should be preserved after method chaining")
+	assert.Len(t, output.LimitUsageDetails, 1)
 }

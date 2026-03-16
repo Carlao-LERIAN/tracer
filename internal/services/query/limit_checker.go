@@ -30,6 +30,39 @@ import (
 // Follows the pattern established by validationPersistTimeout in validation_service.go.
 const rollbackTimeout = 5 * time.Second
 
+// calculateCounterExpiresAt calculates when a usage counter should expire based on limit type.
+// Returns nil for PER_TRANSACTION (no counter created) or when required dates are nil.
+// For DAILY/WEEKLY/MONTHLY: returns resetAt + CounterRetentionDays retention period.
+// For CUSTOM: returns customEndDate + CounterRetentionDays retention period.
+func calculateCounterExpiresAt(limitType model.LimitType, resetAt *time.Time, customEndDate *time.Time) *time.Time {
+	switch limitType {
+	case model.LimitTypeDaily, model.LimitTypeWeekly, model.LimitTypeMonthly:
+		if resetAt == nil {
+			return nil
+		}
+
+		exp := resetAt.AddDate(0, 0, constant.CounterRetentionDays)
+
+		return &exp
+
+	case model.LimitTypeCustom:
+		if customEndDate == nil {
+			return nil
+		}
+
+		exp := customEndDate.AddDate(0, 0, constant.CounterRetentionDays)
+
+		return &exp
+
+	case model.LimitTypePerTransaction:
+		// PER_TRANSACTION limits don't create counters
+		return nil
+
+	default:
+		return nil
+	}
+}
+
 // LimitChecker defines the interface for checking limits against transactions.
 type LimitChecker interface {
 	// CheckLimits evaluates all applicable limits for a transaction.
@@ -114,13 +147,16 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 		return nil, err
 	}
 
+	// Compute server timestamp once for consistent evaluatedAt across all paths
+	serverNow := s.clock.Now()
+
 	if len(limits) == 0 {
 		logger.WithFields(
 			"operation", "service.limit_checker.check_limits",
 			"currency", input.Currency,
 		).Info("No active limits found for criteria")
 
-		output := model.NewCheckLimitsOutput(true)
+		output := model.NewCheckLimitsOutput(true, serverNow)
 
 		return output, nil
 	}
@@ -132,7 +168,6 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 
 	// Build transaction scope once for all limits
 	txScope := buildTransactionScope(input)
-	serverNow := s.clock.Now()
 
 	// Process each limit with atomic upsert (increment happens in DB)
 	usageDetails := make([]model.LimitUsageDetail, 0, len(limits))
@@ -146,7 +181,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 		// Calculate scope key based on the limit's scope, not transaction's full scope.
 		// This prevents counter fragmentation when limits have different scope granularities.
 		// Example: account-only limit must use "acct:X" key, not "acct:X:seg:Y:port:Z".
-		scopeKey := calculateScopeKeyForLimit(limit, txScope)
+		scopeKey := calculateScopeKeyFromScopes(limit.Scopes, txScope)
 
 		detail, exceeded, err := s.processLimitAtomic(ctx, limit, input, scopeKey, serverNow)
 		if err != nil {
@@ -193,11 +228,10 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 		}
 	}
 
-	output := model.NewCheckLimitsOutput(true).WithLimitUsageDetails(usageDetails)
+	output := model.NewCheckLimitsOutput(exceededLimitID == nil, serverNow).WithLimitUsageDetails(usageDetails)
 
 	if exceededLimitID != nil {
 		output = output.WithExceededLimits([]uuid.UUID{*exceededLimitID})
-		output.Allowed = false
 
 		logger.WithFields(
 			"operation", "service.limit_checker.check_limits",
@@ -211,6 +245,91 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 	}
 
 	return output, nil
+}
+
+// skipIfOutsideTimeWindow checks if transaction is outside the limit's time window.
+// Returns (limitUsageDetail, true) if should skip, (nil, false) if should process.
+// SECURITY: Uses server time (not client timestamp) to prevent timestamp injection attacks.
+func skipIfOutsideTimeWindow(
+	limit *model.Limit,
+	input *model.CheckLimitsInput,
+	serverNow time.Time,
+) (*model.LimitUsageDetail, bool) {
+	if !limit.IsWithinTimeWindow(serverNow) {
+		// Debug only - hot path logging removed for performance
+		// Time window skips are normal behavior, not errors
+		return &model.LimitUsageDetail{
+			LimitID:           limit.ID,
+			LimitAmount:       limit.MaxAmount,
+			Scope:             formatScopeString(limit.Scopes),
+			Period:            limit.LimitType,
+			CurrentUsage:      decimal.Zero,
+			AttemptedAmount:   input.Amount,
+			Exceeded:          false,
+			Skipped:           true,
+			SkipReason:        "outside_time_window",
+			InternalLimitType: limit.LimitType,
+			Scopes:            append([]model.Scope(nil), limit.Scopes...),
+		}, true
+	}
+
+	return nil, false
+}
+
+// skipIfOutsideCustomPeriod checks if transaction is outside the limit's custom period.
+// Returns (limitUsageDetail, true) if should skip, (nil, false) if should process.
+// SECURITY: Uses server time (not client timestamp) to prevent timestamp injection attacks.
+func skipIfOutsideCustomPeriod(
+	limit *model.Limit,
+	input *model.CheckLimitsInput,
+	serverNow time.Time,
+) (*model.LimitUsageDetail, bool) {
+	if !limit.IsWithinCustomPeriod(serverNow) {
+		// Debug only - hot path logging removed for performance
+		// Custom period skips are normal behavior, not errors
+		return &model.LimitUsageDetail{
+			LimitID:           limit.ID,
+			LimitAmount:       limit.MaxAmount,
+			Scope:             formatScopeString(limit.Scopes),
+			Period:            limit.LimitType,
+			CurrentUsage:      decimal.Zero,
+			AttemptedAmount:   input.Amount,
+			Exceeded:          false,
+			Skipped:           true,
+			SkipReason:        "outside_custom_period",
+			InternalLimitType: limit.LimitType,
+			Scopes:            append([]model.Scope(nil), limit.Scopes...),
+		}, true
+	}
+
+	return nil, false
+}
+
+// handlePerTransactionLimit processes PER_TRANSACTION limits (no counter needed).
+// Returns (limitUsageDetail, exceeded) for the limit check result.
+func handlePerTransactionLimit(
+	limit *model.Limit,
+	input *model.CheckLimitsInput,
+) (*model.LimitUsageDetail, bool) {
+	exceeded := input.Amount.GreaterThan(limit.MaxAmount)
+
+	detail := &model.LimitUsageDetail{
+		LimitID:           limit.ID,
+		LimitAmount:       limit.MaxAmount,
+		Scope:             formatScopeString(limit.Scopes),
+		Period:            limit.LimitType,
+		CurrentUsage:      decimal.Zero, // PER_TRANSACTION has no persistent usage
+		AttemptedAmount:   input.Amount,
+		Exceeded:          exceeded,
+		InternalLimitType: limit.LimitType,
+		Scopes:            append([]model.Scope(nil), limit.Scopes...),
+		InternalPeriodKey: "", // PER_TRANSACTION has no period key
+	}
+
+	// Debug only - hot path logging removed for performance
+	// PER_TRANSACTION checks are high-frequency operations
+
+	return detail, exceeded
 }
 
 // processLimitAtomic processes a single limit using atomic upsert for DAILY/MONTHLY limits.
@@ -245,40 +364,32 @@ func (s *LimitCheckerService) processLimitAtomic(
 		).Warn("Failed to set span attributes for limit")
 	}
 
+	// Check time window FIRST (before any counter operations)
+	if detail, shouldSkip := skipIfOutsideTimeWindow(limit, input, serverNow); shouldSkip {
+		return detail, false, nil
+	}
+
+	// Check custom period (after time window check)
+	if detail, shouldSkip := skipIfOutsideCustomPeriod(limit, input, serverNow); shouldSkip {
+		return detail, false, nil
+	}
+
 	// For PER_TRANSACTION limits, check directly against maxAmount (no counter needed)
 	if limit.LimitType == model.LimitTypePerTransaction {
-		exceeded := input.Amount.GreaterThan(limit.MaxAmount)
-		detail := &model.LimitUsageDetail{
-			LimitID:           limit.ID,
-			LimitAmount:       limit.MaxAmount,
-			Scope:             formatScopeString(limit.Scopes),
-			Period:            limit.LimitType,
-			CurrentUsage:      decimal.Zero, // PER_TRANSACTION has no persistent usage
-			AttemptedAmount:   input.Amount,
-			Exceeded:          exceeded,
-			InternalLimitType: limit.LimitType,
-			Scopes:            append([]model.Scope(nil), limit.Scopes...),
-			InternalPeriodKey: "", // PER_TRANSACTION has no period key
-		}
-
-		logger.WithFields(
-			"operation", "service.limit_checker.process_limit_atomic",
-			"limit_id", limit.ID.String(),
-			"limit_type", "PER_TRANSACTION",
-			"max_amount", limit.MaxAmount.String(),
-			"transaction_amount", input.Amount.String(),
-			"exceeded", exceeded,
-		).Info("Checked PER_TRANSACTION limit")
-
+		detail, exceeded := handlePerTransactionLimit(limit, input)
 		return detail, exceeded, nil
 	}
 
-	// For DAILY/MONTHLY limits, use atomic upsert
+	// For DAILY/WEEKLY/MONTHLY/CUSTOM limits, use atomic upsert
 	periodKey, err := model.CalculatePeriodKey(limit.LimitType, serverNow)
 	if err != nil {
 		libOtel.HandleSpanError(&span, "Failed to calculate period key", err)
 		return nil, false, err
 	}
+
+	// Calculate counter expiration time for cleanup
+	resetAt := model.CalculateResetAt(limit.LimitType, serverNow)
+	expiresAt := calculateCounterExpiresAt(limit.LimitType, resetAt, limit.CustomEndDate)
 
 	// Pre-check: amount > maxAmount would always fail (INSERT path has no WHERE guard)
 	if input.Amount.GreaterThan(limit.MaxAmount) {
@@ -308,15 +419,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 			InternalPeriodKey: periodKey,
 		}
 
-		logger.WithFields(
-			"operation", "service.limit_checker.process_limit_atomic",
-			"limit_id", limit.ID.String(),
-			"limit_type", string(limit.LimitType),
-			"max_amount", limit.MaxAmount.String(),
-			"transaction_amount", input.Amount.String(),
-			"exceeded", true,
-		).Info("Amount exceeds limit maximum (pre-check)")
-
+		// Debug only - pre-check logging removed for performance
 		return detail, true, nil
 	}
 
@@ -328,6 +431,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 		periodKey,
 		input.Amount,
 		limit.MaxAmount,
+		expiresAt,
 	)
 
 	if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
@@ -379,16 +483,8 @@ func (s *LimitCheckerService) processLimitAtomic(
 		InternalPeriodKey: periodKey,
 	}
 
-	logger.WithFields(
-		"operation", "service.limit_checker.process_limit_atomic",
-		"limit_id", limit.ID.String(),
-		"limit_type", string(limit.LimitType),
-		"max_amount", limit.MaxAmount.String(),
-		"new_usage", newUsage.String(),
-		"transaction_amount", input.Amount.String(),
-		"period_key", periodKey,
-	).Info("Limit check passed (atomic upsert)")
-
+	// Debug only - hot path success logging removed for performance
+	// Only log errors/exceeded, not every successful check
 	return detail, false, nil
 }
 
@@ -759,22 +855,8 @@ func scopeMatchesLimit(limitScopes []model.Scope, txScope *model.Scope) bool {
 	return false
 }
 
-// calculateScopeKeyForLimit computes the scope key based on the limit's scope, not the transaction's.
+// calculateScopeKeyFromScopes computes the scope key from a list of scopes based on the limit's scope, not the transaction's.
 // This prevents counter fragmentation when limits have different scope granularities.
-// Returns the first matching limit scope's key, or "global" if limit has no scopes.
-//
-// Example:
-//   - Transaction: {AccountID: A, SegmentID: S, PortfolioID: P}
-//   - Limit scope: {AccountID: A}
-//   - Returns: "acct:A" (NOT "acct:A:seg:S:port:P")
-//
-// This ensures that account-level limits aggregate ALL transactions for that account,
-// regardless of segment/portfolio, which is the correct enforcement behavior.
-func calculateScopeKeyForLimit(limit *model.Limit, txScope *model.Scope) string {
-	return calculateScopeKeyFromScopes(limit.Scopes, txScope)
-}
-
-// calculateScopeKeyFromScopes computes the scope key from a list of scopes.
 // Used for both CheckLimits and rollback operations.
 // Returns the first matching scope's key, or "global" if no scopes.
 func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) string {

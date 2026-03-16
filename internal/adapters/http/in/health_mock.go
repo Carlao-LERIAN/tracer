@@ -12,9 +12,76 @@ package in
 import (
 	sql "database/sql"
 	reflect "reflect"
+	time "time"
 
 	gomock "go.uber.org/mock/gomock"
 )
+
+// MockRuleCacheHealthProvider is a mock of RuleCacheHealthProvider interface.
+type MockRuleCacheHealthProvider struct {
+	ctrl     *gomock.Controller
+	recorder *MockRuleCacheHealthProviderMockRecorder
+	isgomock struct{}
+}
+
+// MockRuleCacheHealthProviderMockRecorder is the mock recorder for MockRuleCacheHealthProvider.
+type MockRuleCacheHealthProviderMockRecorder struct {
+	mock *MockRuleCacheHealthProvider
+}
+
+// NewMockRuleCacheHealthProvider creates a new mock instance.
+func NewMockRuleCacheHealthProvider(ctrl *gomock.Controller) *MockRuleCacheHealthProvider {
+	mock := &MockRuleCacheHealthProvider{ctrl: ctrl}
+	mock.recorder = &MockRuleCacheHealthProviderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRuleCacheHealthProvider) EXPECT() *MockRuleCacheHealthProviderMockRecorder {
+	return m.recorder
+}
+
+// IsReady mocks base method.
+func (m *MockRuleCacheHealthProvider) IsReady() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsReady")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsReady indicates an expected call of IsReady.
+func (mr *MockRuleCacheHealthProviderMockRecorder) IsReady() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsReady", reflect.TypeOf((*MockRuleCacheHealthProvider)(nil).IsReady))
+}
+
+// Size mocks base method.
+func (m *MockRuleCacheHealthProvider) Size() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Size indicates an expected call of Size.
+func (mr *MockRuleCacheHealthProviderMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockRuleCacheHealthProvider)(nil).Size))
+}
+
+// Staleness mocks base method.
+func (m *MockRuleCacheHealthProvider) Staleness() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Staleness")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// Staleness indicates an expected call of Staleness.
+func (mr *MockRuleCacheHealthProviderMockRecorder) Staleness() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Staleness", reflect.TypeOf((*MockRuleCacheHealthProvider)(nil).Staleness))
+}
 
 // MockPostgresDBProvider is a mock of PostgresDBProvider interface.
 type MockPostgresDBProvider struct {
