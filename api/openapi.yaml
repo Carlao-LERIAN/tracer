@@ -1644,10 +1644,24 @@ components:
       type: object
     internal_adapters_http_in.CreateLimitInput:
       properties:
+        activeTimeEnd:
+          example: 17:00
+          type: string
+        activeTimeStart:
+          example: 09:00
+          type: string
         currency:
           example: USD
           maxLength: 3
           minLength: 3
+          type: string
+        customEndDate:
+          example: 2026-11-29T00:00:00Z
+          format: date-time
+          type: string
+        customStartDate:
+          example: 2026-11-27T00:00:00Z
+          format: date-time
           type: string
         description:
           maxLength: 1000
@@ -1790,12 +1804,16 @@ components:
         nextCursor: nextCursor
         hasMore: true
         limits:
-        - createdAt: 2000-01-23T04:56:07.000+00:00
-          deletedAt: 2000-01-23T04:56:07.000+00:00
-          resetAt: 2000-01-23T04:56:07.000+00:00
-          name: name
+        - resetAt: 2000-01-23T04:56:07.000+00:00
+          customEndDate: 2000-01-23T04:56:07.000+00:00
+          activeTimeEnd: 17:00
           description: description
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          limitType: DAILY
+          activeTimeStart: 09:00
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          deletedAt: 2000-01-23T04:56:07.000+00:00
+          name: name
           currency: currency
           scopes:
           - transactionType: CARD
@@ -1811,15 +1829,19 @@ components:
             segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             subType: subType
           maxAmount: "1000.00"
-          limitType: DAILY
+          customStartDate: 2000-01-23T04:56:07.000+00:00
           status: DRAFT
           updatedAt: 2000-01-23T04:56:07.000+00:00
-        - createdAt: 2000-01-23T04:56:07.000+00:00
-          deletedAt: 2000-01-23T04:56:07.000+00:00
-          resetAt: 2000-01-23T04:56:07.000+00:00
-          name: name
+        - resetAt: 2000-01-23T04:56:07.000+00:00
+          customEndDate: 2000-01-23T04:56:07.000+00:00
+          activeTimeEnd: 17:00
           description: description
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          limitType: DAILY
+          activeTimeStart: 09:00
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          deletedAt: 2000-01-23T04:56:07.000+00:00
+          name: name
           currency: currency
           scopes:
           - transactionType: CARD
@@ -1835,7 +1857,7 @@ components:
             segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             subType: subType
           maxAmount: "1000.00"
-          limitType: DAILY
+          customStartDate: 2000-01-23T04:56:07.000+00:00
           status: DRAFT
           updatedAt: 2000-01-23T04:56:07.000+00:00
       properties:
@@ -1962,6 +1984,20 @@ components:
       type: object
     internal_adapters_http_in.UpdateLimitInput:
       properties:
+        activeTimeEnd:
+          example: 17:00
+          type: string
+        activeTimeStart:
+          example: 09:00
+          type: string
+        customEndDate:
+          example: 2026-11-29T00:00:00Z
+          format: date-time
+          type: string
+        customStartDate:
+          example: 2026-11-27T00:00:00Z
+          format: date-time
+          type: string
         description:
           maxLength: 1000
           type: string
@@ -2220,12 +2256,16 @@ components:
       type: object
     tracer_pkg_model.Limit:
       example:
-        createdAt: 2000-01-23T04:56:07.000+00:00
-        deletedAt: 2000-01-23T04:56:07.000+00:00
         resetAt: 2000-01-23T04:56:07.000+00:00
-        name: name
+        customEndDate: 2000-01-23T04:56:07.000+00:00
+        activeTimeEnd: 17:00
         description: description
         limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        limitType: DAILY
+        activeTimeStart: 09:00
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        deletedAt: 2000-01-23T04:56:07.000+00:00
+        name: name
         currency: currency
         scopes:
         - transactionType: CARD
@@ -2241,14 +2281,26 @@ components:
           segmentId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           subType: subType
         maxAmount: "1000.00"
-        limitType: DAILY
+        customStartDate: 2000-01-23T04:56:07.000+00:00
         status: DRAFT
         updatedAt: 2000-01-23T04:56:07.000+00:00
       properties:
+        activeTimeEnd:
+          example: 17:00
+          type: string
+        activeTimeStart:
+          example: 09:00
+          type: string
         createdAt:
           format: date-time
           type: string
         currency:
+          type: string
+        customEndDate:
+          format: date-time
+          type: string
+        customStartDate:
+          format: date-time
           type: string
         deletedAt:
           format: date-time
@@ -2295,11 +2347,15 @@ components:
       - DAILY
       - MONTHLY
       - PER_TRANSACTION
+      - WEEKLY
+      - CUSTOM
       type: string
       x-enum-varnames:
       - LimitTypeDaily
       - LimitTypeMonthly
       - LimitTypePerTransaction
+      - LimitTypeWeekly
+      - LimitTypeCustom
     tracer_pkg_model.LimitUsageDetail:
       example:
         period: period
@@ -2309,6 +2365,8 @@ components:
         currentUsage: "500.00"
         limitAmount: "1000.00"
         limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        skipReason: skipReason
+        skipped: true
       properties:
         attemptedAmount:
           description: |-
@@ -2344,6 +2402,16 @@ components:
             (e.g., "account:uuid" or "segment:uuid" or "global").
             Per API Design v1.3.2 section 4.1.1.
           type: string
+        skipReason:
+          description: |-
+            SkipReason explains why the limit was skipped (only set when Skipped=true).
+            Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
+          type: string
+        skipped:
+          description: |-
+            Skipped indicates whether this limit was skipped during evaluation (not enforced).
+            When true, the counter was NOT incremented and Exceeded is always false.
+          type: boolean
       type: object
     tracer_pkg_model.MerchantContext:
       example:
@@ -2535,6 +2603,8 @@ components:
           currentUsage: "500.00"
           limitAmount: "1000.00"
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          skipReason: skipReason
+          skipped: true
         - period: period
           exceeded: true
           attemptedAmount: "100.00"
@@ -2542,6 +2612,8 @@ components:
           currentUsage: "500.00"
           limitAmount: "1000.00"
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          skipReason: skipReason
+          skipped: true
         reason: reason
         amount: "100.00"
         metadata:
@@ -2728,6 +2800,8 @@ components:
           currentUsage: "500.00"
           limitAmount: "1000.00"
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          skipReason: skipReason
+          skipped: true
         - period: period
           exceeded: true
           attemptedAmount: "100.00"
@@ -2735,47 +2809,25 @@ components:
           currentUsage: "500.00"
           limitAmount: "1000.00"
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        reason: reason
+          skipReason: skipReason
+          skipped: true
         validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        decision: ALLOW
         processingTimeMs: 0
         requestId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        totalRulesLoaded: 6
-        truncated: true
-        evaluatedRuleIds:
-        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        matchedRuleIds:
-        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        evaluatedAt: 2000-01-23T04:56:07.000+00:00
       properties:
-        decision:
-          $ref: '#/components/schemas/tracer_pkg_model.Decision'
-        evaluatedRuleIds:
-          items:
-            format: uuid
-            type: string
-          type: array
+        evaluatedAt:
+          format: date-time
+          type: string
         limitUsageDetails:
           items:
             $ref: '#/components/schemas/tracer_pkg_model.LimitUsageDetail'
           type: array
-        matchedRuleIds:
-          items:
-            format: uuid
-            type: string
-          type: array
         processingTimeMs:
           type: integer
-        reason:
-          type: string
         requestId:
           format: uuid
           type: string
-        totalRulesLoaded:
-          type: integer
-        truncated:
-          type: boolean
         validationId:
           format: uuid
           type: string

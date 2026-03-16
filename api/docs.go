@@ -2080,11 +2080,29 @@ const docTemplate = `{
                 "scopes"
             ],
             "properties": {
+                "activeTimeEnd": {
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "activeTimeStart": {
+                    "type": "string",
+                    "example": "09:00"
+                },
                 "currency": {
                     "type": "string",
                     "maxLength": 3,
                     "minLength": 3,
                     "example": "USD"
+                },
+                "customEndDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-29T00:00:00Z"
+                },
+                "customStartDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-27T00:00:00Z"
                 },
                 "description": {
                     "type": "string",
@@ -2218,6 +2236,24 @@ const docTemplate = `{
         "internal_adapters_http_in.UpdateLimitInput": {
             "type": "object",
             "properties": {
+                "activeTimeEnd": {
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "activeTimeStart": {
+                    "type": "string",
+                    "example": "09:00"
+                },
+                "customEndDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-29T00:00:00Z"
+                },
+                "customStartDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-11-27T00:00:00Z"
+                },
                 "description": {
                     "type": "string",
                     "maxLength": 1000
@@ -2500,12 +2536,28 @@ const docTemplate = `{
         "tracer_pkg_model.Limit": {
             "type": "object",
             "properties": {
+                "activeTimeEnd": {
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "activeTimeStart": {
+                    "type": "string",
+                    "example": "09:00"
+                },
                 "createdAt": {
                     "type": "string",
                     "format": "date-time"
                 },
                 "currency": {
                     "type": "string"
+                },
+                "customEndDate": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "customStartDate": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "deletedAt": {
                     "type": "string",
@@ -2567,12 +2619,16 @@ const docTemplate = `{
             "enum": [
                 "DAILY",
                 "MONTHLY",
-                "PER_TRANSACTION"
+                "PER_TRANSACTION",
+                "WEEKLY",
+                "CUSTOM"
             ],
             "x-enum-varnames": [
                 "LimitTypeDaily",
                 "LimitTypeMonthly",
-                "LimitTypePerTransaction"
+                "LimitTypePerTransaction",
+                "LimitTypeWeekly",
+                "LimitTypeCustom"
             ]
         },
         "tracer_pkg_model.LimitUsageDetail": {
@@ -2606,6 +2662,14 @@ const docTemplate = `{
                 "scope": {
                     "description": "Scope is a human-readable string representation of the limit's scope\n(e.g., \"account:uuid\" or \"segment:uuid\" or \"global\").\nPer API Design v1.3.2 section 4.1.1.",
                     "type": "string"
+                },
+                "skipReason": {
+                    "description": "SkipReason explains why the limit was skipped (only set when Skipped=true).\nValues: \"outside_time_window\" (outside active hours), \"outside_custom_period\" (outside custom date range).",
+                    "type": "string"
+                },
+                "skipped": {
+                    "description": "Skipped indicates whether this limit was skipped during evaluation (not enforced).\nWhen true, the counter was NOT incremented and Exceeded is always false.",
+                    "type": "boolean"
                 }
             }
         },
@@ -2961,15 +3025,9 @@ const docTemplate = `{
         "tracer_pkg_model.ValidationResponse": {
             "type": "object",
             "properties": {
-                "decision": {
-                    "$ref": "#/definitions/tracer_pkg_model.Decision"
-                },
-                "evaluatedRuleIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
+                "evaluatedAt": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "limitUsageDetails": {
                     "type": "array",
@@ -2977,28 +3035,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/tracer_pkg_model.LimitUsageDetail"
                     }
                 },
-                "matchedRuleIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
-                },
                 "processingTimeMs": {
                     "type": "integer"
-                },
-                "reason": {
-                    "type": "string"
                 },
                 "requestId": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "totalRulesLoaded": {
-                    "type": "integer"
-                },
-                "truncated": {
-                    "type": "boolean"
                 },
                 "validationId": {
                     "type": "string",

@@ -50,10 +50,24 @@ definitions:
     type: object
   internal_adapters_http_in.CreateLimitInput:
     properties:
+      activeTimeEnd:
+        example: "17:00"
+        type: string
+      activeTimeStart:
+        example: "09:00"
+        type: string
       currency:
         example: USD
         maxLength: 3
         minLength: 3
+        type: string
+      customEndDate:
+        example: "2026-11-29T00:00:00Z"
+        format: date-time
+        type: string
+      customStartDate:
+        example: "2026-11-27T00:00:00Z"
+        format: date-time
         type: string
       description:
         maxLength: 1000
@@ -152,6 +166,20 @@ definitions:
     type: object
   internal_adapters_http_in.UpdateLimitInput:
     properties:
+      activeTimeEnd:
+        example: "17:00"
+        type: string
+      activeTimeStart:
+        example: "09:00"
+        type: string
+      customEndDate:
+        example: "2026-11-29T00:00:00Z"
+        format: date-time
+        type: string
+      customStartDate:
+        example: "2026-11-27T00:00:00Z"
+        format: date-time
+        type: string
       description:
         maxLength: 1000
         type: string
@@ -362,10 +390,22 @@ definitions:
     type: object
   tracer_pkg_model.Limit:
     properties:
+      activeTimeEnd:
+        example: "17:00"
+        type: string
+      activeTimeStart:
+        example: "09:00"
+        type: string
       createdAt:
         format: date-time
         type: string
       currency:
+        type: string
+      customEndDate:
+        format: date-time
+        type: string
+      customStartDate:
+        format: date-time
         type: string
       deletedAt:
         format: date-time
@@ -412,11 +452,15 @@ definitions:
     - DAILY
     - MONTHLY
     - PER_TRANSACTION
+    - WEEKLY
+    - CUSTOM
     type: string
     x-enum-varnames:
     - LimitTypeDaily
     - LimitTypeMonthly
     - LimitTypePerTransaction
+    - LimitTypeWeekly
+    - LimitTypeCustom
   tracer_pkg_model.LimitUsageDetail:
     properties:
       attemptedAmount:
@@ -453,6 +497,16 @@ definitions:
           (e.g., "account:uuid" or "segment:uuid" or "global").
           Per API Design v1.3.2 section 4.1.1.
         type: string
+      skipReason:
+        description: |-
+          SkipReason explains why the limit was skipped (only set when Skipped=true).
+          Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
+        type: string
+      skipped:
+        description: |-
+          Skipped indicates whether this limit was skipped during evaluation (not enforced).
+          When true, the counter was NOT incremented and Exceeded is always false.
+        type: boolean
     type: object
   tracer_pkg_model.MerchantContext:
     properties:
@@ -708,33 +762,18 @@ definitions:
     type: object
   tracer_pkg_model.ValidationResponse:
     properties:
-      decision:
-        $ref: '#/definitions/tracer_pkg_model.Decision'
-      evaluatedRuleIds:
-        items:
-          format: uuid
-          type: string
-        type: array
+      evaluatedAt:
+        format: date-time
+        type: string
       limitUsageDetails:
         items:
           $ref: '#/definitions/tracer_pkg_model.LimitUsageDetail'
         type: array
-      matchedRuleIds:
-        items:
-          format: uuid
-          type: string
-        type: array
       processingTimeMs:
         type: integer
-      reason:
-        type: string
       requestId:
         format: uuid
         type: string
-      totalRulesLoaded:
-        type: integer
-      truncated:
-        type: boolean
       validationId:
         format: uuid
         type: string
