@@ -219,12 +219,8 @@ func TestUsageCleanupWorker_ExecutesCleanup(t *testing.T) {
 
 	//  Cleanup now uses expires_at column directly, passing current time
 	mockRepo.EXPECT().
-		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, now time.Time) (int64, error) {
-			// Verify the now time is the current clock time
-			assert.Equal(t, fixedTime.UTC(), now)
-			return deletedCount, nil
-		}).
+		DeleteExpiredCounters(gomock.Any(), gomock.Eq(fixedTime.UTC())).
+		Return(deletedCount, nil).
 		MinTimes(1)
 
 	config := UsageCleanupWorkerConfig{
