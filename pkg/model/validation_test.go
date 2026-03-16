@@ -105,12 +105,14 @@ func TestNewValidationResponse(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := NewValidationResponse(tc.validationID, tc.requestID, tc.decision)
+			evaluatedAt := testutil.FixedTime()
+			result := NewValidationResponse(tc.validationID, tc.requestID, tc.decision, evaluatedAt)
 
 			require.NotNil(t, result)
 			assert.Equal(t, tc.validationID, result.ValidationID)
 			assert.Equal(t, tc.requestID, result.RequestID)
 			assert.Equal(t, tc.decision, result.Decision)
+			assert.Equal(t, evaluatedAt, result.EvaluatedAt, "EvaluatedAt should be set by constructor")
 
 			// Verify slices are initialized (not nil) for proper JSON serialization
 			assert.NotNil(t, result.MatchedRuleIDs, "MatchedRuleIDs should be initialized")
@@ -312,7 +314,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		originalCurrency := req.Currency
 
 		// Call NormalizeAndValidate - should fail due to invalid currency
-		err := req.NormalizeAndValidate(time.Now())
+		err := req.NormalizeAndValidate(testutil.FixedTime())
 
 		// Verify validation failed
 		assert.Error(t, err)
@@ -349,7 +351,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		originalSubTypePtr := req.SubType
 
 		// Call NormalizeAndValidate - should succeed
-		err := req.NormalizeAndValidate(time.Now())
+		err := req.NormalizeAndValidate(testutil.FixedTime())
 
 		// Verify validation succeeded
 		require.NoError(t, err)
@@ -381,7 +383,7 @@ func TestNormalizeAndValidate_Atomicity(t *testing.T) {
 		// Capture original currency before call
 		originalCurrency := req.Currency
 
-		err := req.NormalizeAndValidate(time.Now())
+		err := req.NormalizeAndValidate(testutil.FixedTime())
 
 		assert.Error(t, err)
 		assert.Nil(t, req.SubType, "SubType should remain nil")
@@ -490,7 +492,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 		}
 
 		// Call NormalizeAndValidate
-		err := req.NormalizeAndValidate(time.Now())
+		err := req.NormalizeAndValidate(testutil.FixedTime())
 		require.NoError(t, err)
 
 		// Mutate original metadata maps
@@ -525,7 +527,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			Merchant:             nil,
 		}
 
-		err := req.NormalizeAndValidate(time.Now())
+		err := req.NormalizeAndValidate(testutil.FixedTime())
 		require.NoError(t, err)
 
 		// Verify nil contexts remain nil
@@ -561,7 +563,7 @@ func TestNormalizeAndValidate_NestedMetadataDefensiveCopy(t *testing.T) {
 			},
 		}
 
-		err := req.NormalizeAndValidate(time.Now())
+		err := req.NormalizeAndValidate(testutil.FixedTime())
 		require.NoError(t, err)
 
 		// Verify contexts exist but metadata remain nil

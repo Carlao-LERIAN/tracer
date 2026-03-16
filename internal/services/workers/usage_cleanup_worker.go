@@ -24,15 +24,12 @@ import (
 type UsageCleanupWorkerConfig struct {
 	// CleanupInterval is how often the cleanup runs (default: 24 hours).
 	CleanupInterval time.Duration
-	// RetentionPeriod is how long to keep counters before deletion (default: 90 days).
-	RetentionPeriod time.Duration
 }
 
 // DefaultUsageCleanupWorkerConfig returns default configuration values.
 func DefaultUsageCleanupWorkerConfig() UsageCleanupWorkerConfig {
 	return UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 }
 
@@ -51,7 +48,6 @@ type UsageCleanupWorker struct {
 // Returns ErrNilRepository if repo is nil.
 // Returns ErrNilLogger if logger is nil.
 // Returns ErrInvalidCleanupInterval if CleanupInterval <= 0.
-// Returns ErrInvalidRetentionPeriod if RetentionPeriod <= 0.
 // The clk parameter is optional; if nil, uses clock.RealClock{}.
 func NewUsageCleanupWorker(repo UsageCounterCleanupRepository, config UsageCleanupWorkerConfig, logger libLog.Logger, clk clock.Clock) (*UsageCleanupWorker, error) {
 	if repo == nil {
@@ -64,10 +60,6 @@ func NewUsageCleanupWorker(repo UsageCounterCleanupRepository, config UsageClean
 
 	if config.CleanupInterval <= 0 {
 		return nil, ErrInvalidCleanupInterval
-	}
-
-	if config.RetentionPeriod <= 0 {
-		return nil, ErrInvalidRetentionPeriod
 	}
 
 	if clk == nil {
@@ -103,7 +95,6 @@ func (w *UsageCleanupWorker) runLoop(ctx context.Context) error {
 	w.logger.WithFields(
 		"operation", "worker.usage_cleanup.run",
 		"cleanup_interval", w.config.CleanupInterval.String(),
-		"retention_period", w.config.RetentionPeriod.String(),
 	).Info("Starting usage cleanup worker")
 
 	// Use injected clock's ticker for deterministic testing

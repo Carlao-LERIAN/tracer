@@ -72,7 +72,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "creates worker with valid config",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			expectError: nil,
 		},
@@ -80,7 +79,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "creates worker with minimum interval",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 1 * time.Minute,
-				RetentionPeriod: 1 * time.Hour,
 			},
 			expectError: nil,
 		},
@@ -88,7 +86,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "returns error when repository is nil",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			nilRepo:     true,
 			expectError: ErrNilRepository,
@@ -97,7 +94,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "returns error when logger is nil",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			nilLogger:   true,
 			expectError: ErrNilLogger,
@@ -106,7 +102,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "returns error when cleanup interval is zero",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 0,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			expectError: ErrInvalidCleanupInterval,
 		},
@@ -114,25 +109,8 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "returns error when cleanup interval is negative",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: -1 * time.Hour,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			expectError: ErrInvalidCleanupInterval,
-		},
-		{
-			name: "returns error when retention period is zero",
-			config: UsageCleanupWorkerConfig{
-				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: 0,
-			},
-			expectError: ErrInvalidRetentionPeriod,
-		},
-		{
-			name: "returns error when retention period is negative",
-			config: UsageCleanupWorkerConfig{
-				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: -1 * time.Hour,
-			},
-			expectError: ErrInvalidRetentionPeriod,
 		},
 	}
 
@@ -191,7 +169,6 @@ func TestUsageCleanupWorker_RunWithContext_Stop(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 10 * time.Millisecond, // Very short interval for fast testing
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, nil)
@@ -240,8 +217,6 @@ func TestUsageCleanupWorker_ExecutesCleanup(t *testing.T) {
 	fixedTime := time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)
 	testClock := mockClock{fixedTime: fixedTime}
 
-	retentionPeriod := 90 * 24 * time.Hour
-
 	//  Cleanup now uses expires_at column directly, passing current time
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
@@ -254,7 +229,6 @@ func TestUsageCleanupWorker_ExecutesCleanup(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 50 * time.Millisecond,
-		RetentionPeriod: retentionPeriod,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)
@@ -300,7 +274,6 @@ func TestUsageCleanupWorker_HandlesRepositoryError(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 50 * time.Millisecond,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, nil)
@@ -342,8 +315,6 @@ func TestUsageCleanupWorker_RunOnce(t *testing.T) {
 	fixedTime := time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)
 	testClock := mockClock{fixedTime: fixedTime}
 
-	retentionPeriod := 90 * 24 * time.Hour
-
 	//  Cleanup now passes current time to DeleteExpiredCounters
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), fixedTime.UTC()).
@@ -352,7 +323,6 @@ func TestUsageCleanupWorker_RunOnce(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: retentionPeriod,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)
@@ -383,7 +353,6 @@ func TestUsageCleanupWorker_RunOnce_Error(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, nil)
@@ -401,7 +370,7 @@ func TestUsageCleanupWorker_DefaultConfig(t *testing.T) {
 	config := DefaultUsageCleanupWorkerConfig()
 
 	assert.Equal(t, 24*time.Hour, config.CleanupInterval)
-	assert.Equal(t, 90*24*time.Hour, config.RetentionPeriod)
+
 }
 
 func TestUsageCleanupWorker_NilClockUsesRealClock(t *testing.T) {
@@ -425,7 +394,6 @@ func TestUsageCleanupWorker_NilClockUsesRealClock(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	// Pass nil clock - should use RealClock
@@ -444,13 +412,9 @@ func TestUsageCleanupWorker_NilClockUsesRealClock(t *testing.T) {
 // Tests for worker using expires_at instead of last_updated_at
 // =============================================================================
 
-// TestUsageCleanupWorker_DeletesByExpiresAt tests that the cleanup worker
-// deletes counters based on the expires_at column, not last_updated_at.
-// Acceptance Criteria:
-// - Counters with expires_at < NOW are deleted
-// - Counters with expires_at = NULL are preserved (never deleted)
-// - Counters with expires_at > NOW are preserved
-func TestUsageCleanupWorker_DeletesByExpiresAt(t *testing.T) {
+// TestUsageCleanupWorker_RunOnce_PassesClockTimeToRepo verifies that RunOnce
+// forwards the injected clock's current time to DeleteExpiredCounters.
+func TestUsageCleanupWorker_RunOnce_PassesClockTimeToRepo(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	_, cleanup := setupTestTracer(t)
 	defer cleanup()
@@ -469,7 +433,6 @@ func TestUsageCleanupWorker_DeletesByExpiresAt(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)
@@ -484,45 +447,9 @@ func TestUsageCleanupWorker_DeletesByExpiresAt(t *testing.T) {
 	assert.Equal(t, int64(42), count)
 }
 
-// TestUsageCleanupWorker_PreservesNullExpiresAt verifies that counters with
-// NULL expires_at are never deleted (they are preserved indefinitely).
-func TestUsageCleanupWorker_PreservesNullExpiresAt(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	_, cleanup := setupTestTracer(t)
-	defer cleanup()
-
-	mockRepo := mocks.NewMockUsageCounterCleanupRepository(ctrl)
-	logger := testutil.NewMockLogger()
-
-	fixedTime := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
-	testClock := mockClock{fixedTime: fixedTime}
-
-	// The repository query uses: WHERE expires_at IS NOT NULL AND expires_at < NOW
-	// This ensures counters with NULL expires_at are NEVER deleted
-	mockRepo.EXPECT().
-		DeleteExpiredCounters(gomock.Any(), fixedTime).
-		Return(int64(10), nil).
-		Times(1)
-
-	config := UsageCleanupWorkerConfig{
-		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: 90 * 24 * time.Hour,
-	}
-
-	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	count, err := worker.RunOnce(ctx)
-
-	require.NoError(t, err)
-	// The count should only include counters with expires_at < NOW, not NULL
-	assert.Equal(t, int64(10), count)
-}
-
-// TestUsageCleanupWorker_DeletesByExpiresAt_HandlesError tests error handling
-// when the expires_at based deletion fails.
-func TestUsageCleanupWorker_DeletesByExpiresAt_HandlesError(t *testing.T) {
+// TestUsageCleanupWorker_RunOnce_WrapsRepoError verifies that RunOnce
+// propagates and wraps errors returned by DeleteExpiredCounters.
+func TestUsageCleanupWorker_RunOnce_WrapsRepoError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	_, cleanup := setupTestTracer(t)
 	defer cleanup()
@@ -543,7 +470,6 @@ func TestUsageCleanupWorker_DeletesByExpiresAt_HandlesError(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)

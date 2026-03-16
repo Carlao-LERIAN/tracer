@@ -273,7 +273,8 @@ type ValidationResponse struct {
 // NewValidationResponse creates a ValidationResponse with initialized slices.
 // Ensures JSON serialization produces [] instead of null for empty arrays.
 // validationID is the server-generated unique identifier for the audit record.
-func NewValidationResponse(validationID, requestID uuid.UUID, decision Decision) *ValidationResponse {
+// evaluatedAt is the server timestamp when the evaluation started.
+func NewValidationResponse(validationID, requestID uuid.UUID, decision Decision, evaluatedAt time.Time) *ValidationResponse {
 	return &ValidationResponse{
 		ValidationID: validationID,
 		RequestID:    requestID,
@@ -284,6 +285,7 @@ func NewValidationResponse(validationID, requestID uuid.UUID, decision Decision)
 			Reason:           "",
 		},
 		LimitUsageDetails: []LimitUsageDetail{},
+		EvaluatedAt:       evaluatedAt,
 	}
 }
 

@@ -222,8 +222,9 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 			break
 		}
 
-		// Only track DAILY/MONTHLY limits for potential rollback (PER_TRANSACTION has no counters)
-		if limit.LimitType != model.LimitTypePerTransaction {
+		// Only track actually-incremented counters for potential rollback.
+		// PER_TRANSACTION has no counters; skipped limits had no counter mutation.
+		if limit.LimitType != model.LimitTypePerTransaction && !detail.Skipped {
 			incrementedDetails = append(incrementedDetails, *detail)
 		}
 	}

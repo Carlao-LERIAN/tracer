@@ -15,8 +15,6 @@ var (
 	ErrNilRepository = errors.New("repository cannot be nil")
 	// ErrInvalidCleanupInterval is returned when cleanup interval is not positive.
 	ErrInvalidCleanupInterval = errors.New("cleanup interval must be positive")
-	// ErrInvalidRetentionPeriod is returned when retention period is not positive.
-	ErrInvalidRetentionPeriod = errors.New("retention period must be positive")
 	// ErrNilRuleCache is returned when the required rule cache dependency is nil.
 	ErrNilRuleCache = errors.New("rule cache cannot be nil")
 	// ErrNilExpressionCompiler is returned when the required expression compiler dependency is nil.

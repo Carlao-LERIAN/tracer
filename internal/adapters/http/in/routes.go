@@ -5,6 +5,7 @@
 package in
 
 import (
+	"fmt"
 	"os"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -63,7 +64,7 @@ func skipTelemetryPaths(c *fiber.Ctx) bool {
 	}
 }
 
-func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *RouteConfig, ruleService RuleService, limitService LimitService, validationService ValidationService, transactionValidationService TransactionValidationService, auditEventService AuditEventService, guard *middleware.AuthGuard, clk clock.Clock) *fiber.App {
+func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *RouteConfig, ruleService RuleService, limitService LimitService, validationService ValidationService, transactionValidationService TransactionValidationService, auditEventService AuditEventService, guard *middleware.AuthGuard, clk clock.Clock) (*fiber.App, error) {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -162,7 +163,7 @@ func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *
 	// When APIKeyOnlyValidation=true, uses API key auth only (bypasses plugin auth)
 	validationHandler, err := NewValidationHandler(validationService, clk)
 	if err != nil {
-		lg.Fatalf("failed to create validation handler: %v", err)
+		return nil, fmt.Errorf("failed to create validation handler: %w", err)
 	}
 
 	api.Post("/validations", guard.With("validations", "post", cfg.APIKeyOnlyValidation), validationHandler.Validate)
@@ -178,5 +179,5 @@ func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *
 		f.Use(tlMid.EndTracingSpans)
 	}
 
-	return f
+	return f, nil
 }

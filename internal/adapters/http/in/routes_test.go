@@ -87,7 +87,9 @@ func (d *testRouterDeps) build() *fiber.App {
 	routeCfg := &RouteConfig{}
 
 	clk := clock.New()
-	return NewRoutes(mockLogger, telemetry, &HealthChecker{}, routeCfg, d.RuleService, d.LimitService, d.ValidationService, d.TransactionValidationService, d.AuditEventService, guard, clk)
+	app, err := NewRoutes(mockLogger, telemetry, &HealthChecker{}, routeCfg, d.RuleService, d.LimitService, d.ValidationService, d.TransactionValidationService, d.AuditEventService, guard, clk)
+	require.NoError(d.t, err)
+	return app
 }
 
 // createTestRouter creates a test router with the given AuthGuardConfig.

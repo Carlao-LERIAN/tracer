@@ -127,7 +127,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	).Info("Starting validation")
 
 	// Build response
-	response := model.NewValidationResponse(validationID, req.RequestID, model.DecisionAllow)
+	response := model.NewValidationResponse(validationID, req.RequestID, model.DecisionAllow, startTime)
 
 	// Step 1: Evaluate rules
 	evalResult, err := s.ruleEvaluator.Execute(ctx, req)

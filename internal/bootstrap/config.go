@@ -78,8 +78,6 @@ type Config struct {
 	CleanupWorkerEnabled bool `env:"CLEANUP_WORKER_ENABLED"`
 	// CleanupIntervalHours is the interval between cleanup runs in hours (default: 24)
 	CleanupIntervalHours string `env:"CLEANUP_INTERVAL_HOURS"`
-	// CleanupRetentionDays is how many days to retain usage counters (default: 90)
-	CleanupRetentionDays string `env:"CLEANUP_RETENTION_DAYS"`
 
 	// Rule Sync Worker
 	// RuleSyncPollIntervalSeconds is how often the worker polls for rule changes (default: 10)
@@ -205,36 +203,6 @@ func parseCleanupIntervalHours(s string) (time.Duration, error) {
 	return time.Duration(hours) * time.Hour, nil
 }
 
-// parseCleanupRetentionDays parses the retention period from string to time.Duration.
-// Returns default value (90 days) if empty.
-// Returns error if value is invalid, non-positive, or exceeds maximum.
-func parseCleanupRetentionDays(s string) (time.Duration, error) {
-	const defaultDays = 90
-
-	// maxAllowedDays limits retention period to 10 years (3650 days).
-	// This prevents unbounded data growth while allowing long retention for compliance.
-	const maxAllowedDays = 3650
-
-	if s == "" {
-		return time.Duration(defaultDays) * 24 * time.Hour, nil
-	}
-
-	days, err := strconv.Atoi(s)
-	if err != nil {
-		return 0, fmt.Errorf("invalid CLEANUP_RETENTION_DAYS value '%s': %w", s, err)
-	}
-
-	if days <= 0 {
-		return 0, fmt.Errorf("CLEANUP_RETENTION_DAYS must be positive, got %d", days)
-	}
-
-	if days > maxAllowedDays {
-		return 0, fmt.Errorf("CLEANUP_RETENTION_DAYS exceeds maximum allowed (%d days = 10 years), got %d", maxAllowedDays, days)
-	}
-
-	return time.Duration(days) * 24 * time.Hour, nil
-}
-
 // parseRuleSyncPollInterval parses the poll interval from string to time.Duration.
 // Returns default value (10 seconds) if empty.
 // Returns error if value is invalid, non-positive, or exceeds maximum.
@@ -351,19 +319,12 @@ func LoadCleanupWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.UsageC
 		return nil, fmt.Errorf("invalid CLEANUP_INTERVAL_HOURS: %w", err)
 	}
 
-	retentionPeriod, err := parseCleanupRetentionDays(cfg.CleanupRetentionDays)
-	if err != nil {
-		return nil, fmt.Errorf("invalid CLEANUP_RETENTION_DAYS: %w", err)
-	}
-
 	logger.WithFields(
 		"cleanup_interval", cleanupInterval.String(),
-		"retention_period", retentionPeriod.String(),
 	).Info("Usage counter cleanup worker configuration loaded")
 
 	return &workers.UsageCleanupWorkerConfig{
 		CleanupInterval: cleanupInterval,
-		RetentionPeriod: retentionPeriod,
 	}, nil
 }
 
@@ -675,7 +636,6 @@ func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepos
 	logger.WithFields(
 		"component", "cleanup_worker",
 		"cleanup_interval", cleanupWorkerConfig.CleanupInterval.String(),
-		"retention_period", cleanupWorkerConfig.RetentionPeriod.String(),
 	).Info("Usage cleanup worker initialized")
 
 	return cleanupWorker, nil
@@ -975,7 +935,10 @@ func InitServers() (*Service, error) {
 		AppName:           constant.ApplicationName,
 	}, authClient)
 
-	httpApp := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard, clk)
+	httpApp, err := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard, clk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create routes: %w", err)
+	}
 
 	serverAPI, err := NewHTTPServer(cfg, httpApp, logger, telemetry)
 	if err != nil {
