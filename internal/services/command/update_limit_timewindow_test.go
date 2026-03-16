@@ -75,21 +75,14 @@ func TestUpdateLimit_TimeWindow(t *testing.T) {
 	updatedLimit, err := cmd.Execute(context.Background(), limitID, input)
 	require.NoError(t, err)
 
-	// Assert: Time window fields should be updated (currently they're IGNORED - this will FAIL)
-	assert.NotNil(t, updatedLimit.ActiveTimeStart, "ActiveTimeStart should be updated")
-	assert.NotNil(t, updatedLimit.ActiveTimeEnd, "ActiveTimeEnd should be updated")
-
-	if updatedLimit.ActiveTimeStart != nil {
-		assert.Equal(t, startTime, *updatedLimit.ActiveTimeStart, "ActiveTimeStart should match input")
-	}
-	if updatedLimit.ActiveTimeEnd != nil {
-		assert.Equal(t, endTime, *updatedLimit.ActiveTimeEnd, "ActiveTimeEnd should match input")
-	}
+	require.NotNil(t, updatedLimit.ActiveTimeStart, "ActiveTimeStart should be updated")
+	require.NotNil(t, updatedLimit.ActiveTimeEnd, "ActiveTimeEnd should be updated")
+	assert.Equal(t, startTime, *updatedLimit.ActiveTimeStart, "ActiveTimeStart should match input")
+	assert.Equal(t, endTime, *updatedLimit.ActiveTimeEnd, "ActiveTimeEnd should match input")
 }
 
-// TestUpdateLimit_CustomPeriod_RED verifies that custom period fields are currently IGNORED.
-// This test should FAIL initially (RED), proving the bug exists.
-func TestUpdateLimit_CustomPeriod_RED(t *testing.T) {
+// TestUpdateLimit_CustomPeriod verifies that custom period fields are handled correctly during update.
+func TestUpdateLimit_CustomPeriod(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockRepo := NewMockLimitRepository(ctrl)
 	clk := testutil.NewDefaultMockClock()
@@ -145,19 +138,14 @@ func TestUpdateLimit_CustomPeriod_RED(t *testing.T) {
 	updatedLimit, err := cmd.Execute(context.Background(), limitID, input)
 	require.NoError(t, err)
 
-	// Assert: Custom period should be updated (currently IGNORED - this will FAIL)
-	assert.NotNil(t, updatedLimit.CustomStartDate, "CustomStartDate should be updated")
-	assert.NotNil(t, updatedLimit.CustomEndDate, "CustomEndDate should be updated")
+	require.NotNil(t, updatedLimit.CustomStartDate, "CustomStartDate should be updated")
+	require.NotNil(t, updatedLimit.CustomEndDate, "CustomEndDate should be updated")
 
-	if updatedLimit.CustomStartDate != nil {
-		expectedStart, parseErr := time.Parse(time.RFC3339, newStart)
-		require.NoError(t, parseErr, "newStart should be valid RFC3339")
-		assert.Equal(t, expectedStart.UTC(), updatedLimit.CustomStartDate.UTC(), "CustomStartDate should match input")
-	}
+	expectedStart, parseErr := time.Parse(time.RFC3339, newStart)
+	require.NoError(t, parseErr, "newStart should be valid RFC3339")
+	assert.Equal(t, expectedStart.UTC(), updatedLimit.CustomStartDate.UTC(), "CustomStartDate should match input")
 
-	if updatedLimit.CustomEndDate != nil {
-		expectedEnd, parseErr := time.Parse(time.RFC3339, newEnd)
-		require.NoError(t, parseErr, "newEnd should be valid RFC3339")
-		assert.Equal(t, expectedEnd.UTC(), updatedLimit.CustomEndDate.UTC(), "CustomEndDate should match input")
-	}
+	expectedEnd, parseErr := time.Parse(time.RFC3339, newEnd)
+	require.NoError(t, parseErr, "newEnd should be valid RFC3339")
+	assert.Equal(t, expectedEnd.UTC(), updatedLimit.CustomEndDate.UTC(), "CustomEndDate should match input")
 }
