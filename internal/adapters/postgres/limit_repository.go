@@ -93,8 +93,8 @@ func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
 	}
 
 	query := sq.Insert(r.tableName).
-		Columns("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "created_at", "updated_at").
-		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.LimitType, dbModel.MaxAmount, dbModel.Currency, dbModel.Scopes, dbModel.Status, dbModel.ResetAt, dbModel.CreatedAt, dbModel.UpdatedAt).
+		Columns("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at").
+		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.LimitType, dbModel.MaxAmount, dbModel.Currency, dbModel.Scopes, dbModel.Status, dbModel.ResetAt, dbModel.ActiveTimeStart, dbModel.ActiveTimeEnd, dbModel.CustomStartDate, dbModel.CustomEndDate, dbModel.CreatedAt, dbModel.UpdatedAt).
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err := query.ToSql()
@@ -133,7 +133,7 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "created_at", "updated_at", "deleted_at").
+	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at").
 		From(r.tableName).
 		Where(sq.Eq{"id": limitID}).
 		Where(sq.Eq{"deleted_at": nil}).
@@ -194,7 +194,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "created_at", "updated_at", "deleted_at").
+	query := sq.Select("id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at").
 		From(r.tableName).
 		Where(sq.Eq{"deleted_at": nil}).
 		PlaceholderFormat(sq.Dollar)
@@ -324,6 +324,11 @@ func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
 		Set("max_amount", dbModel.MaxAmount).
 		Set("scopes", dbModel.Scopes).
 		Set("status", dbModel.Status).
+		Set("reset_at", dbModel.ResetAt).
+		Set("active_time_start", dbModel.ActiveTimeStart).
+		Set("active_time_end", dbModel.ActiveTimeEnd).
+		Set("custom_start_date", dbModel.CustomStartDate).
+		Set("custom_end_date", dbModel.CustomEndDate).
 		Set("updated_at", dbModel.UpdatedAt).
 		Where(sq.Eq{"id": dbModel.ID}).
 		Where(sq.Eq{"deleted_at": nil}).
@@ -695,6 +700,10 @@ func (r *LimitRepository) scanLimit(ctx context.Context, row *sql.Row) (*model.L
 		&scopesJSON,
 		&dbModel.Status,
 		&dbModel.ResetAt,
+		&dbModel.ActiveTimeStart,
+		&dbModel.ActiveTimeEnd,
+		&dbModel.CustomStartDate,
+		&dbModel.CustomEndDate,
 		&dbModel.CreatedAt,
 		&dbModel.UpdatedAt,
 		&dbModel.DeletedAt,
@@ -743,6 +752,10 @@ func (r *LimitRepository) scanLimitFromRows(ctx context.Context, rows *sql.Rows)
 		&scopesJSON,
 		&dbModel.Status,
 		&dbModel.ResetAt,
+		&dbModel.ActiveTimeStart,
+		&dbModel.ActiveTimeEnd,
+		&dbModel.CustomStartDate,
+		&dbModel.CustomEndDate,
 		&dbModel.CreatedAt,
 		&dbModel.UpdatedAt,
 		&dbModel.DeletedAt,

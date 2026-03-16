@@ -7,7 +7,9 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -38,10 +40,14 @@ import (
 //
 // Note: LimitType and Currency are immutable and cannot be updated.
 type UpdateLimitInput struct {
-	Name        *string          `json:"name,omitempty"`
-	Description *string          `json:"description,omitempty"`
-	MaxAmount   *decimal.Decimal `json:"maxAmount,omitempty"`
-	Scopes      *[]model.Scope   `json:"scopes,omitempty"`
+	Name            *string          `json:"name,omitempty"`
+	Description     *string          `json:"description,omitempty"`
+	MaxAmount       *decimal.Decimal `json:"maxAmount,omitempty"`
+	Scopes          *[]model.Scope   `json:"scopes,omitempty"`
+	ActiveTimeStart *model.TimeOfDay `json:"activeTimeStart,omitempty"`
+	ActiveTimeEnd   *model.TimeOfDay `json:"activeTimeEnd,omitempty"`
+	CustomStartDate *string          `json:"customStartDate,omitempty"`
+	CustomEndDate   *string          `json:"customEndDate,omitempty"`
 }
 
 // UpdateLimitCommand handles limit updates.
@@ -138,7 +144,40 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		return limit, nil
 	}
 
-	if err := limit.Update(normalizedInput.Name, normalizedInput.MaxAmount, normalizedInput.Description, normalizedInput.Scopes, c.clock.Now()); err != nil {
+	// Parse custom period dates if provided
+	var customStartDate, customEndDate *time.Time
+
+	if normalizedInput.CustomStartDate != nil {
+		parsed, parseErr := time.Parse(time.RFC3339, *normalizedInput.CustomStartDate)
+		if parseErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse customStartDate", constant.ErrLimitInvalidCustomStartFormat)
+			return nil, fmt.Errorf("%w: %w", constant.ErrLimitInvalidCustomStartFormat, parseErr)
+		}
+
+		customStartDate = &parsed
+	}
+
+	if normalizedInput.CustomEndDate != nil {
+		parsed, parseErr := time.Parse(time.RFC3339, *normalizedInput.CustomEndDate)
+		if parseErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse customEndDate", constant.ErrLimitInvalidCustomEndFormat)
+			return nil, fmt.Errorf("%w: %w", constant.ErrLimitInvalidCustomEndFormat, parseErr)
+		}
+
+		customEndDate = &parsed
+	}
+
+	if err := limit.Update(
+		normalizedInput.Name,
+		normalizedInput.MaxAmount,
+		normalizedInput.Description,
+		normalizedInput.Scopes,
+		normalizedInput.ActiveTimeStart,
+		normalizedInput.ActiveTimeEnd,
+		customStartDate,
+		customEndDate,
+		c.clock.Now(),
+	); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Update validation failed", err)
 		logger.WithFields(
 			"operation", "service.limit.update",
@@ -201,8 +240,12 @@ func (c *UpdateLimitCommand) validateInput(span *trace.Span, id uuid.UUID, input
 
 func (c *UpdateLimitCommand) normalizeInput(input *UpdateLimitInput) *UpdateLimitInput {
 	normalizedInput := &UpdateLimitInput{
-		MaxAmount: input.MaxAmount,
-		Scopes:    input.Scopes,
+		MaxAmount:       input.MaxAmount,
+		Scopes:          input.Scopes,
+		ActiveTimeStart: input.ActiveTimeStart,
+		ActiveTimeEnd:   input.ActiveTimeEnd,
+		CustomStartDate: input.CustomStartDate,
+		CustomEndDate:   input.CustomEndDate,
 	}
 
 	if input.Name != nil {
@@ -256,7 +299,14 @@ func (c *UpdateLimitCommand) handleFetchError(span *trace.Span, logger libLog.Lo
 }
 
 func (c *UpdateLimitCommand) hasChanges(input *UpdateLimitInput) bool {
-	return input.Name != nil || input.MaxAmount != nil || input.Description != nil || input.Scopes != nil
+	return input.Name != nil ||
+		input.MaxAmount != nil ||
+		input.Description != nil ||
+		input.Scopes != nil ||
+		input.ActiveTimeStart != nil ||
+		input.ActiveTimeEnd != nil ||
+		input.CustomStartDate != nil ||
+		input.CustomEndDate != nil
 }
 
 func (c *UpdateLimitCommand) recordAudit(ctx context.Context, logger libLog.Logger, limit *model.Limit, beforeState map[string]any) {

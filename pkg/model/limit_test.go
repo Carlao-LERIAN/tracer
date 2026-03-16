@@ -726,7 +726,7 @@ func TestLimit_Update(t *testing.T) {
 			originalScopes := make([]Scope, len(limit.Scopes))
 			copy(originalScopes, limit.Scopes)
 
-			err := limit.Update(tc.updateName, tc.updateMax, tc.updateDesc, tc.updateScope, testutil.FixedTime())
+			err := limit.Update(tc.updateName, tc.updateMax, tc.updateDesc, tc.updateScope, nil, nil, nil, nil, testutil.FixedTime())
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -787,7 +787,7 @@ func TestLimit_Update_NoChanges(t *testing.T) {
 			limit.UpdatedAt = fixedTime
 
 			// Call Update with all nil parameters
-			err := limit.Update(nil, nil, nil, nil, testutil.FixedTime())
+			err := limit.Update(nil, nil, nil, nil, nil, nil, nil, nil, testutil.FixedTime())
 
 			require.NoError(t, err)
 			assert.Equal(t, fixedTime, limit.UpdatedAt, "UpdatedAt should not change when no fields are modified")

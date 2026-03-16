@@ -7,7 +7,9 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -37,12 +39,16 @@ var ErrNilClock = errors.New("nil Clock passed to command constructor")
 //   - Command layer remains framework-agnostic and testable
 //   - Domain model (model.NewLimit) performs business validation
 type CreateLimitInput struct {
-	Name        string
-	Description *string
-	LimitType   model.LimitType
-	MaxAmount   decimal.Decimal
-	Currency    string
-	Scopes      []model.Scope
+	Name            string
+	Description     *string
+	LimitType       model.LimitType
+	MaxAmount       decimal.Decimal
+	Currency        string
+	Scopes          []model.Scope
+	ActiveTimeStart *model.TimeOfDay
+	ActiveTimeEnd   *model.TimeOfDay
+	CustomStartDate *string
+	CustomEndDate   *string
 }
 
 // CreateLimitCommand handles limit creation.
@@ -110,18 +116,95 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
 	}
 
-	// Create domain entity via model.NewLimit (handles resetAt calculation and validation)
+	// Create domain entity via appropriate NewLimit* function
 	now := c.clock.Now()
 
-	limit, err := model.NewLimit(
-		normalizedInput.Name,
-		normalizedInput.LimitType,
-		normalizedInput.MaxAmount,
-		normalizedInput.Currency,
-		normalizedInput.Scopes,
-		normalizedInput.Description,
-		now,
-	)
+	var limit *model.Limit
+
+	// Determine which constructor to use based on provided fields
+	hasTimeWindow := normalizedInput.ActiveTimeStart != nil && normalizedInput.ActiveTimeEnd != nil
+	hasCustomPeriod := normalizedInput.CustomStartDate != nil && normalizedInput.CustomEndDate != nil
+
+	hasPartialTimeWindow := (normalizedInput.ActiveTimeStart != nil) != (normalizedInput.ActiveTimeEnd != nil)
+	if hasPartialTimeWindow {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Partial time window", constant.ErrLimitTimeWindowMismatch)
+		return nil, constant.ErrLimitTimeWindowMismatch
+	}
+
+	hasPartialCustomPeriod := (normalizedInput.CustomStartDate != nil) != (normalizedInput.CustomEndDate != nil)
+	if hasPartialCustomPeriod {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Partial custom period", constant.ErrLimitCustomDatesRequired)
+		return nil, constant.ErrLimitCustomDatesRequired
+	}
+
+	if hasCustomPeriod {
+		// Parse custom period dates
+		customStart, parseErr := time.Parse(time.RFC3339, *normalizedInput.CustomStartDate)
+		if parseErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse customStartDate", constant.ErrLimitInvalidCustomStartFormat)
+			return nil, fmt.Errorf("%w: %w", constant.ErrLimitInvalidCustomStartFormat, parseErr)
+		}
+
+		customEnd, parseErr := time.Parse(time.RFC3339, *normalizedInput.CustomEndDate)
+		if parseErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse customEndDate", constant.ErrLimitInvalidCustomEndFormat)
+			return nil, fmt.Errorf("%w: %w", constant.ErrLimitInvalidCustomEndFormat, parseErr)
+		}
+
+		if hasTimeWindow {
+			// AC-09: CUSTOM period combined with time window
+			limit, err = model.NewLimitWithCustomPeriodAndTimeWindow(
+				normalizedInput.Name,
+				normalizedInput.LimitType,
+				normalizedInput.MaxAmount,
+				normalizedInput.Currency,
+				normalizedInput.Scopes,
+				normalizedInput.Description,
+				customStart,
+				customEnd,
+				normalizedInput.ActiveTimeStart.String(),
+				normalizedInput.ActiveTimeEnd.String(),
+				now,
+			)
+		} else {
+			limit, err = model.NewLimitWithCustomPeriod(
+				normalizedInput.Name,
+				normalizedInput.LimitType,
+				normalizedInput.MaxAmount,
+				normalizedInput.Currency,
+				normalizedInput.Scopes,
+				normalizedInput.Description,
+				customStart,
+				customEnd,
+				now,
+			)
+		}
+	} else if hasTimeWindow {
+		// Create limit with time window
+		limit, err = model.NewLimitWithTimeWindow(
+			normalizedInput.Name,
+			normalizedInput.LimitType,
+			normalizedInput.MaxAmount,
+			normalizedInput.Currency,
+			normalizedInput.Scopes,
+			normalizedInput.Description,
+			normalizedInput.ActiveTimeStart.String(),
+			normalizedInput.ActiveTimeEnd.String(),
+			now,
+		)
+	} else {
+		// Standard limit (no time window, no custom period)
+		limit, err = model.NewLimit(
+			normalizedInput.Name,
+			normalizedInput.LimitType,
+			normalizedInput.MaxAmount,
+			normalizedInput.Currency,
+			normalizedInput.Scopes,
+			normalizedInput.Description,
+			now,
+		)
+	}
+
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create limit entity", err)
 		logger.WithFields(

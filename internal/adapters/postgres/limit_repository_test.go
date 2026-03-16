@@ -72,7 +72,7 @@ func testLimit() *model.Limit {
 
 // limitColumns returns the column names for limit queries.
 func limitColumns() []string {
-	return []string{"id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "created_at", "updated_at", "deleted_at"}
+	return []string{"id", "name", "description", "limit_type", "max_amount", "currency", "scopes", "status", "reset_at", "active_time_start", "active_time_end", "custom_start_date", "custom_end_date", "created_at", "updated_at", "deleted_at"}
 }
 
 // limitRow creates a sqlmock row from a limit.
@@ -92,6 +92,22 @@ func limitRow(t *testing.T, lmt *model.Limit) *sqlmock.Rows {
 		resetAt = *lmt.ResetAt
 	}
 
+	var activeTimeStart, activeTimeEnd interface{}
+	if lmt.ActiveTimeStart != nil {
+		activeTimeStart = lmt.ActiveTimeStart.String()
+	}
+	if lmt.ActiveTimeEnd != nil {
+		activeTimeEnd = lmt.ActiveTimeEnd.String()
+	}
+
+	var customStartDate, customEndDate interface{}
+	if lmt.CustomStartDate != nil {
+		customStartDate = *lmt.CustomStartDate
+	}
+	if lmt.CustomEndDate != nil {
+		customEndDate = *lmt.CustomEndDate
+	}
+
 	return sqlmock.NewRows(limitColumns()).
 		AddRow(
 			lmt.ID,
@@ -103,6 +119,10 @@ func limitRow(t *testing.T, lmt *model.Limit) *sqlmock.Rows {
 			scopesJSON,
 			lmt.Status,
 			resetAt,
+			activeTimeStart,
+			activeTimeEnd,
+			customStartDate,
+			customEndDate,
 			lmt.CreatedAt,
 			lmt.UpdatedAt,
 			deletedAt,
@@ -153,6 +173,10 @@ func TestLimitRepository_Create(t *testing.T) {
 						sqlmock.AnyArg(), // scopesJSON
 						lmt.Status,
 						sqlmock.AnyArg(), // resetAt - may be normalized
+						sqlmock.AnyArg(), // activeTimeStart
+						sqlmock.AnyArg(), // activeTimeEnd
+						sqlmock.AnyArg(), // customStartDate
+						sqlmock.AnyArg(), // customEndDate
 						sqlmock.AnyArg(), // createdAt - may be set by Create
 						sqlmock.AnyArg(), // updatedAt - may be set by Create
 					).
@@ -181,6 +205,10 @@ func TestLimitRepository_Create(t *testing.T) {
 						sqlmock.AnyArg(), // scopesJSON
 						lmt.Status,
 						sqlmock.AnyArg(), // resetAt - may be normalized
+						sqlmock.AnyArg(), // activeTimeStart
+						sqlmock.AnyArg(), // activeTimeEnd
+						sqlmock.AnyArg(), // customStartDate
+						sqlmock.AnyArg(), // customEndDate
 						sqlmock.AnyArg(), // createdAt - may be set by Create
 						sqlmock.AnyArg(), // updatedAt - may be set by Create
 					).
@@ -357,7 +385,7 @@ func TestLimitRepository_List(t *testing.T) {
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := limitRow(t, testLimit())
 				// Query fetches limit+1 (11) to detect hasMore; no filter args since only deleted_at IS NULL
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 11`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, active_time_start, active_time_end, custom_start_date, custom_end_date, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 11`)).
 					WillReturnRows(rows)
 			},
 			wantLen: 1,
@@ -375,7 +403,7 @@ func TestLimitRepository_List(t *testing.T) {
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := limitRow(t, testLimit())
 				// Query includes status filter arg; limit+1 (11) for hasMore detection
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL AND status = $1 ORDER BY created_at DESC, id DESC LIMIT 11`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, active_time_start, active_time_end, custom_start_date, custom_end_date, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL AND status = $1 ORDER BY created_at DESC, id DESC LIMIT 11`)).
 					WithArgs(string(model.LimitStatusActive)).
 					WillReturnRows(rows)
 			},
@@ -394,7 +422,7 @@ func TestLimitRepository_List(t *testing.T) {
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := limitRow(t, testLimit())
 				// Query includes limit_type filter arg; limit+1 (11) for hasMore detection
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL AND limit_type = $1 ORDER BY created_at DESC, id DESC LIMIT 11`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, active_time_start, active_time_end, custom_start_date, custom_end_date, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL AND limit_type = $1 ORDER BY created_at DESC, id DESC LIMIT 11`)).
 					WithArgs(string(model.LimitTypeDaily)).
 					WillReturnRows(rows)
 			},
@@ -406,7 +434,7 @@ func TestLimitRepository_List(t *testing.T) {
 			filters: &model.ListLimitsFilter{Limit: 10},
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				// Query uses limit+1 (11) even for empty results
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 11`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, active_time_start, active_time_end, custom_start_date, custom_end_date, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 11`)).
 					WillReturnRows(sqlmock.NewRows(limitColumns()))
 			},
 			wantLen: 0,
@@ -416,7 +444,7 @@ func TestLimitRepository_List(t *testing.T) {
 			name:    "Error - database query fails",
 			filters: &model.ListLimitsFilter{Limit: 10},
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 11`)).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, description, limit_type, max_amount, currency, scopes, status, reset_at, active_time_start, active_time_end, custom_start_date, custom_end_date, created_at, updated_at, deleted_at FROM limits WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 11`)).
 					WillReturnError(errors.New("database error"))
 			},
 			wantErr: true,
@@ -491,6 +519,11 @@ func TestLimitRepository_Update(t *testing.T) {
 						lmt.MaxAmount,
 						sqlmock.AnyArg(), // scopesJSON
 						lmt.Status,
+						sqlmock.AnyArg(), // resetAt
+						sqlmock.AnyArg(), // activeTimeStart
+						sqlmock.AnyArg(), // activeTimeEnd
+						sqlmock.AnyArg(), // customStartDate
+						sqlmock.AnyArg(), // customEndDate
 						lmt.UpdatedAt,
 						lmt.ID,
 					).
@@ -1633,6 +1666,7 @@ func TestLimitRepository_List_Pagination_HasMore(t *testing.T) {
 		rows.AddRow(
 			lmt.ID, lmt.Name, lmt.Description, lmt.LimitType, lmt.MaxAmount,
 			lmt.Currency, scopesJSON, lmt.Status, resetAt,
+			nil, nil, nil, nil,
 			lmt.CreatedAt, lmt.UpdatedAt, nil,
 		)
 	}
@@ -1693,6 +1727,7 @@ func TestLimitRepository_List_Pagination_NoMore(t *testing.T) {
 		rows.AddRow(
 			lmt.ID, lmt.Name, lmt.Description, lmt.LimitType, lmt.MaxAmount,
 			lmt.Currency, scopesJSON, lmt.Status, resetAt,
+			nil, nil, nil, nil,
 			lmt.CreatedAt, lmt.UpdatedAt, nil,
 		)
 	}
@@ -1807,6 +1842,7 @@ func TestLimitRepository_List_Pagination_ExactlyAtLimit(t *testing.T) {
 		rows.AddRow(
 			lmt.ID, lmt.Name, lmt.Description, lmt.LimitType, lmt.MaxAmount,
 			lmt.Currency, scopesJSON, lmt.Status, resetAt,
+			nil, nil, nil, nil,
 			lmt.CreatedAt, lmt.UpdatedAt, nil,
 		)
 	}
@@ -1890,6 +1926,7 @@ func TestLimitRepository_List_Pagination_CursorWithDifferentSortFields(t *testin
 				rows.AddRow(
 					lmt.ID, lmt.Name, lmt.Description, lmt.LimitType, lmt.MaxAmount,
 					lmt.Currency, scopesJSON, lmt.Status, resetAt,
+					nil, nil, nil, nil,
 					lmt.CreatedAt, lmt.UpdatedAt, nil,
 				)
 			}

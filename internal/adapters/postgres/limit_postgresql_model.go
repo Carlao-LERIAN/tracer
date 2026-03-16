@@ -23,18 +23,22 @@ import (
 // - sql.Null* types for nullable database columns
 // - JSON serialization for scopes array
 type LimitPostgreSQLModel struct {
-	ID          string          `db:"id"`
-	Name        string          `db:"name"`
-	Description sql.NullString  `db:"description"`
-	LimitType   string          `db:"limit_type"`
-	MaxAmount   decimal.Decimal `db:"max_amount"`
-	Currency    string          `db:"currency"`
-	Scopes      string          `db:"scopes"`
-	Status      string          `db:"status"`
-	ResetAt     sql.NullTime    `db:"reset_at"`
-	CreatedAt   time.Time       `db:"created_at"`
-	UpdatedAt   time.Time       `db:"updated_at"`
-	DeletedAt   sql.NullTime    `db:"deleted_at"`
+	ID              string          `db:"id"`
+	Name            string          `db:"name"`
+	Description     sql.NullString  `db:"description"`
+	LimitType       string          `db:"limit_type"`
+	MaxAmount       decimal.Decimal `db:"max_amount"`
+	Currency        string          `db:"currency"`
+	Scopes          string          `db:"scopes"`
+	Status          string          `db:"status"`
+	ResetAt         sql.NullTime    `db:"reset_at"`
+	ActiveTimeStart sql.NullString  `db:"active_time_start"`
+	ActiveTimeEnd   sql.NullString  `db:"active_time_end"`
+	CustomStartDate sql.NullTime    `db:"custom_start_date"`
+	CustomEndDate   sql.NullTime    `db:"custom_end_date"`
+	CreatedAt       time.Time       `db:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at"`
+	DeletedAt       sql.NullTime    `db:"deleted_at"`
 }
 
 // ToEntity converts the database model to a domain entity.
@@ -91,19 +95,54 @@ func (m *LimitPostgreSQLModel) ToEntity() (*model.Limit, error) {
 		return nil, fmt.Errorf("invalid limit status in database: %s", m.Status)
 	}
 
+	// Convert time windows from database strings to TimeOfDay
+	var activeTimeStart, activeTimeEnd *model.TimeOfDay
+
+	if m.ActiveTimeStart.Valid {
+		parsed, err := model.NewTimeOfDay(m.ActiveTimeStart.String)
+		if err != nil {
+			return nil, fmt.Errorf("invalid active_time_start in database: %w", err)
+		}
+
+		activeTimeStart = &parsed
+	}
+
+	if m.ActiveTimeEnd.Valid {
+		parsed, err := model.NewTimeOfDay(m.ActiveTimeEnd.String)
+		if err != nil {
+			return nil, fmt.Errorf("invalid active_time_end in database: %w", err)
+		}
+
+		activeTimeEnd = &parsed
+	}
+
+	// Convert custom period dates
+	var customStartDate, customEndDate *time.Time
+	if m.CustomStartDate.Valid {
+		customStartDate = &m.CustomStartDate.Time
+	}
+
+	if m.CustomEndDate.Valid {
+		customEndDate = &m.CustomEndDate.Time
+	}
+
 	return &model.Limit{
-		ID:          id,
-		Name:        m.Name,
-		Description: description,
-		LimitType:   limitType,
-		MaxAmount:   m.MaxAmount,
-		Currency:    m.Currency,
-		Scopes:      scopes,
-		Status:      status,
-		ResetAt:     resetAt,
-		CreatedAt:   m.CreatedAt,
-		UpdatedAt:   m.UpdatedAt,
-		DeletedAt:   deletedAt,
+		ID:              id,
+		Name:            m.Name,
+		Description:     description,
+		LimitType:       limitType,
+		MaxAmount:       m.MaxAmount,
+		Currency:        m.Currency,
+		Scopes:          scopes,
+		Status:          status,
+		ResetAt:         resetAt,
+		ActiveTimeStart: activeTimeStart,
+		ActiveTimeEnd:   activeTimeEnd,
+		CustomStartDate: customStartDate,
+		CustomEndDate:   customEndDate,
+		CreatedAt:       m.CreatedAt,
+		UpdatedAt:       m.UpdatedAt,
+		DeletedAt:       deletedAt,
 	}, nil
 }
 
@@ -159,6 +198,32 @@ func (m *LimitPostgreSQLModel) FromEntity(entity *model.Limit) error {
 		m.DeletedAt = sql.NullTime{Time: *entity.DeletedAt, Valid: true}
 	} else {
 		m.DeletedAt = sql.NullTime{Valid: false}
+	}
+
+	// Convert time windows to strings
+	if entity.ActiveTimeStart != nil {
+		m.ActiveTimeStart = sql.NullString{String: entity.ActiveTimeStart.String(), Valid: true}
+	} else {
+		m.ActiveTimeStart = sql.NullString{Valid: false}
+	}
+
+	if entity.ActiveTimeEnd != nil {
+		m.ActiveTimeEnd = sql.NullString{String: entity.ActiveTimeEnd.String(), Valid: true}
+	} else {
+		m.ActiveTimeEnd = sql.NullString{Valid: false}
+	}
+
+	// Convert custom period dates
+	if entity.CustomStartDate != nil {
+		m.CustomStartDate = sql.NullTime{Time: *entity.CustomStartDate, Valid: true}
+	} else {
+		m.CustomStartDate = sql.NullTime{Valid: false}
+	}
+
+	if entity.CustomEndDate != nil {
+		m.CustomEndDate = sql.NullTime{Time: *entity.CustomEndDate, Valid: true}
+	} else {
+		m.CustomEndDate = sql.NullTime{Valid: false}
 	}
 
 	return nil
