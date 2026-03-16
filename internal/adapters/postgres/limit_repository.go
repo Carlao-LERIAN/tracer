@@ -324,6 +324,7 @@ func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
 		Set("max_amount", dbModel.MaxAmount).
 		Set("scopes", dbModel.Scopes).
 		Set("status", dbModel.Status).
+		Set("reset_at", dbModel.ResetAt).
 		Set("active_time_start", dbModel.ActiveTimeStart).
 		Set("active_time_end", dbModel.ActiveTimeEnd).
 		Set("custom_start_date", dbModel.CustomStartDate).

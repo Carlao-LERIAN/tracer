@@ -39,9 +39,9 @@ type FixedClock struct {
 	fixedTime time.Time
 }
 
-// Now returns the fixed time.
+// Now returns the fixed time in UTC, matching RealClock.Now() behavior.
 func (c FixedClock) Now() time.Time {
-	return c.fixedTime
+	return c.fixedTime.UTC()
 }
 
 // NewTicker returns a channel that never fires (fixed clock has no real ticks).

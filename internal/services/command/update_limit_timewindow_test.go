@@ -18,10 +18,8 @@ import (
 	"tracer/pkg/model"
 )
 
-// TestUpdateLimit_TimeWindow_RED verifies that time window fields are currently IGNORED.
-// This test should FAIL initially (RED), proving the bug exists.
-// After implementation, it will PASS (GREEN), proving the fix works.
-func TestUpdateLimit_TimeWindow_RED(t *testing.T) {
+// TestUpdateLimit_TimeWindow verifies that time window fields are handled correctly during update.
+func TestUpdateLimit_TimeWindow(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockRepo := NewMockLimitRepository(ctrl)
 	clk := testutil.NewDefaultMockClock()

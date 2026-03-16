@@ -372,6 +372,14 @@ func TestLimit_ValidateCustomPeriod(t *testing.T) {
 			errorIs:     constant.ErrLimitCustomDatesOrder,
 		},
 		{
+			name:        "accepts period equal to 5 years",
+			limitType:   LimitTypeCustom,
+			startDate:   testutil.Ptr(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+			endDate:     testutil.Ptr(time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)), // exactly 5 years
+			now:         time.Date(2025, 2, 15, 0, 0, 0, 0, time.UTC),
+			expectError: false,
+		},
+		{
 			name:        "rejects period exceeding 5 years",
 			limitType:   LimitTypeCustom,
 			startDate:   testutil.Ptr(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),

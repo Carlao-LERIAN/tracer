@@ -519,6 +519,7 @@ func TestLimitRepository_Update(t *testing.T) {
 						lmt.MaxAmount,
 						sqlmock.AnyArg(), // scopesJSON
 						lmt.Status,
+						sqlmock.AnyArg(), // resetAt
 						sqlmock.AnyArg(), // activeTimeStart
 						sqlmock.AnyArg(), // activeTimeEnd
 						sqlmock.AnyArg(), // customStartDate
