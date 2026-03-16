@@ -117,18 +117,22 @@ func TestUpdateLimit_CustomPeriod(t *testing.T) {
 		Return(existingLimit, nil)
 
 	// Mock: Update should be called with new custom dates
+	newStart := "2026-12-01T00:00:00Z"
+	newEnd := "2026-12-02T23:59:59Z"
+	expectedStart, parseErr := time.Parse(time.RFC3339, newStart)
+	require.NoError(t, parseErr)
+	expectedEnd, parseErr := time.Parse(time.RFC3339, newEnd)
+	require.NoError(t, parseErr)
+
 	mockRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, limit *model.Limit) error {
-			// Verify custom dates were updated
-			assert.NotNil(t, limit.CustomStartDate, "Update should have CustomStartDate set")
-			assert.NotNil(t, limit.CustomEndDate, "Update should have CustomEndDate set")
+			require.NotNil(t, limit.CustomStartDate, "Update should have CustomStartDate set")
+			require.NotNil(t, limit.CustomEndDate, "Update should have CustomEndDate set")
+			assert.Equal(t, expectedStart.UTC(), limit.CustomStartDate.UTC(), "CustomStartDate should match input")
+			assert.Equal(t, expectedEnd.UTC(), limit.CustomEndDate.UTC(), "CustomEndDate should match input")
 			return nil
 		})
-
-	// Act: Try to UPDATE to Cyber Monday (Dec 1-2, 2026)
-	newStart := "2026-12-01T00:00:00Z"
-	newEnd := "2026-12-02T23:59:59Z"
 
 	input := &UpdateLimitInput{
 		CustomStartDate: &newStart,
@@ -140,12 +144,6 @@ func TestUpdateLimit_CustomPeriod(t *testing.T) {
 
 	require.NotNil(t, updatedLimit.CustomStartDate, "CustomStartDate should be updated")
 	require.NotNil(t, updatedLimit.CustomEndDate, "CustomEndDate should be updated")
-
-	expectedStart, parseErr := time.Parse(time.RFC3339, newStart)
-	require.NoError(t, parseErr, "newStart should be valid RFC3339")
 	assert.Equal(t, expectedStart.UTC(), updatedLimit.CustomStartDate.UTC(), "CustomStartDate should match input")
-
-	expectedEnd, parseErr := time.Parse(time.RFC3339, newEnd)
-	require.NoError(t, parseErr, "newEnd should be valid RFC3339")
 	assert.Equal(t, expectedEnd.UTC(), updatedLimit.CustomEndDate.UTC(), "CustomEndDate should match input")
 }
