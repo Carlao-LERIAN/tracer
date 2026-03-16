@@ -23,6 +23,8 @@ const (
 	LimitTypeDaily          LimitType = "DAILY"
 	LimitTypeMonthly        LimitType = "MONTHLY"
 	LimitTypePerTransaction LimitType = "PER_TRANSACTION"
+	LimitTypeWeekly         LimitType = "WEEKLY"
+	LimitTypeCustom         LimitType = "CUSTOM"
 )
 
 // LimitStatus represents the lifecycle status of a limit
@@ -64,20 +66,33 @@ var safeDescriptionRegex = regexp.MustCompile(`^[^<>]*$`)
 // ResetAt is calculated based on LimitType:
 //   - DAILY: next midnight UTC
 //   - MONTHLY: next 1st of month at midnight UTC
+//   - WEEKLY: next Monday 00:00 UTC
+//   - CUSTOM: customEndDate + 1 day at midnight UTC
 //   - PER_TRANSACTION: null (no reset)
+//
+// ActiveTimeStart/ActiveTimeEnd define the daily time window when the limit is active.
+// If both are nil, the limit is active 24/7.
+// Overnight windows (e.g., 20:00 to 06:00) are supported.
+//
+// CustomStartDate/CustomEndDate define the period for CUSTOM limits.
+// These are required for CUSTOM limitType and forbidden for other types.
 type Limit struct {
-	ID          uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
-	Name        string          `json:"name"`
-	Description *string         `json:"description,omitempty"`
-	LimitType   LimitType       `json:"limitType"`
-	MaxAmount   decimal.Decimal `json:"maxAmount" swaggertype:"string" example:"1000.00"`
-	Currency    string          `json:"currency"`
-	Scopes      []Scope         `json:"scopes"`
-	Status      LimitStatus     `json:"status"`
-	ResetAt     *time.Time      `json:"resetAt,omitempty" format:"date-time"`
-	CreatedAt   time.Time       `json:"createdAt" format:"date-time"`
-	UpdatedAt   time.Time       `json:"updatedAt" format:"date-time"`
-	DeletedAt   *time.Time      `json:"deletedAt,omitempty" format:"date-time"`
+	ID              uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
+	Name            string          `json:"name"`
+	Description     *string         `json:"description,omitempty"`
+	LimitType       LimitType       `json:"limitType"`
+	MaxAmount       decimal.Decimal `json:"maxAmount" swaggertype:"string" example:"1000.00"`
+	Currency        string          `json:"currency"`
+	Scopes          []Scope         `json:"scopes"`
+	Status          LimitStatus     `json:"status"`
+	ActiveTimeStart *TimeOfDay      `json:"activeTimeStart,omitempty" swaggertype:"string" example:"09:00"`
+	ActiveTimeEnd   *TimeOfDay      `json:"activeTimeEnd,omitempty" swaggertype:"string" example:"17:00"`
+	CustomStartDate *time.Time      `json:"customStartDate,omitempty" format:"date-time"`
+	CustomEndDate   *time.Time      `json:"customEndDate,omitempty" format:"date-time"`
+	ResetAt         *time.Time      `json:"resetAt,omitempty" format:"date-time"`
+	CreatedAt       time.Time       `json:"createdAt" format:"date-time"`
+	UpdatedAt       time.Time       `json:"updatedAt" format:"date-time"`
+	DeletedAt       *time.Time      `json:"deletedAt,omitempty" format:"date-time"`
 }
 
 // UsageCounter tracks current usage for a limit within a specific scope and period.
@@ -103,7 +118,7 @@ func (c *UsageCounter) ScanFields() []any {
 // IsValid validates LimitType enum
 func (t LimitType) IsValid() bool {
 	switch t {
-	case LimitTypeDaily, LimitTypeMonthly, LimitTypePerTransaction:
+	case LimitTypeDaily, LimitTypeMonthly, LimitTypePerTransaction, LimitTypeWeekly, LimitTypeCustom:
 		return true
 	}
 
@@ -120,7 +135,8 @@ func (s LimitStatus) IsValid() bool {
 	return false
 }
 
-// CalculateResetAt computes next reset time based on limit type
+// CalculateResetAt computes next reset time based on limit type.
+// For CUSTOM limits, use CalculateCustomResetAt instead with customEndDate.
 func CalculateResetAt(limitType LimitType, now time.Time) *time.Time {
 	switch limitType {
 	case LimitTypeDaily:
@@ -132,11 +148,34 @@ func CalculateResetAt(limitType LimitType, now time.Time) *time.Time {
 		nextMonth := time.Date(year, month+1, 1, 0, 0, 0, 0, time.UTC)
 
 		return &nextMonth
+	case LimitTypeWeekly:
+		// Calculate next Monday at 00:00 UTC
+		utcNow := now.UTC()
+
+		daysUntilMonday := (8 - int(utcNow.Weekday())) % 7
+		if daysUntilMonday == 0 {
+			daysUntilMonday = 7 // If today is Monday, go to next Monday
+		}
+
+		nextMonday := utcNow.Truncate(24*time.Hour).AddDate(0, 0, daysUntilMonday)
+
+		return &nextMonday
 	case LimitTypePerTransaction:
+		return nil
+	case LimitTypeCustom:
+		// CUSTOM limits need customEndDate, handled by CalculateCustomResetAt
 		return nil
 	default:
 		return nil
 	}
+}
+
+// CalculateCustomResetAt computes reset time for CUSTOM limits.
+// Returns customEndDate + 1 day at midnight UTC.
+func CalculateCustomResetAt(customEndDate time.Time) *time.Time {
+	resetAt := customEndDate.UTC().Truncate(24*time.Hour).AddDate(0, 0, 1)
+
+	return &resetAt
 }
 
 // validateCurrency checks if currency is a valid ISO 4217 code (3 uppercase letters)
@@ -146,6 +185,49 @@ func validateCurrency(currency string) error {
 	}
 
 	return nil
+}
+
+// newLimitBase performs common normalization and creates base Limit struct.
+// This function is private and shared by all NewLimit* constructors to reduce duplication.
+// It normalizes textual inputs (name, currency, description), creates defensive copy of scopes,
+// and initializes common fields (ID, Status, CreatedAt, UpdatedAt).
+func newLimitBase(
+	name string,
+	limitType LimitType,
+	maxAmount decimal.Decimal,
+	currency string,
+	scopes []Scope,
+	description *string,
+	createdAt time.Time,
+) *Limit {
+	now := createdAt.UTC()
+
+	// Normalize textual inputs
+	normalizedName := strings.TrimSpace(name)
+	normalizedCurrency := strings.ToUpper(strings.TrimSpace(currency))
+
+	var normalizedDescription *string
+
+	if description != nil {
+		trimmed := strings.TrimSpace(*description)
+		normalizedDescription = &trimmed
+	}
+
+	// Defensive copy of scopes to prevent external mutation
+	scopesCopy := append([]Scope(nil), scopes...)
+
+	return &Limit{
+		ID:          uuid.New(),
+		Name:        normalizedName,
+		Description: normalizedDescription,
+		LimitType:   limitType,
+		MaxAmount:   maxAmount,
+		Currency:    normalizedCurrency,
+		Scopes:      scopesCopy,
+		Status:      LimitStatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
 }
 
 // validateScopes checks if scopes array is valid
@@ -181,36 +263,134 @@ func NewLimit(
 	description *string,
 	createdAt time.Time,
 ) (*Limit, error) {
+	limit := newLimitBase(name, limitType, maxAmount, currency, scopes, description, createdAt)
+
 	now := createdAt.UTC()
-	resetAt := CalculateResetAt(limitType, now)
+	limit.ResetAt = CalculateResetAt(limitType, now)
 
-	// Normalize textual inputs
-	normalizedName := strings.TrimSpace(name)
-	normalizedCurrency := strings.ToUpper(strings.TrimSpace(currency))
-
-	var normalizedDescription *string
-
-	if description != nil {
-		trimmed := strings.TrimSpace(*description)
-		normalizedDescription = &trimmed
+	if err := limit.Validate(); err != nil {
+		return nil, err
 	}
 
-	// Defensive copy of scopes to prevent external mutation
-	scopesCopy := append([]Scope(nil), scopes...)
+	return limit, nil
+}
 
-	limit := &Limit{
-		ID:          uuid.New(),
-		Name:        normalizedName,
-		Description: normalizedDescription,
-		LimitType:   limitType,
-		MaxAmount:   maxAmount,
-		Currency:    normalizedCurrency,
-		Scopes:      scopesCopy,
-		Status:      LimitStatusDraft,
-		ResetAt:     resetAt,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+// NewLimitWithTimeWindow creates a new Limit entity with an active time window.
+// The time window restricts when the limit is evaluated during the day.
+// Supports overnight windows (e.g., "20:00" to "06:00").
+func NewLimitWithTimeWindow(
+	name string,
+	limitType LimitType,
+	maxAmount decimal.Decimal,
+	currency string,
+	scopes []Scope,
+	description *string,
+	activeTimeStart string,
+	activeTimeEnd string,
+	createdAt time.Time,
+) (*Limit, error) {
+	// Parse time window strings
+	startTime, err := NewTimeOfDay(activeTimeStart)
+	if err != nil {
+		return nil, err
 	}
+
+	endTime, err := NewTimeOfDay(activeTimeEnd)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate time window
+	if err := ValidateTimeWindow(&startTime, &endTime); err != nil {
+		return nil, err
+	}
+
+	limit := newLimitBase(name, limitType, maxAmount, currency, scopes, description, createdAt)
+
+	now := createdAt.UTC()
+	limit.ActiveTimeStart = &startTime
+	limit.ActiveTimeEnd = &endTime
+	limit.ResetAt = CalculateResetAt(limitType, now)
+
+	if err := limit.Validate(); err != nil {
+		return nil, err
+	}
+
+	return limit, nil
+}
+
+// NewLimitWithCustomPeriod creates a new Limit entity with a CUSTOM period.
+// CUSTOM limits have a fixed start and end date and reset at customEndDate + 1 day.
+func NewLimitWithCustomPeriod(
+	name string,
+	limitType LimitType,
+	maxAmount decimal.Decimal,
+	currency string,
+	scopes []Scope,
+	description *string,
+	customStartDate time.Time,
+	customEndDate time.Time,
+	createdAt time.Time,
+) (*Limit, error) {
+	// Validate custom period
+	if err := ValidateCustomPeriod(limitType, &customStartDate, &customEndDate, createdAt); err != nil {
+		return nil, err
+	}
+
+	limit := newLimitBase(name, limitType, maxAmount, currency, scopes, description, createdAt)
+
+	limit.CustomStartDate = &customStartDate
+	limit.CustomEndDate = &customEndDate
+	limit.ResetAt = CalculateCustomResetAt(customEndDate)
+
+	if err := limit.Validate(); err != nil {
+		return nil, err
+	}
+
+	return limit, nil
+}
+
+// NewLimitWithCustomPeriodAndTimeWindow creates a new Limit entity with both a CUSTOM period
+// and an active time window. This supports AC-09: transactions must be inside BOTH the custom
+// date range AND the time window to be evaluated.
+func NewLimitWithCustomPeriodAndTimeWindow(
+	name string,
+	limitType LimitType,
+	maxAmount decimal.Decimal,
+	currency string,
+	scopes []Scope,
+	description *string,
+	customStartDate time.Time,
+	customEndDate time.Time,
+	activeTimeStart string,
+	activeTimeEnd string,
+	createdAt time.Time,
+) (*Limit, error) {
+	if err := ValidateCustomPeriod(limitType, &customStartDate, &customEndDate, createdAt); err != nil {
+		return nil, err
+	}
+
+	startTime, err := NewTimeOfDay(activeTimeStart)
+	if err != nil {
+		return nil, err
+	}
+
+	endTime, err := NewTimeOfDay(activeTimeEnd)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ValidateTimeWindow(&startTime, &endTime); err != nil {
+		return nil, err
+	}
+
+	limit := newLimitBase(name, limitType, maxAmount, currency, scopes, description, createdAt)
+
+	limit.CustomStartDate = &customStartDate
+	limit.CustomEndDate = &customEndDate
+	limit.ResetAt = CalculateCustomResetAt(customEndDate)
+	limit.ActiveTimeStart = &startTime
+	limit.ActiveTimeEnd = &endTime
 
 	if err := limit.Validate(); err != nil {
 		return nil, err
@@ -266,6 +446,75 @@ func validateDescription(description *string) error {
 	return nil
 }
 
+// MaxCustomPeriodYears is the maximum allowed duration for CUSTOM limit periods.
+const MaxCustomPeriodYears = 5
+
+// ValidateTimeWindow validates the active time window fields.
+// Both start and end must be set or both must be nil.
+// Start cannot equal end (zero-width window not allowed).
+func ValidateTimeWindow(start, end *TimeOfDay) error {
+	// Both nil is valid (no time restriction)
+	if start == nil && end == nil {
+		return nil
+	}
+
+	// One set and one nil is invalid
+	if (start == nil) != (end == nil) {
+		return constant.ErrLimitTimeWindowMismatch
+	}
+
+	// Zero-width window is invalid
+	if start.Equal(*end) {
+		return constant.ErrLimitTimeWindowZeroWidth
+	}
+
+	return nil
+}
+
+// ValidateCustomPeriod validates the custom period fields for CUSTOM limits.
+// For CUSTOM type: both dates are required and start must be before end.
+// For non-CUSTOM type: both dates must be nil.
+// The now parameter enables deterministic testing via clock injection.
+func ValidateCustomPeriod(limitType LimitType, startDate, endDate *time.Time, now time.Time) error {
+	if limitType == LimitTypeCustom {
+		// CUSTOM requires both dates
+		if startDate == nil || endDate == nil {
+			return constant.ErrLimitCustomDatesRequired
+		}
+
+		// Normalize to UTC for comparison
+		startUTC := startDate.UTC()
+		endUTC := endDate.UTC()
+
+		// Check end date is after start date
+		if !endUTC.After(startUTC) {
+			return constant.ErrLimitCustomDatesOrder
+		}
+
+		// Check duration does not exceed 5 years
+		maxEndDate := startUTC.AddDate(MaxCustomPeriodYears, 0, 0)
+		if endUTC.After(maxEndDate) {
+			return constant.ErrLimitCustomPeriodTooLong
+		}
+
+		// Check custom period is not entirely in the past using injected time
+		// NOTE: Allow custom periods that end "today" (same day) to support edge cases
+		nowUTC := now.UTC()
+		if endUTC.Before(nowUTC.Truncate(24 * time.Hour)) {
+			return constant.ErrLimitCustomPeriodExpired
+		}
+
+		return nil
+	}
+
+	// Non-CUSTOM types must not have custom dates
+	if startDate != nil || endDate != nil {
+		return constant.ErrLimitCustomDatesNotAllowed
+	}
+
+	return nil
+}
+
 // Update modifies limit fields. Only non-nil parameters are updated.
 // maxAmount is a decimal value (e.g., 1000.00).
 // Name and description are trimmed of leading/trailing whitespace before storage.
@@ -275,6 +524,10 @@ func (l *Limit) Update(
 	maxAmount *decimal.Decimal,
 	description *string,
 	scopes *[]Scope,
+	activeTimeStart *TimeOfDay,
+	activeTimeEnd *TimeOfDay,
+	customStartDate *time.Time,
+	customEndDate *time.Time,
 	now time.Time,
 ) error {
 	updated := false
@@ -315,6 +568,34 @@ func (l *Limit) Update(
 
 		// Defensive copy to prevent external mutation
 		l.Scopes = append([]Scope(nil), *scopes...)
+		updated = true
+	}
+
+	// Update time window if both fields provided (must be together or both nil)
+	if activeTimeStart != nil || activeTimeEnd != nil {
+		if err := ValidateTimeWindow(activeTimeStart, activeTimeEnd); err != nil {
+			return err
+		}
+
+		l.ActiveTimeStart = activeTimeStart
+		l.ActiveTimeEnd = activeTimeEnd
+		updated = true
+	}
+
+	// Update custom period if both dates provided (must be together or both nil)
+	if customStartDate != nil || customEndDate != nil {
+		if err := ValidateCustomPeriod(l.LimitType, customStartDate, customEndDate, now); err != nil {
+			return err
+		}
+
+		l.CustomStartDate = customStartDate
+		l.CustomEndDate = customEndDate
+
+		// Recalculate ResetAt for custom periods
+		if customEndDate != nil {
+			l.ResetAt = CalculateCustomResetAt(*customEndDate)
+		}
+
 		updated = true
 	}
 
@@ -387,6 +668,52 @@ func (l *Limit) IsActive() bool {
 	return l.Status == LimitStatusActive
 }
 
+// IsWithinTimeWindow checks if the given timestamp falls within the limit's active time window.
+// Uses half-open interval semantics [start, end): start is inclusive, end is exclusive.
+// Returns true if no time window is configured (both start and end are nil).
+// Handles overnight windows (e.g., 20:00 to 06:00) correctly.
+func (l *Limit) IsWithinTimeWindow(timestamp time.Time) bool {
+	// No time restriction configured
+	if l.ActiveTimeStart == nil && l.ActiveTimeEnd == nil {
+		return true
+	}
+
+	// Should never happen if validation ran, but defensive check
+	if l.ActiveTimeStart == nil || l.ActiveTimeEnd == nil {
+		return true
+	}
+
+	utc := timestamp.UTC()
+	currentMins := utc.Hour()*60 + utc.Minute()
+	startMins := l.ActiveTimeStart.MinutesSinceMidnight()
+	endMins := l.ActiveTimeEnd.MinutesSinceMidnight()
+
+	if startMins < endMins {
+		// Normal window (e.g., 09:00 to 17:00)
+		return currentMins >= startMins && currentMins < endMins
+	}
+
+	// Overnight window (e.g., 20:00 to 06:00)
+	return currentMins >= startMins || currentMins < endMins
+}
+
+// IsWithinCustomPeriod returns true if the given timestamp falls within the custom period [start, end).
+// Returns true for non-CUSTOM limit types or if custom dates are nil (safety).
+// Start is inclusive, end is exclusive.
+func (l *Limit) IsWithinCustomPeriod(timestamp time.Time) bool {
+	if l.LimitType != LimitTypeCustom {
+		return true
+	}
+
+	if l.CustomStartDate == nil || l.CustomEndDate == nil {
+		return true // Safety: don't block on data error
+	}
+
+	utc := timestamp.UTC()
+
+	return !utc.Before(*l.CustomStartDate) && utc.Before(*l.CustomEndDate)
+}
+
 // Validate ensures Limit entity is valid.
 func (l *Limit) Validate() error {
 	if err := validateName(l.Name); err != nil {
@@ -415,6 +742,33 @@ func (l *Limit) Validate() error {
 
 	if !l.Status.IsValid() {
 		return constant.ErrLimitInvalidStatusChange
+	}
+
+	// Validate time window (if set)
+	if err := ValidateTimeWindow(l.ActiveTimeStart, l.ActiveTimeEnd); err != nil {
+		return err
+	}
+
+	// Validate custom period (required for CUSTOM, forbidden for others)
+	if l.LimitType == LimitTypeCustom {
+		if l.CustomStartDate == nil || l.CustomEndDate == nil {
+			return constant.ErrLimitCustomDatesRequired
+		}
+
+		// Validate order and duration (skip expiry check - done in constructors)
+		startUTC := l.CustomStartDate.UTC()
+		endUTC := l.CustomEndDate.UTC()
+
+		if !endUTC.After(startUTC) {
+			return constant.ErrLimitCustomDatesOrder
+		}
+
+		maxEndDate := startUTC.AddDate(MaxCustomPeriodYears, 0, 0)
+		if endUTC.After(maxEndDate) {
+			return constant.ErrLimitCustomPeriodTooLong
+		}
+	} else if l.CustomStartDate != nil || l.CustomEndDate != nil {
+		return constant.ErrLimitCustomDatesNotAllowed
 	}
 
 	// Enforce DeletedAt invariant: must be set iff status is DELETED

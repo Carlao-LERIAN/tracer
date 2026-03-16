@@ -16,6 +16,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"tracer/internal/testhelper"
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
@@ -489,4 +490,131 @@ func TestCreateLimitCommand_Execute_ContextCancellation(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, result)
+}
+
+func TestCreateLimitCommand_Execute_PartialCustomPeriod(t *testing.T) {
+	validScope := model.Scope{
+		AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1)),
+	}
+
+	startDate := "2026-11-27T00:00:00Z"
+
+	tests := []struct {
+		name            string
+		limitType       model.LimitType
+		customStartDate *string
+		customEndDate   *string
+		errorIs         error
+	}{
+		{
+			name:            "CUSTOM with only customStartDate",
+			limitType:       model.LimitTypeCustom,
+			customStartDate: &startDate,
+			customEndDate:   nil,
+			errorIs:         constant.ErrLimitCustomDatesRequired,
+		},
+		{
+			name:            "CUSTOM with only customEndDate",
+			limitType:       model.LimitTypeCustom,
+			customStartDate: nil,
+			customEndDate:   &startDate,
+			errorIs:         constant.ErrLimitCustomDatesRequired,
+		},
+		{
+			name:            "DAILY with only customStartDate rejected",
+			limitType:       model.LimitTypeDaily,
+			customStartDate: &startDate,
+			customEndDate:   nil,
+			errorIs:         constant.ErrLimitCustomDatesRequired,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			mockRepo := NewMockLimitRepository(ctrl)
+			auditWriter := NewMockAuditWriter(ctrl)
+
+			auditWriter.EXPECT().
+				RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Times(0)
+
+			cmd, cmdErr := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+			require.NoError(t, cmdErr)
+
+			input := &CreateLimitInput{
+				Name:            "Test Partial Custom",
+				LimitType:       tc.limitType,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{validScope},
+				CustomStartDate: tc.customStartDate,
+				CustomEndDate:   tc.customEndDate,
+			}
+
+			result, err := cmd.Execute(context.Background(), input)
+
+			require.Error(t, err, "Partial custom period should be rejected")
+			assert.ErrorIs(t, err, tc.errorIs)
+			assert.Nil(t, result)
+		})
+	}
+}
+
+func TestCreateLimitCommand_Execute_PartialTimeWindow(t *testing.T) {
+	validScope := model.Scope{
+		AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(1)),
+	}
+
+	startTime := testhelper.MustNewTimeOfDay("09:00")
+
+	tests := []struct {
+		name            string
+		activeTimeStart *model.TimeOfDay
+		activeTimeEnd   *model.TimeOfDay
+	}{
+		{
+			name:            "only activeTimeStart provided",
+			activeTimeStart: &startTime,
+			activeTimeEnd:   nil,
+		},
+		{
+			name:            "only activeTimeEnd provided",
+			activeTimeStart: nil,
+			activeTimeEnd:   &startTime,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			mockRepo := NewMockLimitRepository(ctrl)
+			auditWriter := NewMockAuditWriter(ctrl)
+
+			auditWriter.EXPECT().
+				RecordLimitEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Times(0)
+
+			cmd, cmdErr := NewCreateLimitCommand(mockRepo, testutil.NewDefaultMockClock(), auditWriter)
+			require.NoError(t, cmdErr)
+
+			input := &CreateLimitInput{
+				Name:            "Test Partial TimeWindow",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{validScope},
+				ActiveTimeStart: tc.activeTimeStart,
+				ActiveTimeEnd:   tc.activeTimeEnd,
+			}
+
+			result, err := cmd.Execute(context.Background(), input)
+
+			require.Error(t, err, "Partial time window should be rejected")
+			assert.ErrorIs(t, err, constant.ErrLimitTimeWindowMismatch)
+			assert.Nil(t, result)
+		})
+	}
 }
