@@ -44,7 +44,8 @@ func (c FixedClock) Now() time.Time {
 	return c.fixedTime.UTC()
 }
 
-// NewTicker returns a channel that never fires (fixed clock has no real ticks).
+// NewTicker returns a channel that never fires and is never closed (fixed clock has no real ticks).
+// Callers must not use "for range" on the returned channel; use select with a done signal instead.
 // Stop is a no-op, matching time.Ticker.Stop() which does not close its channel.
 func (c FixedClock) NewTicker(_ time.Duration) (<-chan time.Time, func()) {
 	ch := make(chan time.Time)

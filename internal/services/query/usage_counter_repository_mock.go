@@ -59,18 +59,18 @@ func (mr *MockUsageCounterRepositoryMockRecorder) DecrementAtomic(ctx, counterID
 }
 
 // DeleteExpiredCounters mocks base method.
-func (m *MockUsageCounterRepository) DeleteExpiredCounters(ctx context.Context, olderThan time.Time) (int64, error) {
+func (m *MockUsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now time.Time) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteExpiredCounters", ctx, olderThan)
+	ret := m.ctrl.Call(m, "DeleteExpiredCounters", ctx, now)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteExpiredCounters indicates an expected call of DeleteExpiredCounters.
-func (mr *MockUsageCounterRepositoryMockRecorder) DeleteExpiredCounters(ctx, olderThan any) *gomock.Call {
+func (mr *MockUsageCounterRepositoryMockRecorder) DeleteExpiredCounters(ctx, now any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredCounters", reflect.TypeOf((*MockUsageCounterRepository)(nil).DeleteExpiredCounters), ctx, olderThan)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredCounters", reflect.TypeOf((*MockUsageCounterRepository)(nil).DeleteExpiredCounters), ctx, now)
 }
 
 // GetByLimitID mocks base method.
@@ -148,16 +148,16 @@ func (mr *MockUsageCounterRepositoryMockRecorder) IncrementAtomic(ctx, counterID
 }
 
 // UpsertAndIncrementAtomic mocks base method.
-func (m *MockUsageCounterRepository) UpsertAndIncrementAtomic(ctx context.Context, limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount decimal.Decimal) (decimal.Decimal, error) {
+func (m *MockUsageCounterRepository) UpsertAndIncrementAtomic(ctx context.Context, limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount decimal.Decimal, expiresAt *time.Time) (decimal.Decimal, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertAndIncrementAtomic", ctx, limitID, scopeKey, periodKey, amount, maxAmount)
+	ret := m.ctrl.Call(m, "UpsertAndIncrementAtomic", ctx, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt)
 	ret0, _ := ret[0].(decimal.Decimal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpsertAndIncrementAtomic indicates an expected call of UpsertAndIncrementAtomic.
-func (mr *MockUsageCounterRepositoryMockRecorder) UpsertAndIncrementAtomic(ctx, limitID, scopeKey, periodKey, amount, maxAmount any) *gomock.Call {
+func (mr *MockUsageCounterRepositoryMockRecorder) UpsertAndIncrementAtomic(ctx, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAndIncrementAtomic", reflect.TypeOf((*MockUsageCounterRepository)(nil).UpsertAndIncrementAtomic), ctx, limitID, scopeKey, periodKey, amount, maxAmount)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAndIncrementAtomic", reflect.TypeOf((*MockUsageCounterRepository)(nil).UpsertAndIncrementAtomic), ctx, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt)
 }

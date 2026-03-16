@@ -94,19 +94,23 @@ func (i *CheckLimitsInput) Validate() error {
 // Allowed indicates if the transaction can proceed (no limits exceeded).
 // ExceededLimitIDs contains IDs of limits that would be exceeded.
 // LimitUsageDetails contains usage information for all checked limits.
+// EvaluatedAt is the server timestamp when the limit check was performed.
 type CheckLimitsOutput struct {
 	Allowed           bool               `json:"allowed"`
 	ExceededLimitIDs  []uuid.UUID        `json:"exceededLimitIds"`
 	LimitUsageDetails []LimitUsageDetail `json:"limitUsageDetails"`
+	EvaluatedAt       time.Time          `json:"evaluatedAt" format:"date-time"`
 }
 
 // NewCheckLimitsOutput creates a new CheckLimitsOutput with initialized slices.
 // Ensures JSON serialization produces [] instead of null for empty arrays.
-func NewCheckLimitsOutput(allowed bool) *CheckLimitsOutput {
+// evaluatedAt is the server timestamp when the limit check was performed.
+func NewCheckLimitsOutput(allowed bool, evaluatedAt time.Time) *CheckLimitsOutput {
 	return &CheckLimitsOutput{
 		Allowed:           allowed,
 		ExceededLimitIDs:  []uuid.UUID{},
 		LimitUsageDetails: []LimitUsageDetail{},
+		EvaluatedAt:       evaluatedAt,
 	}
 }
 
@@ -173,6 +177,8 @@ func (d *LimitUsageDetail) RemainingAmount() decimal.Decimal {
 // Format:
 //   - DAILY: "2025-12-28"
 //   - MONTHLY: "2025-12"
+//   - WEEKLY: "2025-W03" (ISO week format: year-week number)
+//   - CUSTOM: "custom" (limit checker uses customStartDate/customEndDate to determine if in period)
 //   - PER_TRANSACTION: "" (empty, no period tracking)
 //
 // Returns ErrCheckLimitsUnknownLimitType for unknown limit types to prevent
@@ -185,6 +191,14 @@ func CalculatePeriodKey(limitType LimitType, timestamp time.Time) (string, error
 		return utc.Format("2006-01-02"), nil
 	case LimitTypeMonthly:
 		return utc.Format("2006-01"), nil
+	case LimitTypeWeekly:
+		// ISO week format: "2025-W03" (year-week number)
+		year, week := utc.ISOWeek()
+		return fmt.Sprintf("%d-W%02d", year, week), nil
+	case LimitTypeCustom:
+		// Custom periods use "custom" as the period key
+		// The limit_checker will use customStartDate/customEndDate to determine if transaction is within period
+		return "custom", nil
 	case LimitTypePerTransaction:
 		return "", nil
 	default:

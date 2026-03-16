@@ -4,7 +4,11 @@
 
 package model
 
-import "github.com/google/uuid"
+import (
+	"maps"
+
+	"github.com/google/uuid"
+)
 
 // AccountContext contains account information for validation.
 // Type should be one of: "checking", "savings", "credit"
@@ -14,6 +18,23 @@ type AccountContext struct {
 	Type     string         `json:"type"`
 	Status   string         `json:"status"`
 	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+// Clone creates a copy of AccountContext.
+// Returns nil if the receiver is nil.
+// Metadata map entries are shallow-copied; nested mutable values will be shared.
+func (a *AccountContext) Clone() *AccountContext {
+	if a == nil {
+		return nil
+	}
+
+	clone := *a
+	if a.Metadata != nil {
+		clone.Metadata = make(map[string]any, len(a.Metadata))
+		maps.Copy(clone.Metadata, a.Metadata)
+	}
+
+	return &clone
 }
 
 // ToMap converts AccountContext to map[string]any for CEL evaluation.
@@ -45,6 +66,23 @@ type MerchantContext struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+// Clone creates a copy of MerchantContext.
+// Returns nil if the receiver is nil.
+// Metadata map entries are shallow-copied; nested mutable values will be shared.
+func (m *MerchantContext) Clone() *MerchantContext {
+	if m == nil {
+		return nil
+	}
+
+	clone := *m
+	if m.Metadata != nil {
+		clone.Metadata = make(map[string]any, len(m.Metadata))
+		maps.Copy(clone.Metadata, m.Metadata)
+	}
+
+	return &clone
+}
+
 // ToMap converts MerchantContext to map[string]any for CEL evaluation.
 // Returns nil if the receiver is nil.
 func (m *MerchantContext) ToMap() map[string]any {
@@ -73,6 +111,23 @@ type SegmentContext struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+// Clone creates a copy of SegmentContext.
+// Returns nil if the receiver is nil.
+// Metadata map entries are shallow-copied; nested mutable values will be shared.
+func (s *SegmentContext) Clone() *SegmentContext {
+	if s == nil {
+		return nil
+	}
+
+	clone := *s
+	if s.Metadata != nil {
+		clone.Metadata = make(map[string]any, len(s.Metadata))
+		maps.Copy(clone.Metadata, s.Metadata)
+	}
+
+	return &clone
+}
+
 // ToMap converts SegmentContext to map[string]any for CEL evaluation.
 // Returns nil if the receiver is nil.
 func (s *SegmentContext) ToMap() map[string]any {
@@ -97,6 +152,23 @@ type PortfolioContext struct {
 	ID       uuid.UUID      `json:"portfolioId" swaggertype:"string" format:"uuid"`
 	Name     string         `json:"name,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+// Clone creates a copy of PortfolioContext.
+// Returns nil if the receiver is nil.
+// Metadata map entries are shallow-copied; nested mutable values will be shared.
+func (p *PortfolioContext) Clone() *PortfolioContext {
+	if p == nil {
+		return nil
+	}
+
+	clone := *p
+	if p.Metadata != nil {
+		clone.Metadata = make(map[string]any, len(p.Metadata))
+		maps.Copy(clone.Metadata, p.Metadata)
+	}
+
+	return &clone
 }
 
 // ToMap converts PortfolioContext to map[string]any for CEL evaluation.

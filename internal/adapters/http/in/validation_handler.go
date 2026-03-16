@@ -18,6 +18,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/trace"
 
+	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
@@ -36,13 +37,24 @@ type ValidationService interface {
 // ValidationHandler handles HTTP requests for transaction validation.
 type ValidationHandler struct {
 	service ValidationService
+	clock   clock.Clock
 }
 
 // NewValidationHandler creates a new validation handler.
-func NewValidationHandler(service ValidationService) *ValidationHandler {
+// Returns an error if service or clk is nil.
+func NewValidationHandler(service ValidationService, clk clock.Clock) (*ValidationHandler, error) {
+	if service == nil {
+		return nil, errors.New("nil ValidationService passed to NewValidationHandler")
+	}
+
+	if clk == nil {
+		return nil, errors.New("nil Clock passed to NewValidationHandler")
+	}
+
 	return &ValidationHandler{
 		service: service,
-	}
+		clock:   clk,
+	}, nil
 }
 
 // Validate godoc
@@ -103,7 +115,9 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 
 	// Normalize and validate request (business error - use HandleSpanBusinessErrorEvent)
 	// This validates currency is ISO 4217 uppercase (does NOT normalize), trims subType, and creates defensive metadata copy
-	if err := request.NormalizeAndValidate(); err != nil {
+	// Use injected clock for timestamp validation to support MOCK_TIME in tests
+	now := h.clock.Now()
+	if err := request.NormalizeAndValidate(now); err != nil {
 		logger.WithFields(
 			"operation", "handler.validations.validate",
 			"error.message", err.Error(),

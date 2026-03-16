@@ -753,81 +753,6 @@ func TestParseCleanupIntervalHours(t *testing.T) {
 	}
 }
 
-func TestParseCleanupRetentionDays(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		input       string
-		expected    time.Duration
-		expectError bool
-	}{
-		{
-			name:        "empty string returns default 90 days",
-			input:       "",
-			expected:    90 * 24 * time.Hour,
-			expectError: false,
-		},
-		{
-			name:        "valid number",
-			input:       "30",
-			expected:    30 * 24 * time.Hour,
-			expectError: false,
-		},
-		{
-			name:        "1 day",
-			input:       "1",
-			expected:    24 * time.Hour,
-			expectError: false,
-		},
-		{
-			name:        "invalid string returns error",
-			input:       "invalid",
-			expectError: true,
-		},
-		{
-			name:        "negative number returns error",
-			input:       "-7",
-			expectError: true,
-		},
-		{
-			name:        "zero returns error",
-			input:       "0",
-			expectError: true,
-		},
-		{
-			name:        "large number - 365 days",
-			input:       "365",
-			expected:    365 * 24 * time.Hour,
-			expectError: false,
-		},
-		{
-			name:        "maximum allowed value - 10 years",
-			input:       "3650",
-			expected:    3650 * 24 * time.Hour,
-			expectError: false,
-		},
-		{
-			name:        "exceeds maximum returns error",
-			input:       "3651",
-			expectError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := parseCleanupRetentionDays(tc.input)
-
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-
 func TestParseRuleSyncPollInterval(t *testing.T) {
 	t.Parallel()
 
@@ -1176,9 +1101,7 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 		name                    string
 		cleanupWorkerEnabled    bool
 		cleanupIntervalHours    string
-		cleanupRetentionDays    string
 		expectedInterval        time.Duration
-		expectedRetention       time.Duration
 		expectNilConfig         bool
 		expectError             bool
 		expectedErrContains     string
@@ -1188,7 +1111,6 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 			name:                    "disabled worker returns nil config",
 			cleanupWorkerEnabled:    false,
 			cleanupIntervalHours:    "",
-			cleanupRetentionDays:    "",
 			expectNilConfig:         true,
 			expectError:             false,
 			expectedInfoLogContains: "DISABLED",
@@ -1197,9 +1119,7 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 			name:                 "enabled with defaults",
 			cleanupWorkerEnabled: true,
 			cleanupIntervalHours: "",
-			cleanupRetentionDays: "",
 			expectedInterval:     24 * time.Hour,
-			expectedRetention:    90 * 24 * time.Hour,
 			expectNilConfig:      false,
 			expectError:          false,
 		},
@@ -1207,29 +1127,7 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 			name:                 "enabled with custom interval",
 			cleanupWorkerEnabled: true,
 			cleanupIntervalHours: "12",
-			cleanupRetentionDays: "",
 			expectedInterval:     12 * time.Hour,
-			expectedRetention:    90 * 24 * time.Hour,
-			expectNilConfig:      false,
-			expectError:          false,
-		},
-		{
-			name:                 "enabled with custom retention",
-			cleanupWorkerEnabled: true,
-			cleanupIntervalHours: "",
-			cleanupRetentionDays: "30",
-			expectedInterval:     24 * time.Hour,
-			expectedRetention:    30 * 24 * time.Hour,
-			expectNilConfig:      false,
-			expectError:          false,
-		},
-		{
-			name:                 "enabled with both custom values",
-			cleanupWorkerEnabled: true,
-			cleanupIntervalHours: "6",
-			cleanupRetentionDays: "7",
-			expectedInterval:     6 * time.Hour,
-			expectedRetention:    7 * 24 * time.Hour,
 			expectNilConfig:      false,
 			expectError:          false,
 		},
@@ -1237,33 +1135,15 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 			name:                 "invalid interval returns error",
 			cleanupWorkerEnabled: true,
 			cleanupIntervalHours: "invalid",
-			cleanupRetentionDays: "",
 			expectError:          true,
 			expectedErrContains:  "invalid CLEANUP_INTERVAL_HOURS",
-		},
-		{
-			name:                 "invalid retention returns error",
-			cleanupWorkerEnabled: true,
-			cleanupIntervalHours: "",
-			cleanupRetentionDays: "invalid",
-			expectError:          true,
-			expectedErrContains:  "invalid CLEANUP_RETENTION_DAYS",
 		},
 		{
 			name:                 "zero interval returns error",
 			cleanupWorkerEnabled: true,
 			cleanupIntervalHours: "0",
-			cleanupRetentionDays: "",
 			expectError:          true,
 			expectedErrContains:  "invalid CLEANUP_INTERVAL_HOURS",
-		},
-		{
-			name:                 "negative retention returns error",
-			cleanupWorkerEnabled: true,
-			cleanupIntervalHours: "",
-			cleanupRetentionDays: "-1",
-			expectError:          true,
-			expectedErrContains:  "invalid CLEANUP_RETENTION_DAYS",
 		},
 	}
 
@@ -1272,7 +1152,6 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 			cfg := &Config{
 				CleanupWorkerEnabled: tc.cleanupWorkerEnabled,
 				CleanupIntervalHours: tc.cleanupIntervalHours,
-				CleanupRetentionDays: tc.cleanupRetentionDays,
 			}
 
 			logger := testutil.NewMockLogger()
@@ -1298,7 +1177,6 @@ func TestLoadCleanupWorkerConfig(t *testing.T) {
 				} else {
 					require.NotNil(t, result)
 					assert.Equal(t, tc.expectedInterval, result.CleanupInterval)
-					assert.Equal(t, tc.expectedRetention, result.RetentionPeriod)
 				}
 			}
 		})

@@ -555,9 +555,9 @@ func TestStaleness_Recovery(t *testing.T) {
 func TestHealth_StaleCacheRemainsReady(t *testing.T) {
 	t.Parallel()
 
-	// This test verifies the health checker contract from T-001:
+	// This test verifies the health checker contract:
 	// DEGRADED state means IsReady()=true AND Staleness()>=threshold.
-	// The health handler (T-001) maps this to HTTP 200 (not 503) to avoid K8s restart.
+	// The health handler maps this to HTTP 200 (not 503) to avoid K8s restart.
 
 	baseTime := testutil.FixedTime()
 	clk := &testutil.MockClock{FixedTime: baseTime}

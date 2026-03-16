@@ -120,8 +120,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 			name: "future timestamp fails",
 			modify: func(r *ValidationRequest) {
 				// Set timestamp 2 minutes in the future (beyond 1 minute clock skew allowance)
-				// Note: Must use time.Now() as the validation logic compares against actual current time
-				r.TransactionTimestamp = time.Now().Add(2 * time.Minute)
+				r.TransactionTimestamp = testutil.FixedTime().Add(2 * time.Minute)
 			},
 			expectedErr: constant.ErrValidationTimestampFuture,
 		},
@@ -129,8 +128,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 			name: "timestamp within clock skew tolerance passes",
 			modify: func(r *ValidationRequest) {
 				// Set timestamp 30 seconds in the future (within 1 minute clock skew allowance)
-				// Note: Must use time.Now() as the validation logic compares against actual current time
-				r.TransactionTimestamp = time.Now().Add(30 * time.Second)
+				r.TransactionTimestamp = testutil.FixedTime().Add(30 * time.Second)
 			},
 			expectedErr: nil,
 		},
@@ -176,7 +174,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 			req := validRequest()
 			tt.modify(req)
 
-			err := req.Validate()
+			err := req.Validate(testutil.FixedTime())
 
 			if tt.expectedErr == nil {
 				assert.NoError(t, err)

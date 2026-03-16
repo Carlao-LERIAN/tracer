@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"tracer/internal/testhelper"
 	"tracer/internal/testutil"
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
@@ -183,7 +184,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 
 				scopeKey := "acct:" + accountID.String()
 				// Atomic upsert: returns new usage (500 + 50 = 550)
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000"), gomock.Any()).
 					Return(decimal.RequireFromString("550"), nil)
 			},
 			wantAllowed:  true,
@@ -223,7 +224,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 
 				scopeKey := "acct:" + accountID.String()
 				// Atomic upsert: returns ErrUsageCounterExceedsLimit when 500 + 600 > 1000
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("600"), decimal.RequireFromString("1000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("600"), decimal.RequireFromString("1000"), gomock.Any()).
 					Return(decimal.RequireFromString("500"), constant.ErrUsageCounterExceedsLimit)
 			},
 			wantAllowed:  false,
@@ -343,7 +344,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 
 				scopeKey := "acct:" + accountID.String()
 				// First limit (DAILY) is atomically incremented (succeeds: 500 + 80 <= 1000)
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("80"), decimal.RequireFromString("1000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("80"), decimal.RequireFromString("1000"), gomock.Any()).
 					Return(decimal.RequireFromString("580"), nil)
 
 				// Second limit (PER_TRANSACTION) is checked directly: 80 > 50 → exceeded
@@ -460,7 +461,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				// This ensures all transactions aggregate under a single counter.
 				scopeKey := "global"
 				// Atomic upsert: returns new usage (0 + 50 = 50)
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000"), gomock.Any()).
 					Return(decimal.RequireFromString("50"), nil)
 			},
 			wantAllowed:  true,
@@ -531,7 +532,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				scopeKey := "acct:" + accountID.String()
 				periodKeyMonthly := serverPeriodKeyMonthly
 				// Atomic upsert: returns new usage (1000 + 50 = 1050)
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID3, scopeKey, periodKeyMonthly, decimal.RequireFromString("50"), decimal.RequireFromString("5000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID3, scopeKey, periodKeyMonthly, decimal.RequireFromString("50"), decimal.RequireFromString("5000"), gomock.Any()).
 					Return(decimal.RequireFromString("1050"), nil)
 			},
 			wantAllowed:  true,
@@ -572,7 +573,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 				scopeKey := "acct:" + accountID.String()
 				// Atomic upsert: CurrentUsage 500 + Amount 500 == MaxAmount 1000 (exactly at limit, allowed)
 				// Returns new usage (1000)
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("500"), decimal.RequireFromString("1000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("500"), decimal.RequireFromString("1000"), gomock.Any()).
 					Return(decimal.RequireFromString("1000"), nil)
 			},
 			wantAllowed:  true,
@@ -633,7 +634,7 @@ func TestLimitCheckerService_CheckLimits(t *testing.T) {
 
 				scopeKey := "acct:" + accountID.String()
 				// Atomic upsert returns database error
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000"), gomock.Any()).
 					Return(decimal.Zero, errDatabase)
 			},
 			wantAllowed: false,
@@ -1014,6 +1015,7 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 		periodKeyDaily,
 		amountPerRequest,
 		decimal.RequireFromString("1000"),
+		gomock.Any(),
 	).DoAndReturn(func(
 		ctx context.Context,
 		limitID uuid.UUID,
@@ -1021,6 +1023,7 @@ func TestLimitCheckerService_CheckLimits_ConcurrentAccess(t *testing.T) {
 		periodKey string,
 		amount decimal.Decimal,
 		maxAmount decimal.Decimal,
+		expiresAt *time.Time,
 	) (decimal.Decimal, error) {
 		mu.Lock()
 		callCounter++
@@ -1133,7 +1136,7 @@ func TestLimitCheckerService_CheckLimits_TwoPhaseNoPartialIncrement(t *testing.T
 	scopeKey := "acct:" + accountID.String()
 
 	// First limit (DAILY) is atomically incremented (succeeds: 500 + 80 <= 1000)
-	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("80"), decimal.RequireFromString("1000")).
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("80"), decimal.RequireFromString("1000"), gomock.Any()).
 		Return(decimal.RequireFromString("580"), nil)
 
 	// Second limit (PER_TRANSACTION) is checked directly: 80 > 50 → exceeded
@@ -1196,7 +1199,7 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 			wantErr:     false,
 			setupUpsert: func(ucr *MockUsageCounterRepository, scopeKey string) {
 				// Atomic upsert succeeds, returns new usage (10 trillion + 10 trillion = 20 trillion)
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("10000000000000"), decimal.RequireFromString("50000000000000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("10000000000000"), decimal.RequireFromString("50000000000000"), gomock.Any()).
 					Return(decimal.RequireFromString("20000000000000"), nil)
 			},
 		},
@@ -1209,7 +1212,7 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 			wantErrIs:   nil,
 			setupUpsert: func(ucr *MockUsageCounterRepository, scopeKey string) {
 				// Atomic upsert returns ErrUsageCounterExceedsLimit when currentUsage + amount > maxAmount
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("10000000000000000"), decimal.RequireFromString("92233720368547758.07")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("10000000000000000"), decimal.RequireFromString("92233720368547758.07"), gomock.Any()).
 					Return(decimal.RequireFromString("90000000000000000"), constant.ErrUsageCounterExceedsLimit)
 			},
 		},
@@ -1221,7 +1224,7 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 			wantErr:     false,
 			setupUpsert: func(ucr *MockUsageCounterRepository, scopeKey string) {
 				// Atomic upsert succeeds at boundary (returns exactly maxAmount)
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("10000000000"), decimal.RequireFromString("100000000000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("10000000000"), decimal.RequireFromString("100000000000"), gomock.Any()).
 					Return(decimal.RequireFromString("100000000000"), nil)
 			},
 		},
@@ -1233,7 +1236,7 @@ func TestLimitCheckerService_CheckLimits_LargeAmountNearInt64Max(t *testing.T) {
 			wantErr:     false,
 			setupUpsert: func(ucr *MockUsageCounterRepository, scopeKey string) {
 				// Atomic upsert returns ErrUsageCounterExceedsLimit
-				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("20000000000"), decimal.RequireFromString("100000000000")).
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("20000000000"), decimal.RequireFromString("100000000000"), gomock.Any()).
 					Return(decimal.RequireFromString("90000000000"), constant.ErrUsageCounterExceedsLimit)
 			},
 		},
@@ -1425,11 +1428,11 @@ func TestLimitCheckerService_CheckLimits_PaginationLoop(t *testing.T) {
 	}, nil)
 
 	// Expect UpsertAndIncrementAtomic for all 3 limits (none exceeded)
-	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000")).
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000"), gomock.Any()).
 		Return(decimal.RequireFromString("50"), nil)
-	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID2, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("2000")).
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID2, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("2000"), gomock.Any()).
 		Return(decimal.RequireFromString("50"), nil)
-	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID3, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("3000")).
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID3, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("3000"), gomock.Any()).
 		Return(decimal.RequireFromString("50"), nil)
 
 	ctx := setupTest(t)
@@ -1601,7 +1604,7 @@ func TestLimitCheckerService_CheckLimits_LargeDecimalValues(t *testing.T) {
 	scopeKey := "acct:" + accountID.String()
 
 	// Atomic upsert returns ErrUsageCounterExceedsLimit when current (92233720368547758) + 1 > max (92233720368547758.07)
-	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("1"), decimal.RequireFromString("92233720368547758.07")).
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, periodKeyDaily, decimal.RequireFromString("1"), decimal.RequireFromString("92233720368547758.07"), gomock.Any()).
 		Return(decimal.RequireFromString("92233720368547758"), constant.ErrUsageCounterExceedsLimit)
 
 	ctx := setupTest(t)
@@ -1915,7 +1918,7 @@ func TestCheckLimits_ServerTimestamp(t *testing.T) {
 
 	// KEY ASSERTION: UpsertAndIncrementAtomic must be called with server-date period key "2024-01-15",
 	// NOT the client-supplied "2024-01-14". This is the core security verification.
-	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, expectedPeriodKeyDaily, decimal.RequireFromString("100"), decimal.RequireFromString("1000")).
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, expectedPeriodKeyDaily, decimal.RequireFromString("100"), decimal.RequireFromString("1000"), gomock.Any()).
 		Return(decimal.RequireFromString("600"), nil) // Returns new usage (500 + 100)
 
 	ctx := setupTest(t)
@@ -1988,7 +1991,7 @@ func TestCheckLimits_ServerTimestamp_Monthly(t *testing.T) {
 	}, nil)
 
 	// KEY ASSERTION: period key must be "2024-02" (server month), not "2024-01" (client month)
-	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, expectedPeriodKeyMonthly, decimal.RequireFromString("200"), decimal.RequireFromString("5000")).
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID, scopeKey, expectedPeriodKeyMonthly, decimal.RequireFromString("200"), decimal.RequireFromString("5000"), gomock.Any()).
 		Return(decimal.RequireFromString("2200"), nil) // Returns new usage (2000 + 200)
 
 	ctx := setupTest(t)
@@ -2695,6 +2698,7 @@ func TestCheckLimits_MultiLimitPartialRollback(t *testing.T) {
 		periodKeyDaily,
 		decimal.RequireFromString("500"),
 		decimal.RequireFromString("10000"),
+		gomock.Any(),
 	).Return(decimal.RequireFromString("500"), nil)
 
 	// Limit B: UpsertAndIncrementAtomic succeeds (500 <= 5000)
@@ -2705,6 +2709,7 @@ func TestCheckLimits_MultiLimitPartialRollback(t *testing.T) {
 		periodKeyMonthly,
 		decimal.RequireFromString("500"),
 		decimal.RequireFromString("5000"),
+		gomock.Any(),
 	).Return(decimal.RequireFromString("500"), nil)
 
 	// Limit C: pre-check fails (500 > 300), GetUsageForLimits is called to fetch current usage
@@ -2901,6 +2906,7 @@ func TestLimitCheckerService_CheckLimits_ScopeKeyPerLimit(t *testing.T) {
 		periodKeyDaily,
 		decimal.RequireFromString("100"),
 		decimal.RequireFromString("1000"),
+		gomock.Any(),
 	).Return(decimal.RequireFromString("100"), nil)
 
 	// Limit 2: Account+Segment scope → should use "acct:X|seg:Y" key (pipe separator)
@@ -2912,6 +2918,7 @@ func TestLimitCheckerService_CheckLimits_ScopeKeyPerLimit(t *testing.T) {
 		periodKeyDaily,
 		decimal.RequireFromString("100"),
 		decimal.RequireFromString("500"),
+		gomock.Any(),
 	).Return(decimal.RequireFromString("100"), nil)
 
 	ctx := setupTest(t)
@@ -3045,4 +3052,2237 @@ func TestLimitCheckerService_RollbackUsage_ScopeKeyPerLimit(t *testing.T) {
 	// Mock expectations verify that GetForUpdate was called with the correct scope keys:
 	// - limitID1 with scopeKey1 ("acct:X")
 	// - limitID2 with scopeKey2 ("acct:X|seg:Y")
+}
+
+// =============================================================================
+// Time Window Skip Logic Tests
+// =============================================================================
+// These tests verify that limits with time windows (activeTimeStart/activeTimeEnd)
+// are correctly skipped when the server timestamp is outside the configured window.
+// Seeds: 9000-9099 range.
+
+// TestCheckLimits_TimeWindow_OutsideWindow_Skipped verifies that limits with time windows
+// are skipped when the transaction timestamp (server clock) is outside the window.
+// The limit should appear in LimitUsageDetails with Skipped=true and SkipReason="outside_time_window".
+// Counter should NOT be incremented.
+// Seeds: 9000-9009
+func TestCheckLimits_TimeWindow_OutsideWindow_Skipped(t *testing.T) {
+	t.Parallel()
+
+	limitID := testutil.MustDeterministicUUID(9000)
+	accountID := testutil.MustDeterministicUUID(9001)
+
+	// Server clock at 14:00 UTC - OUTSIDE the 20:00-06:00 overnight window
+	serverTime := time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	// Create limit with overnight time window (20:00 to 06:00)
+	activeTimeStart := testhelper.MustNewTimeOfDay("20:00")
+	activeTimeEnd := testhelper.MustNewTimeOfDay("06:00")
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Overnight Limit",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: &activeTimeStart,
+				ActiveTimeEnd:   &activeTimeEnd,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// KEY ASSERTION: NO counter operations should be called when limit is skipped
+	// If the implementation calls UpsertAndIncrementAtomic, this test fails.
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+
+	// Transaction should be allowed (skipped limits don't block)
+	assert.True(t, output.Allowed, "Transaction should be allowed when limit is skipped")
+
+	// Limit should appear in usage details
+	require.Len(t, output.LimitUsageDetails, 1, "Should have 1 limit detail even when skipped")
+
+	detail := output.LimitUsageDetails[0]
+	assert.Equal(t, limitID, detail.LimitID)
+
+	// KEY ASSERTIONS: These fields should exist and be populated for skipped limits
+	// If Skipped field doesn't exist, test fails at compile time
+	// If implementation doesn't set these fields, test fails at runtime
+	assert.True(t, detail.Skipped, "Limit should be marked as skipped")
+	assert.Equal(t, "outside_time_window", detail.SkipReason, "Skip reason should be 'outside_time_window'")
+
+	// Skipped limits should have zero current usage and not be exceeded
+	assert.True(t, detail.CurrentUsage.Equal(decimal.Zero), "Skipped limit should have zero current usage")
+	assert.False(t, detail.Exceeded, "Skipped limit should not be marked as exceeded")
+}
+
+// TestCheckLimits_TimeWindow_InsideWindow_Evaluated verifies that limits with time windows
+// are evaluated normally when the transaction timestamp (server clock) is inside the window.
+// Seeds: 9010-9019
+func TestCheckLimits_TimeWindow_InsideWindow_Evaluated(t *testing.T) {
+	t.Parallel()
+
+	limitID := testutil.MustDeterministicUUID(9010)
+	accountID := testutil.MustDeterministicUUID(9011)
+
+	// Server clock at 21:30 UTC - INSIDE the 20:00-06:00 overnight window
+	serverTime := time.Date(2024, 1, 15, 21, 30, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+	periodKeyDaily := "2024-01-15"
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+
+	// Create limit with overnight time window (20:00 to 06:00)
+	activeTimeStart := testhelper.MustNewTimeOfDay("20:00")
+	activeTimeEnd := testhelper.MustNewTimeOfDay("06:00")
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Overnight Limit",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: &activeTimeStart,
+				ActiveTimeEnd:   &activeTimeEnd,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// Counter SHOULD be called when inside time window
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID,
+		scopeKey,
+		periodKeyDaily,
+		decimal.RequireFromString("100"),
+		decimal.RequireFromString("1000"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("600"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.Equal(t, limitID, detail.LimitID)
+
+	// Limit should NOT be skipped when inside time window
+	assert.False(t, detail.Skipped, "Limit should not be skipped when inside time window")
+	assert.Equal(t, "", detail.SkipReason, "Skip reason should be empty when limit is evaluated")
+
+	// Should have normal usage tracking
+	assert.True(t, detail.CurrentUsage.Equal(decimal.RequireFromString("600")), "Should have updated current usage")
+	assert.False(t, detail.Exceeded)
+}
+
+// TestCheckLimits_TimeWindow_OvernightWindow_EarlyMorning_Evaluated verifies that
+// overnight windows correctly include early morning hours (e.g., 03:00 is inside 20:00-06:00).
+// Seeds: 9020-9029
+func TestCheckLimits_TimeWindow_OvernightWindow_EarlyMorning_Evaluated(t *testing.T) {
+	t.Parallel()
+
+	limitID := testutil.MustDeterministicUUID(9020)
+	accountID := testutil.MustDeterministicUUID(9021)
+
+	// Server clock at 03:00 UTC - INSIDE the 20:00-06:00 overnight window (early morning)
+	serverTime := time.Date(2024, 1, 15, 3, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+	periodKeyDaily := "2024-01-15"
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+
+	// Create limit with overnight time window (20:00 to 06:00)
+	activeTimeStart := testhelper.MustNewTimeOfDay("20:00")
+	activeTimeEnd := testhelper.MustNewTimeOfDay("06:00")
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Overnight Limit",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: &activeTimeStart,
+				ActiveTimeEnd:   &activeTimeEnd,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// Counter SHOULD be called when inside time window (3:00 is inside 20:00-06:00)
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID,
+		scopeKey,
+		periodKeyDaily,
+		decimal.RequireFromString("100"),
+		decimal.RequireFromString("1000"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("100"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.False(t, detail.Skipped, "03:00 is inside 20:00-06:00 window, should not be skipped")
+}
+
+// TestCheckLimits_TimeWindow_BusinessHours_Boundary_Inclusive verifies that
+// business hours windows are inclusive at start time (09:00 is inside 09:00-17:00).
+// Seeds: 9030-9039
+func TestCheckLimits_TimeWindow_BusinessHours_Boundary_Inclusive(t *testing.T) {
+	t.Parallel()
+
+	limitID := testutil.MustDeterministicUUID(9030)
+	accountID := testutil.MustDeterministicUUID(9031)
+
+	// Server clock at 09:00 UTC - exactly at start of 09:00-17:00 window (inclusive)
+	serverTime := time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+	periodKeyDaily := "2024-01-15"
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+
+	// Create limit with business hours window (09:00 to 17:00)
+	activeTimeStart := testhelper.MustNewTimeOfDay("09:00")
+	activeTimeEnd := testhelper.MustNewTimeOfDay("17:00")
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Business Hours Limit",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("500"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: &activeTimeStart,
+				ActiveTimeEnd:   &activeTimeEnd,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// Counter SHOULD be called - 09:00 is inclusive start
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID,
+		scopeKey,
+		periodKeyDaily,
+		decimal.RequireFromString("50"),
+		decimal.RequireFromString("500"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("50"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("50"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.False(t, detail.Skipped, "09:00 is at start of 09:00-17:00 window (inclusive), should not be skipped")
+}
+
+// TestCheckLimits_TimeWindow_BusinessHours_Boundary_Exclusive verifies that
+// business hours windows are exclusive at end time (17:00 is OUTSIDE 09:00-17:00).
+// Seeds: 9040-9049
+func TestCheckLimits_TimeWindow_BusinessHours_Boundary_Exclusive(t *testing.T) {
+	t.Parallel()
+
+	limitID := testutil.MustDeterministicUUID(9040)
+	accountID := testutil.MustDeterministicUUID(9041)
+
+	// Server clock at 17:00 UTC - exactly at end of 09:00-17:00 window (exclusive)
+	serverTime := time.Date(2024, 1, 15, 17, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	// Create limit with business hours window (09:00 to 17:00)
+	activeTimeStart := testhelper.MustNewTimeOfDay("09:00")
+	activeTimeEnd := testhelper.MustNewTimeOfDay("17:00")
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Business Hours Limit",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("500"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: &activeTimeStart,
+				ActiveTimeEnd:   &activeTimeEnd,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// KEY ASSERTION: NO counter operations should be called when limit is skipped (17:00 is exclusive)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("50"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed, "Transaction should be allowed when limit is skipped")
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.True(t, detail.Skipped, "17:00 is at end of 09:00-17:00 window (exclusive), should be skipped")
+	assert.Equal(t, "outside_time_window", detail.SkipReason)
+}
+
+// TestCheckLimits_TimeWindow_NoTimeWindow_AlwaysEvaluated verifies that limits
+// without time windows are always evaluated regardless of time.
+// Seeds: 9050-9059
+func TestCheckLimits_TimeWindow_NoTimeWindow_AlwaysEvaluated(t *testing.T) {
+	t.Parallel()
+
+	limitID := testutil.MustDeterministicUUID(9050)
+	accountID := testutil.MustDeterministicUUID(9051)
+
+	// Test at various times throughout the day - should all be evaluated
+	testTimes := []time.Time{
+		time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),   // Midnight
+		time.Date(2024, 1, 15, 3, 30, 0, 0, time.UTC),  // Early morning
+		time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC),  // Noon
+		time.Date(2024, 1, 15, 23, 59, 0, 0, time.UTC), // Late night
+	}
+
+	for _, serverTime := range testTimes {
+		t.Run(serverTime.Format("15:04"), func(t *testing.T) {
+			mockClock := testutil.NewMockClock(serverTime)
+			periodKeyDaily := serverTime.Format("2006-01-02")
+
+			ctrl := gomock.NewController(t)
+
+			mockLimitRepo := NewMockLimitRepository(ctrl)
+			mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+			status := model.LimitStatusActive
+			currency := "USD"
+			scopeKey := "acct:" + accountID.String()
+
+			// Limit WITHOUT time window (ActiveTimeStart and ActiveTimeEnd are nil)
+			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				Status:   &status,
+				Currency: &currency,
+				Limit:    constant.MaxPaginationLimit,
+				Cursor:   "",
+			}).Return(&model.ListLimitsResult{
+				Limits: []model.Limit{
+					{
+						ID:              limitID,
+						Name:            "Always Active Limit",
+						LimitType:       model.LimitTypeDaily,
+						MaxAmount:       decimal.RequireFromString("1000"),
+						Currency:        "USD",
+						Scopes:          []model.Scope{{AccountID: &accountID}},
+						Status:          model.LimitStatusActive,
+						ActiveTimeStart: nil, // No time window
+						ActiveTimeEnd:   nil, // No time window
+					},
+				},
+				HasMore: false,
+			}, nil)
+
+			// Counter SHOULD always be called when no time window is configured
+			mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+				gomock.Any(),
+				limitID,
+				scopeKey,
+				periodKeyDaily,
+				decimal.RequireFromString("100"),
+				decimal.RequireFromString("1000"),
+				gomock.Any(),
+			).Return(decimal.RequireFromString("100"), nil)
+
+			ctx := setupTest(t)
+
+			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+			require.NoError(t, err)
+
+			input := &model.CheckLimitsInput{
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				AccountID:            accountID,
+				TransactionTimestamp: serverTime,
+			}
+
+			output, err := checker.CheckLimits(ctx, input)
+
+			require.NoError(t, err)
+			require.NotNil(t, output)
+			assert.True(t, output.Allowed)
+			require.Len(t, output.LimitUsageDetails, 1)
+
+			detail := output.LimitUsageDetails[0]
+			assert.False(t, detail.Skipped, "Limit without time window should never be skipped")
+		})
+	}
+}
+
+// TestCheckLimits_TimeWindow_MixedLimits_SomeSkipped verifies behavior when multiple limits
+// exist and some have time windows that exclude the current time while others don't.
+// Seeds: 9060-9069
+func TestCheckLimits_TimeWindow_MixedLimits_SomeSkipped(t *testing.T) {
+	t.Parallel()
+
+	limitID1 := testutil.MustDeterministicUUID(9060) // No time window - always evaluated
+	limitID2 := testutil.MustDeterministicUUID(9061) // 09:00-17:00 - will be skipped at 20:00
+	limitID3 := testutil.MustDeterministicUUID(9062) // 18:00-23:00 - will be evaluated at 20:00
+	accountID := testutil.MustDeterministicUUID(9063)
+
+	// Server clock at 20:00 UTC
+	serverTime := time.Date(2024, 1, 15, 20, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+	periodKeyDaily := "2024-01-15"
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+
+	// Time windows
+	businessStart := testhelper.MustNewTimeOfDay("09:00")
+	businessEnd := testhelper.MustNewTimeOfDay("17:00")
+	eveningStart := testhelper.MustNewTimeOfDay("18:00")
+	eveningEnd := testhelper.MustNewTimeOfDay("23:00")
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID1,
+				Name:            "Always Active Limit",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("5000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: nil, // No time window
+				ActiveTimeEnd:   nil,
+			},
+			{
+				ID:              limitID2,
+				Name:            "Business Hours Limit",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("500"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: &businessStart, // 09:00-17:00
+				ActiveTimeEnd:   &businessEnd,
+			},
+			{
+				ID:              limitID3,
+				Name:            "Evening Limit",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: &eveningStart, // 18:00-23:00
+				ActiveTimeEnd:   &eveningEnd,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// Limit 1 (no time window) - SHOULD be evaluated
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID1,
+		scopeKey,
+		periodKeyDaily,
+		decimal.RequireFromString("200"),
+		decimal.RequireFromString("5000"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("200"), nil)
+
+	// Limit 2 (09:00-17:00) - should be SKIPPED at 20:00, NO counter call
+
+	// Limit 3 (18:00-23:00) - SHOULD be evaluated at 20:00
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID3,
+		scopeKey,
+		periodKeyDaily,
+		decimal.RequireFromString("200"),
+		decimal.RequireFromString("1000"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("200"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("200"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+
+	// Should have details for all 3 limits
+	require.Len(t, output.LimitUsageDetails, 3, "Should have details for all 3 limits including skipped ones")
+
+	// Find each limit detail
+	var detail1, detail2, detail3 *model.LimitUsageDetail
+	for i := range output.LimitUsageDetails {
+		d := &output.LimitUsageDetails[i]
+		switch d.LimitID {
+		case limitID1:
+			detail1 = d
+		case limitID2:
+			detail2 = d
+		case limitID3:
+			detail3 = d
+		}
+	}
+
+	require.NotNil(t, detail1, "Should have detail for limit 1")
+	require.NotNil(t, detail2, "Should have detail for limit 2")
+	require.NotNil(t, detail3, "Should have detail for limit 3")
+
+	// Limit 1: No time window - evaluated
+	assert.False(t, detail1.Skipped, "Limit 1 (no time window) should not be skipped")
+	assert.True(t, detail1.CurrentUsage.Equal(decimal.RequireFromString("200")))
+
+	// Limit 2: 09:00-17:00 - skipped at 20:00
+	assert.True(t, detail2.Skipped, "Limit 2 (09:00-17:00) should be skipped at 20:00")
+	assert.Equal(t, "outside_time_window", detail2.SkipReason)
+	assert.True(t, detail2.CurrentUsage.Equal(decimal.Zero), "Skipped limit should have zero usage")
+	assert.False(t, detail2.Exceeded, "Skipped limit should not be exceeded")
+
+	// Limit 3: 18:00-23:00 - evaluated at 20:00
+	assert.False(t, detail3.Skipped, "Limit 3 (18:00-23:00) should not be skipped at 20:00")
+	assert.True(t, detail3.CurrentUsage.Equal(decimal.RequireFromString("200")))
+}
+
+// TestCheckLimits_TimeWindow_SkippedLimit_NoExceededFlag verifies that a limit that would
+// have been exceeded is NOT marked as exceeded when it's skipped due to time window.
+// Seeds: 9070-9079
+func TestCheckLimits_TimeWindow_SkippedLimit_NoExceededFlag(t *testing.T) {
+	t.Parallel()
+
+	limitID := testutil.MustDeterministicUUID(9070)
+	accountID := testutil.MustDeterministicUUID(9071)
+
+	// Server clock at 14:00 UTC - OUTSIDE the 09:00-12:00 window
+	serverTime := time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	// Small limit that would be exceeded if evaluated
+	activeTimeStart := testhelper.MustNewTimeOfDay("09:00")
+	activeTimeEnd := testhelper.MustNewTimeOfDay("12:00")
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Morning Limit",
+				LimitType:       model.LimitTypeDaily,
+				MaxAmount:       decimal.RequireFromString("50"), // Small limit
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: &activeTimeStart, // 09:00-12:00
+				ActiveTimeEnd:   &activeTimeEnd,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// NO counter operations when skipped
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"), // Would exceed 50 limit if evaluated
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+
+	// Transaction should be allowed because limit is skipped (not because it passed)
+	assert.True(t, output.Allowed, "Transaction should be allowed when limit is skipped")
+	assert.Empty(t, output.ExceededLimitIDs, "Should have no exceeded limits")
+
+	require.Len(t, output.LimitUsageDetails, 1)
+	detail := output.LimitUsageDetails[0]
+
+	// KEY ASSERTION: Even though amount (100) > maxAmount (50), the limit should be
+	// skipped, not exceeded, because we're outside the time window
+	assert.True(t, detail.Skipped, "Limit should be skipped at 14:00 (outside 09:00-12:00)")
+	assert.Equal(t, "outside_time_window", detail.SkipReason)
+	assert.False(t, detail.Exceeded, "Skipped limit should NOT be marked as exceeded")
+}
+
+// TestCheckLimits_TimeWindow_PerTransaction_Skipped verifies that PER_TRANSACTION limits
+// with time windows are also skipped when outside the window.
+// Seeds: 9080-9089
+func TestCheckLimits_TimeWindow_PerTransaction_Skipped(t *testing.T) {
+	t.Parallel()
+
+	limitID := testutil.MustDeterministicUUID(9080)
+	accountID := testutil.MustDeterministicUUID(9081)
+
+	// Server clock at 22:00 UTC - OUTSIDE the 08:00-18:00 window
+	serverTime := time.Date(2024, 1, 15, 22, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	activeTimeStart := testhelper.MustNewTimeOfDay("08:00")
+	activeTimeEnd := testhelper.MustNewTimeOfDay("18:00")
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Business Hours Per-Tx Limit",
+				LimitType:       model.LimitTypePerTransaction, // PER_TRANSACTION type
+				MaxAmount:       decimal.RequireFromString("200"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				ActiveTimeStart: &activeTimeStart, // 08:00-18:00
+				ActiveTimeEnd:   &activeTimeEnd,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// NO counter operations for PER_TRANSACTION, but also should skip due to time window
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("300"), // Would exceed 200 if evaluated
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+
+	// Transaction allowed because limit is skipped
+	assert.True(t, output.Allowed)
+	assert.Empty(t, output.ExceededLimitIDs)
+
+	require.Len(t, output.LimitUsageDetails, 1)
+	detail := output.LimitUsageDetails[0]
+
+	assert.True(t, detail.Skipped, "PER_TRANSACTION limit should also be skipped when outside time window")
+	assert.Equal(t, "outside_time_window", detail.SkipReason)
+	assert.False(t, detail.Exceeded, "Skipped limit should not be exceeded")
+}
+
+// TestCheckLimits_TimeWindow_TableDriven provides comprehensive table-driven tests
+// for various time window scenarios.
+// Seeds: 9090-9099
+func TestCheckLimits_TimeWindow_TableDriven(t *testing.T) {
+	t.Parallel()
+
+	accountID := testutil.MustDeterministicUUID(9090)
+
+	tests := []struct {
+		name             string
+		serverTime       time.Time
+		windowStart      string // "HH:MM" or empty for no window
+		windowEnd        string
+		expectSkipped    bool
+		expectSkipReason string
+	}{
+		// Overnight window (20:00 to 06:00)
+		{
+			name:             "overnight window - 21:30 is inside",
+			serverTime:       time.Date(2024, 1, 15, 21, 30, 0, 0, time.UTC),
+			windowStart:      "20:00",
+			windowEnd:        "06:00",
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "overnight window - 14:00 is outside",
+			serverTime:       time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC),
+			windowStart:      "20:00",
+			windowEnd:        "06:00",
+			expectSkipped:    true,
+			expectSkipReason: "outside_time_window",
+		},
+		{
+			name:             "overnight window - 03:00 is inside (early morning)",
+			serverTime:       time.Date(2024, 1, 15, 3, 0, 0, 0, time.UTC),
+			windowStart:      "20:00",
+			windowEnd:        "06:00",
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "overnight window - 06:00 is outside (end exclusive)",
+			serverTime:       time.Date(2024, 1, 15, 6, 0, 0, 0, time.UTC),
+			windowStart:      "20:00",
+			windowEnd:        "06:00",
+			expectSkipped:    true,
+			expectSkipReason: "outside_time_window",
+		},
+		{
+			name:             "overnight window - 20:00 is inside (start inclusive)",
+			serverTime:       time.Date(2024, 1, 15, 20, 0, 0, 0, time.UTC),
+			windowStart:      "20:00",
+			windowEnd:        "06:00",
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		// Business hours (09:00 to 17:00)
+		{
+			name:             "business hours - 09:00 is inside (start inclusive)",
+			serverTime:       time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC),
+			windowStart:      "09:00",
+			windowEnd:        "17:00",
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "business hours - 17:00 is outside (end exclusive)",
+			serverTime:       time.Date(2024, 1, 15, 17, 0, 0, 0, time.UTC),
+			windowStart:      "09:00",
+			windowEnd:        "17:00",
+			expectSkipped:    true,
+			expectSkipReason: "outside_time_window",
+		},
+		{
+			name:             "business hours - 12:00 is inside",
+			serverTime:       time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC),
+			windowStart:      "09:00",
+			windowEnd:        "17:00",
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "business hours - 08:59 is outside (before start)",
+			serverTime:       time.Date(2024, 1, 15, 8, 59, 0, 0, time.UTC),
+			windowStart:      "09:00",
+			windowEnd:        "17:00",
+			expectSkipped:    true,
+			expectSkipReason: "outside_time_window",
+		},
+		// No time window
+		{
+			name:             "no time window - midnight is evaluated",
+			serverTime:       time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			windowStart:      "",
+			windowEnd:        "",
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "no time window - noon is evaluated",
+			serverTime:       time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC),
+			windowStart:      "",
+			windowEnd:        "",
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+	}
+
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			limitID := testutil.MustDeterministicUUID(9091 + int64(i))
+
+			mockClock := testutil.NewMockClock(tc.serverTime)
+			periodKeyDaily := tc.serverTime.Format("2006-01-02")
+
+			ctrl := gomock.NewController(t)
+
+			mockLimitRepo := NewMockLimitRepository(ctrl)
+			mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+			status := model.LimitStatusActive
+			currency := "USD"
+			scopeKey := "acct:" + accountID.String()
+
+			// Build limit with optional time window
+			limit := model.Limit{
+				ID:        limitID,
+				Name:      "Test Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: decimal.RequireFromString("1000"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			}
+
+			if tc.windowStart != "" && tc.windowEnd != "" {
+				start := testhelper.MustNewTimeOfDay(tc.windowStart)
+				end := testhelper.MustNewTimeOfDay(tc.windowEnd)
+				limit.ActiveTimeStart = &start
+				limit.ActiveTimeEnd = &end
+			}
+
+			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				Status:   &status,
+				Currency: &currency,
+				Limit:    constant.MaxPaginationLimit,
+				Cursor:   "",
+			}).Return(&model.ListLimitsResult{
+				Limits:  []model.Limit{limit},
+				HasMore: false,
+			}, nil)
+
+			// Only expect counter call if NOT skipped
+			if !tc.expectSkipped {
+				mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+					gomock.Any(),
+					limitID,
+					scopeKey,
+					periodKeyDaily,
+					decimal.RequireFromString("100"),
+					decimal.RequireFromString("1000"),
+					gomock.Any(),
+				).Return(decimal.RequireFromString("100"), nil)
+			}
+
+			ctx := setupTest(t)
+
+			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+			require.NoError(t, err)
+
+			// Use a different TransactionTimestamp than serverTime to prove
+			// that skip decisions are based on the server clock, not the client timestamp.
+			input := &model.CheckLimitsInput{
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				AccountID:            accountID,
+				TransactionTimestamp: tc.serverTime.Add(-2 * time.Hour),
+			}
+
+			output, err := checker.CheckLimits(ctx, input)
+
+			require.NoError(t, err)
+			require.NotNil(t, output)
+			assert.True(t, output.Allowed)
+			require.Len(t, output.LimitUsageDetails, 1)
+
+			detail := output.LimitUsageDetails[0]
+			assert.Equal(t, tc.expectSkipped, detail.Skipped, "Skipped mismatch for %s", tc.name)
+			assert.Equal(t, tc.expectSkipReason, detail.SkipReason, "SkipReason mismatch for %s", tc.name)
+		})
+	}
+}
+
+// =============================================================================
+// Custom Period Skip Logic Tests
+// Tests verify that CUSTOM limits with customStartDate/customEndDate
+// skip evaluation when transactions fall outside the custom period.
+// Seed range: 10000-10099
+// =============================================================================
+
+// TestCheckLimits_CustomPeriod_OutsideCustomPeriod_Skipped verifies that a CUSTOM limit
+// is skipped (not evaluated, no counter call) when transaction is outside the custom period.
+// Seeds: 10000-10009
+func TestCheckLimits_CustomPeriod_OutsideCustomPeriod_Skipped(t *testing.T) {
+	t.Parallel()
+
+	// Seeds 10000-10009
+	limitID := testutil.MustDeterministicUUID(10000)
+	accountID := testutil.MustDeterministicUUID(10001)
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// Server clock: Mar 09 2025 10:00 UTC (outside custom period)
+	serverTime := time.Date(2025, 3, 9, 10, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Custom Period Limit",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStartDate,
+				CustomEndDate:   &customEndDate,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// KEY ASSERTION: No UpsertAndIncrementAtomic call should be made
+	// because the transaction is outside the custom period.
+	// gomock will fail if UpsertAndIncrementAtomic is called.
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed, "Should be allowed (skipped limits don't block)")
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.True(t, detail.Skipped, "Limit should be skipped when outside custom period")
+	assert.Equal(t, "outside_custom_period", detail.SkipReason)
+	assert.False(t, detail.Exceeded, "Skipped limit should not be marked as exceeded")
+	assert.True(t, decimal.Zero.Equal(detail.CurrentUsage), "Skipped limit should have zero current usage")
+}
+
+// TestCheckLimits_CustomPeriod_InsideCustomPeriod_Evaluated verifies that a CUSTOM limit
+// is evaluated normally (counter call made) when transaction is inside the custom period.
+// Seeds: 10010-10019
+func TestCheckLimits_CustomPeriod_InsideCustomPeriod_Evaluated(t *testing.T) {
+	t.Parallel()
+
+	// Seeds 10010-10019
+	limitID := testutil.MustDeterministicUUID(10010)
+	accountID := testutil.MustDeterministicUUID(10011)
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// Server clock: Nov 27 2025 12:00 UTC (inside custom period)
+	serverTime := time.Date(2025, 11, 27, 12, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+	periodKey := "custom" // CUSTOM limits use "custom" as period key
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Custom Period Limit",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStartDate,
+				CustomEndDate:   &customEndDate,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// KEY ASSERTION: UpsertAndIncrementAtomic MUST be called because
+	// the transaction is inside the custom period.
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID,
+		scopeKey,
+		periodKey,
+		decimal.RequireFromString("100"),
+		decimal.RequireFromString("1000"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("100"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.False(t, detail.Skipped, "Limit should NOT be skipped when inside custom period")
+	assert.Empty(t, detail.SkipReason)
+	assert.False(t, detail.Exceeded)
+	assert.True(t, decimal.RequireFromString("100").Equal(detail.CurrentUsage))
+}
+
+// TestCheckLimits_CustomPeriod_Boundary_Start_Inclusive verifies that a transaction
+// exactly at customStartDate is evaluated (start boundary is inclusive).
+// Seeds: 10020-10029
+func TestCheckLimits_CustomPeriod_Boundary_Start_Inclusive(t *testing.T) {
+	t.Parallel()
+
+	// Seeds 10020-10029
+	limitID := testutil.MustDeterministicUUID(10020)
+	accountID := testutil.MustDeterministicUUID(10021)
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// Server clock: EXACTLY at customStartDate
+	serverTime := customStartDate
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+	periodKey := "custom"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Custom Period Limit",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStartDate,
+				CustomEndDate:   &customEndDate,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// KEY ASSERTION: UpsertAndIncrementAtomic MUST be called because
+	// start boundary is INCLUSIVE.
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID,
+		scopeKey,
+		periodKey,
+		decimal.RequireFromString("100"),
+		decimal.RequireFromString("1000"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("100"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.False(t, detail.Skipped, "Limit should NOT be skipped at start boundary (inclusive)")
+	assert.Empty(t, detail.SkipReason)
+}
+
+// TestCheckLimits_CustomPeriod_Boundary_End_Exclusive verifies that a transaction
+// exactly at customEndDate is skipped (end boundary is exclusive).
+// Seeds: 10030-10039
+func TestCheckLimits_CustomPeriod_Boundary_End_Exclusive(t *testing.T) {
+	t.Parallel()
+
+	// Seeds 10030-10039
+	limitID := testutil.MustDeterministicUUID(10030)
+	accountID := testutil.MustDeterministicUUID(10031)
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// Server clock: EXACTLY at customEndDate
+	serverTime := customEndDate
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Custom Period Limit",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStartDate,
+				CustomEndDate:   &customEndDate,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// KEY ASSERTION: No UpsertAndIncrementAtomic call should be made
+	// because end boundary is EXCLUSIVE.
+	// gomock will fail if UpsertAndIncrementAtomic is called.
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed, "Should be allowed (skipped limits don't block)")
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.True(t, detail.Skipped, "Limit should be skipped at end boundary (exclusive)")
+	assert.Equal(t, "outside_custom_period", detail.SkipReason)
+}
+
+// TestCheckLimits_CustomPeriod_BeforePeriod_Skipped verifies that a transaction
+// before the custom period start is skipped.
+// Seeds: 10040-10049
+func TestCheckLimits_CustomPeriod_BeforePeriod_Skipped(t *testing.T) {
+	t.Parallel()
+
+	// Seeds 10040-10049
+	limitID := testutil.MustDeterministicUUID(10040)
+	accountID := testutil.MustDeterministicUUID(10041)
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// Server clock: Nov 26 2025 10:00 UTC (before custom period)
+	serverTime := time.Date(2025, 11, 26, 10, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Custom Period Limit",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStartDate,
+				CustomEndDate:   &customEndDate,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// No UpsertAndIncrementAtomic call expected
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.True(t, detail.Skipped)
+	assert.Equal(t, "outside_custom_period", detail.SkipReason)
+}
+
+// TestCheckLimits_CustomPeriod_AfterPeriod_Skipped verifies that a transaction
+// after the custom period end is skipped.
+// Seeds: 10050-10059
+func TestCheckLimits_CustomPeriod_AfterPeriod_Skipped(t *testing.T) {
+	t.Parallel()
+
+	// Seeds 10050-10059
+	limitID := testutil.MustDeterministicUUID(10050)
+	accountID := testutil.MustDeterministicUUID(10051)
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// Server clock: Nov 29 2025 10:00 UTC (after custom period)
+	serverTime := time.Date(2025, 11, 29, 10, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Custom Period Limit",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStartDate,
+				CustomEndDate:   &customEndDate,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// No UpsertAndIncrementAtomic call expected
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.True(t, detail.Skipped)
+	assert.Equal(t, "outside_custom_period", detail.SkipReason)
+}
+
+// TestCheckLimits_CustomPeriod_TwoTransactionsSamePeriod_CounterAccumulates verifies
+// that two transactions within the same custom period accumulate under a single counter.
+// Seeds: 10060-10069
+func TestCheckLimits_CustomPeriod_TwoTransactionsSamePeriod_CounterAccumulates(t *testing.T) {
+	t.Parallel()
+
+	// Setup tracing ONCE at the beginning to avoid deadlock
+	ctx := setupTest(t)
+
+	// Seeds 10060-10069
+	limitID := testutil.MustDeterministicUUID(10060)
+	accountID := testutil.MustDeterministicUUID(10061)
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// First transaction: Nov 27 2025 12:00 UTC
+	serverTime1 := time.Date(2025, 11, 27, 12, 0, 0, 0, time.UTC)
+
+	// Second transaction: Nov 28 2025 10:00 UTC (different day, same custom period)
+	serverTime2 := time.Date(2025, 11, 28, 10, 0, 0, 0, time.UTC)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+	periodKey := "custom" // Both transactions use same "custom" period key
+
+	// Use single controller and mocks for all calls
+	ctrl := gomock.NewController(t)
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	// Setup expectations for BOTH CheckLimits calls
+
+	// First transaction List call
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Custom Period Limit",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStartDate,
+				CustomEndDate:   &customEndDate,
+			},
+		},
+		HasMore: false,
+	}, nil).Times(2) // Called for both transactions
+
+	// First transaction: 0 + 100 = 100
+	firstCall := mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID,
+		scopeKey,
+		periodKey,
+		decimal.RequireFromString("100"),
+		decimal.RequireFromString("1000"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("100"), nil)
+
+	// KEY ASSERTION: Second transaction uses SAME periodKey "custom"
+	// and accumulates: 100 + 200 = 300
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID,
+		scopeKey,
+		periodKey, // Same "custom" period key for both days
+		decimal.RequireFromString("200"),
+		decimal.RequireFromString("1000"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("300"), nil).After(firstCall) // 100 (existing) + 200 = 300
+
+	// First transaction with clock at serverTime1
+	mockClock1 := testutil.NewMockClock(serverTime1)
+	checker1, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock1)
+	require.NoError(t, err)
+
+	input1 := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime1,
+	}
+
+	output1, err := checker1.CheckLimits(ctx, input1)
+	require.NoError(t, err)
+	require.NotNil(t, output1)
+	assert.True(t, output1.Allowed)
+	require.Len(t, output1.LimitUsageDetails, 1)
+	assert.True(t, decimal.RequireFromString("100").Equal(output1.LimitUsageDetails[0].CurrentUsage))
+
+	// Second transaction with clock at serverTime2
+	mockClock2 := testutil.NewMockClock(serverTime2)
+	checker2, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock2)
+	require.NoError(t, err)
+
+	input2 := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("200"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime2,
+	}
+
+	output2, err := checker2.CheckLimits(ctx, input2)
+	require.NoError(t, err)
+	require.NotNil(t, output2)
+	assert.True(t, output2.Allowed)
+	require.Len(t, output2.LimitUsageDetails, 1)
+	// Current usage should be 300 (accumulated from both transactions)
+	assert.True(t, decimal.RequireFromString("300").Equal(output2.LimitUsageDetails[0].CurrentUsage),
+		"Expected 300 (accumulated), got %s", output2.LimitUsageDetails[0].CurrentUsage.String())
+}
+
+// TestCheckLimits_CustomPeriod_MixedLimits_SomeSkipped verifies that when multiple limits
+// are present (some CUSTOM outside period, some DAILY), only the CUSTOM outside period is skipped.
+// Seeds: 10070-10079
+func TestCheckLimits_CustomPeriod_MixedLimits_SomeSkipped(t *testing.T) {
+	t.Parallel()
+
+	// Seeds 10070-10079
+	customLimitID := testutil.MustDeterministicUUID(10070)
+	dailyLimitID := testutil.MustDeterministicUUID(10071)
+	accountID := testutil.MustDeterministicUUID(10072)
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// Server clock: Mar 09 2025 10:00 UTC (outside custom period)
+	serverTime := time.Date(2025, 3, 9, 10, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+	scopeKey := "acct:" + accountID.String()
+	dailyPeriodKey := "2025-03-09" // DAILY uses date format
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              customLimitID,
+				Name:            "Custom Period Limit",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStartDate,
+				CustomEndDate:   &customEndDate,
+			},
+			{
+				ID:        dailyLimitID,
+				Name:      "Daily Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: decimal.RequireFromString("500"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// KEY ASSERTION: Only DAILY limit should call UpsertAndIncrementAtomic
+	// CUSTOM limit should be skipped (no counter call)
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		dailyLimitID, // Only DAILY limit is processed
+		scopeKey,
+		dailyPeriodKey,
+		decimal.RequireFromString("100"),
+		decimal.RequireFromString("500"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("100"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	require.Len(t, output.LimitUsageDetails, 2, "Should have details for both limits")
+
+	// Find the CUSTOM limit detail and verify it's skipped
+	var customDetail, dailyDetail *model.LimitUsageDetail
+	for i := range output.LimitUsageDetails {
+		if output.LimitUsageDetails[i].LimitID == customLimitID {
+			customDetail = &output.LimitUsageDetails[i]
+		}
+		if output.LimitUsageDetails[i].LimitID == dailyLimitID {
+			dailyDetail = &output.LimitUsageDetails[i]
+		}
+	}
+
+	require.NotNil(t, customDetail, "Should have CUSTOM limit detail")
+	assert.True(t, customDetail.Skipped, "CUSTOM limit should be skipped")
+	assert.Equal(t, "outside_custom_period", customDetail.SkipReason)
+
+	require.NotNil(t, dailyDetail, "Should have DAILY limit detail")
+	assert.False(t, dailyDetail.Skipped, "DAILY limit should NOT be skipped")
+	assert.Empty(t, dailyDetail.SkipReason)
+}
+
+// TestCheckLimits_CustomPeriod_SkippedLimit_NoExceededFlag verifies that a skipped CUSTOM limit
+// does not set exceeded=true even if the amount would have exceeded the limit.
+// Seeds: 10080-10089
+func TestCheckLimits_CustomPeriod_SkippedLimit_NoExceededFlag(t *testing.T) {
+	t.Parallel()
+
+	// Seeds 10080-10089
+	limitID := testutil.MustDeterministicUUID(10080)
+	accountID := testutil.MustDeterministicUUID(10081)
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// Server clock: Mar 09 2025 10:00 UTC (outside custom period)
+	serverTime := time.Date(2025, 3, 9, 10, 0, 0, 0, time.UTC)
+	mockClock := testutil.NewMockClock(serverTime)
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:              limitID,
+				Name:            "Custom Period Limit",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("100"), // MaxAmount is 100
+				Currency:        "USD",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStartDate,
+				CustomEndDate:   &customEndDate,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	// No UpsertAndIncrementAtomic call expected (skipped)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("500"), // Amount 500 > MaxAmount 100
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: serverTime,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	// KEY ASSERTION: Transaction should be ALLOWED because limit is skipped
+	// (not because it wouldn't exceed the limit)
+	assert.True(t, output.Allowed, "Transaction should be allowed when limit is skipped")
+	assert.Empty(t, output.ExceededLimitIDs, "No limits should be marked as exceeded")
+	require.Len(t, output.LimitUsageDetails, 1)
+
+	detail := output.LimitUsageDetails[0]
+	assert.True(t, detail.Skipped, "Limit should be skipped")
+	assert.Equal(t, "outside_custom_period", detail.SkipReason)
+	assert.False(t, detail.Exceeded, "Skipped limit should NOT be marked as exceeded")
+}
+
+// TestCheckLimits_CustomPeriod_TableDriven tests comprehensive scenarios for custom period evaluation.
+// Seeds: 10090-10099
+func TestCheckLimits_CustomPeriod_TableDriven(t *testing.T) {
+	t.Parallel()
+
+	// Custom period: Nov 27 2025 08:00 UTC to Nov 28 2025 22:00 UTC
+	customStartDate := time.Date(2025, 11, 27, 8, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2025, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name             string
+		serverTime       time.Time
+		expectSkipped    bool
+		expectSkipReason string
+	}{
+		{
+			name:             "inside period - middle of first day",
+			serverTime:       time.Date(2025, 11, 27, 14, 0, 0, 0, time.UTC),
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "inside period - middle of second day",
+			serverTime:       time.Date(2025, 11, 28, 10, 0, 0, 0, time.UTC),
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "at start boundary - inclusive",
+			serverTime:       customStartDate,
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "one second after start",
+			serverTime:       customStartDate.Add(1 * time.Second),
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "one second before end",
+			serverTime:       customEndDate.Add(-1 * time.Second),
+			expectSkipped:    false,
+			expectSkipReason: "",
+		},
+		{
+			name:             "at end boundary - exclusive",
+			serverTime:       customEndDate,
+			expectSkipped:    true,
+			expectSkipReason: "outside_custom_period",
+		},
+		{
+			name:             "one second after end",
+			serverTime:       customEndDate.Add(1 * time.Second),
+			expectSkipped:    true,
+			expectSkipReason: "outside_custom_period",
+		},
+		{
+			name:             "one second before start",
+			serverTime:       customStartDate.Add(-1 * time.Second),
+			expectSkipped:    true,
+			expectSkipReason: "outside_custom_period",
+		},
+		{
+			name:             "way before period - Jan 2025",
+			serverTime:       time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
+			expectSkipped:    true,
+			expectSkipReason: "outside_custom_period",
+		},
+		{
+			name:             "way after period - Dec 2025",
+			serverTime:       time.Date(2025, 12, 25, 10, 0, 0, 0, time.UTC),
+			expectSkipped:    true,
+			expectSkipReason: "outside_custom_period",
+		},
+	}
+
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Note: Not using t.Parallel() here to avoid deadlock with SetupTestTracing mutex
+
+			// Seeds 10090-10099 (base 10090 + i*2 for limitID, 10090 + i*2 + 1 for accountID)
+			limitID := testutil.MustDeterministicUUID(10090 + int64(i*2))
+			accountID := testutil.MustDeterministicUUID(10090 + int64(i*2) + 1)
+
+			mockClock := testutil.NewMockClock(tc.serverTime)
+
+			ctrl := gomock.NewController(t)
+
+			mockLimitRepo := NewMockLimitRepository(ctrl)
+			mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+			status := model.LimitStatusActive
+			currency := "USD"
+			scopeKey := "acct:" + accountID.String()
+			periodKey := "custom"
+
+			mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+				Status:   &status,
+				Currency: &currency,
+				Limit:    constant.MaxPaginationLimit,
+				Cursor:   "",
+			}).Return(&model.ListLimitsResult{
+				Limits: []model.Limit{
+					{
+						ID:              limitID,
+						Name:            "Custom Period Limit",
+						LimitType:       model.LimitTypeCustom,
+						MaxAmount:       decimal.RequireFromString("1000"),
+						Currency:        "USD",
+						Scopes:          []model.Scope{{AccountID: &accountID}},
+						Status:          model.LimitStatusActive,
+						CustomStartDate: &customStartDate,
+						CustomEndDate:   &customEndDate,
+					},
+				},
+				HasMore: false,
+			}, nil)
+
+			// Only expect counter call if NOT skipped
+			if !tc.expectSkipped {
+				mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+					gomock.Any(),
+					limitID,
+					scopeKey,
+					periodKey,
+					decimal.RequireFromString("100"),
+					decimal.RequireFromString("1000"),
+					gomock.Any(),
+				).Return(decimal.RequireFromString("100"), nil)
+			}
+
+			ctx := setupTest(t)
+
+			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, mockClock)
+			require.NoError(t, err)
+
+			input := &model.CheckLimitsInput{
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				AccountID:            accountID,
+				TransactionTimestamp: tc.serverTime,
+			}
+
+			output, err := checker.CheckLimits(ctx, input)
+
+			require.NoError(t, err)
+			require.NotNil(t, output)
+			assert.True(t, output.Allowed)
+			require.Len(t, output.LimitUsageDetails, 1)
+
+			detail := output.LimitUsageDetails[0]
+			assert.Equal(t, tc.expectSkipped, detail.Skipped, "Skipped mismatch for %s", tc.name)
+			assert.Equal(t, tc.expectSkipReason, detail.SkipReason, "SkipReason mismatch for %s", tc.name)
+		})
+	}
+}
+
+// =============================================================================
+// EvaluatedAt Timestamp Tests
+// Tests verify that CheckLimitsOutput includes evaluatedAt timestamp that:
+// 1. Is present in the response as ISO 8601 UTC string
+// 2. Same value is used for all limit evaluations in the request
+// Seed range: 11000-11099
+// =============================================================================
+
+// TestCheckLimits_EvaluatedAt_Consistency verifies that the evaluatedAt timestamp
+// returned by CheckLimits matches the server clock time and is consistent across
+// all limit evaluations within a single request.
+func TestCheckLimits_EvaluatedAt_Consistency(t *testing.T) {
+	t.Parallel()
+
+	// Test UUIDs from seed range 11000-11099
+	limitID1 := testutil.MustDeterministicUUID(11010)
+	limitID2 := testutil.MustDeterministicUUID(11011)
+	accountID := testutil.MustDeterministicUUID(11012)
+
+	// Fixed server time from mock clock
+	expectedEvaluatedAt := testutil.DefaultTestTime
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	// Setup: Two applicable limits of different types
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:        limitID1,
+				Name:      "Daily Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: decimal.RequireFromString("1000"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			},
+			{
+				ID:        limitID2,
+				Name:      "Per Transaction Limit",
+				LimitType: model.LimitTypePerTransaction,
+				MaxAmount: decimal.RequireFromString("500"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	scopeKey := "acct:" + accountID.String()
+	periodKeyDaily := expectedEvaluatedAt.Format("2006-01-02")
+
+	// First limit (DAILY) gets incremented atomically
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(
+		gomock.Any(),
+		limitID1,
+		scopeKey,
+		periodKeyDaily,
+		decimal.RequireFromString("100"),
+		decimal.RequireFromString("1000"),
+		gomock.Any(),
+	).Return(decimal.RequireFromString("100"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
+	require.NoError(t, err)
+
+	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: timestamp,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	// Verify no errors
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	require.Len(t, output.LimitUsageDetails, 2)
+
+	// Verify evaluatedAt is present in response
+	// Verify same value is used for all limit evaluations
+	assert.Equal(t, expectedEvaluatedAt, output.EvaluatedAt,
+		"EvaluatedAt should match the mock clock time")
+}
+
+// TestCheckLimits_NoActiveLimits_HasEvaluatedAt verifies that evaluatedAt is
+// populated even when there are no active limits to check (edge case).
+func TestCheckLimits_NoActiveLimits_HasEvaluatedAt(t *testing.T) {
+	t.Parallel()
+
+	accountID := testutil.MustDeterministicUUID(11020)
+	expectedEvaluatedAt := testutil.DefaultTestTime
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	// No active limits
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+		Cursor:   "",
+	}).Return(&model.ListLimitsResult{
+		Limits:  []model.Limit{},
+		HasMore: false,
+	}, nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
+	require.NoError(t, err)
+
+	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: timestamp,
+	}
+
+	output, err := checker.CheckLimits(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
+	assert.Empty(t, output.LimitUsageDetails)
+
+	// Verify evaluatedAt is present even with no limits
+	assert.Equal(t, expectedEvaluatedAt, output.EvaluatedAt,
+		"EvaluatedAt should be set even when no active limits are found")
+}
+
+// =============================================================================
+// Expired Usage Counters Are Automatically Cleaned Up
+// Seed range: 12000-12099
+// =============================================================================
+
+// TestCalculateCounterExpiresAt tests the calculateCounterExpiresAt function.
+// Acceptance Criteria:
+// 1. DAILY counter: expiresAt = resetAt + 90 days
+// 2. WEEKLY counter: expiresAt = resetAt + 90 days
+// 3. MONTHLY counter: expiresAt = resetAt + 90 days
+// 4. CUSTOM counter: expiresAt = customEndDate + 90 days
+// 5. PER_TRANSACTION: no counter, nil expiresAt
+// 6. NULL expiresAt: never deleted
+func TestCalculateCounterExpiresAt(t *testing.T) {
+	t.Parallel()
+
+	// Deterministic test data using seed range 12000-12099
+	resetAt := time.Date(2026, 3, 11, 0, 0, 0, 0, time.UTC)
+	customEndDate := time.Date(2026, 11, 28, 22, 0, 0, 0, time.UTC)
+
+	// Helper to create pointer to time
+	ptr := func(t time.Time) *time.Time { return &t }
+
+	tests := []struct {
+		name          string
+		limitType     model.LimitType
+		resetAt       *time.Time
+		customEndDate *time.Time
+		expected      *time.Time
+	}{
+		{
+			name:      "DAILY returns resetAt + 90 days",
+			limitType: model.LimitTypeDaily,
+			resetAt:   ptr(resetAt),
+			expected:  ptr(resetAt.AddDate(0, 0, 90)), // June 9, 2026
+		},
+		{
+			name:      "WEEKLY returns resetAt + 90 days",
+			limitType: model.LimitTypeWeekly,
+			resetAt:   ptr(resetAt),
+			expected:  ptr(resetAt.AddDate(0, 0, 90)),
+		},
+		{
+			name:      "MONTHLY returns resetAt + 90 days",
+			limitType: model.LimitTypeMonthly,
+			resetAt:   ptr(resetAt),
+			expected:  ptr(resetAt.AddDate(0, 0, 90)),
+		},
+		{
+			name:          "CUSTOM returns customEndDate + 90 days",
+			limitType:     model.LimitTypeCustom,
+			customEndDate: ptr(customEndDate),
+			expected:      ptr(customEndDate.AddDate(0, 0, 90)), // February 26, 2027
+		},
+		{
+			name:      "PER_TRANSACTION returns nil (no counter)",
+			limitType: model.LimitTypePerTransaction,
+			resetAt:   nil,
+			expected:  nil,
+		},
+		{
+			name:      "DAILY with nil resetAt returns nil (safety)",
+			limitType: model.LimitTypeDaily,
+			resetAt:   nil,
+			expected:  nil, // Safety: don't crash on missing resetAt
+		},
+		{
+			name:          "CUSTOM with nil customEndDate returns nil (safety)",
+			limitType:     model.LimitTypeCustom,
+			customEndDate: nil,
+			expected:      nil, // Safety: don't crash on missing customEndDate
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := calculateCounterExpiresAt(tc.limitType, tc.resetAt, tc.customEndDate)
+
+			if tc.expected == nil {
+				assert.Nil(t, result, "expected nil expiresAt")
+			} else {
+				require.NotNil(t, result, "expected non-nil expiresAt")
+				assert.True(t, tc.expected.Equal(*result),
+					"expected %v, got %v", tc.expected, result)
+			}
+		})
+	}
+}
+
+// TestCalculateCounterExpiresAt_RetentionDays validates that the retention
+// period constant is used correctly (90 days).
+func TestCalculateCounterExpiresAt_RetentionDays(t *testing.T) {
+	t.Parallel()
+
+	// Seed range: 12010
+	resetAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	ptr := func(t time.Time) *time.Time { return &t }
+
+	// Call the function - should add exactly 90 days (not 3 months)
+	result := calculateCounterExpiresAt(model.LimitTypeDaily, ptr(resetAt), nil)
+
+	require.NotNil(t, result)
+	expected := resetAt.AddDate(0, 0, 90) // April 1, 2026
+	assert.Equal(t, expected, *result)
 }

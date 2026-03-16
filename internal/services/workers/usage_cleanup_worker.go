@@ -24,15 +24,12 @@ import (
 type UsageCleanupWorkerConfig struct {
 	// CleanupInterval is how often the cleanup runs (default: 24 hours).
 	CleanupInterval time.Duration
-	// RetentionPeriod is how long to keep counters before deletion (default: 90 days).
-	RetentionPeriod time.Duration
 }
 
 // DefaultUsageCleanupWorkerConfig returns default configuration values.
 func DefaultUsageCleanupWorkerConfig() UsageCleanupWorkerConfig {
 	return UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 }
 
@@ -51,7 +48,6 @@ type UsageCleanupWorker struct {
 // Returns ErrNilRepository if repo is nil.
 // Returns ErrNilLogger if logger is nil.
 // Returns ErrInvalidCleanupInterval if CleanupInterval <= 0.
-// Returns ErrInvalidRetentionPeriod if RetentionPeriod <= 0.
 // The clk parameter is optional; if nil, uses clock.RealClock{}.
 func NewUsageCleanupWorker(repo UsageCounterCleanupRepository, config UsageCleanupWorkerConfig, logger libLog.Logger, clk clock.Clock) (*UsageCleanupWorker, error) {
 	if repo == nil {
@@ -64,10 +60,6 @@ func NewUsageCleanupWorker(repo UsageCounterCleanupRepository, config UsageClean
 
 	if config.CleanupInterval <= 0 {
 		return nil, ErrInvalidCleanupInterval
-	}
-
-	if config.RetentionPeriod <= 0 {
-		return nil, ErrInvalidRetentionPeriod
 	}
 
 	if clk == nil {
@@ -103,7 +95,6 @@ func (w *UsageCleanupWorker) runLoop(ctx context.Context) error {
 	w.logger.WithFields(
 		"operation", "worker.usage_cleanup.run",
 		"cleanup_interval", w.config.CleanupInterval.String(),
-		"retention_period", w.config.RetentionPeriod.String(),
 	).Info("Starting usage cleanup worker")
 
 	// Use injected clock's ticker for deterministic testing
@@ -174,6 +165,8 @@ func (w *UsageCleanupWorker) runCleanupCycle(ctx context.Context) {
 // Returns the number of deleted counters.
 // This method can be called directly for manual/on-demand cleanup,
 // or used by external schedulers (e.g., K8s CronJob).
+//
+//	Uses expires_at column for accurate cleanup timing.
 func (w *UsageCleanupWorker) RunOnce(ctx context.Context) (int64, error) {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
 
@@ -182,16 +175,17 @@ func (w *UsageCleanupWorker) RunOnce(ctx context.Context) (int64, error) {
 
 	logger := logging.WithTrace(ctx, w.logger)
 
-	// Calculate the cutoff time based on retention period
-	olderThan := w.clock.Now().UTC().Add(-w.config.RetentionPeriod)
+	// Use current time for expires_at comparison
+	// Counters with expires_at < now will be deleted
+	// Counters with NULL expires_at are preserved (never deleted)
+	now := w.clock.Now().UTC()
 
 	logger.WithFields(
 		"operation", "worker.usage_cleanup.run_once",
-		"older_than", olderThan.Format(time.RFC3339),
-		"retention_period", w.config.RetentionPeriod.String(),
-	).Info("Deleting expired usage counters")
+		"now", now.Format(time.RFC3339),
+	).Info("Deleting expired usage counters by expires_at")
 
-	deleted, err := w.repo.DeleteExpiredCounters(ctx, olderThan)
+	deleted, err := w.repo.DeleteExpiredCounters(ctx, now)
 	if err != nil {
 		libOtel.HandleSpanError(&span, "Failed to delete expired counters", err)
 

@@ -78,8 +78,6 @@ type Config struct {
 	CleanupWorkerEnabled bool `env:"CLEANUP_WORKER_ENABLED"`
 	// CleanupIntervalHours is the interval between cleanup runs in hours (default: 24)
 	CleanupIntervalHours string `env:"CLEANUP_INTERVAL_HOURS"`
-	// CleanupRetentionDays is how many days to retain usage counters (default: 90)
-	CleanupRetentionDays string `env:"CLEANUP_RETENTION_DAYS"`
 
 	// Rule Sync Worker
 	// RuleSyncPollIntervalSeconds is how often the worker polls for rule changes (default: 10)
@@ -205,36 +203,6 @@ func parseCleanupIntervalHours(s string) (time.Duration, error) {
 	return time.Duration(hours) * time.Hour, nil
 }
 
-// parseCleanupRetentionDays parses the retention period from string to time.Duration.
-// Returns default value (90 days) if empty.
-// Returns error if value is invalid, non-positive, or exceeds maximum.
-func parseCleanupRetentionDays(s string) (time.Duration, error) {
-	const defaultDays = 90
-
-	// maxAllowedDays limits retention period to 10 years (3650 days).
-	// This prevents unbounded data growth while allowing long retention for compliance.
-	const maxAllowedDays = 3650
-
-	if s == "" {
-		return time.Duration(defaultDays) * 24 * time.Hour, nil
-	}
-
-	days, err := strconv.Atoi(s)
-	if err != nil {
-		return 0, fmt.Errorf("invalid CLEANUP_RETENTION_DAYS value '%s': %w", s, err)
-	}
-
-	if days <= 0 {
-		return 0, fmt.Errorf("CLEANUP_RETENTION_DAYS must be positive, got %d", days)
-	}
-
-	if days > maxAllowedDays {
-		return 0, fmt.Errorf("CLEANUP_RETENTION_DAYS exceeds maximum allowed (%d days = 10 years), got %d", maxAllowedDays, days)
-	}
-
-	return time.Duration(days) * 24 * time.Hour, nil
-}
-
 // parseRuleSyncPollInterval parses the poll interval from string to time.Duration.
 // Returns default value (10 seconds) if empty.
 // Returns error if value is invalid, non-positive, or exceeds maximum.
@@ -351,19 +319,12 @@ func LoadCleanupWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.UsageC
 		return nil, fmt.Errorf("invalid CLEANUP_INTERVAL_HOURS: %w", err)
 	}
 
-	retentionPeriod, err := parseCleanupRetentionDays(cfg.CleanupRetentionDays)
-	if err != nil {
-		return nil, fmt.Errorf("invalid CLEANUP_RETENTION_DAYS: %w", err)
-	}
-
 	logger.WithFields(
 		"cleanup_interval", cleanupInterval.String(),
-		"retention_period", retentionPeriod.String(),
 	).Info("Usage counter cleanup worker configuration loaded")
 
 	return &workers.UsageCleanupWorkerConfig{
 		CleanupInterval: cleanupInterval,
-		RetentionPeriod: retentionPeriod,
 	}, nil
 }
 
@@ -538,9 +499,8 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Pos
 // initRuleService creates the rule service with all its dependencies.
 // The cacheWriter parameter is optional (nil-safe); when provided, activate and
 // deactivate commands will synchronously update the in-memory cache.
-func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter) (*services.RuleService, error) {
+func initRuleService(ruleRepo *postgres.Repository, celAdapter *cel.Adapter, auditWriter command.AuditWriter, cacheWriter command.RuleCacheWriter, clk clock.Clock) (*services.RuleService, error) {
 	celCompiler := &celCompilerAdapter{adapter: celAdapter}
-	clk := clock.New()
 
 	// Inject audit writer and cache writer into Rule commands
 	createRuleCmd := command.NewCreateRuleCommand(ruleRepo, celCompiler, clk, auditWriter)
@@ -607,12 +567,9 @@ type limitServiceDeps struct {
 }
 
 // initLimitService creates the limit service with all its dependencies.
-func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter command.AuditWriter) (*limitServiceDeps, error) {
+func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter command.AuditWriter, clk clock.Clock) (*limitServiceDeps, error) {
 	limitRepo := postgres.NewLimitRepository(postgresConn)
 	usageCounterRepo := postgres.NewUsageCounterRepository(postgresConn)
-
-	// Inject audit writer into all Limit commands for SOX/GLBA compliance
-	clk := clock.New()
 
 	createLimitCmd, err := command.NewCreateLimitCommand(limitRepo, clk, auditWriter)
 	if err != nil {
@@ -660,8 +617,75 @@ func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter 
 	}, nil
 }
 
+// initHTTPServer creates the HTTP server with all services wired together.
+// Extracted from InitServers to reduce cyclomatic complexity.
+func initHTTPServer(
+	cfg *Config,
+	postgresConn *libPostgres.PostgresConnection,
+	limitDeps *limitServiceDeps,
+	evaluateRulesQuery *query.EvaluateRulesQuery,
+	auditWriter *command.RecordAuditEventCommand,
+	auditEventRepo *postgres.AuditEventRepository,
+	ruleService *services.RuleService,
+	healthChecker *in.HealthChecker,
+	logger libLog.Logger,
+	telemetry *libOtel.Telemetry,
+	clk clock.Clock,
+) (*HTTPServer, error) {
+	// Init Transaction Validation repository and queries
+	transactionValidationRepo := postgres.NewTransactionValidationRepository(postgresConn)
+	getTransactionValidationQuery := query.NewGetTransactionValidationQuery(transactionValidationRepo)
+	listTransactionValidationsQuery := query.NewListTransactionValidationsQuery(transactionValidationRepo)
+
+	// Init LimitChecker for ValidationService
+	limitChecker, err := query.NewLimitChecker(limitDeps.limitRepo, limitDeps.usageCounterRepo, clk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create limit checker: %w", err)
+	}
+
+	// Init ValidationService with audit writer for SOX/GLBA compliance
+	validationService, err := services.NewValidationService(evaluateRulesQuery, limitChecker, transactionValidationRepo, auditWriter, clk)
+	if err != nil {
+		return nil, err
+	}
+
+	// Init Transaction Validation service facade
+	transactionValidationService, err := services.NewTransactionValidationService(getTransactionValidationQuery, listTransactionValidationsQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction validation service: %w", err)
+	}
+
+	// Init Audit Event service (read-only per SOX/GLBA requirements)
+	auditEventService, err := initAuditEventService(auditEventRepo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Route configuration with CORS settings
+	routeConfig := &in.RouteConfig{
+		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
+		APIKeyOnlyValidation: cfg.APIKeyOnlyValidation,
+	}
+
+	// Create auth guard with all authentication configuration
+	authClient := authMiddleware.NewAuthClient(cfg.PluginAuthAddress, cfg.PluginAuthEnabled, &logger)
+	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{
+		APIKey:            cfg.APIKey,
+		APIKeyEnabled:     cfg.APIKeyEnabled,
+		PluginAuthEnabled: cfg.PluginAuthEnabled,
+		AppName:           constant.ApplicationName,
+	}, authClient)
+
+	httpApp, err := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard, clk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create routes: %w", err)
+	}
+
+	return NewHTTPServer(cfg, httpApp, logger, telemetry)
+}
+
 // initCleanupWorker creates the usage cleanup worker if enabled.
-func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepository, logger libLog.Logger) (*workers.UsageCleanupWorker, error) {
+func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepository, logger libLog.Logger, clk clock.Clock) (*workers.UsageCleanupWorker, error) {
 	cleanupWorkerConfig, err := LoadCleanupWorkerConfig(cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("invalid cleanup worker configuration: %w", err)
@@ -671,7 +695,7 @@ func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepos
 		return nil, nil
 	}
 
-	cleanupWorker, err := workers.NewUsageCleanupWorker(usageCounterRepo, *cleanupWorkerConfig, logger, nil)
+	cleanupWorker, err := workers.NewUsageCleanupWorker(usageCounterRepo, *cleanupWorkerConfig, logger, clk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cleanup worker: %w", err)
 	}
@@ -679,7 +703,6 @@ func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepos
 	logger.WithFields(
 		"component", "cleanup_worker",
 		"cleanup_interval", cleanupWorkerConfig.CleanupInterval.String(),
-		"retention_period", cleanupWorkerConfig.RetentionPeriod.String(),
 	).Info("Usage cleanup worker initialized")
 
 	return cleanupWorker, nil
@@ -693,8 +716,9 @@ func initWorkers(
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
 	logger libLog.Logger,
+	clk clock.Clock,
 ) (*Service, error) {
-	cleanupWorker, err := initCleanupWorker(cfg, limitDeps.usageCounterRepo, logger)
+	cleanupWorker, err := initCleanupWorker(cfg, limitDeps.usageCounterRepo, logger, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -804,6 +828,36 @@ func initCoreInfra(cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
 	return logger, telemetry, nil
 }
 
+// initClock creates a clock instance based on environment configuration.
+// If MOCK_TIME env var is set to a valid RFC3339 timestamp, returns a MockClock
+// with that fixed time (for integration tests). Otherwise, returns a RealClock.
+//
+// This allows integration tests to simulate specific times (e.g., 22:00 for nighttime
+// PIX limits, Black Friday dates for custom periods) without restarting the server
+// multiple times or waiting for real time to pass.
+//
+// SECURITY: MOCK_TIME is read once at server boot. It cannot be modified via HTTP
+// requests, preventing timestamp injection attacks. In production, MOCK_TIME should
+// never be set, ensuring the system always uses real time.
+func initClock() clock.Clock {
+	mockTime := os.Getenv("MOCK_TIME")
+	if mockTime == "" {
+		return clock.New()
+	}
+
+	t, err := time.Parse(time.RFC3339, mockTime)
+	if err != nil {
+		// Invalid format: fall back to real clock and log warning
+		// Don't fail server startup due to misconfigured test env var
+		fmt.Fprintf(os.Stderr, "WARNING: Invalid MOCK_TIME format '%s' (expected RFC3339), using real clock\n", mockTime)
+		return clock.New()
+	}
+
+	fmt.Fprintf(os.Stderr, "INFO: Using MOCK_TIME=%s (test mode)\n", mockTime)
+
+	return clock.NewFixedClock(t)
+}
+
 // InitServers initiate http and grpc servers.
 func InitServers() (*Service, error) {
 	cfg := &Config{}
@@ -850,8 +904,10 @@ func InitServers() (*Service, error) {
 	auditEventRepo := postgres.NewAuditEventRepository(postgresConn)
 	auditWriter := command.NewRecordAuditEventCommand(auditEventRepo)
 
+	// Init Clock (supports MOCK_TIME for integration tests)
+	clk := initClock()
+
 	// Init Rule Cache: warm up from database, compile CEL expressions, wire into evaluation path
-	clk := clock.New()
 	ruleCache := cache.NewRuleCache(clk)
 	ruleSyncRepo := postgres.NewRuleSyncRepository(postgresConn)
 
@@ -874,7 +930,7 @@ func InitServers() (*Service, error) {
 	}
 
 	// Init Rule service with audit writer and rule cache for synchronous cache updates
-	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache)
+	ruleService, err := initRuleService(ruleRepo, celAdapter, auditWriter, ruleCache, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -898,64 +954,19 @@ func InitServers() (*Service, error) {
 	}
 
 	// Init Limit service with audit writer for SOX/GLBA compliance
-	limitDeps, err := initLimitService(postgresConn, auditWriter)
+	limitDeps, err := initLimitService(postgresConn, auditWriter, clk)
 	if err != nil {
 		return nil, err
 	}
 
-	// Init Transaction Validation repository and queries
-	transactionValidationRepo := postgres.NewTransactionValidationRepository(postgresConn)
-	getTransactionValidationQuery := query.NewGetTransactionValidationQuery(transactionValidationRepo)
-	listTransactionValidationsQuery := query.NewListTransactionValidationsQuery(transactionValidationRepo)
-
-	// Init LimitChecker for ValidationService
-	limitChecker, err := query.NewLimitChecker(limitDeps.limitRepo, limitDeps.usageCounterRepo, clk)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create limit checker: %w", err)
-	}
-
-	// Init ValidationService with audit writer for SOX/GLBA compliance
-	validationService, err := services.NewValidationService(evaluateRulesQuery, limitChecker, transactionValidationRepo, auditWriter)
+	// Init HTTP server with all services
+	serverAPI, err := initHTTPServer(cfg, postgresConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk)
 	if err != nil {
 		return nil, err
-	}
-
-	// Init Transaction Validation service facade
-	transactionValidationService, err := services.NewTransactionValidationService(getTransactionValidationQuery, listTransactionValidationsQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction validation service: %w", err)
-	}
-
-	// Init Audit Event service (read-only per SOX/GLBA requirements)
-	auditEventService, err := initAuditEventService(auditEventRepo)
-	if err != nil {
-		return nil, err
-	}
-
-	// Route configuration with CORS settings
-	routeConfig := &in.RouteConfig{
-		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
-		APIKeyOnlyValidation: cfg.APIKeyOnlyValidation,
-	}
-
-	// Create auth guard with all authentication configuration
-	authClient := authMiddleware.NewAuthClient(cfg.PluginAuthAddress, cfg.PluginAuthEnabled, &logger)
-	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{
-		APIKey:            cfg.APIKey,
-		APIKeyEnabled:     cfg.APIKeyEnabled,
-		PluginAuthEnabled: cfg.PluginAuthEnabled,
-		AppName:           constant.ApplicationName,
-	}, authClient)
-
-	httpApp := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard)
-
-	serverAPI, err := NewHTTPServer(cfg, httpApp, logger, telemetry)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP server: %w", err)
 	}
 
 	// Init background workers
-	svc, err := initWorkers(cfg, limitDeps, syncWorker, serverAPI, logger)
+	svc, err := initWorkers(cfg, limitDeps, syncWorker, serverAPI, logger, clk)
 	if err != nil {
 		return nil, err
 	}

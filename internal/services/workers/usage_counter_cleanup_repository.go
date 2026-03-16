@@ -15,8 +15,10 @@ import (
 // This is a subset of query.UsageCounterRepository, containing only the methods needed
 // for the cleanup worker.
 type UsageCounterCleanupRepository interface {
-	// DeleteExpiredCounters removes usage counters that haven't been updated since the specified time.
-	// This is used for cleanup of old period counters that are no longer relevant.
+	// DeleteExpiredCounters removes usage counters where expires_at < now.
+	// Counters with NULL expires_at are preserved (never deleted).
+	// This provides more accurate cleanup based on when counters should actually expire
+	// rather than when they were last updated.
 	// Returns the number of deleted counters.
-	DeleteExpiredCounters(ctx context.Context, olderThan time.Time) (int64, error)
+	DeleteExpiredCounters(ctx context.Context, now time.Time) (int64, error)
 }

@@ -72,7 +72,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "creates worker with valid config",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			expectError: nil,
 		},
@@ -80,7 +79,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "creates worker with minimum interval",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 1 * time.Minute,
-				RetentionPeriod: 1 * time.Hour,
 			},
 			expectError: nil,
 		},
@@ -88,7 +86,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "returns error when repository is nil",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			nilRepo:     true,
 			expectError: ErrNilRepository,
@@ -97,7 +94,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "returns error when logger is nil",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			nilLogger:   true,
 			expectError: ErrNilLogger,
@@ -106,7 +102,6 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "returns error when cleanup interval is zero",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: 0,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			expectError: ErrInvalidCleanupInterval,
 		},
@@ -114,25 +109,8 @@ func TestNewUsageCleanupWorker(t *testing.T) {
 			name: "returns error when cleanup interval is negative",
 			config: UsageCleanupWorkerConfig{
 				CleanupInterval: -1 * time.Hour,
-				RetentionPeriod: 90 * 24 * time.Hour,
 			},
 			expectError: ErrInvalidCleanupInterval,
-		},
-		{
-			name: "returns error when retention period is zero",
-			config: UsageCleanupWorkerConfig{
-				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: 0,
-			},
-			expectError: ErrInvalidRetentionPeriod,
-		},
-		{
-			name: "returns error when retention period is negative",
-			config: UsageCleanupWorkerConfig{
-				CleanupInterval: 24 * time.Hour,
-				RetentionPeriod: -1 * time.Hour,
-			},
-			expectError: ErrInvalidRetentionPeriod,
 		},
 	}
 
@@ -177,7 +155,7 @@ func TestUsageCleanupWorker_RunWithContext_Stop(t *testing.T) {
 	// Channel to signal when cleanup has been called
 	cleanupCalled := make(chan struct{}, 1)
 
-	// Expect cleanup to be called at least once when worker runs
+	// Expect cleanup to be called at least once when worker runs ( uses expires_at)
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ time.Time) (int64, error) {
@@ -191,7 +169,6 @@ func TestUsageCleanupWorker_RunWithContext_Stop(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 10 * time.Millisecond, // Very short interval for fast testing
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, nil)
@@ -240,22 +217,14 @@ func TestUsageCleanupWorker_ExecutesCleanup(t *testing.T) {
 	fixedTime := time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)
 	testClock := mockClock{fixedTime: fixedTime}
 
-	retentionPeriod := 90 * 24 * time.Hour
-	expectedOlderThan := fixedTime.UTC().Add(-retentionPeriod)
-
-	// Expect at least one cleanup call with the exact expected time
+	//  Cleanup now uses expires_at column directly, passing current time
 	mockRepo.EXPECT().
-		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, olderThan time.Time) (int64, error) {
-			// Verify the olderThan time is exactly now - retention period
-			assert.Equal(t, expectedOlderThan, olderThan)
-			return deletedCount, nil
-		}).
+		DeleteExpiredCounters(gomock.Any(), gomock.Eq(fixedTime.UTC())).
+		Return(deletedCount, nil).
 		MinTimes(1)
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 50 * time.Millisecond,
-		RetentionPeriod: retentionPeriod,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)
@@ -293,7 +262,7 @@ func TestUsageCleanupWorker_HandlesRepositoryError(t *testing.T) {
 
 	dbError := errors.New("database connection failed")
 
-	// Expect cleanup calls to fail but worker should continue
+	// Expect cleanup calls to fail but worker should continue ( uses expires_at)
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
 		Return(int64(0), dbError).
@@ -301,7 +270,6 @@ func TestUsageCleanupWorker_HandlesRepositoryError(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 50 * time.Millisecond,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, nil)
@@ -343,17 +311,14 @@ func TestUsageCleanupWorker_RunOnce(t *testing.T) {
 	fixedTime := time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)
 	testClock := mockClock{fixedTime: fixedTime}
 
-	retentionPeriod := 90 * 24 * time.Hour
-	expectedOlderThan := fixedTime.UTC().Add(-retentionPeriod)
-
+	//  Cleanup now passes current time to DeleteExpiredCounters
 	mockRepo.EXPECT().
-		DeleteExpiredCounters(gomock.Any(), expectedOlderThan).
+		DeleteExpiredCounters(gomock.Any(), fixedTime.UTC()).
 		Return(deletedCount, nil).
 		Times(1)
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: retentionPeriod,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, testClock)
@@ -376,6 +341,7 @@ func TestUsageCleanupWorker_RunOnce_Error(t *testing.T) {
 
 	dbError := errors.New("database unavailable")
 
+	//  Uses DeleteExpiredCounters
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
 		Return(int64(0), dbError).
@@ -383,7 +349,6 @@ func TestUsageCleanupWorker_RunOnce_Error(t *testing.T) {
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	worker, err := NewUsageCleanupWorker(mockRepo, config, logger, nil)
@@ -401,7 +366,7 @@ func TestUsageCleanupWorker_DefaultConfig(t *testing.T) {
 	config := DefaultUsageCleanupWorkerConfig()
 
 	assert.Equal(t, 24*time.Hour, config.CleanupInterval)
-	assert.Equal(t, 90*24*time.Hour, config.RetentionPeriod)
+
 }
 
 func TestUsageCleanupWorker_NilClockUsesRealClock(t *testing.T) {
@@ -412,20 +377,19 @@ func TestUsageCleanupWorker_NilClockUsesRealClock(t *testing.T) {
 	mockRepo := mocks.NewMockUsageCounterCleanupRepository(ctrl)
 	logger := testutil.NewMockLogger()
 
-	// When nil clock is passed, worker should use RealClock and compute time correctly
+	//  When nil clock is passed, worker should use RealClock
+	// Cleanup now passes current time to DeleteExpiredCounters
 	mockRepo.EXPECT().
 		DeleteExpiredCounters(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, olderThan time.Time) (int64, error) {
-			// Verify the time is close to now - retention period (within 1 second)
-			expectedOlderThan := time.Now().UTC().Add(-90 * 24 * time.Hour)
-			assert.WithinDuration(t, expectedOlderThan, olderThan, 1*time.Second)
+		DoAndReturn(func(_ context.Context, now time.Time) (int64, error) {
+			// Verify the time is close to current time (within 1 second)
+			assert.WithinDuration(t, time.Now().UTC(), now, 1*time.Second)
 			return int64(5), nil
 		}).
 		Times(1)
 
 	config := UsageCleanupWorkerConfig{
 		CleanupInterval: 24 * time.Hour,
-		RetentionPeriod: 90 * 24 * time.Hour,
 	}
 
 	// Pass nil clock - should use RealClock
