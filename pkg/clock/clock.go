@@ -33,3 +33,26 @@ func (RealClock) NewTicker(d time.Duration) (<-chan time.Time, func()) {
 func New() Clock {
 	return RealClock{}
 }
+
+// FixedClock implements Clock with a fixed time. Used for MOCK_TIME support.
+type FixedClock struct {
+	fixedTime time.Time
+}
+
+// Now returns the fixed time.
+func (c FixedClock) Now() time.Time {
+	return c.fixedTime
+}
+
+// NewTicker returns a channel that never fires (fixed clock has no real ticks).
+// Stop is a no-op, matching time.Ticker.Stop() which does not close its channel.
+func (c FixedClock) NewTicker(_ time.Duration) (<-chan time.Time, func()) {
+	ch := make(chan time.Time)
+
+	return ch, func() {}
+}
+
+// NewFixedClock creates a FixedClock that always returns the given time.
+func NewFixedClock(t time.Time) Clock {
+	return FixedClock{fixedTime: t}
+}
