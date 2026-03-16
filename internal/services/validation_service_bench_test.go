@@ -66,7 +66,7 @@ func BenchmarkValidationService_Validate(b *testing.B) {
 		Return(nil).
 		AnyTimes()
 
-	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditWriter)
+	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditWriter, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 		Return(nil).
 		AnyTimes()
 
-	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditWriter)
+	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditWriter, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func BenchmarkValidationService_Validate_Parallel(b *testing.B) {
 		Return(nil).
 		AnyTimes()
 
-	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditWriter)
+	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditWriter, nil)
 	if err != nil {
 		b.Fatal(err)
 	}

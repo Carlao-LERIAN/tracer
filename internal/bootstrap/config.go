@@ -617,8 +617,75 @@ func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter 
 	}, nil
 }
 
+// initHTTPServer creates the HTTP server with all services wired together.
+// Extracted from InitServers to reduce cyclomatic complexity.
+func initHTTPServer(
+	cfg *Config,
+	postgresConn *libPostgres.PostgresConnection,
+	limitDeps *limitServiceDeps,
+	evaluateRulesQuery *query.EvaluateRulesQuery,
+	auditWriter *command.RecordAuditEventCommand,
+	auditEventRepo *postgres.AuditEventRepository,
+	ruleService *services.RuleService,
+	healthChecker *in.HealthChecker,
+	logger libLog.Logger,
+	telemetry *libOtel.Telemetry,
+	clk clock.Clock,
+) (*HTTPServer, error) {
+	// Init Transaction Validation repository and queries
+	transactionValidationRepo := postgres.NewTransactionValidationRepository(postgresConn)
+	getTransactionValidationQuery := query.NewGetTransactionValidationQuery(transactionValidationRepo)
+	listTransactionValidationsQuery := query.NewListTransactionValidationsQuery(transactionValidationRepo)
+
+	// Init LimitChecker for ValidationService
+	limitChecker, err := query.NewLimitChecker(limitDeps.limitRepo, limitDeps.usageCounterRepo, clk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create limit checker: %w", err)
+	}
+
+	// Init ValidationService with audit writer for SOX/GLBA compliance
+	validationService, err := services.NewValidationService(evaluateRulesQuery, limitChecker, transactionValidationRepo, auditWriter, clk)
+	if err != nil {
+		return nil, err
+	}
+
+	// Init Transaction Validation service facade
+	transactionValidationService, err := services.NewTransactionValidationService(getTransactionValidationQuery, listTransactionValidationsQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction validation service: %w", err)
+	}
+
+	// Init Audit Event service (read-only per SOX/GLBA requirements)
+	auditEventService, err := initAuditEventService(auditEventRepo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Route configuration with CORS settings
+	routeConfig := &in.RouteConfig{
+		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
+		APIKeyOnlyValidation: cfg.APIKeyOnlyValidation,
+	}
+
+	// Create auth guard with all authentication configuration
+	authClient := authMiddleware.NewAuthClient(cfg.PluginAuthAddress, cfg.PluginAuthEnabled, &logger)
+	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{
+		APIKey:            cfg.APIKey,
+		APIKeyEnabled:     cfg.APIKeyEnabled,
+		PluginAuthEnabled: cfg.PluginAuthEnabled,
+		AppName:           constant.ApplicationName,
+	}, authClient)
+
+	httpApp, err := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard, clk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create routes: %w", err)
+	}
+
+	return NewHTTPServer(cfg, httpApp, logger, telemetry)
+}
+
 // initCleanupWorker creates the usage cleanup worker if enabled.
-func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepository, logger libLog.Logger) (*workers.UsageCleanupWorker, error) {
+func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepository, logger libLog.Logger, clk clock.Clock) (*workers.UsageCleanupWorker, error) {
 	cleanupWorkerConfig, err := LoadCleanupWorkerConfig(cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("invalid cleanup worker configuration: %w", err)
@@ -628,7 +695,7 @@ func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepos
 		return nil, nil
 	}
 
-	cleanupWorker, err := workers.NewUsageCleanupWorker(usageCounterRepo, *cleanupWorkerConfig, logger, nil)
+	cleanupWorker, err := workers.NewUsageCleanupWorker(usageCounterRepo, *cleanupWorkerConfig, logger, clk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cleanup worker: %w", err)
 	}
@@ -649,8 +716,9 @@ func initWorkers(
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
 	logger libLog.Logger,
+	clk clock.Clock,
 ) (*Service, error) {
-	cleanupWorker, err := initCleanupWorker(cfg, limitDeps.usageCounterRepo, logger)
+	cleanupWorker, err := initCleanupWorker(cfg, limitDeps.usageCounterRepo, logger, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -891,62 +959,14 @@ func InitServers() (*Service, error) {
 		return nil, err
 	}
 
-	// Init Transaction Validation repository and queries
-	transactionValidationRepo := postgres.NewTransactionValidationRepository(postgresConn)
-	getTransactionValidationQuery := query.NewGetTransactionValidationQuery(transactionValidationRepo)
-	listTransactionValidationsQuery := query.NewListTransactionValidationsQuery(transactionValidationRepo)
-
-	// Init LimitChecker for ValidationService
-	limitChecker, err := query.NewLimitChecker(limitDeps.limitRepo, limitDeps.usageCounterRepo, clk)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create limit checker: %w", err)
-	}
-
-	// Init ValidationService with audit writer for SOX/GLBA compliance
-	validationService, err := services.NewValidationService(evaluateRulesQuery, limitChecker, transactionValidationRepo, auditWriter)
+	// Init HTTP server with all services
+	serverAPI, err := initHTTPServer(cfg, postgresConn, limitDeps, evaluateRulesQuery, auditWriter, auditEventRepo, ruleService, healthChecker, logger, telemetry, clk)
 	if err != nil {
 		return nil, err
-	}
-
-	// Init Transaction Validation service facade
-	transactionValidationService, err := services.NewTransactionValidationService(getTransactionValidationQuery, listTransactionValidationsQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction validation service: %w", err)
-	}
-
-	// Init Audit Event service (read-only per SOX/GLBA requirements)
-	auditEventService, err := initAuditEventService(auditEventRepo)
-	if err != nil {
-		return nil, err
-	}
-
-	// Route configuration with CORS settings
-	routeConfig := &in.RouteConfig{
-		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
-		APIKeyOnlyValidation: cfg.APIKeyOnlyValidation,
-	}
-
-	// Create auth guard with all authentication configuration
-	authClient := authMiddleware.NewAuthClient(cfg.PluginAuthAddress, cfg.PluginAuthEnabled, &logger)
-	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{
-		APIKey:            cfg.APIKey,
-		APIKeyEnabled:     cfg.APIKeyEnabled,
-		PluginAuthEnabled: cfg.PluginAuthEnabled,
-		AppName:           constant.ApplicationName,
-	}, authClient)
-
-	httpApp, err := in.NewRoutes(logger, telemetry, healthChecker, routeConfig, ruleService, limitDeps.service, validationService, transactionValidationService, auditEventService, authGuard, clk)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create routes: %w", err)
-	}
-
-	serverAPI, err := NewHTTPServer(cfg, httpApp, logger, telemetry)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP server: %w", err)
 	}
 
 	// Init background workers
-	svc, err := initWorkers(cfg, limitDeps, syncWorker, serverAPI, logger)
+	svc, err := initWorkers(cfg, limitDeps, syncWorker, serverAPI, logger, clk)
 	if err != nil {
 		return nil, err
 	}

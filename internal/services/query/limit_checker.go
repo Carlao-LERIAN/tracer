@@ -639,9 +639,8 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 	serverTime := s.clock.Now()
 
 	for _, detail := range usageDetails {
-		// PER_TRANSACTION limits don't have persistent counters - skip without DB lookup
-		// InternalLimitType is now included in LimitUsageDetail to avoid N+1 queries
-		if detail.InternalLimitType == model.LimitTypePerTransaction {
+		// Skip non-mutated details: PER_TRANSACTION has no counters, skipped limits had no increment
+		if detail.InternalLimitType == model.LimitTypePerTransaction || detail.Skipped {
 			continue
 		}
 
@@ -688,11 +687,9 @@ func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.Ch
 		// Calculate scope key from the limit's scopes (stored in detail.Scopes)
 		// This ensures rollback uses the SAME key that was used during increment,
 		// preventing scope key mismatch when limits have different granularities.
-		// Legacy fallback: if Scopes is empty, use transaction scope (for backward compatibility)
-		scopeKey := model.CalculateScopeKey(txScope)
-		if len(detail.Scopes) > 0 {
-			scopeKey = calculateScopeKeyFromScopes(detail.Scopes, txScope)
-		}
+		// For global limits (empty scopes), calculateScopeKeyFromScopes returns "global",
+		// matching the key used during increment.
+		scopeKey := calculateScopeKeyFromScopes(detail.Scopes, txScope)
 
 		// Get existing counter (do NOT create one - rollback should only affect existing counters)
 		counter, err := s.usageCounterRepo.GetForUpdate(ctx, detail.LimitID, scopeKey, periodKey)

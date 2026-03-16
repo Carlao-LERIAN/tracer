@@ -21,6 +21,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 
 	"tracer/internal/services/command"
+	"tracer/pkg/clock"
 	"tracer/pkg/contextutil"
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
@@ -61,6 +62,7 @@ type ValidationService struct {
 	limitChecker              LimitChecker
 	transactionValidationRepo command.TransactionValidationRepository
 	auditWriter               AuditWriter
+	clock                     clock.Clock
 }
 
 // NewValidationService creates a new ValidationService with dependency validation.
@@ -69,6 +71,7 @@ func NewValidationService(
 	limitCheck LimitChecker,
 	transactionValidationRepo command.TransactionValidationRepository,
 	auditWriter AuditWriter,
+	clk clock.Clock,
 ) (*ValidationService, error) {
 	if ruleEval == nil {
 		return nil, ErrNilRuleEvaluator
@@ -86,11 +89,16 @@ func NewValidationService(
 		return nil, ErrNilAuditWriter
 	}
 
+	if clk == nil {
+		clk = clock.RealClock{}
+	}
+
 	return &ValidationService{
 		ruleEvaluator:             ruleEval,
 		limitChecker:              limitCheck,
 		transactionValidationRepo: transactionValidationRepo,
 		auditWriter:               auditWriter,
+		clock:                     clk,
 	}, nil
 }
 
@@ -113,7 +121,8 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 
 	logger = logging.WithTrace(ctx, logger)
 
-	startTime := time.Now()
+	startTime := time.Now() // Wall clock for latency measurement only
+	evaluatedAt := s.clock.Now().UTC()
 
 	// Generate validationId for audit record (used in both response and persistence)
 	validationID := uuid.New()
@@ -127,7 +136,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	).Info("Starting validation")
 
 	// Build response
-	response := model.NewValidationResponse(validationID, req.RequestID, model.DecisionAllow, startTime)
+	response := model.NewValidationResponse(validationID, req.RequestID, model.DecisionAllow, evaluatedAt)
 
 	// Step 1: Evaluate rules
 	evalResult, err := s.ruleEvaluator.Execute(ctx, req)

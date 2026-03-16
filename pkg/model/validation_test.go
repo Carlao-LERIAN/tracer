@@ -447,7 +447,7 @@ func TestValidationRequest_Validate_MerchantID(t *testing.T) {
 			req := baseRequest()
 			tc.modify(&req)
 
-			err := req.Validate(time.Now())
+			err := req.Validate(fixedTimestamp)
 
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)

@@ -532,7 +532,7 @@ func TestValidateTransaction(t *testing.T) {
 
 			ruleEval, limitCheck, transactionValidationRepo, auditWriter := tt.setupMocks(ctrl, persistDone)
 
-			service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+			service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
 			require.NoError(t, err)
 
 			// Create context - cancelled for context cancellation test
@@ -660,7 +660,7 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 			return nil
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -779,7 +779,7 @@ func TestNewValidationService_NilDependencies(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, err := NewValidationService(tt.ruleEval, tt.limitCheck, tt.transactionValidationRepo, tt.auditWriter)
+			service, err := NewValidationService(tt.ruleEval, tt.limitCheck, tt.transactionValidationRepo, tt.auditWriter, nil)
 
 			if tt.expectedErr != nil {
 				require.Error(t, err)
@@ -1181,7 +1181,7 @@ func TestValidate_TransactionValidationPersistenceSuccess(t *testing.T) {
 			return nil
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1255,7 +1255,7 @@ func TestValidate_AuditPersistFailure_LogsError(t *testing.T) {
 			return errors.New("database connection failed")
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1380,7 +1380,7 @@ func TestValidate_WithSegmentAndPortfolio(t *testing.T) {
 			return nil
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1410,7 +1410,7 @@ func TestValidate_NilRequest(t *testing.T) {
 
 	// No mock expectations - function should return early
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1451,7 +1451,7 @@ func TestValidate_RuleEvaluatorReturnsNil(t *testing.T) {
 
 	// No limit check or audit expected - should fail early
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1505,7 +1505,7 @@ func TestValidate_LimitCheckerReturnsNil(t *testing.T) {
 
 	// No audit expected - should fail early
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1574,7 +1574,7 @@ func TestValidate_AuditEventWriterFailure(t *testing.T) {
 			return nil
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
