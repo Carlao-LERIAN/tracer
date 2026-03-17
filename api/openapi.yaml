@@ -2378,7 +2378,7 @@ components:
           description: |-
             CurrentUsage represents the PROJECTED usage after applying the transaction amount,
             not the actual persisted counter value. This is calculated as:
-            (counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.
+            (counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.
             When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
             what the usage would have been if the transaction were allowed.
           example: "500.00"
@@ -2392,9 +2392,8 @@ components:
           format: uuid
           type: string
         period:
-          description: |-
-            Period indicates the type of limit (DAILY, MONTHLY, PER_TRANSACTION).
-            Named "period" per API Design v1.3.2 section 4.1.1.
+          description: "Period indicates the type of limit (DAILY, WEEKLY, MONTHLY,\
+            \ CUSTOM, PER_TRANSACTION)."
           type: string
         scope:
           description: |-

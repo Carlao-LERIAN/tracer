@@ -221,12 +221,11 @@ type LimitUsageDetail struct {
 	// (e.g., "account:uuid" or "segment:uuid" or "global").
 	// Per API Design v1.3.2 section 4.1.1.
 	Scope string `json:"scope"`
-	// Period indicates the type of limit (DAILY, MONTHLY, PER_TRANSACTION).
-	// Named "period" per API Design v1.3.2 section 4.1.1.
+	// Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).
 	Period LimitType `json:"period" swaggertype:"string"`
 	// CurrentUsage represents the PROJECTED usage after applying the transaction amount,
 	// not the actual persisted counter value. This is calculated as:
-	// (counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.
+	// (counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.
 	// When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
 	// what the usage would have been if the transaction were allowed.
 	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00"`

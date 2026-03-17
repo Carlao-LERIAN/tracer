@@ -2640,7 +2640,7 @@ const docTemplate = `{
                     "example": "100.00"
                 },
                 "currentUsage": {
-                    "description": "CurrentUsage represents the PROJECTED usage after applying the transaction amount,\nnot the actual persisted counter value. This is calculated as:\n(counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.\nWhen Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows\nwhat the usage would have been if the transaction were allowed.",
+                    "description": "CurrentUsage represents the PROJECTED usage after applying the transaction amount,\nnot the actual persisted counter value. This is calculated as:\n(counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.\nWhen Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows\nwhat the usage would have been if the transaction were allowed.",
                     "type": "string",
                     "example": "500.00"
                 },
@@ -2656,7 +2656,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "period": {
-                    "description": "Period indicates the type of limit (DAILY, MONTHLY, PER_TRANSACTION).\nNamed \"period\" per API Design v1.3.2 section 4.1.1.",
+                    "description": "Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).",
                     "type": "string"
                 },
                 "scope": {
