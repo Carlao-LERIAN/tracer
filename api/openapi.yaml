@@ -2365,7 +2365,7 @@ components:
         currentUsage: "500.00"
         limitAmount: "1000.00"
         limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        skipReason: skipReason
+        skipReason: outside_time_window
         skipped: true
       properties:
         attemptedAmount:
@@ -2405,6 +2405,7 @@ components:
           description: |-
             SkipReason explains why the limit was skipped (only set when Skipped=true).
             Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
+          example: outside_time_window
           type: string
         skipped:
           description: |-
@@ -2602,7 +2603,7 @@ components:
           currentUsage: "500.00"
           limitAmount: "1000.00"
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          skipReason: skipReason
+          skipReason: outside_time_window
           skipped: true
         - period: period
           exceeded: true
@@ -2611,7 +2612,7 @@ components:
           currentUsage: "500.00"
           limitAmount: "1000.00"
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          skipReason: skipReason
+          skipReason: outside_time_window
           skipped: true
         reason: reason
         amount: "100.00"
@@ -2799,7 +2800,7 @@ components:
           currentUsage: "500.00"
           limitAmount: "1000.00"
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          skipReason: skipReason
+          skipReason: outside_time_window
           skipped: true
         - period: period
           exceeded: true
@@ -2808,7 +2809,7 @@ components:
           currentUsage: "500.00"
           limitAmount: "1000.00"
           limitId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          skipReason: skipReason
+          skipReason: outside_time_window
           skipped: true
         validationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         processingTimeMs: 0

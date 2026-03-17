@@ -238,7 +238,7 @@ type LimitUsageDetail struct {
 	Skipped bool `json:"skipped,omitempty"`
 	// SkipReason explains why the limit was skipped (only set when Skipped=true).
 	// Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
-	SkipReason string `json:"skipReason,omitempty"`
+	SkipReason string `json:"skipReason,omitempty" example:"outside_time_window"`
 
 	// Internal fields for rollback operations - not serialized to JSON.
 	// InternalLimitType stores the persistent limit type for rollback logic.

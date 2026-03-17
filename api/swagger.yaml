@@ -500,6 +500,7 @@ definitions:
         description: |-
           SkipReason explains why the limit was skipped (only set when Skipped=true).
           Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
+        example: outside_time_window
         type: string
       skipped:
         description: |-

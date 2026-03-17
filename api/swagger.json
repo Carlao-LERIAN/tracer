@@ -2663,7 +2663,8 @@
                 },
                 "skipReason": {
                     "description": "SkipReason explains why the limit was skipped (only set when Skipped=true).\nValues: \"outside_time_window\" (outside active hours), \"outside_custom_period\" (outside custom date range).",
-                    "type": "string"
+                    "type": "string",
+                    "example": "outside_time_window"
                 },
                 "skipped": {
                     "description": "Skipped indicates whether this limit was skipped during evaluation (not enforced).\nWhen true, the counter was NOT incremented and Exceeded is always false.",
