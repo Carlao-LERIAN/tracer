@@ -221,12 +221,11 @@ type LimitUsageDetail struct {
 	// (e.g., "account:uuid" or "segment:uuid" or "global").
 	// Per API Design v1.3.2 section 4.1.1.
 	Scope string `json:"scope"`
-	// Period indicates the type of limit (DAILY, MONTHLY, PER_TRANSACTION).
-	// Named "period" per API Design v1.3.2 section 4.1.1.
+	// Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).
 	Period LimitType `json:"period" swaggertype:"string"`
 	// CurrentUsage represents the PROJECTED usage after applying the transaction amount,
 	// not the actual persisted counter value. This is calculated as:
-	// (counter.CurrentUsage + input.Amount) for DAILY/MONTHLY limits, or 0 for PER_TRANSACTION.
+	// (counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.
 	// When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
 	// what the usage would have been if the transaction were allowed.
 	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00"`
@@ -239,7 +238,7 @@ type LimitUsageDetail struct {
 	Skipped bool `json:"skipped,omitempty"`
 	// SkipReason explains why the limit was skipped (only set when Skipped=true).
 	// Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
-	SkipReason string `json:"skipReason,omitempty"`
+	SkipReason string `json:"skipReason,omitempty" example:"outside_time_window"`
 
 	// Internal fields for rollback operations - not serialized to JSON.
 	// InternalLimitType stores the persistent limit type for rollback logic.

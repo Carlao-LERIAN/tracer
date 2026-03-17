@@ -165,7 +165,7 @@ type ListLimitsInput struct {
 	Limit           *int    `query:"limit"`
 	Cursor          string  `query:"cursor"`
 	Status          string  `query:"status" enums:"DRAFT,ACTIVE,INACTIVE"`
-	LimitType       string  `query:"limitType" enums:"DAILY,MONTHLY,PER_TRANSACTION"`
+	LimitType       string  `query:"limitType" enums:"DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION"`
 	SortBy          string  `query:"sortBy" enums:"createdAt,updatedAt,name,maxAmount"`
 	SortOrder       string  `query:"sortOrder" enums:"ASC,DESC"`
 }
@@ -238,7 +238,7 @@ func (i *ListLimitsInput) Validate() error {
 		if !limitType.IsValid() {
 			return &ValidationError{
 				Code:    "TRC-0006",
-				Message: "limitType must be one of [DAILY MONTHLY PER_TRANSACTION]",
+				Message: "limitType must be one of [DAILY WEEKLY MONTHLY CUSTOM PER_TRANSACTION]",
 			}
 		}
 	}
@@ -522,7 +522,7 @@ func formatLimitValidationError(err error) error {
 	case "oneof":
 		return fmt.Errorf("%s must be one of [%s]", toLimitJSONFieldName(fieldName), fieldError.Param())
 	case "limittype":
-		return fmt.Errorf("%s must be one of [DAILY MONTHLY PER_TRANSACTION]", toLimitJSONFieldName(fieldName))
+		return fmt.Errorf("%s must be one of [DAILY WEEKLY MONTHLY CUSTOM PER_TRANSACTION]", toLimitJSONFieldName(fieldName))
 	case "limitstatus":
 		return fmt.Errorf("%s must be one of [DRAFT ACTIVE INACTIVE]", toLimitJSONFieldName(fieldName))
 	default:
