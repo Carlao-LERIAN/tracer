@@ -1460,10 +1460,10 @@ func TestWeekly_YearBoundary(t *testing.T) {
 }
 
 // =============================================================================
-// 8.6 CUSTOM Period + Time Window Combined (AC-09)
+// 8.6 CUSTOM Period + Time Window Combined
 // =============================================================================
 
-// TestCustomPeriodWithTimeWindow_AC09 validates AC-09: CUSTOM period combined with time window.
+// TestCustomPeriodWithTimeWindow_AC09 validates CUSTOM period combined with time window.
 // Both filters are applied as AND logic -- transaction must be inside BOTH the custom date range
 // AND the time window to be evaluated.
 //
@@ -1708,7 +1708,7 @@ func createLimitForWeeklyTest(t *testing.T, accountID, maxAmount string) string 
 }
 
 // =============================================================================
-// 8.7 PIX Compliance Pattern (AC-11)
+// 8.7 PIX Compliance Pattern
 // =============================================================================
 
 
