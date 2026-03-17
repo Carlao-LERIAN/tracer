@@ -35,265 +35,6 @@ import (
 // =============================================================================
 
 // =============================================================================
-// 8.6 PIX Compliance Pattern (AC-11)
-// =============================================================================
-
-// TestPIXCompliancePattern_AC11 validates the PIX Noturno compliance pattern:
-// two complementary DAILY limits with time windows covering day and night.
-//
-// PIX Regulation (Resolution BCB 1/2020):
-// - Daytime limits (06:00-20:00): Higher amount (e.g., R$5,000)
-// - Nighttime limits (20:00-06:00): Lower amount for fraud protection (e.g., R$1,000)
-//
-// This test verifies:
-// 1. Transaction at 10:00 (morning) → daytime limit evaluated, nighttime skipped
-// 2. Transaction at 22:00 (night) → nighttime limit evaluated, daytime skipped
-// 3. Counters are independent (different time windows = different evaluations)
-// 4. Skip behavior is correct (skipped limits don't increment counters)
-// 5. evaluatedAt timestamp is present and valid
-func TestPIXCompliancePattern_AC11(t *testing.T) {
-	accountID := uuid.New().String()
-
-	// Test Case 1: Morning transaction at EXACTLY 10:00 (daytime evaluated, nighttime skipped)
-	t.Run("morning_transaction_10h_daytime_evaluated_nighttime_skipped", func(t *testing.T) {
-		// Restart server with MOCK_TIME=10:00 (morning - PIX daytime)
-		cleanup, err := testutil_integration.RestartServerWithConfig(map[string]string{
-			"MOCK_TIME": "2026-03-11T10:00:00Z",
-		})
-		require.NoError(t, err, "Failed to restart server with MOCK_TIME")
-		defer func() {
-			err := cleanup()
-			require.NoError(t, err, "Failed to cleanup server restart")
-		}()
-
-		// Create PIX daytime limit (06:00-20:00)
-		daytimeLimitID := createLimitWithTimeWindow(t, accountID, "06:00", "20:00", "5000.00")
-		testutil.ActivateLimit(t, daytimeLimitID)
-		defer testutil.CleanupLimit(t, daytimeLimitID)
-
-		// Create PIX nighttime limit (20:00-06:00)
-		nighttimeLimitID := createLimitWithTimeWindow(t, accountID, "20:00", "06:00", "1000.00")
-		testutil.ActivateLimit(t, nighttimeLimitID)
-		defer testutil.CleanupLimit(t, nighttimeLimitID)
-
-		// Transaction timestamp slightly in the past (to pass validation window)
-		txTime := testutil.TestNow().Add(-30 * time.Second)
-
-		req := &testutil.ValidationRequest{
-			RequestID:            uuid.New().String(),
-			TransactionType:      "PIX",
-			Amount:               decimal.RequireFromString("300.00"),
-			Currency:             "BRL",
-			TransactionTimestamp: txTime.Format(time.RFC3339),
-			Account: &testutil.AccountContext{
-				ID: accountID,
-			},
-		}
-
-		resp, body := testutil.CreateValidation(t, req)
-		defer resp.Body.Close()
-
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Morning transaction should be allowed, got: %s", string(body))
-
-		var result testutil.ValidationResponse
-		err = json.Unmarshal(body, &result)
-		require.NoError(t, err)
-
-		// Assert evaluatedAt is present and valid (with MOCK_TIME, it will be the mocked time)
-		require.NotEmpty(t, result.EvaluatedAt, "evaluatedAt should be present")
-		evaluatedAt, errParse := time.Parse(time.RFC3339, result.EvaluatedAt)
-		require.NoError(t, errParse, "evaluatedAt should be valid ISO 8601")
-		// With MOCK_TIME, evaluatedAt should be the mocked time (2026-03-11T10:00:00Z)
-		assert.Equal(t, "2026-03-11T10:00:00Z", evaluatedAt.Format(time.RFC3339),
-			"evaluatedAt should be MOCK_TIME (2026-03-11T10:00:00Z)")
-
-		// Find daytime and nighttime limits in response
-		var daytimeDetail, nighttimeDetail *testutil.LimitUsageDetail
-		for i := range result.LimitUsageDetails {
-			if result.LimitUsageDetails[i].LimitID == daytimeLimitID {
-				daytimeDetail = &result.LimitUsageDetails[i]
-			}
-			if result.LimitUsageDetails[i].LimitID == nighttimeLimitID {
-				nighttimeDetail = &result.LimitUsageDetails[i]
-			}
-		}
-
-		require.NotNil(t, daytimeDetail, "Daytime limit should be in response")
-		require.NotNil(t, nighttimeDetail, "Nighttime limit should be in response")
-
-		// CRITICAL: 10:00 is INSIDE daytime window (06:00-20:00)
-		assert.False(t, daytimeDetail.Skipped, "10:00 should be inside daytime window 06:00-20:00")
-		assert.Empty(t, daytimeDetail.SkipReason)
-		assert.True(t, daytimeDetail.CurrentUsage.Equal(decimal.RequireFromString("300.00")),
-			"Daytime counter should be incremented to 300, got %s", daytimeDetail.CurrentUsage)
-		assert.False(t, daytimeDetail.Exceeded)
-
-		// CRITICAL: 10:00 is OUTSIDE nighttime window (20:00-06:00)
-		assert.True(t, nighttimeDetail.Skipped, "10:00 should be outside nighttime window 20:00-06:00")
-		assert.Equal(t, "outside_time_window", nighttimeDetail.SkipReason)
-		assert.True(t, nighttimeDetail.CurrentUsage.IsZero(),
-			"Nighttime counter should remain zero (skipped), got %s", nighttimeDetail.CurrentUsage)
-		assert.False(t, nighttimeDetail.Exceeded)
-	})
-
-	// Test Case 2: Night transaction at EXACTLY 22:00 (nighttime evaluated, daytime skipped)
-	t.Run("night_transaction_22h_nighttime_evaluated_daytime_skipped", func(t *testing.T) {
-		// Restart server with MOCK_TIME=22:00 (night - PIX nighttime)
-		cleanup, err := testutil_integration.RestartServerWithConfig(map[string]string{
-			"MOCK_TIME": "2026-03-11T22:00:00Z",
-		})
-		require.NoError(t, err, "Failed to restart server with MOCK_TIME")
-		defer func() {
-			err := cleanup()
-			require.NoError(t, err, "Failed to cleanup server restart")
-		}()
-
-		// Create PIX daytime limit (06:00-20:00)
-		daytimeLimitID := createLimitWithTimeWindow(t, accountID, "06:00", "20:00", "5000.00")
-		testutil.ActivateLimit(t, daytimeLimitID)
-		defer testutil.CleanupLimit(t, daytimeLimitID)
-
-		// Create PIX nighttime limit (20:00-06:00)
-		nighttimeLimitID := createLimitWithTimeWindow(t, accountID, "20:00", "06:00", "1000.00")
-		testutil.ActivateLimit(t, nighttimeLimitID)
-		defer testutil.CleanupLimit(t, nighttimeLimitID)
-
-		// Transaction timestamp slightly in the past
-		txTime := testutil.TestNow().Add(-30 * time.Second)
-
-		req := &testutil.ValidationRequest{
-			RequestID:            uuid.New().String(),
-			TransactionType:      "PIX",
-			Amount:               decimal.RequireFromString("200.00"),
-			Currency:             "BRL",
-			TransactionTimestamp: txTime.Format(time.RFC3339),
-			Account: &testutil.AccountContext{
-				ID: accountID,
-			},
-		}
-
-		resp, body := testutil.CreateValidation(t, req)
-		defer resp.Body.Close()
-
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Night transaction should be allowed, got: %s", string(body))
-
-		var result testutil.ValidationResponse
-		err = json.Unmarshal(body, &result)
-		require.NoError(t, err)
-
-		// Assert evaluatedAt is present and valid (with MOCK_TIME, it will be the mocked time)
-		require.NotEmpty(t, result.EvaluatedAt, "evaluatedAt should be present")
-		evaluatedAt, errParse2 := time.Parse(time.RFC3339, result.EvaluatedAt)
-		require.NoError(t, errParse2, "evaluatedAt should be valid ISO 8601")
-		// With MOCK_TIME, evaluatedAt should be the mocked time (2026-03-11T22:00:00Z)
-		assert.Equal(t, "2026-03-11T22:00:00Z", evaluatedAt.Format(time.RFC3339),
-			"evaluatedAt should be MOCK_TIME (2026-03-11T22:00:00Z)")
-
-		// Find daytime and nighttime limits in response
-		var daytimeDetail, nighttimeDetail *testutil.LimitUsageDetail
-		for i := range result.LimitUsageDetails {
-			if result.LimitUsageDetails[i].LimitID == daytimeLimitID {
-				daytimeDetail = &result.LimitUsageDetails[i]
-			}
-			if result.LimitUsageDetails[i].LimitID == nighttimeLimitID {
-				nighttimeDetail = &result.LimitUsageDetails[i]
-			}
-		}
-
-		require.NotNil(t, daytimeDetail, "Daytime limit should be in response")
-		require.NotNil(t, nighttimeDetail, "Nighttime limit should be in response")
-
-		// CRITICAL: 22:00 is OUTSIDE daytime window (06:00-20:00)
-		assert.True(t, daytimeDetail.Skipped, "22:00 should be outside daytime window 06:00-20:00")
-		assert.Equal(t, "outside_time_window", daytimeDetail.SkipReason)
-		assert.True(t, daytimeDetail.CurrentUsage.IsZero(),
-			"Daytime counter should remain zero (skipped), got %s", daytimeDetail.CurrentUsage)
-
-		// CRITICAL: 22:00 is INSIDE nighttime window (20:00-06:00)
-		assert.False(t, nighttimeDetail.Skipped, "22:00 should be inside nighttime window 20:00-06:00")
-		assert.True(t, nighttimeDetail.CurrentUsage.Equal(decimal.RequireFromString("200.00")),
-			"Nighttime counter should be incremented to 200, got %s", nighttimeDetail.CurrentUsage)
-	})
-
-	// Test Case 3: Verify counters are independent (multiple transactions accumulate correctly)
-	t.Run("counters_are_independent", func(t *testing.T) {
-		// Restart server with MOCK_TIME=10:00 (daytime - same as test 1)
-		cleanup, err := testutil_integration.RestartServerWithConfig(map[string]string{
-			"MOCK_TIME": "2026-03-11T10:00:00Z",
-		})
-		require.NoError(t, err, "Failed to restart server with MOCK_TIME")
-		defer func() {
-			err := cleanup()
-			require.NoError(t, err, "Failed to cleanup server restart")
-		}()
-
-		// Create PIX daytime limit (06:00-20:00)
-		daytimeLimitID := createLimitWithTimeWindow(t, accountID, "06:00", "20:00", "5000.00")
-		testutil.ActivateLimit(t, daytimeLimitID)
-		defer testutil.CleanupLimit(t, daytimeLimitID)
-
-		// Create PIX nighttime limit (20:00-06:00)
-		nighttimeLimitID := createLimitWithTimeWindow(t, accountID, "20:00", "06:00", "1000.00")
-		testutil.ActivateLimit(t, nighttimeLimitID)
-		defer testutil.CleanupLimit(t, nighttimeLimitID)
-
-		// Send 3 transactions to verify accumulation
-		amounts := []string{"300.00", "200.00", "150.00"}
-		var lastResult testutil.ValidationResponse
-
-		for _, amount := range amounts {
-			txTime := testutil.TestNow().Add(-30 * time.Second)
-
-			req := &testutil.ValidationRequest{
-				RequestID:            uuid.New().String(),
-				TransactionType:      "PIX",
-				Amount:               decimal.RequireFromString(amount),
-				Currency:             "BRL",
-				TransactionTimestamp: txTime.Format(time.RFC3339),
-				Account: &testutil.AccountContext{
-					ID: accountID,
-				},
-			}
-
-			resp, body := testutil.CreateValidation(t, req)
-			resp.Body.Close()
-
-			require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction should be allowed")
-
-			err := json.Unmarshal(body, &lastResult)
-			require.NoError(t, err)
-		}
-
-		// Check last result
-		result := lastResult
-
-		// Find limits
-		var daytimeDetail, nighttimeDetail *testutil.LimitUsageDetail
-		for i := range result.LimitUsageDetails {
-			if result.LimitUsageDetails[i].LimitID == daytimeLimitID {
-				daytimeDetail = &result.LimitUsageDetails[i]
-			}
-			if result.LimitUsageDetails[i].LimitID == nighttimeLimitID {
-				nighttimeDetail = &result.LimitUsageDetails[i]
-			}
-		}
-
-		require.NotNil(t, daytimeDetail, "Daytime limit should be in response")
-		require.NotNil(t, nighttimeDetail, "Nighttime limit should be in response")
-
-		// Daytime counter should accumulate: 300 + 200 + 150 = 650
-		assert.False(t, daytimeDetail.Skipped, "Daytime limit should be evaluated at 10:00")
-		assert.True(t, daytimeDetail.CurrentUsage.Equal(decimal.RequireFromString("650.00")),
-			"Daytime counter should accumulate to 650 (300+200+150), got %s", daytimeDetail.CurrentUsage)
-
-		// Nighttime counter should remain zero (skipped all daytime transactions)
-		assert.True(t, nighttimeDetail.Skipped, "Nighttime limit should be skipped at 10:00")
-		assert.True(t, nighttimeDetail.CurrentUsage.IsZero(),
-			"Nighttime counter should remain zero (always skipped during daytime), got %s", nighttimeDetail.CurrentUsage)
-	})
-}
-
-// =============================================================================
 // 8.1 Time Window Tests (4 tests)
 // =============================================================================
 
@@ -1719,7 +1460,7 @@ func TestWeekly_YearBoundary(t *testing.T) {
 }
 
 // =============================================================================
-// AC-09: CUSTOM Period + Time Window Combined
+// 8.6 CUSTOM Period + Time Window Combined (AC-09)
 // =============================================================================
 
 // TestCustomPeriodWithTimeWindow_AC09 validates AC-09: CUSTOM period combined with time window.
@@ -1964,4 +1705,264 @@ func createLimitForWeeklyTest(t *testing.T, accountID, maxAmount string) string 
 	require.True(t, ok, "Response should contain limitId")
 
 	return limitID
+}
+
+// =============================================================================
+// 8.7 PIX Compliance Pattern (AC-11)
+// =============================================================================
+
+
+// TestPIXCompliancePattern_AC11 validates the PIX Noturno compliance pattern:
+// two complementary DAILY limits with time windows covering day and night.
+//
+// PIX Regulation (Resolution BCB 1/2020):
+// - Daytime limits (06:00-20:00): Higher amount (e.g., R$5,000)
+// - Nighttime limits (20:00-06:00): Lower amount for fraud protection (e.g., R$1,000)
+//
+// This test verifies:
+// 1. Transaction at 10:00 (morning) → daytime limit evaluated, nighttime skipped
+// 2. Transaction at 22:00 (night) → nighttime limit evaluated, daytime skipped
+// 3. Counters are independent (different time windows = different evaluations)
+// 4. Skip behavior is correct (skipped limits don't increment counters)
+// 5. evaluatedAt timestamp is present and valid
+func TestPIXCompliancePattern_AC11(t *testing.T) {
+	accountID := uuid.New().String()
+
+	// Test Case 1: Morning transaction at EXACTLY 10:00 (daytime evaluated, nighttime skipped)
+	t.Run("morning_transaction_10h_daytime_evaluated_nighttime_skipped", func(t *testing.T) {
+		// Restart server with MOCK_TIME=10:00 (morning - PIX daytime)
+		cleanup, err := testutil_integration.RestartServerWithConfig(map[string]string{
+			"MOCK_TIME": "2026-03-11T10:00:00Z",
+		})
+		require.NoError(t, err, "Failed to restart server with MOCK_TIME")
+		defer func() {
+			err := cleanup()
+			require.NoError(t, err, "Failed to cleanup server restart")
+		}()
+
+		// Create PIX daytime limit (06:00-20:00)
+		daytimeLimitID := createLimitWithTimeWindow(t, accountID, "06:00", "20:00", "5000.00")
+		testutil.ActivateLimit(t, daytimeLimitID)
+		defer testutil.CleanupLimit(t, daytimeLimitID)
+
+		// Create PIX nighttime limit (20:00-06:00)
+		nighttimeLimitID := createLimitWithTimeWindow(t, accountID, "20:00", "06:00", "1000.00")
+		testutil.ActivateLimit(t, nighttimeLimitID)
+		defer testutil.CleanupLimit(t, nighttimeLimitID)
+
+		// Transaction timestamp slightly in the past (to pass validation window)
+		txTime := testutil.TestNow().Add(-30 * time.Second)
+
+		req := &testutil.ValidationRequest{
+			RequestID:            uuid.New().String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("300.00"),
+			Currency:             "BRL",
+			TransactionTimestamp: txTime.Format(time.RFC3339),
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Morning transaction should be allowed, got: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err = json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Assert evaluatedAt is present and valid (with MOCK_TIME, it will be the mocked time)
+		require.NotEmpty(t, result.EvaluatedAt, "evaluatedAt should be present")
+		evaluatedAt, errParse := time.Parse(time.RFC3339, result.EvaluatedAt)
+		require.NoError(t, errParse, "evaluatedAt should be valid ISO 8601")
+		// With MOCK_TIME, evaluatedAt should be the mocked time (2026-03-11T10:00:00Z)
+		assert.Equal(t, "2026-03-11T10:00:00Z", evaluatedAt.Format(time.RFC3339),
+			"evaluatedAt should be MOCK_TIME (2026-03-11T10:00:00Z)")
+
+		// Find daytime and nighttime limits in response
+		var daytimeDetail, nighttimeDetail *testutil.LimitUsageDetail
+		for i := range result.LimitUsageDetails {
+			if result.LimitUsageDetails[i].LimitID == daytimeLimitID {
+				daytimeDetail = &result.LimitUsageDetails[i]
+			}
+			if result.LimitUsageDetails[i].LimitID == nighttimeLimitID {
+				nighttimeDetail = &result.LimitUsageDetails[i]
+			}
+		}
+
+		require.NotNil(t, daytimeDetail, "Daytime limit should be in response")
+		require.NotNil(t, nighttimeDetail, "Nighttime limit should be in response")
+
+		// CRITICAL: 10:00 is INSIDE daytime window (06:00-20:00)
+		assert.False(t, daytimeDetail.Skipped, "10:00 should be inside daytime window 06:00-20:00")
+		assert.Empty(t, daytimeDetail.SkipReason)
+		assert.True(t, daytimeDetail.CurrentUsage.Equal(decimal.RequireFromString("300.00")),
+			"Daytime counter should be incremented to 300, got %s", daytimeDetail.CurrentUsage)
+		assert.False(t, daytimeDetail.Exceeded)
+
+		// CRITICAL: 10:00 is OUTSIDE nighttime window (20:00-06:00)
+		assert.True(t, nighttimeDetail.Skipped, "10:00 should be outside nighttime window 20:00-06:00")
+		assert.Equal(t, "outside_time_window", nighttimeDetail.SkipReason)
+		assert.True(t, nighttimeDetail.CurrentUsage.IsZero(),
+			"Nighttime counter should remain zero (skipped), got %s", nighttimeDetail.CurrentUsage)
+		assert.False(t, nighttimeDetail.Exceeded)
+	})
+
+	// Test Case 2: Night transaction at EXACTLY 22:00 (nighttime evaluated, daytime skipped)
+	t.Run("night_transaction_22h_nighttime_evaluated_daytime_skipped", func(t *testing.T) {
+		// Restart server with MOCK_TIME=22:00 (night - PIX nighttime)
+		cleanup, err := testutil_integration.RestartServerWithConfig(map[string]string{
+			"MOCK_TIME": "2026-03-11T22:00:00Z",
+		})
+		require.NoError(t, err, "Failed to restart server with MOCK_TIME")
+		defer func() {
+			err := cleanup()
+			require.NoError(t, err, "Failed to cleanup server restart")
+		}()
+
+		// Create PIX daytime limit (06:00-20:00)
+		daytimeLimitID := createLimitWithTimeWindow(t, accountID, "06:00", "20:00", "5000.00")
+		testutil.ActivateLimit(t, daytimeLimitID)
+		defer testutil.CleanupLimit(t, daytimeLimitID)
+
+		// Create PIX nighttime limit (20:00-06:00)
+		nighttimeLimitID := createLimitWithTimeWindow(t, accountID, "20:00", "06:00", "1000.00")
+		testutil.ActivateLimit(t, nighttimeLimitID)
+		defer testutil.CleanupLimit(t, nighttimeLimitID)
+
+		// Transaction timestamp slightly in the past
+		txTime := testutil.TestNow().Add(-30 * time.Second)
+
+		req := &testutil.ValidationRequest{
+			RequestID:            uuid.New().String(),
+			TransactionType:      "PIX",
+			Amount:               decimal.RequireFromString("200.00"),
+			Currency:             "BRL",
+			TransactionTimestamp: txTime.Format(time.RFC3339),
+			Account: &testutil.AccountContext{
+				ID: accountID,
+			},
+		}
+
+		resp, body := testutil.CreateValidation(t, req)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Night transaction should be allowed, got: %s", string(body))
+
+		var result testutil.ValidationResponse
+		err = json.Unmarshal(body, &result)
+		require.NoError(t, err)
+
+		// Assert evaluatedAt is present and valid (with MOCK_TIME, it will be the mocked time)
+		require.NotEmpty(t, result.EvaluatedAt, "evaluatedAt should be present")
+		evaluatedAt, errParse2 := time.Parse(time.RFC3339, result.EvaluatedAt)
+		require.NoError(t, errParse2, "evaluatedAt should be valid ISO 8601")
+		// With MOCK_TIME, evaluatedAt should be the mocked time (2026-03-11T22:00:00Z)
+		assert.Equal(t, "2026-03-11T22:00:00Z", evaluatedAt.Format(time.RFC3339),
+			"evaluatedAt should be MOCK_TIME (2026-03-11T22:00:00Z)")
+
+		// Find daytime and nighttime limits in response
+		var daytimeDetail, nighttimeDetail *testutil.LimitUsageDetail
+		for i := range result.LimitUsageDetails {
+			if result.LimitUsageDetails[i].LimitID == daytimeLimitID {
+				daytimeDetail = &result.LimitUsageDetails[i]
+			}
+			if result.LimitUsageDetails[i].LimitID == nighttimeLimitID {
+				nighttimeDetail = &result.LimitUsageDetails[i]
+			}
+		}
+
+		require.NotNil(t, daytimeDetail, "Daytime limit should be in response")
+		require.NotNil(t, nighttimeDetail, "Nighttime limit should be in response")
+
+		// CRITICAL: 22:00 is OUTSIDE daytime window (06:00-20:00)
+		assert.True(t, daytimeDetail.Skipped, "22:00 should be outside daytime window 06:00-20:00")
+		assert.Equal(t, "outside_time_window", daytimeDetail.SkipReason)
+		assert.True(t, daytimeDetail.CurrentUsage.IsZero(),
+			"Daytime counter should remain zero (skipped), got %s", daytimeDetail.CurrentUsage)
+
+		// CRITICAL: 22:00 is INSIDE nighttime window (20:00-06:00)
+		assert.False(t, nighttimeDetail.Skipped, "22:00 should be inside nighttime window 20:00-06:00")
+		assert.True(t, nighttimeDetail.CurrentUsage.Equal(decimal.RequireFromString("200.00")),
+			"Nighttime counter should be incremented to 200, got %s", nighttimeDetail.CurrentUsage)
+	})
+
+	// Test Case 3: Verify counters are independent (multiple transactions accumulate correctly)
+	t.Run("counters_are_independent", func(t *testing.T) {
+		// Restart server with MOCK_TIME=10:00 (daytime - same as test 1)
+		cleanup, err := testutil_integration.RestartServerWithConfig(map[string]string{
+			"MOCK_TIME": "2026-03-11T10:00:00Z",
+		})
+		require.NoError(t, err, "Failed to restart server with MOCK_TIME")
+		defer func() {
+			err := cleanup()
+			require.NoError(t, err, "Failed to cleanup server restart")
+		}()
+
+		// Create PIX daytime limit (06:00-20:00)
+		daytimeLimitID := createLimitWithTimeWindow(t, accountID, "06:00", "20:00", "5000.00")
+		testutil.ActivateLimit(t, daytimeLimitID)
+		defer testutil.CleanupLimit(t, daytimeLimitID)
+
+		// Create PIX nighttime limit (20:00-06:00)
+		nighttimeLimitID := createLimitWithTimeWindow(t, accountID, "20:00", "06:00", "1000.00")
+		testutil.ActivateLimit(t, nighttimeLimitID)
+		defer testutil.CleanupLimit(t, nighttimeLimitID)
+
+		// Send 3 transactions to verify accumulation
+		amounts := []string{"300.00", "200.00", "150.00"}
+		var lastResult testutil.ValidationResponse
+
+		for _, amount := range amounts {
+			txTime := testutil.TestNow().Add(-30 * time.Second)
+
+			req := &testutil.ValidationRequest{
+				RequestID:            uuid.New().String(),
+				TransactionType:      "PIX",
+				Amount:               decimal.RequireFromString(amount),
+				Currency:             "BRL",
+				TransactionTimestamp: txTime.Format(time.RFC3339),
+				Account: &testutil.AccountContext{
+					ID: accountID,
+				},
+			}
+
+			resp, body := testutil.CreateValidation(t, req)
+			resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction should be allowed")
+
+			err := json.Unmarshal(body, &lastResult)
+			require.NoError(t, err)
+		}
+
+		// Check last result
+		result := lastResult
+
+		// Find limits
+		var daytimeDetail, nighttimeDetail *testutil.LimitUsageDetail
+		for i := range result.LimitUsageDetails {
+			if result.LimitUsageDetails[i].LimitID == daytimeLimitID {
+				daytimeDetail = &result.LimitUsageDetails[i]
+			}
+			if result.LimitUsageDetails[i].LimitID == nighttimeLimitID {
+				nighttimeDetail = &result.LimitUsageDetails[i]
+			}
+		}
+
+		require.NotNil(t, daytimeDetail, "Daytime limit should be in response")
+		require.NotNil(t, nighttimeDetail, "Nighttime limit should be in response")
+
+		// Daytime counter should accumulate: 300 + 200 + 150 = 650
+		assert.False(t, daytimeDetail.Skipped, "Daytime limit should be evaluated at 10:00")
+		assert.True(t, daytimeDetail.CurrentUsage.Equal(decimal.RequireFromString("650.00")),
+			"Daytime counter should accumulate to 650 (300+200+150), got %s", daytimeDetail.CurrentUsage)
+
+		// Nighttime counter should remain zero (skipped all daytime transactions)
+		assert.True(t, nighttimeDetail.Skipped, "Nighttime limit should be skipped at 10:00")
+		assert.True(t, nighttimeDetail.CurrentUsage.IsZero(),
+			"Nighttime counter should remain zero (always skipped during daytime), got %s", nighttimeDetail.CurrentUsage)
+	})
 }
