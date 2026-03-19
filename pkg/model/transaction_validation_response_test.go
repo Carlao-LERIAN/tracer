@@ -147,3 +147,16 @@ func TestTransactionValidation_ToValidationResponse(t *testing.T) {
 		})
 	}
 }
+
+// TestTransactionValidation_ToValidationResponse_NilReceiver verifies nil-safety.
+// This is critical because FindByRequestID returns (nil, nil) for not-found cases,
+// and callers might chain .ToValidationResponse() on the result.
+func TestTransactionValidation_ToValidationResponse_NilReceiver(t *testing.T) {
+	t.Parallel()
+
+	var nilValidation *TransactionValidation = nil
+
+	result := nilValidation.ToValidationResponse()
+
+	assert.Nil(t, result, "ToValidationResponse on nil receiver should return nil")
+}

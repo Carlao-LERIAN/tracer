@@ -75,7 +75,12 @@ func NewTransactionValidation(id uuid.UUID, decision Decision, createdAt time.Ti
 // This is used for idempotency responses - when a duplicate request is detected,
 // we return the previously stored validation result.
 // EvaluatedAt is set from CreatedAt since that's when the original evaluation occurred.
+// Returns nil if the receiver is nil (defensive guard for chaining with FindByRequestID).
 func (tv *TransactionValidation) ToValidationResponse() *ValidationResponse {
+	if tv == nil {
+		return nil
+	}
+
 	// Defensive copy for LimitUsageDetails slice to prevent external mutation
 	limitDetailsCopy := make([]LimitUsageDetail, len(tv.LimitUsageDetails))
 	copy(limitDetailsCopy, tv.LimitUsageDetails)
