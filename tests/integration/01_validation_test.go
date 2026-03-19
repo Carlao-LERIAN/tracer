@@ -2447,6 +2447,8 @@ func TestValidation_1_1_55_DeactivatedRuleNotEvaluated(t *testing.T) {
 // Test 1.2.1: Retrieves validation by ID
 func TestValidation_1_2_1_RetrievesValidationByID(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(400).String()
+	// Seed 12001 avoids collision with seed 401 used in TestValidation_CompletePayload,
+	// which shares the same request_id column now enforced as UNIQUE by migration 000009.
 	requestID := testutil.MustDeterministicUUID(12001).String()
 
 	// First create a validation
