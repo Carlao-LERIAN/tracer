@@ -1312,7 +1312,7 @@ func TestTransactionValidationPostgresRepository_FindByRequestID(t *testing.T) {
 			requestID: testutil.MustDeterministicUUID(100),
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				tv := testTransactionValidation()
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
+				mock.ExpectQuery(`SELECT .+ FROM transaction_validations WHERE request_id = \$1`).
 					WithArgs(testutil.MustDeterministicUUID(100)).
 					WillReturnRows(transactionValidationRow(t, tv))
 			},
@@ -1324,7 +1324,7 @@ func TestTransactionValidationPostgresRepository_FindByRequestID(t *testing.T) {
 			name:      "returns nil,nil when not found",
 			requestID: testutil.MustDeterministicUUID(999),
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
+				mock.ExpectQuery(`SELECT .+ FROM transaction_validations WHERE request_id = \$1`).
 					WithArgs(testutil.MustDeterministicUUID(999)).
 					WillReturnError(sql.ErrNoRows)
 			},
@@ -1336,7 +1336,7 @@ func TestTransactionValidationPostgresRepository_FindByRequestID(t *testing.T) {
 			name:      "returns error when database fails",
 			requestID: testutil.MustDeterministicUUID(100),
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
+				mock.ExpectQuery(`SELECT .+ FROM transaction_validations WHERE request_id = \$1`).
 					WithArgs(testutil.MustDeterministicUUID(100)).
 					WillReturnError(errors.New("database error"))
 			},
