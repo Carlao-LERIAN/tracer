@@ -68,6 +68,35 @@ func TestTransactionValidation_ToValidationResponse(t *testing.T) {
 			},
 		},
 		{
+			name: "converts entity with nil slices to empty slices",
+			validation: &TransactionValidation{
+				ID:        validationID,
+				RequestID: requestID,
+				EvaluationResult: EvaluationResult{
+					Decision:         DecisionAllow,
+					Reason:           "No rules configured",
+					MatchedRuleIDs:   nil,
+					EvaluatedRuleIDs: nil,
+				},
+				LimitUsageDetails: nil,
+				ProcessingTimeMs:  10,
+				CreatedAt:         fixedCreatedAt,
+			},
+			wantResp: &ValidationResponse{
+				ValidationID: validationID,
+				RequestID:    requestID,
+				EvaluationResult: EvaluationResult{
+					Decision:         DecisionAllow,
+					Reason:           "No rules configured",
+					MatchedRuleIDs:   []uuid.UUID{},
+					EvaluatedRuleIDs: []uuid.UUID{},
+				},
+				LimitUsageDetails: []LimitUsageDetail{},
+				ProcessingTimeMs:  10,
+				EvaluatedAt:       fixedCreatedAt,
+			},
+		},
+		{
 			name: "converts full entity with all fields to response",
 			validation: &TransactionValidation{
 				ID:                   validationID,
