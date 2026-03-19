@@ -297,7 +297,7 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 	logger.WithFields(
 		"operation", "repository.transaction_validation.find_by_request_id",
 		"request.id", requestID.String(),
-	).Info("Finding transaction validation by request ID")
+	).Debug("Finding transaction validation by request ID")
 
 	validation, err := r.scanValidation(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
@@ -306,7 +306,7 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 			logger.WithFields(
 				"operation", "repository.transaction_validation.find_by_request_id",
 				"request.id", requestID.String(),
-			).Info("Transaction validation not found by request ID")
+			).Debug("Transaction validation not found by request ID")
 
 			return nil, nil
 		}
@@ -320,7 +320,7 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 		"operation", "repository.transaction_validation.find_by_request_id",
 		"request.id", requestID.String(),
 		"validation.id", validation.ID.String(),
-	).Info("Found transaction validation by request ID")
+	).Debug("Found transaction validation by request ID")
 
 	return validation, nil
 }
