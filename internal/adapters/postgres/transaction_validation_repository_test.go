@@ -133,7 +133,7 @@ func testTransactionValidationWithArrays() *model.TransactionValidation {
 func transactionValidationRow(t *testing.T, tv *model.TransactionValidation) *sqlmock.Rows {
 	t.Helper()
 
-	return sqlmock.NewRows(transactionValidationColumns).
+	return sqlmock.NewRows(transactionValidationColumns()).
 		AddRow(
 			tv.ID,
 			tv.RequestID,
@@ -588,7 +588,7 @@ func TestTransactionValidationPostgresRepository_List(t *testing.T) {
 			filters: nil,
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
-					WillReturnRows(sqlmock.NewRows(transactionValidationColumns))
+					WillReturnRows(sqlmock.NewRows(transactionValidationColumns()))
 			},
 			wantLen: 0,
 			wantErr: false,

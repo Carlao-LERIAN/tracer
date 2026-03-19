@@ -49,28 +49,31 @@ var validTransactionValidationDBColumns = map[string]bool{
 	"processing_time_ms": true,
 }
 
-// transactionValidationColumns defines the complete column list for SELECT queries.
+// transactionValidationColumns returns the complete column list for SELECT queries.
+// Returns a new slice each call to prevent accidental mutations.
 // Shared across GetByID, FindByRequestID, and List methods to ensure consistency.
-var transactionValidationColumns = []string{
-	"id",
-	"request_id",
-	"transaction_type",
-	"sub_type",
-	"amount",
-	"currency",
-	"transaction_timestamp",
-	"account",
-	"segment",
-	"portfolio",
-	"merchant",
-	"metadata",
-	"decision",
-	"reason",
-	"matched_rule_ids",
-	"evaluated_rule_ids",
-	"limit_usage_details",
-	"processing_time_ms",
-	"created_at",
+func transactionValidationColumns() []string {
+	return []string{
+		"id",
+		"request_id",
+		"transaction_type",
+		"sub_type",
+		"amount",
+		"currency",
+		"transaction_timestamp",
+		"account",
+		"segment",
+		"portfolio",
+		"merchant",
+		"metadata",
+		"decision",
+		"reason",
+		"matched_rule_ids",
+		"evaluated_rule_ids",
+		"limit_usage_details",
+		"processing_time_ms",
+		"created_at",
+	}
 }
 
 // TransactionValidationRepository implements TransactionValidationRepository using PostgreSQL with Squirrel query builder.
@@ -213,7 +216,7 @@ func (r *TransactionValidationRepository) GetByID(ctx context.Context, id uuid.U
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	qb := sq.Select(transactionValidationColumns...).
+	qb := sq.Select(transactionValidationColumns()...).
 		From(r.tableName).
 		Where(sq.Eq{"id": id}).
 		PlaceholderFormat(sq.Dollar)
@@ -266,7 +269,7 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	qb := sq.Select(transactionValidationColumns...).
+	qb := sq.Select(transactionValidationColumns()...).
 		From(r.tableName).
 		Where(sq.Eq{"request_id": requestID}).
 		Limit(1).
@@ -347,7 +350,7 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	qb := sq.Select(transactionValidationColumns...).
+	qb := sq.Select(transactionValidationColumns()...).
 		From(r.tableName).
 		PlaceholderFormat(sq.Dollar)
 
