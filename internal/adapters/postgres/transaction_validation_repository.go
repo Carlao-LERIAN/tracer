@@ -255,6 +255,10 @@ func (r *TransactionValidationRepository) GetByID(ctx context.Context, id uuid.U
 // Returns (validation, nil) if found.
 // Returns (nil, error) for database/infrastructure errors only.
 func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, requestID uuid.UUID) (*model.TransactionValidation, error) {
+	if requestID == uuid.Nil {
+		return nil, nil
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.transaction_validation.find_by_request_id")
