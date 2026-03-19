@@ -1855,6 +1855,45 @@ assert.Equal(t, expected2, results[1].Name)
 assert.Equal(t, expected3, results[2].Name)
 ```
 
+#### Array/Slice Content Verification
+
+Always verify the **content** of arrays/slices, not just their **length**. Length checks alone can miss bugs where size matches but elements are wrong.
+
+```go
+// WRONG - only checks length, not content
+require.Len(t, result.MatchedRuleIDs, len(expected.MatchedRuleIDs))
+require.Len(t, result.Items, 3)
+
+// CORRECT - checks length AND content
+require.Len(t, result.MatchedRuleIDs, len(expected.MatchedRuleIDs))
+require.Equal(t, expected.MatchedRuleIDs, result.MatchedRuleIDs, "MatchedRuleIDs content mismatch")
+
+// CORRECT - for unordered comparisons
+require.ElementsMatch(t, expected.Tags, result.Tags, "Tags content mismatch")
+```
+
+**When to use each:**
+- `require.Equal`: When **order matters** (IDs in evaluation order, sorted results)
+- `require.ElementsMatch`: When **order doesn't matter** (tags, sets, unordered collections)
+
+**Real Bug Example:**
+```go
+// Test passes even though UUID is wrong!
+expected := []uuid.UUID{uuid.MustParse("...001")}
+actual   := []uuid.UUID{uuid.MustParse("...999")} // BUG!
+require.Len(t, actual, len(expected)) // ✅ Passes (both length 1)
+// Missing: require.Equal(t, expected, actual) ❌
+```
+
+**Pattern to follow:**
+```go
+// Step 1: Validate length (prevents index panic)
+require.Len(t, result.Items, len(expected.Items), "unexpected number of items")
+
+// Step 2: Validate content (catches wrong values)
+require.Equal(t, expected.Items, result.Items, "items content mismatch")
+```
+
 #### Error Comparison with errors.Is
 
 Use `errors.Is` or `require.ErrorIs` instead of string matching for error assertions:
