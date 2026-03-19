@@ -125,7 +125,7 @@ func SetupTestSuite(m *testing.M) int {
 	os.Setenv("API_KEY", "test_api_key")
 	os.Setenv("API_KEY_ENABLED", "true")
 	os.Setenv("PLUGIN_AUTH_ENABLED", "false") // Disable plugin auth for integration tests
-	os.Setenv("LOG_LEVEL", "error") // Reduce noise during tests
+	os.Setenv("LOG_LEVEL", "error")           // Reduce noise during tests
 	os.Setenv("OTEL_ENABLED", "false")
 	os.Setenv("MIGRATIONS_PATH", migrationsPath)
 	os.Setenv("FAULT_INJECTION_ENABLED", "true") // Enable fault injection for integration tests
