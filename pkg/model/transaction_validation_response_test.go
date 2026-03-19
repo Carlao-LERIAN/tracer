@@ -135,10 +135,15 @@ func TestTransactionValidation_ToValidationResponse(t *testing.T) {
 			assert.Equal(t, tc.wantResp.ProcessingTimeMs, result.ProcessingTimeMs)
 			assert.Equal(t, tc.wantResp.EvaluatedAt, result.EvaluatedAt)
 
-			// Verify arrays match
+			// Verify arrays match - length
 			require.Len(t, result.MatchedRuleIDs, len(tc.wantResp.MatchedRuleIDs))
 			require.Len(t, result.EvaluatedRuleIDs, len(tc.wantResp.EvaluatedRuleIDs))
 			require.Len(t, result.LimitUsageDetails, len(tc.wantResp.LimitUsageDetails))
+
+			// Verify arrays match - content
+			require.Equal(t, tc.wantResp.MatchedRuleIDs, result.MatchedRuleIDs, "MatchedRuleIDs content mismatch")
+			require.Equal(t, tc.wantResp.EvaluatedRuleIDs, result.EvaluatedRuleIDs, "EvaluatedRuleIDs content mismatch")
+			require.Equal(t, tc.wantResp.LimitUsageDetails, result.LimitUsageDetails, "LimitUsageDetails content mismatch")
 		})
 	}
 }
