@@ -28,6 +28,10 @@ type TransactionValidationRepository interface {
 	// Returns (nil, nil) if no record exists with the given request ID (not an error).
 	// Returns (validation, nil) if found.
 	// Returns (nil, error) for database/infrastructure errors only.
+	//
+	// NOTE: Unlike GetByID (which returns ErrTransactionValidationNotFound), this method
+	// returns (nil, nil) for not-found because absence is the EXPECTED case for new requests.
+	// "Get" implies the record should exist; "Find" implies a lookup that may not match.
 	FindByRequestID(ctx context.Context, requestID uuid.UUID) (*model.TransactionValidation, error)
 
 	// List retrieves transaction validation records matching the provided filters using cursor-based pagination.
