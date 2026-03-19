@@ -269,6 +269,7 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 	qb := sq.Select(transactionValidationColumns...).
 		From(r.tableName).
 		Where(sq.Eq{"request_id": requestID}).
+		Limit(1).
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err := qb.ToSql()
