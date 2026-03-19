@@ -177,6 +177,49 @@ func TestTransactionValidation_ToValidationResponse(t *testing.T) {
 	}
 }
 
+// TestTransactionValidation_ToValidationResponse_DefensiveCopy verifies that mutating the
+// response does not affect the original entity. Without this test, the defensive copy logic
+// in ToValidationResponse could be removed and all other tests would still pass.
+func TestTransactionValidation_ToValidationResponse_DefensiveCopy(t *testing.T) {
+	t.Parallel()
+
+	originalRuleID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440010")
+	originalLimitID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440030")
+
+	tv := &TransactionValidation{
+		ID:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"),
+		RequestID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440100"),
+		EvaluationResult: EvaluationResult{
+			Decision:         DecisionDeny,
+			Reason:           "High risk",
+			MatchedRuleIDs:   []uuid.UUID{originalRuleID},
+			EvaluatedRuleIDs: []uuid.UUID{originalRuleID},
+		},
+		LimitUsageDetails: []LimitUsageDetail{
+			{
+				LimitID:      originalLimitID,
+				LimitAmount:  decimal.RequireFromString("1000.00"),
+				CurrentUsage: decimal.RequireFromString("500.00"),
+				Exceeded:     false,
+			},
+		},
+		ProcessingTimeMs: 50,
+		CreatedAt:        time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC),
+	}
+
+	resp := tv.ToValidationResponse()
+
+	// Mutate all response slices
+	resp.MatchedRuleIDs[0] = uuid.Nil
+	resp.EvaluatedRuleIDs[0] = uuid.Nil
+	resp.LimitUsageDetails[0].Exceeded = true
+
+	// Original entity must remain unchanged
+	assert.Equal(t, originalRuleID, tv.MatchedRuleIDs[0], "original MatchedRuleIDs mutated via response")
+	assert.Equal(t, originalRuleID, tv.EvaluatedRuleIDs[0], "original EvaluatedRuleIDs mutated via response")
+	assert.False(t, tv.LimitUsageDetails[0].Exceeded, "original LimitUsageDetails mutated via response")
+}
+
 // TestTransactionValidation_ToValidationResponse_NilReceiver verifies nil-safety.
 // This is critical because FindByRequestID returns (nil, nil) for not-found cases,
 // and callers might chain .ToValidationResponse() on the result.
