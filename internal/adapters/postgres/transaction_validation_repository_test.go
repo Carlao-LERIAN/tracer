@@ -127,38 +127,13 @@ func testTransactionValidationWithArrays() *model.TransactionValidation {
 	}
 }
 
-// transactionValidationColumns returns the column names for transaction validation queries.
-func transactionValidationColumns() []string {
-	return []string{
-		"id",
-		"request_id",
-		"transaction_type",
-		"sub_type",
-		"amount",
-		"currency",
-		"transaction_timestamp",
-		"account",
-		"segment",
-		"portfolio",
-		"merchant",
-		"metadata",
-		"decision",
-		"reason",
-		"matched_rule_ids",
-		"evaluated_rule_ids",
-		"limit_usage_details",
-		"processing_time_ms",
-		"created_at",
-	}
-}
-
 // transactionValidationRow creates a sqlmock row from a TransactionValidation.
 // Uses helper functions mustMarshalJSON, mustMarshalJSONOrEmpty, and uuidSliceToStrings
 // for consistent JSON marshaling and UUID conversion across all tests.
 func transactionValidationRow(t *testing.T, tv *model.TransactionValidation) *sqlmock.Rows {
 	t.Helper()
 
-	return sqlmock.NewRows(transactionValidationColumns()).
+	return sqlmock.NewRows(transactionValidationColumns).
 		AddRow(
 			tv.ID,
 			tv.RequestID,
@@ -613,7 +588,7 @@ func TestTransactionValidationPostgresRepository_List(t *testing.T) {
 			filters: nil,
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
-					WillReturnRows(sqlmock.NewRows(transactionValidationColumns()))
+					WillReturnRows(sqlmock.NewRows(transactionValidationColumns))
 			},
 			wantLen: 0,
 			wantErr: false,
