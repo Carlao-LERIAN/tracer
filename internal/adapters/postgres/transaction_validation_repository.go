@@ -242,6 +242,89 @@ func (r *TransactionValidationRepository) GetByID(ctx context.Context, id uuid.U
 	return validation, nil
 }
 
+// FindByRequestID retrieves a transaction validation record by its request ID.
+// Used for idempotency checks to detect duplicate validation requests.
+// Returns (nil, nil) if no record exists with the given request ID (not an error).
+// Returns (validation, nil) if found.
+// Returns (nil, error) for database/infrastructure errors only.
+func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, requestID uuid.UUID) (*model.TransactionValidation, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.transaction_validation.find_by_request_id")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	db, err := r.conn.GetDB()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
+	}
+
+	qb := sq.Select(
+		"id",
+		"request_id",
+		"transaction_type",
+		"sub_type",
+		"amount",
+		"currency",
+		"transaction_timestamp",
+		"account",
+		"segment",
+		"portfolio",
+		"merchant",
+		"metadata",
+		"decision",
+		"reason",
+		"matched_rule_ids",
+		"evaluated_rule_ids",
+		"limit_usage_details",
+		"processing_time_ms",
+		"created_at",
+	).
+		From(r.tableName).
+		Where(sq.Eq{"request_id": requestID}).
+		PlaceholderFormat(sq.Dollar)
+
+	sqlStr, args, err := qb.ToSql()
+	if err != nil {
+		libOtel.HandleSpanError(&span, "Failed to build query", err)
+
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	logger.WithFields(
+		"operation", "repository.transaction_validation.find_by_request_id",
+		"request.id", requestID.String(),
+	).Info("Finding transaction validation by request ID")
+
+	validation, err := r.scanValidation(ctx, db.QueryRowContext(ctx, sqlStr, args...))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Not found is NOT an error for FindByRequestID - return (nil, nil)
+			logger.WithFields(
+				"operation", "repository.transaction_validation.find_by_request_id",
+				"request.id", requestID.String(),
+			).Info("Transaction validation not found by request ID")
+
+			return nil, nil
+		}
+
+		libOtel.HandleSpanError(&span, "Failed to find transaction validation by request ID", err)
+
+		return nil, fmt.Errorf("failed to find transaction validation by request ID: %w", err)
+	}
+
+	logger.WithFields(
+		"operation", "repository.transaction_validation.find_by_request_id",
+		"request.id", requestID.String(),
+		"validation.id", validation.ID.String(),
+	).Info("Found transaction validation by request ID")
+
+	return validation, nil
+}
+
 // List retrieves transaction validation records matching the provided filters using cursor-based pagination.
 // If filters is nil, defaults are applied (last 90 days, limit 100).
 // Results are ordered by the specified sortBy field (default: created_at DESC).

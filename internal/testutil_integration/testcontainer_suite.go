@@ -37,6 +37,7 @@ var envVarNames = []string{
 	"SERVER_ADDRESS",
 	"API_KEY",
 	"API_KEY_ENABLED",
+	"PLUGIN_AUTH_ENABLED",
 	"LOG_LEVEL",
 	"OTEL_ENABLED",
 	"MIGRATIONS_PATH",
@@ -123,6 +124,7 @@ func SetupTestSuite(m *testing.M) int {
 	os.Setenv("SERVER_ADDRESS", fmt.Sprintf("127.0.0.1:%d", port))
 	os.Setenv("API_KEY", "test_api_key")
 	os.Setenv("API_KEY_ENABLED", "true")
+	os.Setenv("PLUGIN_AUTH_ENABLED", "false") // Disable plugin auth for integration tests
 	os.Setenv("LOG_LEVEL", "error") // Reduce noise during tests
 	os.Setenv("OTEL_ENABLED", "false")
 	os.Setenv("MIGRATIONS_PATH", migrationsPath)

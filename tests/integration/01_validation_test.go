@@ -2447,7 +2447,7 @@ func TestValidation_1_1_55_DeactivatedRuleNotEvaluated(t *testing.T) {
 // Test 1.2.1: Retrieves validation by ID
 func TestValidation_1_2_1_RetrievesValidationByID(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(400).String()
-	requestID := testutil.MustDeterministicUUID(401).String()
+	requestID := testutil.MustDeterministicUUID(12001).String()
 
 	// First create a validation
 	req := &testutil.ValidationRequest{

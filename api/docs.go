@@ -2635,7 +2635,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "attemptedAmount": {
-                    "description": "AttemptedAmount is the transaction amount being validated.\nPer API Design v1.3.2 section 4.1.1.",
+                    "description": "AttemptedAmount is the transaction amount being validated against this limit.\nMatches the amount from the validation request.",
                     "type": "string",
                     "example": "100.00"
                 },
@@ -2660,7 +2660,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "scope": {
-                    "description": "Scope is a human-readable string representation of the limit's scope\n(e.g., \"account:uuid\" or \"segment:uuid\" or \"global\").\nPer API Design v1.3.2 section 4.1.1.",
+                    "description": "Scope is a human-readable string representation of the limit's scope\n(e.g., \"account:uuid\" or \"segment:uuid\" or \"global\").\nPer section 4.1.1.",
                     "type": "string"
                 },
                 "skipReason": {
