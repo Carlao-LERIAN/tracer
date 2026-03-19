@@ -291,6 +291,8 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// Not found is NOT an error for FindByRequestID - return (nil, nil)
+			span.AddEvent("request_id_not_found")
+
 			logger.WithFields(
 				"operation", "repository.transaction_validation.find_by_request_id",
 				"request.id", requestID.String(),
