@@ -1377,6 +1377,16 @@ func TestTransactionValidationPostgresRepository_FindByRequestID(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, tt.want.RequestID, result.RequestID)
 				assert.Equal(t, tt.want.Decision, result.Decision)
+				assert.Equal(t, tt.want.Reason, result.Reason)
+				assert.Equal(t, tt.want.ProcessingTimeMs, result.ProcessingTimeMs)
+
+				// Verify arrays match - length and content (per PROJECT_RULES.md)
+				require.Len(t, result.MatchedRuleIDs, len(tt.want.MatchedRuleIDs))
+				require.Equal(t, tt.want.MatchedRuleIDs, result.MatchedRuleIDs, "MatchedRuleIDs content mismatch")
+				require.Len(t, result.EvaluatedRuleIDs, len(tt.want.EvaluatedRuleIDs))
+				require.Equal(t, tt.want.EvaluatedRuleIDs, result.EvaluatedRuleIDs, "EvaluatedRuleIDs content mismatch")
+				require.Len(t, result.LimitUsageDetails, len(tt.want.LimitUsageDetails))
+				require.Equal(t, tt.want.LimitUsageDetails, result.LimitUsageDetails, "LimitUsageDetails content mismatch")
 			}
 
 			require.NoError(t, sqlMock.ExpectationsWereMet())
