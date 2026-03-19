@@ -1344,6 +1344,16 @@ func TestTransactionValidationPostgresRepository_FindByRequestID(t *testing.T) {
 			wantErr: true,
 			wantNil: false,
 		},
+		{
+			name:      "returns nil,nil for uuid.Nil without hitting database",
+			requestID: uuid.Nil,
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// No expectations - uuid.Nil should short-circuit before any DB call
+			},
+			want:    nil,
+			wantErr: false,
+			wantNil: true,
+		},
 	}
 
 	for _, tt := range tests {
