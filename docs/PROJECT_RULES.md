@@ -3186,3 +3186,4 @@ otel.SetTracerProvider(tp)  // Set global provider for lib-commons
 2. **NEVER run `git push` without explicit user approval**
 3. **NEVER modify files outside the scope of the requested task**
 4. **Always ask for confirmation before destructive operations**
+5. **NEVER include test execution results in commit messages** - Do not mention test counts, pass/fail status, or coverage numbers. Commit messages describe *what* changed and *why*, not verification results.
