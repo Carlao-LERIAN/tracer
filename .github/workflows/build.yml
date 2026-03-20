@@ -23,7 +23,7 @@ jobs:
 
   update_gitops:
     needs: [build]
-    if: needs.build.result == 'success'
+    if: needs.build.result == 'success' && needs.build.outputs.has_builds == 'true'
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.18.1
     with:
       runner_type: "firmino-lxc-runners"

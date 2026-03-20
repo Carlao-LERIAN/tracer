@@ -34,7 +34,8 @@ WORKDIR /app
 COPY --from=builder /app/tracer /app/tracer
 COPY --from=builder /tracer/migrations /app/migrations
 
-# distroless:nonroot already runs as non-root user (uid 65532)
+# Explicitly set non-root user for Docker Hub health score compliance
+USER nonroot:nonroot
 
 EXPOSE 8080 7001
 
