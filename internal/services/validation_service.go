@@ -21,6 +21,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 
 	"tracer/internal/services/command"
+	"tracer/internal/services/query"
 	"tracer/pkg/clock"
 	"tracer/pkg/contextutil"
 	"tracer/pkg/logging"
@@ -39,11 +40,20 @@ const validationRollbackTimeout = 5 * time.Second
 
 // Sentinel errors for ValidationService constructor validation.
 var (
-	ErrNilRuleEvaluator             = errors.New("rule evaluator cannot be nil")
-	ErrNilLimitChecker              = errors.New("limit checker cannot be nil")
-	ErrNilTransactionValidationRepo = errors.New("transaction validation repository cannot be nil")
-	ErrNilAuditWriter               = errors.New("auditWriter cannot be nil")
+	ErrNilRuleEvaluator                  = errors.New("rule evaluator cannot be nil")
+	ErrNilLimitChecker                   = errors.New("limit checker cannot be nil")
+	ErrNilTransactionValidationRepo      = errors.New("transaction validation repository cannot be nil")
+	ErrNilTransactionValidationQueryRepo = errors.New("transaction validation query repository cannot be nil")
+	ErrNilAuditWriter                    = errors.New("auditWriter cannot be nil")
 )
+
+// ValidateResult is the result of transaction validation including idempotency information.
+// IsDuplicate is true when the same request_id was already processed - the handler uses
+// this to return HTTP 200 (duplicate) vs HTTP 201 (new).
+type ValidateResult struct {
+	Response    *model.ValidationResponse
+	IsDuplicate bool
+}
 
 // RuleEvaluator evaluates transaction rules.
 type RuleEvaluator interface {
@@ -56,13 +66,20 @@ type LimitChecker interface {
 	RollbackUsage(ctx context.Context, input *model.CheckLimitsInput, usageDetails []model.LimitUsageDetail) error
 }
 
+// TransactionValidationQueryRepository defines read operations for transaction validations.
+// Used for idempotency checks via FindByRequestID.
+type TransactionValidationQueryRepository interface {
+	FindByRequestID(ctx context.Context, requestID uuid.UUID) (*model.TransactionValidation, error)
+}
+
 // ValidationService orchestrates transaction validation.
 type ValidationService struct {
-	ruleEvaluator             RuleEvaluator
-	limitChecker              LimitChecker
-	transactionValidationRepo command.TransactionValidationRepository
-	auditWriter               AuditWriter
-	clock                     clock.Clock
+	ruleEvaluator                  RuleEvaluator
+	limitChecker                   LimitChecker
+	transactionValidationRepo      command.TransactionValidationRepository
+	transactionValidationQueryRepo query.TransactionValidationRepository
+	auditWriter                    AuditWriter
+	clock                          clock.Clock
 }
 
 // NewValidationService creates a new ValidationService with dependency validation.
@@ -70,6 +87,7 @@ func NewValidationService(
 	ruleEval RuleEvaluator,
 	limitCheck LimitChecker,
 	transactionValidationRepo command.TransactionValidationRepository,
+	transactionValidationQueryRepo query.TransactionValidationRepository,
 	auditWriter AuditWriter,
 	clk clock.Clock,
 ) (*ValidationService, error) {
@@ -85,6 +103,10 @@ func NewValidationService(
 		return nil, ErrNilTransactionValidationRepo
 	}
 
+	if transactionValidationQueryRepo == nil {
+		return nil, ErrNilTransactionValidationQueryRepo
+	}
+
 	if auditWriter == nil {
 		return nil, ErrNilAuditWriter
 	}
@@ -94,17 +116,19 @@ func NewValidationService(
 	}
 
 	return &ValidationService{
-		ruleEvaluator:             ruleEval,
-		limitChecker:              limitCheck,
-		transactionValidationRepo: transactionValidationRepo,
-		auditWriter:               auditWriter,
-		clock:                     clk,
+		ruleEvaluator:                  ruleEval,
+		limitChecker:                   limitCheck,
+		transactionValidationRepo:      transactionValidationRepo,
+		transactionValidationQueryRepo: transactionValidationQueryRepo,
+		auditWriter:                    auditWriter,
+		clock:                          clk,
 	}, nil
 }
 
-// Validate orchestrates the transaction validation flow.
+// Validate orchestrates the transaction validation flow with idempotency support.
+// Returns ValidateResult with IsDuplicate=true for duplicate requests (DD-3: Stripe model).
 // Decision precedence: DENY > Limit Exceeded > REVIEW > ALLOW > Default.
-func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationRequest) (*model.ValidationResponse, error) {
+func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationRequest) (*ValidateResult, error) {
 	// Check context cancellation FIRST
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -120,6 +144,31 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)
+
+	// Step 0: Check for duplicate request (DD-3: Stripe model deduplication)
+	// This is done BEFORE any processing to avoid double-counting limits.
+	existingValidation, err := s.transactionValidationQueryRepo.FindByRequestID(ctx, req.RequestID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "failed to check for duplicate request", err)
+
+		return nil, fmt.Errorf("failed to check for duplicate request: %w", err)
+	}
+
+	if existingValidation != nil {
+		// Duplicate detected - return cached response without processing
+		logger.WithFields(
+			"operation", "service.validation.orchestrate",
+			"request.id", req.RequestID,
+			"existing.validation.id", existingValidation.ID,
+		).Info("Duplicate request detected - returning cached response")
+
+		span.AddEvent("duplicate_request_detected")
+
+		return &ValidateResult{
+			Response:    existingValidation.ToValidationResponse(),
+			IsDuplicate: true,
+		}, nil
+	}
 
 	startTime := time.Now() // Wall clock for latency measurement only
 	evaluatedAt := s.clock.Now().UTC()
@@ -168,7 +217,10 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 			"decision", "DENY",
 		).Info("Validation completed (by rule)")
 
-		return response, nil
+		return &ValidateResult{
+			Response:    response,
+			IsDuplicate: false,
+		}, nil
 	}
 
 	// Step 2: Check limits (only if not DENY by rule)
@@ -205,7 +257,10 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 			"reason", "limit_exceeded",
 		).Info("Validation completed (limit exceeded)")
 
-		return response, nil
+		return &ValidateResult{
+			Response:    response,
+			IsDuplicate: false,
+		}, nil
 	}
 
 	// Step 3: If rules returned REVIEW, rollback usage increments
@@ -269,7 +324,10 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		).Info("Validation completed")
 	}
 
-	return response, nil
+	return &ValidateResult{
+		Response:    response,
+		IsDuplicate: false,
+	}, nil
 }
 
 // persistTransactionValidation persists a transaction validation record synchronously.
