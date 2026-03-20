@@ -22,6 +22,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/internal/adapters/postgres/db/mocks"
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
@@ -1563,6 +1564,5 @@ func TestTransactionValidationPostgresRepository_InsertWithTx_NilDB(t *testing.T
 	ctx := context.Background()
 	err := repo.InsertWithTx(ctx, nil, tv)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "db connection cannot be nil")
+	require.ErrorIs(t, err, pgdb.ErrNilConnection)
 }

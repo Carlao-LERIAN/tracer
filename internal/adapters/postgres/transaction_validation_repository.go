@@ -131,7 +131,7 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 // Uses the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
 func (r *TransactionValidationRepository) InsertWithTx(ctx context.Context, db pgdb.DB, validation *model.TransactionValidation) error {
 	if db == nil {
-		return errors.New("db connection cannot be nil")
+		return pgdb.ErrNilConnection
 	}
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
