@@ -155,7 +155,10 @@ func (r *TransactionValidationRepository) insertInternal(
 	span *trace.Span,
 ) error {
 	if validation == nil {
-		return errors.New("validation cannot be nil")
+		err := errors.New("validation cannot be nil")
+		libOtel.HandleSpanError(span, "Nil validation input", err)
+
+		return err
 	}
 
 	// Convert domain entity to database model using FromEntity pattern
