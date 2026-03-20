@@ -5301,7 +5301,7 @@ func TestCalculateCounterExpiresAt_RetentionDays(t *testing.T) {
 // a pgdb.DB parameter. When those repos gain WithTx variants, update these expectations
 // to verify the db parameter is propagated (e.g., gomock.Eq(mockDB) instead of gomock.Any()).
 //
-// TODO(T-003): When repos support WithTx, add gomock.Eq(mockDB) expectations
+// NOTE: When repos support WithTx, add gomock.Eq(mockDB) expectations
 // to verify db parameter is forwarded correctly.
 func TestLimitCheckerService_CheckLimitsWithTx(t *testing.T) {
 	// Test UUIDs - seed range: 15000-15100
@@ -5484,7 +5484,7 @@ func TestLimitCheckerService_CheckLimitsWithTx(t *testing.T) {
 // NOTE: Currently this test only verifies the method accepts and runs with a mockDB.
 // It does not assert the db is forwarded to repos because they lack WithTx variants.
 //
-// TODO(T-003): When repos support WithTx, add gomock.Eq(mockDB) expectations here.
+// NOTE: When repos support WithTx, add gomock.Eq(mockDB) expectations here.
 func TestLimitCheckerService_CheckLimitsWithTx_UsesProvidedDB(t *testing.T) {
 	// Test UUIDs - seed range: 15200-15300
 	limitID1 := testutil.MustDeterministicUUID(15201)
