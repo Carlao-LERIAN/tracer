@@ -213,13 +213,11 @@ func (r *ValidationRequest) NormalizeAndValidate(now time.Time) error {
 // LimitUsageDetail contains usage information for a checked limit.
 // Amounts are expressed as decimal values.
 // Note: RemainingAmount is calculated as (LimitAmount - CurrentUsage), not stored.
-// Aligned with section 4.1.1 LimitUsage structure.
 type LimitUsageDetail struct {
 	LimitID     uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
 	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string" example:"1000.00"`
 	// Scope is a human-readable string representation of the limit's scope
 	// (e.g., "account:uuid" or "segment:uuid" or "global").
-	// Per section 4.1.1.
 	Scope string `json:"scope"`
 	// Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).
 	Period LimitType `json:"period" swaggertype:"string"`
