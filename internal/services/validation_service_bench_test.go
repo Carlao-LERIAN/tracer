@@ -15,6 +15,7 @@ import (
 
 	commandMocks "tracer/internal/services/command/mocks"
 	"tracer/internal/services/mocks"
+	queryMocks "tracer/internal/services/query/mocks"
 	"tracer/internal/testutil"
 	"tracer/pkg/model"
 )
@@ -28,6 +29,7 @@ func BenchmarkValidationService_Validate(b *testing.B) {
 	mockRuleEval := mocks.NewMockRuleEvaluator(ctrl)
 	mockLimitCheck := mocks.NewMockLimitChecker(ctrl)
 	mockAuditRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	mockAuditQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
 
 	// Setup mock responses
 	evalResult, err := model.NewEvaluationResult(
@@ -44,6 +46,12 @@ func BenchmarkValidationService_Validate(b *testing.B) {
 		Allowed:           true,
 		LimitUsageDetails: []model.LimitUsageDetail{},
 	}
+
+	// FindByRequestID returns nil (no existing record) - new request
+	mockAuditQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
 
 	mockRuleEval.EXPECT().
 		Execute(gomock.Any(), gomock.Any()).
@@ -66,7 +74,7 @@ func BenchmarkValidationService_Validate(b *testing.B) {
 		Return(nil).
 		AnyTimes()
 
-	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditWriter, nil)
+	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditQueryRepo, mockAuditWriter, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -101,6 +109,7 @@ func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 	mockRuleEval := mocks.NewMockRuleEvaluator(ctrl)
 	mockLimitCheck := mocks.NewMockLimitChecker(ctrl)
 	mockAuditRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	mockAuditQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
 
 	// Setup mock to return DENY (should skip limit check)
 	evalResult, err := model.NewEvaluationResult(
@@ -112,6 +121,12 @@ func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+
+	// FindByRequestID returns nil (no existing record) - new request
+	mockAuditQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
 
 	mockRuleEval.EXPECT().
 		Execute(gomock.Any(), gomock.Any()).
@@ -134,7 +149,7 @@ func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 		Return(nil).
 		AnyTimes()
 
-	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditWriter, nil)
+	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditQueryRepo, mockAuditWriter, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -169,6 +184,7 @@ func BenchmarkValidationService_Validate_Parallel(b *testing.B) {
 	mockRuleEval := mocks.NewMockRuleEvaluator(ctrl)
 	mockLimitCheck := mocks.NewMockLimitChecker(ctrl)
 	mockAuditRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	mockAuditQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
 
 	evalResult, err := model.NewEvaluationResult(
 		model.DecisionAllow,
@@ -184,6 +200,12 @@ func BenchmarkValidationService_Validate_Parallel(b *testing.B) {
 		Allowed:           true,
 		LimitUsageDetails: []model.LimitUsageDetail{},
 	}
+
+	// FindByRequestID returns nil (no existing record) - new request
+	mockAuditQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
 
 	mockRuleEval.EXPECT().
 		Execute(gomock.Any(), gomock.Any()).
@@ -206,7 +228,7 @@ func BenchmarkValidationService_Validate_Parallel(b *testing.B) {
 		Return(nil).
 		AnyTimes()
 
-	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditWriter, nil)
+	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditQueryRepo, mockAuditWriter, nil)
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -24,6 +24,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"tracer/internal/adapters/http/in/mocks"
+	"tracer/internal/services"
 	"tracer/internal/testutil"
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
@@ -61,21 +62,24 @@ func TestValidationHandler_Validate(t *testing.T) {
 				mockService := mocks.NewMockValidationService(ctrl)
 				mockService.EXPECT().
 					Validate(gomock.Any(), gomock.Any()).
-					Return(&model.ValidationResponse{
-						ValidationID: testutil.MustDeterministicUUID(10),
-						RequestID:    validRequestID,
-						EvaluationResult: model.EvaluationResult{
-							Decision:         model.DecisionAllow,
-							MatchedRuleIDs:   []uuid.UUID{},
-							EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(11)},
-							Reason:           "No matching rules found",
+					Return(&services.ValidateResult{
+						Response: &model.ValidationResponse{
+							ValidationID: testutil.MustDeterministicUUID(10),
+							RequestID:    validRequestID,
+							EvaluationResult: model.EvaluationResult{
+								Decision:         model.DecisionAllow,
+								MatchedRuleIDs:   []uuid.UUID{},
+								EvaluatedRuleIDs: []uuid.UUID{testutil.MustDeterministicUUID(11)},
+								Reason:           "No matching rules found",
+							},
+							LimitUsageDetails: []model.LimitUsageDetail{},
+							ProcessingTimeMs:  15,
 						},
-						LimitUsageDetails: []model.LimitUsageDetail{},
-						ProcessingTimeMs:  15,
+						IsDuplicate: false,
 					}, nil)
 				return mockService
 			},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 			expectedBody: func(t *testing.T, body []byte) {
 				var response model.ValidationResponse
 				err := json.Unmarshal(body, &response)
@@ -93,21 +97,24 @@ func TestValidationHandler_Validate(t *testing.T) {
 				matchedRuleID := testutil.MustDeterministicUUID(20)
 				mockService.EXPECT().
 					Validate(gomock.Any(), gomock.Any()).
-					Return(&model.ValidationResponse{
-						ValidationID: testutil.MustDeterministicUUID(21),
-						RequestID:    validRequestID,
-						EvaluationResult: model.EvaluationResult{
-							Decision:         model.DecisionDeny,
-							MatchedRuleIDs:   []uuid.UUID{matchedRuleID},
-							EvaluatedRuleIDs: []uuid.UUID{matchedRuleID},
-							Reason:           "High-risk transaction blocked",
+					Return(&services.ValidateResult{
+						Response: &model.ValidationResponse{
+							ValidationID: testutil.MustDeterministicUUID(21),
+							RequestID:    validRequestID,
+							EvaluationResult: model.EvaluationResult{
+								Decision:         model.DecisionDeny,
+								MatchedRuleIDs:   []uuid.UUID{matchedRuleID},
+								EvaluatedRuleIDs: []uuid.UUID{matchedRuleID},
+								Reason:           "High-risk transaction blocked",
+							},
+							LimitUsageDetails: []model.LimitUsageDetail{},
+							ProcessingTimeMs:  20,
 						},
-						LimitUsageDetails: []model.LimitUsageDetail{},
-						ProcessingTimeMs:  20,
+						IsDuplicate: false,
 					}, nil)
 				return mockService
 			},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 			expectedBody: func(t *testing.T, body []byte) {
 				var response model.ValidationResponse
 				err := json.Unmarshal(body, &response)
@@ -124,28 +131,31 @@ func TestValidationHandler_Validate(t *testing.T) {
 				limitID := testutil.MustDeterministicUUID(30)
 				mockService.EXPECT().
 					Validate(gomock.Any(), gomock.Any()).
-					Return(&model.ValidationResponse{
-						ValidationID: testutil.MustDeterministicUUID(31),
-						RequestID:    validRequestID,
-						EvaluationResult: model.EvaluationResult{
-							Decision:         model.DecisionAllow,
-							MatchedRuleIDs:   []uuid.UUID{},
-							EvaluatedRuleIDs: []uuid.UUID{},
-							Reason:           "Transaction approved",
-						},
-						LimitUsageDetails: []model.LimitUsageDetail{
-							{
-								LimitID:      limitID,
-								LimitAmount:  decimal.RequireFromString("1000"), // $1000.00
-								CurrentUsage: decimal.RequireFromString("500"),  // $500.00
-								Exceeded:     false,
+					Return(&services.ValidateResult{
+						Response: &model.ValidationResponse{
+							ValidationID: testutil.MustDeterministicUUID(31),
+							RequestID:    validRequestID,
+							EvaluationResult: model.EvaluationResult{
+								Decision:         model.DecisionAllow,
+								MatchedRuleIDs:   []uuid.UUID{},
+								EvaluatedRuleIDs: []uuid.UUID{},
+								Reason:           "Transaction approved",
 							},
+							LimitUsageDetails: []model.LimitUsageDetail{
+								{
+									LimitID:      limitID,
+									LimitAmount:  decimal.RequireFromString("1000"), // $1000.00
+									CurrentUsage: decimal.RequireFromString("500"),  // $500.00
+									Exceeded:     false,
+								},
+							},
+							ProcessingTimeMs: 25,
 						},
-						ProcessingTimeMs: 25,
+						IsDuplicate: false,
 					}, nil)
 				return mockService
 			},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 			expectedBody: func(t *testing.T, body []byte) {
 				var response model.ValidationResponse
 				err := json.Unmarshal(body, &response)
@@ -516,7 +526,7 @@ func TestValidationHandler_Validate_PayloadSizeCheck(t *testing.T) {
 		{
 			name:           "payload at limit (100KB) is accepted",
 			payloadSize:    100 * 1024, // 100KB exactly
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "payload over limit (100KB+1) is rejected",
@@ -532,19 +542,22 @@ func TestValidationHandler_Validate_PayloadSizeCheck(t *testing.T) {
 			mockService := mocks.NewMockValidationService(ctrl)
 
 			// Only expect service call if payload is within limit
-			if tt.expectedStatus == http.StatusOK {
+			if tt.expectedStatus == http.StatusCreated {
 				mockService.EXPECT().
 					Validate(gomock.Any(), gomock.Any()).
-					Return(&model.ValidationResponse{
-						ValidationID: testutil.MustDeterministicUUID(110),
-						RequestID:    testutil.MustDeterministicUUID(111),
-						EvaluationResult: model.EvaluationResult{
-							Decision:         model.DecisionAllow,
-							MatchedRuleIDs:   []uuid.UUID{},
-							EvaluatedRuleIDs: []uuid.UUID{},
-							Reason:           "approved",
+					Return(&services.ValidateResult{
+						Response: &model.ValidationResponse{
+							ValidationID: testutil.MustDeterministicUUID(110),
+							RequestID:    testutil.MustDeterministicUUID(111),
+							EvaluationResult: model.EvaluationResult{
+								Decision:         model.DecisionAllow,
+								MatchedRuleIDs:   []uuid.UUID{},
+								EvaluatedRuleIDs: []uuid.UUID{},
+								Reason:           "approved",
+							},
+							LimitUsageDetails: []model.LimitUsageDetail{},
 						},
-						LimitUsageDetails: []model.LimitUsageDetail{},
+						IsDuplicate: false,
 					}, nil)
 			}
 

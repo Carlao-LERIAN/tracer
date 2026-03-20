@@ -19,6 +19,8 @@ import (
 	"tracer/internal/services/command"
 	commandMocks "tracer/internal/services/command/mocks"
 	"tracer/internal/services/mocks"
+	"tracer/internal/services/query"
+	queryMocks "tracer/internal/services/query/mocks"
 	"tracer/internal/testutil"
 	"tracer/pkg/model"
 )
@@ -44,7 +46,7 @@ func TestValidateTransaction(t *testing.T) {
 	tests := []struct {
 		name             string
 		request          *model.ValidationRequest
-		setupMocks       func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter)
+		setupMocks       func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter)
 		expectedDecision model.Decision
 		expectedReason   string
 		expectError      bool
@@ -54,10 +56,17 @@ func TestValidateTransaction(t *testing.T) {
 		{
 			name:    "DENY by rule - rule evaluation returns DENY",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// FindByRequestID returns nil (no existing record) - new request
+				transactionValidationQueryRepo.EXPECT().
+					FindByRequestID(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
 
 				// AuditWriter mock - expects RecordValidationEvent call
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -85,7 +94,7 @@ func TestValidateTransaction(t *testing.T) {
 						return nil
 					})
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectedDecision: model.DecisionDeny,
 			expectedReason:   "Rule blocked transaction",
@@ -94,10 +103,17 @@ func TestValidateTransaction(t *testing.T) {
 		{
 			name:    "DENY by exceeded limit - limit check returns exceeded",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// FindByRequestID returns nil (no existing record) - new request
+				transactionValidationQueryRepo.EXPECT().
+					FindByRequestID(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
 
 				// AuditWriter mock - expects RecordValidationEvent call
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -141,7 +157,7 @@ func TestValidateTransaction(t *testing.T) {
 						return nil
 					})
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectedDecision: model.DecisionDeny,
 			expectedReason:   "limit_exceeded",
@@ -150,10 +166,17 @@ func TestValidateTransaction(t *testing.T) {
 		{
 			name:    "REVIEW when REVIEW rules match - no DENY",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// FindByRequestID returns nil (no existing record) - new request
+				transactionValidationQueryRepo.EXPECT().
+					FindByRequestID(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
 
 				// AuditWriter mock - expects RecordValidationEvent call
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -208,7 +231,7 @@ func TestValidateTransaction(t *testing.T) {
 						return nil
 					})
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectedDecision: model.DecisionReview,
 			expectedReason:   "Rule requires review",
@@ -217,10 +240,17 @@ func TestValidateTransaction(t *testing.T) {
 		{
 			name:    "REVIEW rollback failure is non-fatal",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// FindByRequestID returns nil (no existing record) - new request
+				transactionValidationQueryRepo.EXPECT().
+					FindByRequestID(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
 
 				// AuditWriter mock - expects RecordValidationEvent call
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -275,7 +305,7 @@ func TestValidateTransaction(t *testing.T) {
 						return nil
 					})
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectedDecision: model.DecisionReview,
 			expectedReason:   "Rule requires review",
@@ -284,10 +314,17 @@ func TestValidateTransaction(t *testing.T) {
 		{
 			name:    "DENY by limit takes precedence over REVIEW",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// FindByRequestID returns nil (no existing record) - new request
+				transactionValidationQueryRepo.EXPECT().
+					FindByRequestID(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
 
 				// AuditWriter mock - expects RecordValidationEvent call
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -331,7 +368,7 @@ func TestValidateTransaction(t *testing.T) {
 						return nil
 					})
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectedDecision: model.DecisionDeny,
 			expectedReason:   "limit_exceeded",
@@ -340,10 +377,17 @@ func TestValidateTransaction(t *testing.T) {
 		{
 			name:    "ALLOW with matched ALLOW rules",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// FindByRequestID returns nil (no existing record) - new request
+				transactionValidationQueryRepo.EXPECT().
+					FindByRequestID(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
 
 				// AuditWriter mock - expects RecordValidationEvent call
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -387,7 +431,7 @@ func TestValidateTransaction(t *testing.T) {
 						return nil
 					})
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectedDecision: model.DecisionAllow,
 			expectedReason:   "Rule allowed transaction",
@@ -396,10 +440,17 @@ func TestValidateTransaction(t *testing.T) {
 		{
 			name:    "ALLOW with default decision - no rules matched",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, persistDone chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// FindByRequestID returns nil (no existing record) - new request
+				transactionValidationQueryRepo.EXPECT().
+					FindByRequestID(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
 
 				// AuditWriter mock - expects RecordValidationEvent call
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -429,7 +480,7 @@ func TestValidateTransaction(t *testing.T) {
 						return nil
 					})
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectedDecision: model.DecisionAllow,
 			expectedReason:   "No matching rules found",
@@ -438,21 +489,23 @@ func TestValidateTransaction(t *testing.T) {
 		{
 			name:    "context cancellation at start - returns error immediately",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, _ chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, _ chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
 
-				// AuditWriter mock - expects RecordValidationEvent call
+				// AuditWriter mock
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
-				auditWriter.EXPECT().RecordValidationEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(0)
 
-				// No calls should be made when context is cancelled
+				// No calls should be made when context is cancelled (checked before FindByRequestID)
+				transactionValidationQueryRepo.EXPECT().FindByRequestID(gomock.Any(), gomock.Any()).Times(0)
 				ruleEval.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
 				limitCheck.EXPECT().CheckLimits(gomock.Any(), gomock.Any()).Times(0)
 				transactionValidationRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).Times(0)
+				auditWriter.EXPECT().RecordValidationEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectError:   true,
 			expectedErr:   context.Canceled,
@@ -461,10 +514,17 @@ func TestValidateTransaction(t *testing.T) {
 		{
 			name:    "error from rule evaluator - propagates error",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, _ chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, _ chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// FindByRequestID returns nil (no existing record) - new request
+				transactionValidationQueryRepo.EXPECT().
+					FindByRequestID(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
 
 				// AuditWriter mock - expects RecordValidationEvent call
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -481,17 +541,24 @@ func TestValidateTransaction(t *testing.T) {
 				// Audit should NOT be inserted on error
 				transactionValidationRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).Times(0)
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectError: true,
 		},
 		{
 			name:    "error from limit checker - propagates error",
 			request: baseRequest,
-			setupMocks: func(ctrl *gomock.Controller, _ chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, AuditWriter) {
+			setupMocks: func(ctrl *gomock.Controller, _ chan struct{}) (RuleEvaluator, LimitChecker, command.TransactionValidationRepository, query.TransactionValidationRepository, AuditWriter) {
 				ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 				limitCheck := mocks.NewMockLimitChecker(ctrl)
 				transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+				transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+				// FindByRequestID returns nil (no existing record) - new request
+				transactionValidationQueryRepo.EXPECT().
+					FindByRequestID(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
 
 				// AuditWriter mock - expects RecordValidationEvent call
 				auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -517,7 +584,7 @@ func TestValidateTransaction(t *testing.T) {
 				// Audit should NOT be inserted on error
 				transactionValidationRepo.EXPECT().Insert(gomock.Any(), gomock.Any()).Times(0)
 
-				return ruleEval, limitCheck, transactionValidationRepo, auditWriter
+				return ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter
 			},
 			expectError: true,
 		},
@@ -530,9 +597,9 @@ func TestValidateTransaction(t *testing.T) {
 			// Create channel to signal when audit is done (for deterministic waiting)
 			persistDone := make(chan struct{})
 
-			ruleEval, limitCheck, transactionValidationRepo, auditWriter := tt.setupMocks(ctrl, persistDone)
+			ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter := tt.setupMocks(ctrl, persistDone)
 
-			service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
+			service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 			require.NoError(t, err)
 
 			// Create context - cancelled for context cancellation test
@@ -567,8 +634,8 @@ func TestValidateTransaction(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, tt.expectedDecision, result.Decision)
-				assert.Contains(t, result.Reason, tt.expectedReason)
+				assert.Equal(t, tt.expectedDecision, result.Response.Decision)
+				assert.Contains(t, result.Response.Reason, tt.expectedReason)
 			}
 		})
 	}
@@ -615,6 +682,13 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 	limitCheck := mocks.NewMockLimitChecker(ctrl)
 	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+	// FindByRequestID returns nil (no existing record) - new request
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
 
 	// AuditWriter mock - expects RecordValidationEvent call
 	auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -660,7 +734,7 @@ func TestValidateTransaction_AuditFieldsPopulated(t *testing.T) {
 			return nil
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -725,61 +799,77 @@ func TestNewValidationService_NilDependencies(t *testing.T) {
 	validRuleEval := mocks.NewMockRuleEvaluator(ctrl)
 	validLimitCheck := mocks.NewMockLimitChecker(ctrl)
 	validTransactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	validTransactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
 	validAuditWriter := mocks.NewMockAuditWriter(ctrl)
 
 	tests := []struct {
-		name                      string
-		ruleEval                  RuleEvaluator
-		limitCheck                LimitChecker
-		transactionValidationRepo command.TransactionValidationRepository
-		auditWriter               AuditWriter
-		expectedErr               error
+		name                           string
+		ruleEval                       RuleEvaluator
+		limitCheck                     LimitChecker
+		transactionValidationRepo      command.TransactionValidationRepository
+		transactionValidationQueryRepo query.TransactionValidationRepository
+		auditWriter                    AuditWriter
+		expectedErr                    error
 	}{
 		{
-			name:                      "nil rule evaluator",
-			ruleEval:                  nil,
-			limitCheck:                validLimitCheck,
-			transactionValidationRepo: validTransactionValidationRepo,
-			auditWriter:               validAuditWriter,
-			expectedErr:               ErrNilRuleEvaluator,
+			name:                           "nil rule evaluator",
+			ruleEval:                       nil,
+			limitCheck:                     validLimitCheck,
+			transactionValidationRepo:      validTransactionValidationRepo,
+			transactionValidationQueryRepo: validTransactionValidationQueryRepo,
+			auditWriter:                    validAuditWriter,
+			expectedErr:                    ErrNilRuleEvaluator,
 		},
 		{
-			name:                      "nil limit checker",
-			ruleEval:                  validRuleEval,
-			limitCheck:                nil,
-			transactionValidationRepo: validTransactionValidationRepo,
-			auditWriter:               validAuditWriter,
-			expectedErr:               ErrNilLimitChecker,
+			name:                           "nil limit checker",
+			ruleEval:                       validRuleEval,
+			limitCheck:                     nil,
+			transactionValidationRepo:      validTransactionValidationRepo,
+			transactionValidationQueryRepo: validTransactionValidationQueryRepo,
+			auditWriter:                    validAuditWriter,
+			expectedErr:                    ErrNilLimitChecker,
 		},
 		{
-			name:                      "nil transaction validation repository",
-			ruleEval:                  validRuleEval,
-			limitCheck:                validLimitCheck,
-			transactionValidationRepo: nil,
-			auditWriter:               validAuditWriter,
-			expectedErr:               ErrNilTransactionValidationRepo,
+			name:                           "nil transaction validation repository",
+			ruleEval:                       validRuleEval,
+			limitCheck:                     validLimitCheck,
+			transactionValidationRepo:      nil,
+			transactionValidationQueryRepo: validTransactionValidationQueryRepo,
+			auditWriter:                    validAuditWriter,
+			expectedErr:                    ErrNilTransactionValidationRepo,
 		},
 		{
-			name:                      "nil audit writer",
-			ruleEval:                  validRuleEval,
-			limitCheck:                validLimitCheck,
-			transactionValidationRepo: validTransactionValidationRepo,
-			auditWriter:               nil,
-			expectedErr:               ErrNilAuditWriter,
+			name:                           "nil transaction validation query repository",
+			ruleEval:                       validRuleEval,
+			limitCheck:                     validLimitCheck,
+			transactionValidationRepo:      validTransactionValidationRepo,
+			transactionValidationQueryRepo: nil,
+			auditWriter:                    validAuditWriter,
+			expectedErr:                    ErrNilTransactionValidationQueryRepo,
 		},
 		{
-			name:                      "all valid dependencies",
-			ruleEval:                  validRuleEval,
-			limitCheck:                validLimitCheck,
-			transactionValidationRepo: validTransactionValidationRepo,
-			auditWriter:               validAuditWriter,
-			expectedErr:               nil,
+			name:                           "nil audit writer",
+			ruleEval:                       validRuleEval,
+			limitCheck:                     validLimitCheck,
+			transactionValidationRepo:      validTransactionValidationRepo,
+			transactionValidationQueryRepo: validTransactionValidationQueryRepo,
+			auditWriter:                    nil,
+			expectedErr:                    ErrNilAuditWriter,
+		},
+		{
+			name:                           "all valid dependencies",
+			ruleEval:                       validRuleEval,
+			limitCheck:                     validLimitCheck,
+			transactionValidationRepo:      validTransactionValidationRepo,
+			transactionValidationQueryRepo: validTransactionValidationQueryRepo,
+			auditWriter:                    validAuditWriter,
+			expectedErr:                    nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, err := NewValidationService(tt.ruleEval, tt.limitCheck, tt.transactionValidationRepo, tt.auditWriter, nil)
+			service, err := NewValidationService(tt.ruleEval, tt.limitCheck, tt.transactionValidationRepo, tt.transactionValidationQueryRepo, tt.auditWriter, nil)
 
 			if tt.expectedErr != nil {
 				require.Error(t, err)
@@ -1148,6 +1238,13 @@ func TestValidate_TransactionValidationPersistenceSuccess(t *testing.T) {
 	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 	limitCheck := mocks.NewMockLimitChecker(ctrl)
 	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+	// FindByRequestID returns nil (no existing record) - new request
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
 
 	// AuditWriter mock - expects RecordValidationEvent call
 	auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -1181,7 +1278,7 @@ func TestValidate_TransactionValidationPersistenceSuccess(t *testing.T) {
 			return nil
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1190,7 +1287,7 @@ func TestValidate_TransactionValidationPersistenceSuccess(t *testing.T) {
 	// Assert: Validation succeeds - the client gets the result regardless of internal logging
 	require.NoError(t, err, "Validation should succeed")
 	require.NotNil(t, result)
-	assert.Equal(t, model.DecisionAllow, result.Decision)
+	assert.Equal(t, model.DecisionAllow, result.Response.Decision)
 
 	// Note: We can't easily verify the log output in this test without injecting a mock logger.
 	// The important behavior is that the validation result is returned correctly.
@@ -1221,6 +1318,13 @@ func TestValidate_AuditPersistFailure_LogsError(t *testing.T) {
 	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 	limitCheck := mocks.NewMockLimitChecker(ctrl)
 	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+	// FindByRequestID returns nil (no existing record) - new request
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
 
 	// AuditWriter mock - expects RecordValidationEvent call
 	auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -1255,7 +1359,7 @@ func TestValidate_AuditPersistFailure_LogsError(t *testing.T) {
 			return errors.New("database connection failed")
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1264,7 +1368,7 @@ func TestValidate_AuditPersistFailure_LogsError(t *testing.T) {
 	// Assert: Validation succeeds despite audit failure
 	require.NoError(t, err, "Validation should succeed even if audit fails")
 	require.NotNil(t, result)
-	assert.Equal(t, model.DecisionAllow, result.Decision)
+	assert.Equal(t, model.DecisionAllow, result.Response.Decision)
 
 	// Wait for async audit goroutine to complete
 	select {
@@ -1314,6 +1418,13 @@ func TestValidate_WithSegmentAndPortfolio(t *testing.T) {
 	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 	limitCheck := mocks.NewMockLimitChecker(ctrl)
 	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+	// FindByRequestID returns nil (no existing record) - new request
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
 
 	// AuditWriter mock - expects RecordValidationEvent call with segment and portfolio
 	auditWriter := mocks.NewMockAuditWriter(ctrl)
@@ -1380,7 +1491,7 @@ func TestValidate_WithSegmentAndPortfolio(t *testing.T) {
 			return nil
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1396,7 +1507,7 @@ func TestValidate_WithSegmentAndPortfolio(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, model.DecisionAllow, result.Decision)
+	assert.Equal(t, model.DecisionAllow, result.Response.Decision)
 }
 
 // TestValidate_NilRequest verifies that Validate returns an error when called with nil request.
@@ -1406,11 +1517,12 @@ func TestValidate_NilRequest(t *testing.T) {
 	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 	limitCheck := mocks.NewMockLimitChecker(ctrl)
 	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
 	auditWriter := mocks.NewMockAuditWriter(ctrl)
 
-	// No mock expectations - function should return early
+	// No mock expectations - function should return early (nil check before FindByRequestID)
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1442,6 +1554,13 @@ func TestValidate_RuleEvaluatorReturnsNil(t *testing.T) {
 	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 	limitCheck := mocks.NewMockLimitChecker(ctrl)
 	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+	// FindByRequestID returns nil (no existing record) - new request
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
 	auditWriter := mocks.NewMockAuditWriter(ctrl)
 
 	// Rule evaluation returns nil result (but no error)
@@ -1451,7 +1570,7 @@ func TestValidate_RuleEvaluatorReturnsNil(t *testing.T) {
 
 	// No limit check or audit expected - should fail early
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1484,6 +1603,13 @@ func TestValidate_LimitCheckerReturnsNil(t *testing.T) {
 	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 	limitCheck := mocks.NewMockLimitChecker(ctrl)
 	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+	// FindByRequestID returns nil (no existing record) - new request
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
 	auditWriter := mocks.NewMockAuditWriter(ctrl)
 
 	// Rule evaluation returns ALLOW
@@ -1505,7 +1631,7 @@ func TestValidate_LimitCheckerReturnsNil(t *testing.T) {
 
 	// No audit expected - should fail early
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1539,6 +1665,13 @@ func TestValidate_AuditEventWriterFailure(t *testing.T) {
 	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
 	limitCheck := mocks.NewMockLimitChecker(ctrl)
 	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+
+	// FindByRequestID returns nil (no existing record) - new request
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
 	auditWriter := mocks.NewMockAuditWriter(ctrl)
 
 	// AuditWriter returns error
@@ -1574,7 +1707,7 @@ func TestValidate_AuditEventWriterFailure(t *testing.T) {
 			return nil
 		})
 
-	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, auditWriter, nil)
+	service, err := NewValidationService(ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
 	require.NoError(t, err)
 
 	// Act
@@ -1590,5 +1723,5 @@ func TestValidate_AuditEventWriterFailure(t *testing.T) {
 	// Assert: Validation succeeds despite audit writer failure (best-effort audit)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, model.DecisionAllow, result.Decision)
+	assert.Equal(t, model.DecisionAllow, result.Response.Decision)
 }
