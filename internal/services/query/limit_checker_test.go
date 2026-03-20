@@ -5295,6 +5295,11 @@ func TestCalculateCounterExpiresAt_RetentionDays(t *testing.T) {
 // TestLimitCheckerService_CheckLimitsWithTx tests the CheckLimitsWithTx method
 // that accepts a pgdb.DB parameter for transactional operations.
 // This enables atomic operations with other database changes (e.g., validate + audit write).
+//
+// NOTE: These tests do not yet assert that mockDB is forwarded to repository calls because
+// the underlying repositories (LimitRepository, UsageCounterRepository) do not yet accept
+// a pgdb.DB parameter. When those repos gain WithTx variants, update these expectations
+// to verify the db parameter is propagated (e.g., gomock.Eq(mockDB) instead of gomock.Any()).
 func TestLimitCheckerService_CheckLimitsWithTx(t *testing.T) {
 	// Test UUIDs - seed range: 15000-15100
 	limitID1 := testutil.MustDeterministicUUID(15001)
@@ -5471,9 +5476,11 @@ func TestLimitCheckerService_CheckLimitsWithTx(t *testing.T) {
 }
 
 // TestLimitCheckerService_CheckLimitsWithTx_UsesProvidedDB verifies that
-// CheckLimitsWithTx uses the provided db parameter for all database operations
-// instead of using internal connection methods.
-// This is critical for transactional consistency - the provided db may be a transaction.
+// CheckLimitsWithTx accepts a db parameter for transactional consistency.
+//
+// NOTE: Currently this test only verifies the method accepts and runs with a mockDB.
+// It does not assert the db is forwarded to repos because they lack WithTx variants.
+// When repos support WithTx, add gomock.Eq(mockDB) expectations here.
 func TestLimitCheckerService_CheckLimitsWithTx_UsesProvidedDB(t *testing.T) {
 	// Test UUIDs - seed range: 15200-15300
 	limitID1 := testutil.MustDeterministicUUID(15201)
