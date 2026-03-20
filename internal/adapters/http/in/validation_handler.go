@@ -18,6 +18,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/trace"
 
+	"tracer/internal/services"
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
@@ -31,7 +32,7 @@ const maxPayloadSize = 100 * 1024
 // ValidationService defines the interface for validation operations.
 // Interface defined locally per Ring pattern.
 type ValidationService interface {
-	Validate(ctx context.Context, request *model.ValidationRequest) (*model.ValidationResponse, error)
+	Validate(ctx context.Context, request *model.ValidationRequest) (*services.ValidateResult, error)
 }
 
 // ValidationHandler handles HTTP requests for transaction validation.
@@ -147,7 +148,7 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 	}
 
 	// Call validation service
-	response, err := h.service.Validate(ctx, &request)
+	result, err := h.service.Validate(ctx, &request)
 	if err != nil {
 		return h.handleValidationError(c, &span, err)
 	}
@@ -155,11 +156,17 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 	logger.WithFields(
 		"operation", "handler.validations.validate",
 		"request.id", request.RequestID.String(),
-		"decision", string(response.Decision),
-		"processing_time_ms", response.ProcessingTimeMs,
+		"decision", string(result.Response.Decision),
+		"processing_time_ms", result.Response.ProcessingTimeMs,
+		"is_duplicate", result.IsDuplicate,
 	).Info("Validation completed")
 
-	return libHTTP.OK(c, response)
+	// Return HTTP 201 for new requests, HTTP 200 for duplicate (idempotent) requests (DD-9)
+	if result.IsDuplicate {
+		return libHTTP.OK(c, result.Response)
+	}
+
+	return libHTTP.Created(c, result.Response)
 }
 
 // validationErrorMapping maps validation errors to their specific error codes and messages.

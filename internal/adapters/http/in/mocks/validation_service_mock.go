@@ -12,6 +12,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	services "tracer/internal/services"
 	model "tracer/pkg/model"
 
 	gomock "go.uber.org/mock/gomock"
@@ -42,10 +43,10 @@ func (m *MockValidationService) EXPECT() *MockValidationServiceMockRecorder {
 }
 
 // Validate mocks base method.
-func (m *MockValidationService) Validate(ctx context.Context, request *model.ValidationRequest) (*model.ValidationResponse, error) {
+func (m *MockValidationService) Validate(ctx context.Context, request *model.ValidationRequest) (*services.ValidateResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate", ctx, request)
-	ret0, _ := ret[0].(*model.ValidationResponse)
+	ret0, _ := ret[0].(*services.ValidateResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
