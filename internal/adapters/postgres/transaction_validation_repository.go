@@ -121,7 +121,7 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	return r.insertInternal(ctx, db, validation, logger, &span)
+	return r.insertInternal(ctx, db, validation, logger, &span, "repository.transaction_validation.insert")
 }
 
 // InsertWithTx creates a new transaction validation record using the provided database connection.
@@ -141,7 +141,7 @@ func (r *TransactionValidationRepository) InsertWithTx(ctx context.Context, db p
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return r.insertInternal(ctx, db, validation, logger, &span)
+	return r.insertInternal(ctx, db, validation, logger, &span, "repository.transaction_validation.insert_with_tx")
 }
 
 // insertInternal contains the shared INSERT logic for both Insert and InsertWithTx.
@@ -153,6 +153,7 @@ func (r *TransactionValidationRepository) insertInternal(
 	validation *model.TransactionValidation,
 	logger libLog.Logger,
 	span *trace.Span,
+	operationName string,
 ) error {
 	if validation == nil {
 		err := errors.New("validation cannot be nil")
@@ -224,7 +225,7 @@ func (r *TransactionValidationRepository) insertInternal(
 	}
 
 	logger.WithFields(
-		"operation", "repository.transaction_validation.insert",
+		"operation", operationName,
 		"validation.id", validation.ID.String(),
 		"validation.decision", string(validation.Decision),
 	).Info("Inserting transaction validation record")
