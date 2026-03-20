@@ -127,31 +127,6 @@ func testTransactionValidationWithArrays() *model.TransactionValidation {
 	}
 }
 
-// transactionValidationColumns returns the column names for transaction validation queries.
-func transactionValidationColumns() []string {
-	return []string{
-		"id",
-		"request_id",
-		"transaction_type",
-		"sub_type",
-		"amount",
-		"currency",
-		"transaction_timestamp",
-		"account",
-		"segment",
-		"portfolio",
-		"merchant",
-		"metadata",
-		"decision",
-		"reason",
-		"matched_rule_ids",
-		"evaluated_rule_ids",
-		"limit_usage_details",
-		"processing_time_ms",
-		"created_at",
-	}
-}
-
 // transactionValidationRow creates a sqlmock row from a TransactionValidation.
 // Uses helper functions mustMarshalJSON, mustMarshalJSONOrEmpty, and uuidSliceToStrings
 // for consistent JSON marshaling and UUID conversion across all tests.
@@ -1295,6 +1270,126 @@ func TestTransactionValidationRepository_List_JSONBFilterKeys(t *testing.T) {
 			err = sqlMock.ExpectationsWereMet()
 			require.NoError(t, err, "SQL query must contain %s because %s",
 				tt.expectedPattern, tt.description)
+		})
+	}
+}
+
+// =============================================================================
+// FindByRequestID Tests
+// =============================================================================
+
+func TestTransactionValidationPostgresRepository_FindByRequestID_ConnectionError(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ctrl := gomock.NewController(t)
+
+	mockConn := mocks.NewMockConnection(ctrl)
+	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+
+	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
+
+	ctx := context.Background()
+	result, err := repo.FindByRequestID(ctx, testutil.MustDeterministicUUID(100))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get database connection")
+	assert.Nil(t, result)
+}
+
+func TestTransactionValidationPostgresRepository_FindByRequestID(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	tests := []struct {
+		name      string
+		requestID uuid.UUID
+		mockSetup func(mock sqlmock.Sqlmock)
+		want      *model.TransactionValidation
+		wantErr   bool
+		wantNil   bool // true if expecting (nil, nil) for not found
+	}{
+		{
+			name:      "returns record when exists",
+			requestID: testutil.MustDeterministicUUID(100),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				tv := testTransactionValidation()
+				mock.ExpectQuery(`SELECT .+ FROM transaction_validations WHERE request_id = \$1`).
+					WithArgs(testutil.MustDeterministicUUID(100)).
+					WillReturnRows(transactionValidationRow(t, tv))
+			},
+			want:    testTransactionValidation(),
+			wantErr: false,
+			wantNil: false,
+		},
+		{
+			name:      "returns nil,nil when not found",
+			requestID: testutil.MustDeterministicUUID(999),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT .+ FROM transaction_validations WHERE request_id = \$1`).
+					WithArgs(testutil.MustDeterministicUUID(999)).
+					WillReturnError(sql.ErrNoRows)
+			},
+			want:    nil,
+			wantErr: false,
+			wantNil: true,
+		},
+		{
+			name:      "returns error when database fails",
+			requestID: testutil.MustDeterministicUUID(100),
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT .+ FROM transaction_validations WHERE request_id = \$1`).
+					WithArgs(testutil.MustDeterministicUUID(100)).
+					WillReturnError(errors.New("database error"))
+			},
+			want:    nil,
+			wantErr: true,
+			wantNil: false,
+		},
+		{
+			name:      "returns nil,nil for uuid.Nil without hitting database",
+			requestID: uuid.Nil,
+			mockSetup: func(mock sqlmock.Sqlmock) {
+				// No expectations - uuid.Nil should short-circuit before any DB call
+			},
+			want:    nil,
+			wantErr: false,
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, sqlMock, cleanup := setupTransactionValidationRepositoryMockDB(t)
+			defer cleanup()
+
+			tt.mockSetup(sqlMock)
+
+			ctx := context.Background()
+			result, err := repo.FindByRequestID(ctx, tt.requestID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else if tt.wantNil {
+				require.NoError(t, err)
+				assert.Nil(t, result, "expected nil result for not found case")
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, tt.want.RequestID, result.RequestID)
+				assert.Equal(t, tt.want.Decision, result.Decision)
+				assert.Equal(t, tt.want.Reason, result.Reason)
+				assert.Equal(t, tt.want.ProcessingTimeMs, result.ProcessingTimeMs)
+
+				// Verify arrays match - length and content (per PROJECT_RULES.md)
+				require.Len(t, result.MatchedRuleIDs, len(tt.want.MatchedRuleIDs))
+				require.Equal(t, tt.want.MatchedRuleIDs, result.MatchedRuleIDs, "MatchedRuleIDs content mismatch")
+				require.Len(t, result.EvaluatedRuleIDs, len(tt.want.EvaluatedRuleIDs))
+				require.Equal(t, tt.want.EvaluatedRuleIDs, result.EvaluatedRuleIDs, "EvaluatedRuleIDs content mismatch")
+				require.Len(t, result.LimitUsageDetails, len(tt.want.LimitUsageDetails))
+				require.Equal(t, tt.want.LimitUsageDetails, result.LimitUsageDetails, "LimitUsageDetails content mismatch")
+			}
+
+			require.NoError(t, sqlMock.ExpectationsWereMet())
 		})
 	}
 }

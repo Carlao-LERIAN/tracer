@@ -213,13 +213,13 @@ func (r *ValidationRequest) NormalizeAndValidate(now time.Time) error {
 // LimitUsageDetail contains usage information for a checked limit.
 // Amounts are expressed as decimal values.
 // Note: RemainingAmount is calculated as (LimitAmount - CurrentUsage), not stored.
-// Aligned with API Design v1.3.2 section 4.1.1 LimitUsage structure.
+// Aligned with section 4.1.1 LimitUsage structure.
 type LimitUsageDetail struct {
 	LimitID     uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid"`
 	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string" example:"1000.00"`
 	// Scope is a human-readable string representation of the limit's scope
 	// (e.g., "account:uuid" or "segment:uuid" or "global").
-	// Per API Design v1.3.2 section 4.1.1.
+	// Per section 4.1.1.
 	Scope string `json:"scope"`
 	// Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).
 	Period LimitType `json:"period" swaggertype:"string"`
@@ -229,8 +229,8 @@ type LimitUsageDetail struct {
 	// When Exceeded=true, the counter was NOT incremented, but CurrentUsage still shows
 	// what the usage would have been if the transaction were allowed.
 	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00"`
-	// AttemptedAmount is the transaction amount being validated.
-	// Per API Design v1.3.2 section 4.1.1.
+	// AttemptedAmount is the transaction amount being validated against this limit.
+	// Matches the amount from the validation request.
 	AttemptedAmount decimal.Decimal `json:"attemptedAmount" swaggertype:"string" example:"100.00"`
 	Exceeded        bool            `json:"exceeded"`
 	// Skipped indicates whether this limit was skipped during evaluation (not enforced).
@@ -459,7 +459,7 @@ func (r *ValidationRequest) ToCheckLimitsInput() *CheckLimitsInput {
 // ToTransactionScope builds a single Scope from the ValidationRequest context fields.
 // This is used for scope matching in rule evaluation - rules with specific scopes
 // should only evaluate against transactions that have matching scopes.
-// Per API Design v1.3.1: a transaction has exactly one scope derived from its context
+// A transaction has exactly one scope derived from its context
 // objects (Account, Segment, Portfolio, Merchant, TransactionType).
 func (r *ValidationRequest) ToTransactionScope() *Scope {
 	scope := &Scope{

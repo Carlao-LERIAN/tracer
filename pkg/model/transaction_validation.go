@@ -70,3 +70,38 @@ func NewTransactionValidation(id uuid.UUID, decision Decision, createdAt time.Ti
 		CreatedAt:         createdAt,
 	}, nil
 }
+
+// ToValidationResponse converts the TransactionValidation entity to a ValidationResponse DTO.
+// This is used for idempotency responses - when a duplicate request is detected,
+// we return the previously stored validation result.
+// EvaluatedAt is set from CreatedAt since that's when the original evaluation occurred.
+// Returns nil if the receiver is nil (defensive guard for chaining with FindByRequestID).
+func (tv *TransactionValidation) ToValidationResponse() *ValidationResponse {
+	if tv == nil {
+		return nil
+	}
+
+	// Defensive copy for LimitUsageDetails slice to prevent external mutation
+	limitDetailsCopy := make([]LimitUsageDetail, len(tv.LimitUsageDetails))
+	copy(limitDetailsCopy, tv.LimitUsageDetails)
+
+	matchedCopy := make([]uuid.UUID, len(tv.MatchedRuleIDs))
+	copy(matchedCopy, tv.MatchedRuleIDs)
+
+	evaluatedCopy := make([]uuid.UUID, len(tv.EvaluatedRuleIDs))
+	copy(evaluatedCopy, tv.EvaluatedRuleIDs)
+
+	return &ValidationResponse{
+		ValidationID: tv.ID,
+		RequestID:    tv.RequestID,
+		EvaluationResult: EvaluationResult{
+			Decision:         tv.Decision,
+			Reason:           tv.Reason,
+			MatchedRuleIDs:   matchedCopy,
+			EvaluatedRuleIDs: evaluatedCopy,
+		},
+		LimitUsageDetails: limitDetailsCopy,
+		ProcessingTimeMs:  tv.ProcessingTimeMs,
+		EvaluatedAt:       tv.CreatedAt,
+	}
+}

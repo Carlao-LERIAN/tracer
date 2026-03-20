@@ -465,8 +465,8 @@ definitions:
     properties:
       attemptedAmount:
         description: |-
-          AttemptedAmount is the transaction amount being validated.
-          Per API Design v1.3.2 section 4.1.1.
+          AttemptedAmount is the transaction amount being validated against this limit.
+          Matches the amount from the validation request.
         example: "100.00"
         type: string
       currentUsage:
@@ -494,7 +494,7 @@ definitions:
         description: |-
           Scope is a human-readable string representation of the limit's scope
           (e.g., "account:uuid" or "segment:uuid" or "global").
-          Per API Design v1.3.2 section 4.1.1.
+          Per section 4.1.1.
         type: string
       skipReason:
         description: |-

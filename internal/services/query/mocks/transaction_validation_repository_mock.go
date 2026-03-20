@@ -57,6 +57,21 @@ func (mr *MockTransactionValidationRepositoryMockRecorder) Count(ctx, filters an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Count", reflect.TypeOf((*MockTransactionValidationRepository)(nil).Count), ctx, filters)
 }
 
+// FindByRequestID mocks base method.
+func (m *MockTransactionValidationRepository) FindByRequestID(ctx context.Context, requestID uuid.UUID) (*model.TransactionValidation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByRequestID", ctx, requestID)
+	ret0, _ := ret[0].(*model.TransactionValidation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByRequestID indicates an expected call of FindByRequestID.
+func (mr *MockTransactionValidationRepositoryMockRecorder) FindByRequestID(ctx, requestID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByRequestID", reflect.TypeOf((*MockTransactionValidationRepository)(nil).FindByRequestID), ctx, requestID)
+}
+
 // GetByID mocks base method.
 func (m *MockTransactionValidationRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.TransactionValidation, error) {
 	m.ctrl.T.Helper()

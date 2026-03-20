@@ -448,9 +448,10 @@ func TestValidation_Scope_MultipleScopes(t *testing.T) {
 // Test 4.2.9 from roteiro 04-rules-evaluation.md
 func TestValidation_Scope_EmptyScopes(t *testing.T) {
 	// PRECONDITIONS: Create rule with empty scopes (global rule)
+	// Use amount >= 5000 to avoid interfering with other tests that use smaller amounts
 	ruleID := testutil.CreateRuleWithScope(t,
 		"Global Rule (Empty Scopes)",
-		"amount > 0",
+		"amount >= 5000",
 		"ALLOW",
 		[]testutil.ScopeInput{})
 	testutil.ActivateRule(t, ruleID)

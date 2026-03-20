@@ -1711,7 +1711,6 @@ func createLimitForWeeklyTest(t *testing.T, accountID, maxAmount string) string 
 // 8.7 PIX Compliance Pattern
 // =============================================================================
 
-
 // TestPIXCompliancePattern_AC11 validates the PIX Noturno compliance pattern:
 // two complementary DAILY limits with time windows covering day and night.
 //
