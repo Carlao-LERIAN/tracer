@@ -1462,8 +1462,6 @@ func TestTransactionValidationPostgresRepository_InsertWithTx(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			db, sqlMock, err := sqlmock.New()
 			require.NoError(t, err)
 			defer func() {
