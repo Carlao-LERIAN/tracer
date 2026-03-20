@@ -131,6 +131,8 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 // Uses the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
 func (r *TransactionValidationRepository) InsertWithTx(ctx context.Context, db pgdb.DB, validation *model.TransactionValidation) error {
 	if db == nil {
+		// Span not annotated here: span starts after this check to avoid
+		// OpenTelemetry overhead for invalid calls (nil db is a programming error).
 		return pgdb.ErrNilConnection
 	}
 
@@ -165,6 +167,7 @@ func (r *TransactionValidationRepository) insertInternal(
 	// Convert domain entity to database model using FromEntity pattern
 	var dbModel TransactionValidationPostgreSQLModel
 	if err := dbModel.FromEntity(validation); err != nil {
+		libOtel.HandleSpanError(span, "Failed to convert entity to database model", err)
 		return fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 

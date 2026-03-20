@@ -149,6 +149,9 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 // transactional repository methods. Currently, the underlying repositories do not yet support
 // transactional operations, so the db parameter is not passed through to repository calls.
 // When repositories are updated to support WithTx variants, this method will pass db accordingly.
+//
+// TODO(T-003): Wire db parameter through to LimitRepository and UsageCounterRepository
+// when those repositories gain WithTx variants.
 func (s *LimitCheckerService) CheckLimitsWithTx(ctx context.Context, _ pgdb.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
