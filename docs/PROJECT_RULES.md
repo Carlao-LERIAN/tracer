@@ -3174,6 +3174,7 @@ otel.SetTracerProvider(tp)  // Set global provider for lib-commons
 13. **Priority-based rule evaluation** - All rules evaluated, DENY precedence
 14. **Direct OTel attribute/codes imports** - Use lib-commons wrappers (SetSpanAttributesFromStruct, HandleSpanError)
 15. **Unstructured logging** - Use `WithFields` instead of `Infof`/`Errorf` with string interpolation (see [Structured Logging](#structured-logging))
+16. **Task/ticket IDs in code** - Never reference task IDs (T-001, JIRA-123, etc.) in source code, comments, or test names. Code must be self-explanatory without project management context. Use descriptive names instead.
 
 ---
 

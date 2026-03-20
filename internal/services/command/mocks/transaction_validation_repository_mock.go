@@ -12,6 +12,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	db "tracer/internal/adapters/postgres/db"
 	model "tracer/pkg/model"
 
 	gomock "go.uber.org/mock/gomock"
@@ -53,4 +54,18 @@ func (m *MockTransactionValidationRepository) Insert(ctx context.Context, valida
 func (mr *MockTransactionValidationRepositoryMockRecorder) Insert(ctx, validation any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MockTransactionValidationRepository)(nil).Insert), ctx, validation)
+}
+
+// InsertWithTx mocks base method.
+func (m *MockTransactionValidationRepository) InsertWithTx(ctx context.Context, arg1 db.DB, validation *model.TransactionValidation) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWithTx", ctx, arg1, validation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertWithTx indicates an expected call of InsertWithTx.
+func (mr *MockTransactionValidationRepositoryMockRecorder) InsertWithTx(ctx, arg1, validation any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWithTx", reflect.TypeOf((*MockTransactionValidationRepository)(nil).InsertWithTx), ctx, arg1, validation)
 }

@@ -14,11 +14,13 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
+	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
@@ -75,6 +77,20 @@ type LimitChecker interface {
 	// For PER_TRANSACTION limits: checks maxAmount directly without persistent counters
 	CheckLimits(ctx context.Context, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error)
 
+	// CheckLimitsWithTx evaluates all applicable limits for a transaction.
+	// The db parameter is accepted for API consistency and will be used when
+	// underlying repositories support transactional operations.
+	// Currently behaves identically to CheckLimits.
+	//
+	// Returns CheckLimitsOutput with:
+	//   - Allowed: true if no limits exceeded (or no active limits found)
+	//   - ExceededLimitIDs: IDs of limits that would be exceeded
+	//   - LimitUsageDetails: usage information for all checked limits
+	//
+	// For DAILY/MONTHLY limits: increments usage counters atomically
+	// For PER_TRANSACTION limits: checks maxAmount directly without persistent counters
+	CheckLimitsWithTx(ctx context.Context, db pgdb.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error)
+
 	// RollbackUsage decrements usage counters for limits that were previously incremented.
 	// Called when a transaction is denied by rules after limits were already incremented.
 	// Only affects DAILY/MONTHLY limits (PER_TRANSACTION has no persistent counters).
@@ -121,21 +137,54 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 
 	logger = logging.WithTrace(ctx, logger)
 
+	return s.checkLimitsInternal(ctx, input, logger, &span, "service.limit_checker.check_limits")
+}
+
+// CheckLimitsWithTx evaluates all applicable limits for a transaction using the provided database connection.
+// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
+// enabling atomic operations with other database changes.
+// Uses atomic upsert to prevent TOCTOU race conditions.
+//
+// NOTE: The db parameter is accepted for API consistency with InsertWithTx and to enable future
+// transactional repository methods. Currently, the underlying repositories do not yet support
+// transactional operations, so the db parameter is not passed through to repository calls.
+// When repositories are updated to support WithTx variants, this method will pass db accordingly.
+func (s *LimitCheckerService) CheckLimitsWithTx(ctx context.Context, _ pgdb.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.limit_checker.check_limits_with_tx")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	return s.checkLimitsInternal(ctx, input, logger, &span, "service.limit_checker.check_limits_with_tx")
+}
+
+// checkLimitsInternal contains the shared logic for CheckLimits and CheckLimitsWithTx.
+// It validates input, retrieves applicable limits, and processes each limit atomically.
+// The operationName parameter is used for consistent logging across both public methods.
+func (s *LimitCheckerService) checkLimitsInternal(
+	ctx context.Context,
+	input *model.CheckLimitsInput,
+	logger libLog.Logger,
+	span *trace.Span,
+	operationName string,
+) (*model.CheckLimitsOutput, error) {
 	if input == nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Nil input", constant.ErrCheckLimitsNilInput)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Nil input", constant.ErrCheckLimitsNilInput)
 		return nil, constant.ErrCheckLimitsNilInput
 	}
 
 	if err := input.Validate(); err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid input", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid input", err)
 		return nil, err
 	}
 
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "input", input); err != nil {
-		span.RecordError(err)
+	if err := libOtel.SetSpanAttributesFromStruct(span, "input", input); err != nil {
+		(*span).RecordError(err)
 
 		logger.WithFields(
-			"operation", "service.limit_checker.check_limits",
+			"operation", operationName,
 			"error", err.Error(),
 		).Warn("Failed to set span attributes for input")
 	}
@@ -143,7 +192,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 	// Get applicable limits (active limits matching currency and scopes)
 	limits, err := s.getApplicableLimits(ctx, input)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get applicable limits", err)
+		libOtel.HandleSpanError(span, "Failed to get applicable limits", err)
 		return nil, err
 	}
 
@@ -152,7 +201,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 
 	if len(limits) == 0 {
 		logger.WithFields(
-			"operation", "service.limit_checker.check_limits",
+			"operation", operationName,
 			"currency", input.Currency,
 		).Info("No active limits found for criteria")
 
@@ -162,7 +211,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 	}
 
 	logger.WithFields(
-		"operation", "service.limit_checker.check_limits",
+		"operation", operationName,
 		"applicable_limits_count", len(limits),
 	).Info("Found applicable limits")
 
@@ -197,7 +246,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, txScope)
 			}
 
-			libOtel.HandleSpanError(&span, "Failed to process limit atomically", err)
+			libOtel.HandleSpanError(span, "Failed to process limit atomically", err)
 
 			return nil, err
 		}
@@ -235,12 +284,12 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 		output = output.WithExceededLimits([]uuid.UUID{*exceededLimitID})
 
 		logger.WithFields(
-			"operation", "service.limit_checker.check_limits",
+			"operation", operationName,
 			"exceeded_limit_id", exceededLimitID.String(),
 		).Info("Limit exceeded")
 	} else {
 		logger.WithFields(
-			"operation", "service.limit_checker.check_limits",
+			"operation", operationName,
 			"checked_count", len(usageDetails),
 		).Info("All limits passed")
 	}

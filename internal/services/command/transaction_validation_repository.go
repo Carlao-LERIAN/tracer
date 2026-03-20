@@ -9,6 +9,7 @@ package command
 import (
 	"context"
 
+	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/pkg/model"
 )
 
@@ -21,4 +22,11 @@ type TransactionValidationRepository interface {
 	// This maintains the immutability requirement for compliance (SOX/GLBA).
 	// Implementations MUST return a non-nil error if validation is nil (no panics).
 	Insert(ctx context.Context, validation *model.TransactionValidation) error
+
+	// InsertWithTx creates a new transaction validation record using the provided database connection.
+	// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
+	// enabling atomic operations with other database changes.
+	// This maintains the immutability requirement for compliance (SOX/GLBA).
+	// Implementations MUST return a non-nil error if validation is nil (no panics).
+	InsertWithTx(ctx context.Context, db pgdb.DB, validation *model.TransactionValidation) error
 }
