@@ -250,6 +250,10 @@ func TestTransactionValidation_ToValidationResponse_DefensiveCopy_Scopes(t *test
 	// Mutate response's Scopes slice (append)
 	resp.LimitUsageDetails[0].Scopes = append(resp.LimitUsageDetails[0].Scopes, Scope{})
 
+	// Mutate a nested pointer inside the copied Scope to verify deep copy
+	mutatedID := uuid.MustParse("99999999-9999-9999-9999-999999999999")
+	resp.LimitUsageDetails[0].Scopes[0].AccountID = &mutatedID
+
 	// Original must remain unchanged
 	require.Len(t, tv.LimitUsageDetails[0].Scopes, 1,
 		"original Scopes length mutated via response append")
