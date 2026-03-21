@@ -673,7 +673,7 @@ func TestValidation_FutureTimestamp_SmallClockSkew_IsAccepted(t *testing.T) {
 	require.NoError(t, err)
 
 	// Small clock skew (2 seconds) is tolerated - API accepts the request
-	assert.Equal(t, http.StatusOK, resp.StatusCode,
+	assert.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Small clock skew (2 seconds) should be tolerated. Response: %s", string(respBody))
 
 	// Verify we got a valid validation response

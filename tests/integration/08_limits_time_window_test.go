@@ -74,7 +74,7 @@ func TestTimeWindow_InsideWindow(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction should be allowed, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Transaction should be allowed, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -128,7 +128,7 @@ func TestTimeWindow_OutsideWindow(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction should be allowed, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Transaction should be allowed, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -183,7 +183,7 @@ func TestTimeWindow_OvernightWindow(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -230,7 +230,7 @@ func TestTimeWindow_OvernightWindow(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -277,7 +277,7 @@ func TestTimeWindow_OvernightWindow(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -330,7 +330,7 @@ func TestTimeWindow_Boundaries(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -376,7 +376,7 @@ func TestTimeWindow_Boundaries(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -423,7 +423,7 @@ func TestTimeWindow_Boundaries(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -469,7 +469,7 @@ func TestTimeWindow_Boundaries(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -582,7 +582,7 @@ func TestCustomPeriod_BeforePeriod(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)
@@ -633,7 +633,7 @@ func TestCustomPeriod_DuringPeriod(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)
@@ -684,7 +684,7 @@ func TestCustomPeriod_AfterPeriod(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)
@@ -734,7 +734,7 @@ func TestCustomPeriod_Boundaries(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -778,7 +778,7 @@ func TestCustomPeriod_Boundaries(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -822,7 +822,7 @@ func TestCustomPeriod_Boundaries(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -872,7 +872,7 @@ func TestCustomPeriod_AccumulationAcrossDays(t *testing.T) {
 	resp1, body1 := testutil.CreateValidation(t, req1)
 	defer resp1.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp1.StatusCode)
+	require.Equal(t, http.StatusCreated, resp1.StatusCode)
 
 	var result1 testutil.ValidationResponse
 	err = json.Unmarshal(body1, &result1)
@@ -901,7 +901,7 @@ func TestCustomPeriod_AccumulationAcrossDays(t *testing.T) {
 	resp2, body2 := testutil.CreateValidation(t, req2)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode)
+	require.Equal(t, http.StatusCreated, resp2.StatusCode)
 
 	var result2 testutil.ValidationResponse
 	err = json.Unmarshal(body2, &result2)
@@ -1010,7 +1010,7 @@ func TestSkipLogic_NoCounterCreated(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)
@@ -1087,7 +1087,7 @@ func TestSkipLogic_MixedInsideOutside(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)
@@ -1171,7 +1171,7 @@ func TestSkipLogic_SkippedNeverBlocks(t *testing.T) {
 	defer resp.Body.Close()
 
 	// CRITICAL: Should return 200 OK (allowed), NOT 400/422 (blocked)
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Transaction should be allowed even with amount > maxAmount because limit is skipped")
 
 	var result testutil.ValidationResponse
@@ -1232,7 +1232,7 @@ func TestEvaluatedAt_PresentAndValid(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)
@@ -1294,7 +1294,7 @@ func TestEvaluatedAt_UsesServerNow(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)
@@ -1364,7 +1364,7 @@ func TestWeekly_YearBoundary(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -1424,7 +1424,7 @@ func TestWeekly_YearBoundary(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -1504,7 +1504,7 @@ func TestCustomPeriodWithTimeWindow_AC09(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction should be allowed: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Transaction should be allowed: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -1549,7 +1549,7 @@ func TestCustomPeriodWithTimeWindow_AC09(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction should be allowed (skipped): %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Transaction should be allowed (skipped): %s", string(body))
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -1594,7 +1594,7 @@ func TestCustomPeriodWithTimeWindow_AC09(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction should be allowed (skipped): %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Transaction should be allowed (skipped): %s", string(body))
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -1766,7 +1766,7 @@ func TestPIXCompliancePattern_AC11(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Morning transaction should be allowed, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Morning transaction should be allowed, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -1848,7 +1848,7 @@ func TestPIXCompliancePattern_AC11(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Night transaction should be allowed, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Night transaction should be allowed, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -1931,7 +1931,7 @@ func TestPIXCompliancePattern_AC11(t *testing.T) {
 			resp, body := testutil.CreateValidation(t, req)
 			resp.Body.Close()
 
-			require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction should be allowed")
+			require.Equal(t, http.StatusCreated, resp.StatusCode, "Transaction should be allowed")
 
 			err := json.Unmarshal(body, &lastResult)
 			require.NoError(t, err)

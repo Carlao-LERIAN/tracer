@@ -85,7 +85,7 @@ func TestValidation_CompleteEvaluation_AllActiveRules(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: All test rules evaluated and matched (no short-circuit)
 	evaluatedRuleIDs, ok := result["evaluatedRuleIds"].([]any)
@@ -147,7 +147,7 @@ func TestValidation_CompleteEvaluation_CollectsMatchingWithDenyPrecedence(t *tes
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Verify matching rules (at least the test rules)
 	matchedRuleIDs, ok := result["matchedRuleIds"].([]any)
@@ -226,7 +226,7 @@ func TestValidation_CompleteEvaluation_CollectsEvaluatedRules(t *testing.T) {
 	payload["amount"] = "100.00"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Scoped rules evaluated, others filtered
 	evaluatedRuleIDs, ok := result["evaluatedRuleIds"].([]any)
@@ -266,7 +266,7 @@ func TestValidation_CompleteEvaluation_DraftRulesNotEvaluated(t *testing.T) {
 	payload["currency"] = "BRL" // Would match DRAFT rule if it were active
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Only ACTIVE rules evaluated
 	evaluatedRuleIDs, ok := result["evaluatedRuleIds"].([]any)
@@ -307,7 +307,7 @@ func TestValidation_CompleteEvaluation_InactiveRulesNotEvaluated(t *testing.T) {
 	payload["currency"] = "BRL" // Would match INACTIVE rule if it were active
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Only ACTIVE rules evaluated
 	evaluatedRuleIDs, ok := result["evaluatedRuleIds"].([]any)
@@ -347,7 +347,7 @@ func TestValidation_CompleteEvaluation_DeletedRulesNotEvaluated(t *testing.T) {
 	payload["currency"] = "BRL" // Would match DELETED rule if it existed
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Only ACTIVE rules evaluated
 	evaluatedRuleIDs, ok := result["evaluatedRuleIds"].([]any)
@@ -373,7 +373,7 @@ func TestValidation_ResponseStructure_ValidationIdIsServerGenerated(t *testing.T
 	payload1["requestId"] = requestID
 
 	result1, status1 := testutil.ExecuteValidationRequest(t, payload1)
-	require.Equal(t, http.StatusOK, status1)
+	require.Equal(t, http.StatusCreated, status1)
 
 	// VALIDATIONS for first call
 	validationID1, ok := result1["validationId"].(string)
@@ -392,7 +392,7 @@ func TestValidation_ResponseStructure_ValidationIdIsServerGenerated(t *testing.T
 	payload2["requestId"] = testutil.MustDeterministicUUID(4006).String()
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	validationID2, ok := result2["validationId"].(string)
 	require.True(t, ok, "validationId must be string")
@@ -413,7 +413,7 @@ func TestValidation_ResponseStructure_RequestIdEchoed(t *testing.T) {
 	payload["requestId"] = requestID
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: requestId echoed exactly
 	responseRequestID, ok := result["requestId"].(string)
@@ -430,7 +430,7 @@ func TestValidation_ResponseStructure_ProcessingTimeMsAlwaysPresent(t *testing.T
 	payload := testutil.CreateBasicValidationPayload()
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	processingTimeMs, ok := result["processingTimeMs"].(float64)
@@ -491,7 +491,7 @@ func TestValidation_ResponseStructure_ReasonField_AllDecisions(t *testing.T) {
 			payload["amount"] = tc.amount
 
 			result, status := testutil.ExecuteValidationRequest(t, payload)
-			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, http.StatusCreated, status)
 
 			// Validate decision
 			assert.Equal(t, tc.expectedDecision, result["decision"])
@@ -533,7 +533,7 @@ func TestValidation_ResponseStructure_LimitUsageDetails_EmptyArray(t *testing.T)
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	limitUsageDetails, ok := result["limitUsageDetails"].([]any)
@@ -566,7 +566,7 @@ func TestValidation_ResponseStructure_LimitUsageDetails_Populated(t *testing.T) 
 	payload["amount"] = "500.00"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	limitUsageDetails, ok := result["limitUsageDetails"].([]any)

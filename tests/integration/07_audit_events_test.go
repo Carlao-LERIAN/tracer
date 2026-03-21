@@ -438,10 +438,10 @@ func TestAuditEvents_11_2_7_FiltersByAccountId(t *testing.T) {
 	}
 
 	resp, body := testutil.CreateValidation(t, validationReq)
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusCreated {
 		t.Logf("Validation failed with status %d: %s", resp.StatusCode, string(body))
 	}
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -493,7 +493,7 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 		},
 	}
 	respPIX, _ := testutil.CreateValidation(t, pixReq)
-	require.Equal(t, http.StatusOK, respPIX.StatusCode)
+	require.Equal(t, http.StatusCreated, respPIX.StatusCode)
 
 	// Create CARD validation
 	cardReq := &testutil.ValidationRequest{
@@ -509,7 +509,7 @@ func TestAuditEvents_11_2_8_FiltersByTransactionType(t *testing.T) {
 		},
 	}
 	respCard, _ := testutil.CreateValidation(t, cardReq)
-	require.Equal(t, http.StatusOK, respCard.StatusCode)
+	require.Equal(t, http.StatusCreated, respCard.StatusCode)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -570,7 +570,7 @@ func TestAuditEvents_11_2_9_FiltersByMatchedRuleId(t *testing.T) {
 	}
 
 	resp, body := testutil.CreateValidation(t, validationReq)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var validation testutil.ValidationResponse
 	json.Unmarshal(body, &validation)
@@ -1442,7 +1442,7 @@ func TestAuditEvents_11_4_5_GeneratesAuditForTransactionValidation(t *testing.T)
 	}
 
 	resp, body := testutil.CreateValidation(t, validationReq)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var validation testutil.ValidationResponse
 	json.Unmarshal(body, &validation)
@@ -2180,7 +2180,7 @@ func TestAuditEvents_11_10_2_ValidationTriggersAuditEvent(t *testing.T) {
 	}
 
 	resp, body := testutil.CreateValidation(t, validationReq)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var validation testutil.ValidationResponse
 	json.Unmarshal(body, &validation)
@@ -2636,7 +2636,7 @@ func TestAuditEvents_11_6_1_FiltersBySegmentId(t *testing.T) {
 	}
 
 	resp, _ := testutil.CreateValidation(t, validationReq)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -2705,7 +2705,7 @@ func TestAuditEvents_11_6_2_FiltersByPortfolioId(t *testing.T) {
 	}
 
 	resp, _ := testutil.CreateValidation(t, validationReq)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -2781,7 +2781,7 @@ func TestAuditEvents_11_6_3_CombinesMultipleJSONBFilters(t *testing.T) {
 	}
 
 	resp, _ := testutil.CreateValidation(t, validationReq)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	time.Sleep(100 * time.Millisecond)
 

@@ -70,7 +70,7 @@ func TestBackwardCompatibility_DAILY_NoTimeWindow(t *testing.T) {
 	resp1, body1 := testutil.CreateValidation(t, req1)
 	defer resp1.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp1.StatusCode)
+	require.Equal(t, http.StatusCreated, resp1.StatusCode)
 
 	var result1 testutil.ValidationResponse
 	err = json.Unmarshal(body1, &result1)
@@ -101,7 +101,7 @@ func TestBackwardCompatibility_DAILY_NoTimeWindow(t *testing.T) {
 	resp2, body2 := testutil.CreateValidation(t, req2)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode)
+	require.Equal(t, http.StatusCreated, resp2.StatusCode)
 
 	var result2 testutil.ValidationResponse
 	err = json.Unmarshal(body2, &result2)
@@ -158,7 +158,7 @@ func TestBackwardCompatibility_MONTHLY_NoTimeWindow(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var result testutil.ValidationResponse
 		err = json.Unmarshal(body, &result)
@@ -187,7 +187,7 @@ func TestBackwardCompatibility_MONTHLY_NoTimeWindow(t *testing.T) {
 	finalResp, finalBody := testutil.CreateValidation(t, finalReq)
 	defer finalResp.Body.Close()
 
-	require.Equal(t, http.StatusOK, finalResp.StatusCode)
+	require.Equal(t, http.StatusCreated, finalResp.StatusCode)
 
 	var finalResult testutil.ValidationResponse
 	err = json.Unmarshal(finalBody, &finalResult)
@@ -239,7 +239,7 @@ func TestBackwardCompatibility_WEEKLY_NoTimeWindow(t *testing.T) {
 	resp1, body1 := testutil.CreateValidation(t, req1)
 	defer resp1.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp1.StatusCode)
+	require.Equal(t, http.StatusCreated, resp1.StatusCode)
 
 	var result1 testutil.ValidationResponse
 	err = json.Unmarshal(body1, &result1)
@@ -268,7 +268,7 @@ func TestBackwardCompatibility_WEEKLY_NoTimeWindow(t *testing.T) {
 	resp2, body2 := testutil.CreateValidation(t, req2)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode)
+	require.Equal(t, http.StatusCreated, resp2.StatusCode)
 
 	var result2 testutil.ValidationResponse
 	err = json.Unmarshal(body2, &result2)
@@ -319,7 +319,7 @@ func TestBackwardCompatibility_API_Fields(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	// Parse response as generic map to check all fields
 	var rawResponse map[string]interface{}
@@ -420,7 +420,7 @@ func TestBackwardCompatibility_MultipleTraditionalLimits(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)

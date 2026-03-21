@@ -51,7 +51,7 @@ func TestValidation_1_1_40_MonthlyLimitType(t *testing.T) {
 
 	resp1, body1 := testutil.CreateValidation(t, firstReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
 	var firstResult testutil.ValidationResponse
 	err := json.Unmarshal(body1, &firstResult)
@@ -73,7 +73,7 @@ func TestValidation_1_1_40_MonthlyLimitType(t *testing.T) {
 	resp2, body2 := testutil.CreateValidation(t, secondReq)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created, got: %s", string(body2))
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body2, &result)
@@ -124,7 +124,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -163,7 +163,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -202,7 +202,7 @@ func TestValidation_1_1_41_PerTransactionLimitType(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -261,7 +261,7 @@ func TestValidation_1_1_42_ScopeMatchingRulesSegment(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -290,7 +290,7 @@ func TestValidation_1_1_42_ScopeMatchingRulesSegment(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -336,7 +336,7 @@ func TestValidation_1_1_43_ScopeMatchingRulesPortfolio(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -365,7 +365,7 @@ func TestValidation_1_1_43_ScopeMatchingRulesPortfolio(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -407,7 +407,7 @@ func TestValidation_1_1_44_ScopeMatchingRulesTransactionType(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -433,7 +433,7 @@ func TestValidation_1_1_44_ScopeMatchingRulesTransactionType(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -476,7 +476,7 @@ func TestValidation_1_1_45_DenyRulePrecedenceOverLimitExceeded(t *testing.T) {
 
 	resp1, body1 := testutil.CreateValidation(t, firstReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
 	var firstResult testutil.ValidationResponse
 	err := json.Unmarshal(body1, &firstResult)
@@ -498,7 +498,7 @@ func TestValidation_1_1_45_DenyRulePrecedenceOverLimitExceeded(t *testing.T) {
 	resp2, body2 := testutil.CreateValidation(t, secondReq)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created, got: %s", string(body2))
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body2, &result)
@@ -542,7 +542,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 
 	pixResp, pixBody := testutil.CreateValidation(t, pixReq)
 	defer pixResp.Body.Close()
-	require.Equal(t, http.StatusOK, pixResp.StatusCode, "PIX validation should succeed: %s", string(pixBody))
+	require.Equal(t, http.StatusCreated, pixResp.StatusCode, "PIX validation should succeed: %s", string(pixBody))
 
 	var pixResult testutil.ValidationResponse
 	err := json.Unmarshal(pixBody, &pixResult)
@@ -567,7 +567,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	cardResp, cardBody := testutil.CreateValidation(t, cardReq)
 	defer cardResp.Body.Close()
 
-	require.Equal(t, http.StatusOK, cardResp.StatusCode, "Expected 200 OK, got: %s", string(cardBody))
+	require.Equal(t, http.StatusCreated, cardResp.StatusCode, "Expected 201 Created, got: %s", string(cardBody))
 
 	var cardResult testutil.ValidationResponse
 	err = json.Unmarshal(cardBody, &cardResult)
@@ -590,7 +590,7 @@ func TestValidation_1_1_46_LimitUsageUpdatedOnlyOnAllow(t *testing.T) {
 	checkResp, checkBody := testutil.CreateValidation(t, checkReq)
 	defer checkResp.Body.Close()
 
-	require.Equal(t, http.StatusOK, checkResp.StatusCode, "Check validation should succeed: %s", string(checkBody))
+	require.Equal(t, http.StatusCreated, checkResp.StatusCode, "Check validation should succeed: %s", string(checkBody))
 
 	var checkResult testutil.ValidationResponse
 	err = json.Unmarshal(checkBody, &checkResult)
@@ -701,7 +701,7 @@ func TestValidation_1_1_47b_AcceptsMaxSafeCELAmount(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Amount at CEL precision boundary (2^53) should pass the precision guard: %s", string(body))
 
 	// Verify CEL actually evaluated the expression (decision DENY proves the amount
@@ -734,7 +734,7 @@ func TestValidation_1_1_48_EmptyMetadataObject(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Empty metadata should be accepted: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Empty metadata should be accepted: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -776,7 +776,7 @@ func TestValidation_1_1_49_NullOptionalFields(t *testing.T) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Null optional fields should be accepted: %s", string(respBody))
 
 	var result testutil.ValidationResponse
@@ -844,7 +844,7 @@ func TestValidation_1_1_51_LowercaseCurrencyRejected(t *testing.T) {
 	assert.Equal(t, "currency must be valid ISO 4217 code (e.g., BRL, USD)", errResp.Message, "Error message should indicate valid currency format")
 }
 
-// Test 1.1.52: Validation returns unique validationId for each request
+// Test 1.1.52: Duplicate requestId returns cached response (idempotent behavior)
 func TestValidation_1_1_52_UniqueValidationIdPerRequest(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1120).String()
 	requestID := testutil.MustDeterministicUUID(1121).String() // Same requestId for both
@@ -860,19 +860,19 @@ func TestValidation_1_1_52_UniqueValidationIdPerRequest(t *testing.T) {
 		},
 	}
 
-	// First request
+	// First request — new validation
 	resp1, body1 := testutil.CreateValidation(t, req)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First request should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First request should return 201 Created: %s", string(body1))
 
 	var result1 testutil.ValidationResponse
 	err := json.Unmarshal(body1, &result1)
 	require.NoError(t, err)
 
-	// Second request with same requestId
+	// Second request with same requestId — duplicate, returns cached response
 	resp2, body2 := testutil.CreateValidation(t, req)
 	defer resp2.Body.Close()
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Second request should succeed: %s", string(body2))
+	require.Equal(t, http.StatusOK, resp2.StatusCode, "Duplicate request should return 200 OK: %s", string(body2))
 
 	var result2 testutil.ValidationResponse
 	err = json.Unmarshal(body2, &result2)
@@ -882,9 +882,9 @@ func TestValidation_1_1_52_UniqueValidationIdPerRequest(t *testing.T) {
 	assert.Equal(t, requestID, result1.RequestID, "First response should echo requestId")
 	assert.Equal(t, requestID, result2.RequestID, "Second response should echo requestId")
 
-	// Verify validationIds are different
-	assert.NotEqual(t, result1.ValidationID, result2.ValidationID,
-		"Each response should have a unique validationId")
+	// With idempotency, duplicate returns the same validationId (cached response)
+	assert.Equal(t, result1.ValidationID, result2.ValidationID,
+		"Duplicate request should return the same validationId (cached)")
 
 	// Verify validationId is different from requestId
 	assert.NotEqual(t, result1.ValidationID, requestID,
@@ -893,8 +893,8 @@ func TestValidation_1_1_52_UniqueValidationIdPerRequest(t *testing.T) {
 		"validationId should be different from requestId")
 }
 
-// Test 1.1.53: Validation non-idempotent behavior
-func TestValidation_1_1_53_NonIdempotentBehavior(t *testing.T) {
+// Test 1.1.53: Idempotent behavior — duplicate requestId returns cached result
+func TestValidation_1_1_53_IdempotentBehavior(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1130).String()
 
 	// Create and activate a DAILY limit
@@ -920,7 +920,7 @@ func TestValidation_1_1_53_NonIdempotentBehavior(t *testing.T) {
 	// First request - should ALLOW and consume limit
 	resp1, body1 := testutil.CreateValidation(t, req)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First request should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First request should return 201 Created: %s", string(body1))
 
 	var result1 testutil.ValidationResponse
 	err := json.Unmarshal(body1, &result1)
@@ -928,21 +928,21 @@ func TestValidation_1_1_53_NonIdempotentBehavior(t *testing.T) {
 
 	assert.Equal(t, "ALLOW", result1.Decision, "First request should be ALLOW")
 
-	// Second request with same payload and requestId - should DENY (limit exceeded: 600 + 600 > 1000)
+	// Second request with same requestId — duplicate, returns cached ALLOW (no double-count)
 	resp2, body2 := testutil.CreateValidation(t, req)
 	defer resp2.Body.Close()
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Second request should succeed: %s", string(body2))
+	require.Equal(t, http.StatusOK, resp2.StatusCode, "Duplicate request should return 200 OK: %s", string(body2))
 
 	var result2 testutil.ValidationResponse
 	err = json.Unmarshal(body2, &result2)
 	require.NoError(t, err)
 
-	assert.Equal(t, "DENY", result2.Decision,
-		"Second request should be DENY (non-idempotent: limit now exceeded)")
+	assert.Equal(t, "ALLOW", result2.Decision,
+		"Duplicate request should return cached ALLOW (idempotent, no double-count)")
 
-	// Verify different validationIds
-	assert.NotEqual(t, result1.ValidationID, result2.ValidationID,
-		"Each request should have a unique validationId")
+	// With idempotency, duplicate returns the same validationId
+	assert.Equal(t, result1.ValidationID, result2.ValidationID,
+		"Duplicate request should return the same validationId (cached)")
 }
 
 // Test 1.1.54: Validation with all rule actions matching
@@ -984,7 +984,7 @@ func TestValidation_1_1_54_AllRuleActionsMatching(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
