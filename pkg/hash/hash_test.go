@@ -22,7 +22,6 @@ import (
 // TestHashUUIDToInt32_Deterministic verifies that the same UUID always produces
 // the same int32 hash value. This is critical for advisory locks - concurrent
 // requests with the same request_id MUST acquire the same lock.
-//
 func TestHashUUIDToInt32_Deterministic(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +75,6 @@ func TestHashUUIDToInt32_Deterministic(t *testing.T) {
 // TestHashUUIDToInt32_DifferentInputs verifies that different UUIDs produce
 // different hash values (with high probability). This ensures that advisory
 // locks for different request_ids don't collide.
-//
 func TestHashUUIDToInt32_DifferentInputs(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +113,6 @@ func TestHashUUIDToInt32_DifferentInputs(t *testing.T) {
 
 // TestHashUUIDToInt32_BoundaryValues tests edge cases and boundary values
 // to ensure the hash function handles them correctly.
-//
 func TestHashUUIDToInt32_BoundaryValues(t *testing.T) {
 	t.Parallel()
 
@@ -159,7 +156,6 @@ func TestHashUUIDToInt32_BoundaryValues(t *testing.T) {
 // a reasonable distribution of values across the int32 range.
 // This is important for advisory lock performance - we don't want all locks
 // to cluster in a small range.
-//
 func TestHashUUIDToInt32_Distribution(t *testing.T) {
 	t.Parallel()
 
