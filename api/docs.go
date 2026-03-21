@@ -1869,7 +1869,13 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Validation result",
+                        "description": "Duplicate request (idempotent)",
+                        "schema": {
+                            "$ref": "#/definitions/tracer_pkg_model.ValidationResponse"
+                        }
+                    },
+                    "201": {
+                        "description": "New validation created",
                         "schema": {
                             "$ref": "#/definitions/tracer_pkg_model.ValidationResponse"
                         }
