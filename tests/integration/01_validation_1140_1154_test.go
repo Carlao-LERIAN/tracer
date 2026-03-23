@@ -886,10 +886,15 @@ func TestValidation_1_1_52_UniqueValidationIdPerRequest(t *testing.T) {
 	assert.Equal(t, result1.ValidationID, result2.ValidationID,
 		"Duplicate request should return the same validationId (cached)")
 
+	// Verify cached response is identical in all stable fields
+	assert.Equal(t, result1.Decision, result2.Decision, "Cached decision must match")
+	assert.Equal(t, result1.Reason, result2.Reason, "Cached reason must match")
+	assert.Equal(t, result1.MatchedRuleIDs, result2.MatchedRuleIDs, "Cached matchedRuleIds must match")
+	assert.Equal(t, result1.EvaluatedRuleIDs, result2.EvaluatedRuleIDs, "Cached evaluatedRuleIds must match")
+	assert.Equal(t, result1.LimitUsageDetails, result2.LimitUsageDetails, "Cached limitUsageDetails must match")
+
 	// Verify validationId is different from requestId
 	assert.NotEqual(t, result1.ValidationID, requestID,
-		"validationId should be different from requestId")
-	assert.NotEqual(t, result2.ValidationID, requestID,
 		"validationId should be different from requestId")
 }
 
