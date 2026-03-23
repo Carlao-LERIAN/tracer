@@ -1170,7 +1170,7 @@ func TestSkipLogic_SkippedNeverBlocks(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	// CRITICAL: Should return 200 OK (allowed), NOT 400/422 (blocked)
+	// CRITICAL: Should return 201 Created (allowed), NOT 400/422 (blocked)
 	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Transaction should be allowed even with amount > maxAmount because limit is skipped")
 
