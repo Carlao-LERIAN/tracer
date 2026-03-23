@@ -14,6 +14,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
@@ -120,12 +121,61 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 	db, err := r.conn.GetDB()
 	if err != nil {
 		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return fmt.Errorf("failed to get database connection: %w", err)
+	}
+
+	return r.insertInternal(ctx, db, validation, logger, &span, "repository.transaction_validation.insert")
+}
+
+// InsertWithTx creates a new transaction validation record using the provided database connection.
+// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
+// enabling atomic operations with other database changes.
+// This maintains the immutability requirement for compliance (SOX/GLBA).
+// Uses the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
+func (r *TransactionValidationRepository) InsertWithTx(ctx context.Context, db pgdb.DB, validation *model.TransactionValidation) error {
+	if validation == nil {
+		return errors.New("validation cannot be nil")
+	}
+
+	if db == nil {
+		// Span not annotated here: span starts after this check to avoid
+		// OpenTelemetry overhead for invalid calls (nil db is a programming error).
+		return pgdb.ErrNilConnection
+	}
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.transaction_validation.insert_with_tx")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	return r.insertInternal(ctx, db, validation, logger, &span, "repository.transaction_validation.insert_with_tx")
+}
+
+// insertInternal contains the shared INSERT logic for both Insert and InsertWithTx.
+// It performs validation, entity conversion, query building, and execution.
+// Uses the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
+func (r *TransactionValidationRepository) insertInternal(
+	ctx context.Context,
+	db pgdb.DB,
+	validation *model.TransactionValidation,
+	logger libLog.Logger,
+	span *trace.Span,
+	operationName string,
+) error {
+	if validation == nil {
+		err := errors.New("validation cannot be nil")
+		libOtel.HandleSpanError(span, "Nil validation input", err)
+
+		return err
 	}
 
 	// Convert domain entity to database model using FromEntity pattern
 	var dbModel TransactionValidationPostgreSQLModel
 	if err := dbModel.FromEntity(validation); err != nil {
+		libOtel.HandleSpanError(span, "Failed to convert entity to database model", err)
 		return fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
@@ -180,19 +230,21 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 
 	sqlStr, args, err := qb.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
+
 		return fmt.Errorf("failed to build query: %w", err)
 	}
 
 	logger.WithFields(
-		"operation", "repository.transaction_validation.insert",
+		"operation", operationName,
 		"validation.id", validation.ID.String(),
 		"validation.decision", string(validation.Decision),
 	).Info("Inserting transaction validation record")
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to insert transaction validation", err)
+		libOtel.HandleSpanError(span, "Failed to insert transaction validation", err)
+
 		return fmt.Errorf("failed to insert transaction validation: %w", err)
 	}
 

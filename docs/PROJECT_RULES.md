@@ -3174,6 +3174,7 @@ otel.SetTracerProvider(tp)  // Set global provider for lib-commons
 13. **Priority-based rule evaluation** - All rules evaluated, DENY precedence
 14. **Direct OTel attribute/codes imports** - Use lib-commons wrappers (SetSpanAttributesFromStruct, HandleSpanError)
 15. **Unstructured logging** - Use `WithFields` instead of `Infof`/`Errorf` with string interpolation (see [Structured Logging](#structured-logging))
+16. **Task/ticket IDs in code** - Never reference task IDs (T-001, JIRA-123, etc.) in source code, comments, or test names. Code must be self-explanatory without project management context. Use descriptive names instead.
 
 ---
 
@@ -3185,3 +3186,4 @@ otel.SetTracerProvider(tp)  // Set global provider for lib-commons
 2. **NEVER run `git push` without explicit user approval**
 3. **NEVER modify files outside the scope of the requested task**
 4. **Always ask for confirmation before destructive operations**
+5. **NEVER include test execution results in commit messages** - Do not mention test counts, pass/fail status, or coverage numbers. Commit messages describe *what* changed and *why*, not verification results.

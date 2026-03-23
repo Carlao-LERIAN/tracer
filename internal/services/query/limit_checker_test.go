@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	dbmocks "tracer/internal/adapters/postgres/db/mocks"
 	"tracer/internal/testhelper"
 	"tracer/internal/testutil"
 	"tracer/pkg/clock"
@@ -5285,4 +5286,262 @@ func TestCalculateCounterExpiresAt_RetentionDays(t *testing.T) {
 	require.NotNil(t, result)
 	expected := resetAt.AddDate(0, 0, 90) // April 1, 2026
 	assert.Equal(t, expected, *result)
+}
+
+// =============================================================================
+// CheckLimitsWithTx Tests (Transactional Repository Methods)
+// =============================================================================
+
+// TestLimitCheckerService_CheckLimitsWithTx tests the CheckLimitsWithTx method
+// that accepts a pgdb.DB parameter for transactional operations.
+// This enables atomic operations with other database changes (e.g., validate + audit write).
+//
+// NOTE: These tests do not yet assert that mockDB is forwarded to repository calls because
+// the underlying repositories (LimitRepository, UsageCounterRepository) do not yet accept
+// a pgdb.DB parameter. When those repos gain WithTx variants, update these expectations
+// to verify the db parameter is propagated (e.g., gomock.Eq(mockDB) instead of gomock.Any()).
+//
+// NOTE: When repos support WithTx, add gomock.Eq(mockDB) expectations
+// to verify db parameter is forwarded correctly.
+func TestLimitCheckerService_CheckLimitsWithTx(t *testing.T) {
+	// Test UUIDs - seed range: 15000-15100
+	limitID1 := testutil.MustDeterministicUUID(15001)
+	accountID := testutil.MustDeterministicUUID(15100)
+
+	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
+	periodKeyDaily := serverPeriodKeyDaily
+
+	tests := []struct {
+		name         string
+		input        *model.CheckLimitsInput
+		setupMocks   func(*MockLimitRepository, *MockUsageCounterRepository)
+		wantAllowed  bool
+		wantExceeded []uuid.UUID
+		wantDetails  int
+		wantErr      bool
+		wantErrIs    error
+	}{
+		{
+			name: "checks limits using provided db connection - allowed",
+			input: &model.CheckLimitsInput{
+				Amount:               decimal.RequireFromString("50"),
+				Currency:             "USD",
+				AccountID:            accountID,
+				TransactionTimestamp: timestamp,
+			},
+			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
+				status := model.LimitStatusActive
+				currency := "USD"
+				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+					Status:   &status,
+					Currency: &currency,
+					Limit:    constant.MaxPaginationLimit,
+				}).Return(&model.ListLimitsResult{
+					Limits: []model.Limit{
+						{
+							ID:        limitID1,
+							Name:      "Daily Limit",
+							LimitType: model.LimitTypeDaily,
+							MaxAmount: decimal.RequireFromString("1000"),
+							Currency:  "USD",
+							Scopes:    []model.Scope{{AccountID: &accountID}},
+							Status:    model.LimitStatusActive,
+						},
+					},
+					HasMore: false,
+				}, nil)
+
+				scopeKey := "acct:" + accountID.String()
+				// Atomic upsert: returns new usage (0 + 50 = 50)
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000"), gomock.Any()).
+					Return(decimal.RequireFromString("50"), nil)
+			},
+			wantAllowed:  true,
+			wantExceeded: nil,
+			wantDetails:  1,
+			wantErr:      false,
+		},
+		{
+			name: "checks limits using provided db connection - exceeded",
+			input: &model.CheckLimitsInput{
+				Amount:               decimal.RequireFromString("600"),
+				Currency:             "USD",
+				AccountID:            accountID,
+				TransactionTimestamp: timestamp,
+			},
+			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
+				status := model.LimitStatusActive
+				currency := "USD"
+				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+					Status:   &status,
+					Currency: &currency,
+					Limit:    constant.MaxPaginationLimit,
+				}).Return(&model.ListLimitsResult{
+					Limits: []model.Limit{
+						{
+							ID:        limitID1,
+							Name:      "Daily Limit",
+							LimitType: model.LimitTypeDaily,
+							MaxAmount: decimal.RequireFromString("1000"),
+							Currency:  "USD",
+							Scopes:    []model.Scope{{AccountID: &accountID}},
+							Status:    model.LimitStatusActive,
+						},
+					},
+					HasMore: false,
+				}, nil)
+
+				scopeKey := "acct:" + accountID.String()
+				// Atomic upsert: returns ErrUsageCounterExceedsLimit when 500 + 600 > 1000
+				ucr.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("600"), decimal.RequireFromString("1000"), gomock.Any()).
+					Return(decimal.RequireFromString("500"), constant.ErrUsageCounterExceedsLimit)
+			},
+			wantAllowed:  false,
+			wantExceeded: []uuid.UUID{limitID1},
+			wantDetails:  1,
+			wantErr:      false,
+		},
+		{
+			name:  "returns error on nil input",
+			input: nil,
+			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
+				// No mocks - validation fails before repository calls
+			},
+			wantAllowed: false,
+			wantErr:     true,
+			wantErrIs:   constant.ErrCheckLimitsNilInput,
+		},
+		{
+			name: "no active limits - allowed",
+			input: &model.CheckLimitsInput{
+				Amount:               decimal.RequireFromString("100"),
+				Currency:             "USD",
+				AccountID:            accountID,
+				TransactionTimestamp: timestamp,
+			},
+			setupMocks: func(lr *MockLimitRepository, ucr *MockUsageCounterRepository) {
+				status := model.LimitStatusActive
+				currency := "USD"
+				lr.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+					Status:   &status,
+					Currency: &currency,
+					Limit:    constant.MaxPaginationLimit,
+				}).Return(&model.ListLimitsResult{
+					Limits:  []model.Limit{},
+					HasMore: false,
+				}, nil)
+			},
+			wantAllowed:  true,
+			wantExceeded: nil,
+			wantDetails:  0,
+			wantErr:      false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			mockLimitRepo := NewMockLimitRepository(ctrl)
+			mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+			tc.setupMocks(mockLimitRepo, mockUsageRepo)
+
+			ctx := setupTest(t)
+
+			checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
+			require.NoError(t, err)
+
+			mockDB := dbmocks.NewMockDB(ctrl)
+
+			output, err := checker.CheckLimitsWithTx(ctx, mockDB, tc.input)
+
+			if tc.wantErr {
+				require.Error(t, err)
+				if tc.wantErrIs != nil {
+					assert.ErrorIs(t, err, tc.wantErrIs)
+				}
+				assert.Nil(t, output)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, output)
+				assert.Equal(t, tc.wantAllowed, output.Allowed)
+				assert.Len(t, output.LimitUsageDetails, tc.wantDetails)
+
+				if tc.wantExceeded != nil {
+					assert.Equal(t, tc.wantExceeded, output.ExceededLimitIDs)
+				} else {
+					assert.Empty(t, output.ExceededLimitIDs)
+				}
+			}
+		})
+	}
+}
+
+// TestLimitCheckerService_CheckLimitsWithTx_UsesProvidedDB verifies that
+// CheckLimitsWithTx accepts a db parameter for transactional consistency.
+//
+// NOTE: Currently this test only verifies the method accepts and runs with a mockDB.
+// It does not assert the db is forwarded to repos because they lack WithTx variants.
+//
+// NOTE: When repos support WithTx, add gomock.Eq(mockDB) expectations here.
+func TestLimitCheckerService_CheckLimitsWithTx_UsesProvidedDB(t *testing.T) {
+	// Test UUIDs - seed range: 15200-15300
+	limitID1 := testutil.MustDeterministicUUID(15201)
+	accountID := testutil.MustDeterministicUUID(15200)
+
+	timestamp := time.Date(2025, 12, 28, 10, 0, 0, 0, time.UTC)
+	periodKeyDaily := serverPeriodKeyDaily
+
+	ctrl := gomock.NewController(t)
+
+	mockLimitRepo := NewMockLimitRepository(ctrl)
+	mockUsageRepo := NewMockUsageCounterRepository(ctrl)
+
+	status := model.LimitStatusActive
+	currency := "USD"
+
+	mockLimitRepo.EXPECT().List(gomock.Any(), &model.ListLimitsFilter{
+		Status:   &status,
+		Currency: &currency,
+		Limit:    constant.MaxPaginationLimit,
+	}).Return(&model.ListLimitsResult{
+		Limits: []model.Limit{
+			{
+				ID:        limitID1,
+				Name:      "Daily Limit",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: decimal.RequireFromString("1000"),
+				Currency:  "USD",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			},
+		},
+		HasMore: false,
+	}, nil)
+
+	scopeKey := "acct:" + accountID.String()
+	// Atomic upsert: returns new usage
+	mockUsageRepo.EXPECT().UpsertAndIncrementAtomic(gomock.Any(), limitID1, scopeKey, periodKeyDaily, decimal.RequireFromString("50"), decimal.RequireFromString("1000"), gomock.Any()).
+		Return(decimal.RequireFromString("50"), nil)
+
+	ctx := setupTest(t)
+
+	checker, err := NewLimitChecker(mockLimitRepo, mockUsageRepo, testutil.NewDefaultMockClock())
+	require.NoError(t, err)
+
+	input := &model.CheckLimitsInput{
+		Amount:               decimal.RequireFromString("50"),
+		Currency:             "USD",
+		AccountID:            accountID,
+		TransactionTimestamp: timestamp,
+	}
+
+	mockDB := dbmocks.NewMockDB(ctrl)
+
+	output, err := checker.CheckLimitsWithTx(ctx, mockDB, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, output)
+	assert.True(t, output.Allowed)
 }

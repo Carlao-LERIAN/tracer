@@ -81,9 +81,18 @@ func (tv *TransactionValidation) ToValidationResponse() *ValidationResponse {
 		return nil
 	}
 
-	// Defensive copy for LimitUsageDetails slice to prevent external mutation
+	// Defensive copy for LimitUsageDetails slice to prevent external mutation.
+	// Deep copies nested Scopes slice; pointer fields within Scope (*uuid.UUID, *string)
+	// are shallow-copied since the pointed-to values are immutable by convention.
 	limitDetailsCopy := make([]LimitUsageDetail, len(tv.LimitUsageDetails))
-	copy(limitDetailsCopy, tv.LimitUsageDetails)
+	for i, detail := range tv.LimitUsageDetails {
+		limitDetailsCopy[i] = detail
+		if detail.Scopes != nil {
+			scopesCopy := make([]Scope, len(detail.Scopes))
+			copy(scopesCopy, detail.Scopes)
+			limitDetailsCopy[i].Scopes = scopesCopy
+		}
+	}
 
 	matchedCopy := make([]uuid.UUID, len(tv.MatchedRuleIDs))
 	copy(matchedCopy, tv.MatchedRuleIDs)

@@ -220,6 +220,43 @@ func TestTransactionValidation_ToValidationResponse_DefensiveCopy(t *testing.T) 
 	assert.False(t, tv.LimitUsageDetails[0].Exceeded, "original LimitUsageDetails mutated via response")
 }
 
+// TestTransactionValidation_ToValidationResponse_DefensiveCopy_Scopes verifies that
+// mutating the nested Scopes slice in the response does not affect the original entity.
+func TestTransactionValidation_ToValidationResponse_DefensiveCopy_Scopes(t *testing.T) {
+	t.Parallel()
+
+	originalAccountID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
+	originalLimitID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440030")
+
+	tv := &TransactionValidation{
+		ID:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440010"),
+		RequestID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440020"),
+		EvaluationResult: EvaluationResult{
+			Decision: DecisionAllow,
+		},
+		LimitUsageDetails: []LimitUsageDetail{
+			{
+				LimitID: originalLimitID,
+				Scopes: []Scope{
+					{AccountID: &originalAccountID},
+				},
+			},
+		},
+		CreatedAt: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC),
+	}
+
+	resp := tv.ToValidationResponse()
+
+	// Mutate response's Scopes slice (append)
+	resp.LimitUsageDetails[0].Scopes = append(resp.LimitUsageDetails[0].Scopes, Scope{})
+
+	// Original must remain unchanged
+	require.Len(t, tv.LimitUsageDetails[0].Scopes, 1,
+		"original Scopes length mutated via response append")
+	assert.Equal(t, originalAccountID, *tv.LimitUsageDetails[0].Scopes[0].AccountID,
+		"original Scopes content mutated via response")
+}
+
 // TestTransactionValidation_ToValidationResponse_NilReceiver verifies nil-safety.
 // This is critical because FindByRequestID returns (nil, nil) for not-found cases,
 // and callers might chain .ToValidationResponse() on the result.

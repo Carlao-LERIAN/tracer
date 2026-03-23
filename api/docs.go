@@ -2660,7 +2660,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "scope": {
-                    "description": "Scope is a human-readable string representation of the limit's scope\n(e.g., \"account:uuid\" or \"segment:uuid\" or \"global\").\nPer section 4.1.1.",
+                    "description": "Scope is a human-readable string representation of the limit's scope\n(e.g., \"account:uuid\" or \"segment:uuid\" or \"global\").",
                     "type": "string"
                 },
                 "skipReason": {

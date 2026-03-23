@@ -494,7 +494,6 @@ definitions:
         description: |-
           Scope is a human-readable string representation of the limit's scope
           (e.g., "account:uuid" or "segment:uuid" or "global").
-          Per section 4.1.1.
         type: string
       skipReason:
         description: |-

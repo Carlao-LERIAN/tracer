@@ -12,6 +12,7 @@ package query
 import (
 	context "context"
 	reflect "reflect"
+	db "tracer/internal/adapters/postgres/db"
 	model "tracer/pkg/model"
 
 	gomock "go.uber.org/mock/gomock"
@@ -54,6 +55,21 @@ func (m *MockLimitChecker) CheckLimits(ctx context.Context, input *model.CheckLi
 func (mr *MockLimitCheckerMockRecorder) CheckLimits(ctx, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckLimits", reflect.TypeOf((*MockLimitChecker)(nil).CheckLimits), ctx, input)
+}
+
+// CheckLimitsWithTx mocks base method.
+func (m *MockLimitChecker) CheckLimitsWithTx(ctx context.Context, arg1 db.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckLimitsWithTx", ctx, arg1, input)
+	ret0, _ := ret[0].(*model.CheckLimitsOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CheckLimitsWithTx indicates an expected call of CheckLimitsWithTx.
+func (mr *MockLimitCheckerMockRecorder) CheckLimitsWithTx(ctx, arg1, input any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckLimitsWithTx", reflect.TypeOf((*MockLimitChecker)(nil).CheckLimitsWithTx), ctx, arg1, input)
 }
 
 // RollbackUsage mocks base method.

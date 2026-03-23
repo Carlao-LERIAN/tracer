@@ -644,7 +644,8 @@ func initHTTPServer(
 	}
 
 	// Init ValidationService with audit writer for SOX/GLBA compliance
-	validationService, err := services.NewValidationService(evaluateRulesQuery, limitChecker, transactionValidationRepo, auditWriter, clk)
+	// Pass transactionValidationRepo for both command (insert) and query (FindByRequestID) operations
+	validationService, err := services.NewValidationService(evaluateRulesQuery, limitChecker, transactionValidationRepo, transactionValidationRepo, auditWriter, clk)
 	if err != nil {
 		return nil, err
 	}

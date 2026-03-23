@@ -22,6 +22,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/internal/adapters/postgres/db/mocks"
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
@@ -1392,4 +1393,176 @@ func TestTransactionValidationPostgresRepository_FindByRequestID(t *testing.T) {
 			require.NoError(t, sqlMock.ExpectationsWereMet())
 		})
 	}
+}
+
+// =============================================================================
+// InsertWithTx Tests (Transactional Repository Methods)
+// =============================================================================
+
+// TestTransactionValidationPostgresRepository_InsertWithTx tests the InsertWithTx method
+// that accepts a pgdb.DB parameter for transactional operations.
+// This enables atomic operations with other database changes (e.g., limit checks + audit write).
+func TestTransactionValidationPostgresRepository_InsertWithTx(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	tests := []struct {
+		name      string
+		tv        *model.TransactionValidation
+		mockSetup func(mock sqlmock.Sqlmock, tv *model.TransactionValidation)
+		wantErr   bool
+		errMsg    string
+	}{
+		{
+			name: "inserts transaction validation using provided db connection",
+			tv:   testTransactionValidation(),
+			mockSetup: func(mock sqlmock.Sqlmock, tv *model.TransactionValidation) {
+				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO transaction_validations`)).
+					WithArgs(
+						tv.ID,
+						tv.RequestID,
+						string(tv.TransactionType),
+						tv.SubType,
+						tv.Amount,
+						tv.Currency,
+						tv.TransactionTimestamp,
+						sqlmock.AnyArg(), // account (JSONB)
+						sqlmock.AnyArg(), // segment (JSONB)
+						sqlmock.AnyArg(), // portfolio (JSONB)
+						sqlmock.AnyArg(), // merchant (JSONB)
+						sqlmock.AnyArg(), // metadata (JSONB)
+						string(tv.Decision),
+						tv.Reason,
+						sqlmock.AnyArg(), // matched_rule_ids (UUID[])
+						sqlmock.AnyArg(), // evaluated_rule_ids (UUID[])
+						sqlmock.AnyArg(), // limit_usage_details (JSONB)
+						tv.ProcessingTimeMs,
+						tv.CreatedAt,
+					).
+					WillReturnResult(sqlmock.NewResult(1, 1))
+			},
+			wantErr: false,
+		},
+		{
+			name: "returns error when database insert fails",
+			tv:   testTransactionValidation(),
+			mockSetup: func(mock sqlmock.Sqlmock, tv *model.TransactionValidation) {
+				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO transaction_validations`)).
+					WillReturnError(errors.New("database error"))
+			},
+			wantErr: true,
+			errMsg:  "failed to insert transaction validation",
+		},
+		{
+			name:      "returns error when validation is nil",
+			tv:        nil,
+			mockSetup: func(mock sqlmock.Sqlmock, tv *model.TransactionValidation) {},
+			wantErr:   true,
+			errMsg:    "validation cannot be nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, sqlMock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer func() {
+				sqlMock.ExpectClose()
+				require.NoError(t, db.Close())
+			}()
+
+			ctrl := gomock.NewController(t)
+			mockConn := mocks.NewMockConnection(ctrl)
+			repo := NewTransactionValidationRepositoryWithConnection(mockConn)
+
+			tt.mockSetup(sqlMock, tt.tv)
+
+			ctx := context.Background()
+
+			// Call InsertWithTx with the mock db directly
+			// This tests that the method uses the provided db, not r.conn.GetDB()
+			err = repo.InsertWithTx(ctx, db, tt.tv)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+
+			require.NoError(t, sqlMock.ExpectationsWereMet())
+		})
+	}
+}
+
+// TestTransactionValidationPostgresRepository_InsertWithTx_UsesProvidedDB verifies that
+// InsertWithTx uses the provided db parameter instead of calling r.conn.GetDB().
+// This is critical for transactional consistency - the provided db may be a transaction.
+func TestTransactionValidationPostgresRepository_InsertWithTx_UsesProvidedDB(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() {
+		sqlMock.ExpectClose()
+		require.NoError(t, db.Close())
+	}()
+
+	ctrl := gomock.NewController(t)
+	mockConn := mocks.NewMockConnection(ctrl)
+	// Expect GetDB to NEVER be called - InsertWithTx should use the provided db
+	mockConn.EXPECT().GetDB().Times(0)
+
+	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
+
+	tv := testTransactionValidation()
+	sqlMock.ExpectExec(regexp.QuoteMeta(`INSERT INTO transaction_validations`)).
+		WithArgs(
+			tv.ID,
+			tv.RequestID,
+			string(tv.TransactionType),
+			tv.SubType,
+			tv.Amount,
+			tv.Currency,
+			tv.TransactionTimestamp,
+			sqlmock.AnyArg(), // account (JSONB)
+			sqlmock.AnyArg(), // segment (JSONB)
+			sqlmock.AnyArg(), // portfolio (JSONB)
+			sqlmock.AnyArg(), // merchant (JSONB)
+			sqlmock.AnyArg(), // metadata (JSONB)
+			string(tv.Decision),
+			tv.Reason,
+			sqlmock.AnyArg(), // matched_rule_ids (UUID[])
+			sqlmock.AnyArg(), // evaluated_rule_ids (UUID[])
+			sqlmock.AnyArg(), // limit_usage_details (JSONB)
+			tv.ProcessingTimeMs,
+			tv.CreatedAt,
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	ctx := context.Background()
+	err = repo.InsertWithTx(ctx, db, tv)
+
+	require.NoError(t, err)
+	require.NoError(t, sqlMock.ExpectationsWereMet())
+}
+
+// TestTransactionValidationPostgresRepository_InsertWithTx_NilDB verifies that
+// InsertWithTx returns an error when called with a nil db parameter.
+// This prevents panics when callers pass nil instead of a valid connection.
+func TestTransactionValidationPostgresRepository_InsertWithTx_NilDB(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	ctrl := gomock.NewController(t)
+	mockConn := mocks.NewMockConnection(ctrl)
+	// Expect GetDB to NEVER be called - nil check should happen before any DB operations
+	mockConn.EXPECT().GetDB().Times(0)
+
+	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
+
+	tv := testTransactionValidation()
+
+	ctx := context.Background()
+	err := repo.InsertWithTx(ctx, nil, tv)
+
+	require.ErrorIs(t, err, pgdb.ErrNilConnection)
 }
