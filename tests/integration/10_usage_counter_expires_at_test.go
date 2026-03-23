@@ -81,7 +81,7 @@ func TestUsageCounter_ExpiresAt_DAILY(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Transaction should succeed, got: %s", string(body))
 
 	// Query database for expires_at
@@ -151,7 +151,7 @@ func TestUsageCounter_ExpiresAt_MONTHLY(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Transaction should succeed, got: %s", string(body))
 
 	// Query database for expires_at
@@ -221,7 +221,7 @@ func TestUsageCounter_ExpiresAt_WEEKLY(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Transaction should succeed, got: %s", string(body))
 
 	// Query database for expires_at
@@ -293,7 +293,7 @@ func TestUsageCounter_ExpiresAt_CUSTOM(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Transaction should succeed, got: %s", string(body))
 
 	// Query database for expires_at
@@ -359,7 +359,7 @@ func TestUsageCounter_ExpiresAt_PER_TRANSACTION(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"PER_TRANSACTION transaction should succeed, got: %s", string(body))
 
 	// Verify no counter was created in the database
@@ -419,7 +419,7 @@ func TestUsageCounter_NullExpiresAt_NeverDeleted(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Transaction should succeed, got: %s", string(body))
 
 	db := testutil.SetupIntegrationDB(t)

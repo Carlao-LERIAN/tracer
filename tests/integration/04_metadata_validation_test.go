@@ -88,7 +88,7 @@ func TestValidation_Metadata_MaxEntries_BoundaryValid(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should be accepted at boundary (50 entries)
-	assert.Equal(t, http.StatusOK, resp.StatusCode,
+	assert.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Request with exactly 50 metadata entries should be accepted. Response: %s", string(respBody))
 
 	var result map[string]any
@@ -327,7 +327,7 @@ func TestValidation_Metadata_KeyAtMaxLength_BoundaryValid(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should be accepted at boundary (64 characters)
-	assert.Equal(t, http.StatusOK, resp.StatusCode,
+	assert.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Metadata key with exactly 64 characters should be accepted. Response: %s", string(respBody))
 
 	var result map[string]any
@@ -385,7 +385,7 @@ func TestValidation_Metadata_DifferentValueTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	// VALIDATIONS: All value types should be accepted
-	assert.Equal(t, http.StatusOK, resp.StatusCode,
+	assert.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Metadata with different JSON types should be accepted. Response: %s", string(respBody))
 
 	var result map[string]any
@@ -415,7 +415,7 @@ func TestValidation_Metadata_CELExpressionAccess(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Rule should match (CEL successfully accessed metadata)
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -432,7 +432,7 @@ func TestValidation_Metadata_CELExpressionAccess(t *testing.T) {
 	}
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	// VALIDATIONS: Rule should NOT match (metadata values differ)
 	matchedRuleIDs2, ok := result2["matchedRuleIds"].([]any)

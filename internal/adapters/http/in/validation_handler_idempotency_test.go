@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -188,7 +187,7 @@ func TestValidationHandler_Validate_IdempotencyHeader(t *testing.T) {
 				},
 				LimitUsageDetails: []model.LimitUsageDetail{},
 				ProcessingTimeMs:  5,
-				EvaluatedAt:       time.Now().UTC(),
+				EvaluatedAt:       now,
 			},
 			IsDuplicate: true,
 		}, nil)

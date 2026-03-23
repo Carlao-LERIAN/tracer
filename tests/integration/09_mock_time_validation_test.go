@@ -61,7 +61,7 @@ func TestMockTime_TimeWindow_Explicit_22h(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Response: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)
@@ -113,7 +113,7 @@ func TestMockTime_TimeWindow_Explicit_10h(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Response: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err = json.Unmarshal(body, &result)

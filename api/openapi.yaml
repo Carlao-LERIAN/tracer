@@ -1458,7 +1458,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/tracer_pkg_model.ValidationResponse'
-          description: Validation result
+          description: Duplicate request (idempotent)
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/tracer_pkg_model.ValidationResponse'
+          description: New validation created
         "400":
           content:
             application/json:

@@ -94,7 +94,7 @@ func TestValidation_AccountContext_AllFields(t *testing.T) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(respBody))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Response: %s", string(respBody))
 
 	var result map[string]any
 	err = json.Unmarshal(respBody, &result)
@@ -155,7 +155,7 @@ func TestValidation_AccountContext_MinimalFields(t *testing.T) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Request should be accepted with minimal AccountContext (only accountId). Response: %s", string(respBody))
 
 	var result map[string]any
@@ -260,7 +260,7 @@ func TestValidation_SegmentContext_Structure(t *testing.T) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(respBody))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Response: %s", string(respBody))
 
 	var result map[string]any
 	err = json.Unmarshal(respBody, &result)
@@ -326,7 +326,7 @@ func TestValidation_SegmentContext_CELFieldAccess(t *testing.T) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(respBody))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Response: %s", string(respBody))
 
 	var result map[string]any
 	err = json.Unmarshal(respBody, &result)
@@ -390,7 +390,7 @@ func TestValidation_PortfolioContext_Structure(t *testing.T) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(respBody))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Response: %s", string(respBody))
 
 	var result map[string]any
 	err = json.Unmarshal(respBody, &result)
@@ -456,7 +456,7 @@ func TestValidation_PortfolioContext_CELFieldAccess(t *testing.T) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(respBody))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Response: %s", string(respBody))
 
 	var result map[string]any
 	err = json.Unmarshal(respBody, &result)
@@ -522,7 +522,7 @@ func TestValidation_MerchantContext_CompleteStructure(t *testing.T) {
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Response: %s", string(respBody))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Response: %s", string(respBody))
 
 	var result map[string]any
 	err = json.Unmarshal(respBody, &result)
@@ -604,7 +604,7 @@ func TestValidation_SegmentContext_Minimal(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status, "Segment with only segmentId should be accepted (name is optional)")
+	require.Equal(t, http.StatusCreated, status, "Segment with only segmentId should be accepted (name is optional)")
 
 	// VALIDATIONS: Rule should match
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -635,7 +635,7 @@ func TestValidation_PortfolioContext_Minimal(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status, "Portfolio with only portfolioId should be accepted (name is optional)")
+	require.Equal(t, http.StatusCreated, status, "Portfolio with only portfolioId should be accepted (name is optional)")
 
 	// VALIDATIONS: Rule should match
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -666,7 +666,7 @@ func TestValidation_MerchantContext_Minimal(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status,
+	require.Equal(t, http.StatusCreated, status,
 		"Merchant with only merchantId should be accepted (other fields optional)")
 
 	// VALIDATIONS: Rule should match

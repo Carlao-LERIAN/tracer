@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -42,7 +43,7 @@ func validPayload(t *testing.T) []byte {
 	t.Helper()
 
 	payload := map[string]any{
-		"requestId":            "550e8400-e29b-41d4-a716-446655440000",
+		"requestId":            uuid.New().String(),
 		"transactionType":      "PIX",
 		"amount":               "100.00",
 		"currency":             "BRL",
@@ -91,7 +92,7 @@ func TestAuth_6_1_1_AcceptsValidAPIKey(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode, "expected 200 OK, body: %s", string(body))
+	assert.Equal(t, http.StatusCreated, resp.StatusCode, "expected 201 Created, body: %s", string(body))
 
 	var result map[string]any
 	err = json.Unmarshal(body, &result)
@@ -99,7 +100,7 @@ func TestAuth_6_1_1_AcceptsValidAPIKey(t *testing.T) {
 
 	// Validate response fields
 	assert.Contains(t, result, "validationId", "missing validationId")
-	assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", result["requestId"], "requestId should echo input")
+	assert.Contains(t, result, "requestId", "missing requestId")
 	decision, ok := result["decision"].(string)
 	require.True(t, ok, "decision should be a string")
 	assert.Contains(t, []string{"ALLOW", "DENY", "REVIEW"}, decision, "invalid decision value")
@@ -198,7 +199,7 @@ func TestAuth_6_1_5_WhitespaceAPIKeyAccepted(t *testing.T) {
 			require.NoError(t, err)
 
 			// RFC 7230: OWS (Optional WhiteSpace) around field-value must be trimmed
-			assert.Equal(t, http.StatusOK, resp.StatusCode,
+			assert.Equal(t, http.StatusCreated, resp.StatusCode,
 				"API should accept key with whitespace (trimmed per RFC 7230), body: %s", string(body))
 
 			// Verify response contains expected fields
@@ -239,7 +240,7 @@ func TestAuth_6_1_6_HeaderCaseInsensitivity(t *testing.T) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
-			assert.Equal(t, http.StatusOK, resp.StatusCode,
+			assert.Equal(t, http.StatusCreated, resp.StatusCode,
 				"header %s should be accepted (HTTP headers are case-insensitive), body: %s", tc.headerName, string(body))
 		})
 	}
@@ -317,7 +318,7 @@ func TestAuth_6_1_8_DuplicateAPIKeyHeaders(t *testing.T) {
 
 			// Go's http middleware uses the first header value for authentication
 			if tc.firstKey == validKey {
-				assert.Equal(t, http.StatusOK, resp.StatusCode, "first valid header should authenticate")
+				assert.Equal(t, http.StatusCreated, resp.StatusCode, "first valid header should authenticate")
 			} else {
 				assertAuthError(t, resp, body)
 			}
@@ -574,7 +575,7 @@ func TestAuth_6_1_12_DevModeAuthDisabled(t *testing.T) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
-			assert.Equal(t, http.StatusOK, resp.StatusCode,
+			assert.Equal(t, http.StatusCreated, resp.StatusCode,
 				"with API_KEY_ENABLED=false, request should succeed regardless of API key, body: %s", string(body))
 
 			var result map[string]any
@@ -613,8 +614,8 @@ func TestAuth_6_1_12_DevModeAuthDisabled(t *testing.T) {
 		require.NoError(t, err)
 		defer respWithKey.Body.Close()
 
-		require.Equal(t, http.StatusOK, respWithKey.StatusCode,
-			"after cleanup, request with valid API key should return 200")
+		require.Equal(t, http.StatusCreated, respWithKey.StatusCode,
+			"after cleanup, request with valid API key should return 201")
 	})
 }
 

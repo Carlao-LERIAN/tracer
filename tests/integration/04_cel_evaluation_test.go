@@ -67,7 +67,7 @@ func TestValidation_CEL_TransactionType(t *testing.T) {
 	result, status := testutil.ExecuteValidationRequest(t, payload)
 
 	// VALIDATIONS
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// Validate decision
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -104,7 +104,7 @@ func TestValidation_CEL_SubType_Match(t *testing.T) {
 	payload["subType"] = "credit"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -129,7 +129,7 @@ func TestValidation_CEL_SubType_NoMatch(t *testing.T) {
 	payload["subType"] = "debit"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Rule evaluated but NOT matched
 	testutil.AssertRuleEvaluatedButNotMatched(t, result, ruleID)
@@ -164,7 +164,7 @@ func TestValidation_CEL_Amount_Comparison(t *testing.T) {
 			payload["amount"] = tc.amount
 
 			result, status := testutil.ExecuteValidationRequest(t, payload)
-			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, http.StatusCreated, status)
 
 			// Rule always evaluated
 			evaluatedRuleIDs, ok := result["evaluatedRuleIds"].([]any)
@@ -199,7 +199,7 @@ func TestValidation_CEL_Currency(t *testing.T) {
 	payload["currency"] = "BRL"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -231,7 +231,7 @@ func TestValidation_CEL_SegmentContext_NameField(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -259,7 +259,7 @@ func TestValidation_CEL_SegmentContext_BracketNotation(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -287,7 +287,7 @@ func TestValidation_CEL_MerchantContext_Optional(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Rule matches when merchant present
 	assert.Equal(t, "REVIEW", result["decision"])
@@ -298,7 +298,7 @@ func TestValidation_CEL_MerchantContext_Optional(t *testing.T) {
 	// No merchant field
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	// VALIDATIONS: Rule evaluated but NOT matched (size(merchant) == 0)
 	testutil.AssertRuleEvaluatedButNotMatched(t, result2, ruleID)
@@ -325,7 +325,7 @@ func TestValidation_CEL_AccountContext(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -352,7 +352,7 @@ func TestValidation_CEL_Metadata_BracketNotation(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	assert.Equal(t, "DENY", result["decision"])
@@ -390,7 +390,7 @@ func TestValidation_CEL_ComplexCombinedExpression(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -412,7 +412,7 @@ func TestValidation_CEL_ComplexCombinedExpression(t *testing.T) {
 	}
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	// VALIDATIONS: Rule evaluated but NOT matched (only amount condition fails)
 	testutil.AssertRuleEvaluatedButNotMatched(t, result2, ruleID)

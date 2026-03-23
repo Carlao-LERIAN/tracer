@@ -19,6 +19,7 @@ import (
 	"tracer/internal/testutil"
 	"tracer/pkg/model"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,7 +89,7 @@ func TestLimitsVerification_5_1_1_FindsApplicableLimitsByScope(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -138,7 +139,7 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 
 	resp1, body1 := testutil.CreateValidation(t, firstReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
 	// Second validation with amount = 300
 	// Projected usage = 400 + 300 = 700
@@ -156,7 +157,7 @@ func TestLimitsVerification_5_1_2_CalculatesProjectedUsage(t *testing.T) {
 	resp2, body2 := testutil.CreateValidation(t, secondReq)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created, got: %s", string(body2))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body2, &result)
@@ -204,7 +205,7 @@ func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t
 
 	resp1, body1 := testutil.CreateValidation(t, firstReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
 	// Second validation with amount = 300 (800 + 300 = 1100 > 1000)
 	secondReq := &testutil.ValidationRequest{
@@ -221,7 +222,7 @@ func TestLimitsVerification_5_1_3_ReturnsExceededWhenProjectedGreaterThanLimit(t
 	resp2, body2 := testutil.CreateValidation(t, secondReq)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created, got: %s", string(body2))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body2, &result)
@@ -271,7 +272,7 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 
 	resp1, body1 := testutil.CreateValidation(t, firstReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
 	// Second validation with amount = 300 (700 + 300 = 1000 == limit)
 	secondReq := &testutil.ValidationRequest{
@@ -288,7 +289,7 @@ func TestLimitsVerification_5_1_4_ReturnsOKWhenProjectedEqualsLimit(t *testing.T
 	resp2, body2 := testutil.CreateValidation(t, secondReq)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created, got: %s", string(body2))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body2, &result)
@@ -335,7 +336,7 @@ func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing
 
 	resp1, body1 := testutil.CreateValidation(t, firstReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
 	// Second validation with amount = 300 (500 + 300 = 800 < 1000)
 	secondReq := &testutil.ValidationRequest{
@@ -352,7 +353,7 @@ func TestLimitsVerification_5_1_5_ReturnsOKWhenProjectedLessThanLimit(t *testing
 	resp2, body2 := testutil.CreateValidation(t, secondReq)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created, got: %s", string(body2))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body2, &result)
@@ -407,7 +408,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -460,7 +461,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -521,7 +522,7 @@ func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.
 			resp, body := testutil.CreateValidation(t, req)
 			defer resp.Body.Close()
 
-			require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+			require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 			var result testutil.ValidationResponse
 			err := json.Unmarshal(body, &result)
@@ -582,7 +583,7 @@ func TestLimitsVerification_5_2_1_IncrementsUsageAtomically(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -635,7 +636,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 
 	// First, establish some usage (500)
 	firstReq := &testutil.ValidationRequest{
-		RequestID:            testutil.MustDeterministicUUID(50211).String(),
+		RequestID:            uuid.New().String(),
 		TransactionType:      "PIX",
 		Amount:               decimal.RequireFromString("500"),
 		Currency:             "BRL",
@@ -647,7 +648,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 
 	resp1, body1 := testutil.CreateValidation(t, firstReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First validation: %s", string(body1))
 
 	// Create DENY rule that will match CARD transactions with high amounts
 	// Use valid transaction type and a specific expression
@@ -675,7 +676,7 @@ func TestLimitsVerification_5_2_2_DoesNotIncrementOnRuleBasedDeny(t *testing.T) 
 	resp2, body2 := testutil.CreateValidation(t, denyReq)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created, got: %s", string(body2))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body2, &result)
@@ -739,7 +740,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 
 	setupResp, setupBody := testutil.CreateValidation(t, setupReq)
 	defer setupResp.Body.Close()
-	require.Equal(t, http.StatusOK, setupResp.StatusCode, "Setup validation should succeed: %s", string(setupBody))
+	require.Equal(t, http.StatusCreated, setupResp.StatusCode, "Setup validation should succeed: %s", string(setupBody))
 
 	// Create REVIEW rule for WIRE transactions with medium amounts
 	// Use valid transaction type
@@ -767,7 +768,7 @@ func TestLimitsVerification_5_2_3_DoesNotIncrementOnReview(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -844,7 +845,7 @@ func TestLimitsVerification_5_2_4_ConcurrentTransactionsAccumulateCorrectly(t *t
 			resp, body := testutil.CreateValidation(t, req)
 			defer resp.Body.Close()
 
-			if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode != http.StatusCreated {
 				errors <- nil // Not an error for this test
 				return
 			}
@@ -947,7 +948,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 
 	respSetup, bodySetup := testutil.CreateValidation(t, setupReq)
 	defer respSetup.Body.Close()
-	require.Equal(t, http.StatusOK, respSetup.StatusCode, "Setup validation should succeed: %s", string(bodySetup))
+	require.Equal(t, http.StatusCreated, respSetup.StatusCode, "Setup validation should succeed: %s", string(bodySetup))
 
 	// Fire 3 parallel validations of amount=100 each
 	// Expected: Only 1 should succeed (atomic check-and-increment)
@@ -978,7 +979,7 @@ func TestLimitsVerification_5_2_5_RaceConditionPrevented(t *testing.T) {
 			defer resp.Body.Close()
 
 			// Use assert (not require) inside goroutines to avoid panics
-			if !assert.Equal(t, http.StatusOK, resp.StatusCode, "Validation request should return 200 OK") {
+			if !assert.Equal(t, http.StatusCreated, resp.StatusCode, "Validation request should return 201 Created") {
 				return
 			}
 
@@ -1134,7 +1135,7 @@ func TestLimitsVerification_DailyLimitPeriodFormat(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Validation should succeed: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Validation should succeed: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -1181,7 +1182,7 @@ func TestLimitsVerification_MonthlyLimitPeriodFormat(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Validation should succeed: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Validation should succeed: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -1235,7 +1236,7 @@ func TestLimitsVerification_5_2_6_RollbackWorks(t *testing.T) {
 
 	resp1, body1 := testutil.CreateValidation(t, setupReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "Setup validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "Setup validation should succeed: %s", string(body1))
 
 	// Verify initial usage is 500
 	apiKey := testutil.GetAPIKey()
@@ -1374,7 +1375,7 @@ func TestLimitsVerification_5_3_2_UsageResetsInNewDailyPeriod(t *testing.T) {
 
 	resp1, body1 := testutil.CreateValidation(t, setupReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "Setup validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "Setup validation should succeed: %s", string(body1))
 
 	// Verify the limit has resetAt in the future
 	apiKey := testutil.GetAPIKey()
@@ -1470,7 +1471,7 @@ func TestLimitsVerification_5_3_3_UsageResetsInNewMonthlyPeriod(t *testing.T) {
 
 	resp1, body1 := testutil.CreateValidation(t, setupReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "Setup validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "Setup validation should succeed: %s", string(body1))
 
 	// Verify the MONTHLY limit structure
 	apiKey := testutil.GetAPIKey()
@@ -1576,7 +1577,7 @@ func TestLimitsVerification_5_3_4_OldCountersCleanedUp(t *testing.T) {
 
 	resp1, body1 := testutil.CreateValidation(t, setupReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "Setup validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "Setup validation should succeed: %s", string(body1))
 
 	// Query the usage endpoint to verify counter structure
 	apiKey := testutil.GetAPIKey()
@@ -1681,7 +1682,7 @@ func TestLimitsVerification_5_2_7_HighConcurrencyAtomicEnforcement(t *testing.T)
 			defer resp.Body.Close()
 
 			// Use assert (not require) inside goroutines to avoid panics
-			if !assert.Equal(t, http.StatusOK, resp.StatusCode, "Validation request should return 200 OK") {
+			if !assert.Equal(t, http.StatusCreated, resp.StatusCode, "Validation request should return 201 Created") {
 				return
 			}
 
@@ -1782,7 +1783,7 @@ func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Transaction %d should succeed: %s", i+1, string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Transaction %d should succeed: %s", i+1, string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -1818,7 +1819,7 @@ func TestLimitsVerification_5_4_1_BackdatedTimestampBypass(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Backdated transaction %d should return 200: %s", i+1, string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Backdated transaction %d should return 201: %s", i+1, string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -1902,8 +1903,8 @@ func TestLimitsVerification_5_4_3_MaxTimestampAgeBoundary(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		// Should return HTTP 200 (accepted)
-		require.Equal(t, http.StatusOK, resp.StatusCode,
+		// Should return HTTP 201 (accepted)
+		require.Equal(t, http.StatusCreated, resp.StatusCode,
 			"Timestamp (24h - 1min) in past should be accepted: %s", string(body))
 
 		var result testutil.ValidationResponse
@@ -1976,7 +1977,7 @@ func TestLimitsVerification_5_4_4_AuditTrailPreservation(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
 		"Transaction with 2h-old timestamp should be accepted: %s", string(body))
 
 	var result testutil.ValidationResponse
@@ -2048,8 +2049,8 @@ func TestLimitsVerification_5_4_5_PerTransactionUnaffected(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode,
-			"Transaction under limit should return 200: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode,
+			"Transaction under limit should return 201: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -2084,8 +2085,8 @@ func TestLimitsVerification_5_4_5_PerTransactionUnaffected(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode,
-			"Transaction with past timestamp under limit should return 200: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode,
+			"Transaction with past timestamp under limit should return 201: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -2118,8 +2119,8 @@ func TestLimitsVerification_5_4_5_PerTransactionUnaffected(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode,
-			"Transaction over limit should return 200 with DENY: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode,
+			"Transaction over limit should return 201 with DENY: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)

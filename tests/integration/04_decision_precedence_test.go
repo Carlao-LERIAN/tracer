@@ -78,7 +78,7 @@ func TestValidation_DenyPrecedence_OverAllow(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// Validate decision is DENY (takes precedence over ALLOW)
 	decision, ok := result["decision"].(string)
@@ -169,7 +169,7 @@ func TestValidation_DenyPrecedence_OverReview(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// Validate decision is DENY (takes precedence over REVIEW)
 	decision, ok := result["decision"].(string)
@@ -259,7 +259,7 @@ func TestValidation_ReviewDecision_WhenNoDeny(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// Validate decision is REVIEW (no DENY, but REVIEW rule matched)
 	decision, ok := result["decision"].(string)
@@ -342,7 +342,7 @@ func TestValidation_DefaultDecision_AllowMode(t *testing.T) {
 	payload["amount"] = 5000 // Less than 1000000, won't match rule
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// Validate decision is ALLOW (default when no rules match)
 	decision, ok := result["decision"].(string)
@@ -408,7 +408,7 @@ func TestValidation_DefaultDecision_DenyMode(t *testing.T) {
 	payload["amount"] = 5000 // Less than 1000000, won't match rule
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// Validate decision is DENY (configurable default in fail-closed mode)
 	decision, ok := result["decision"].(string)

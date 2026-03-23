@@ -63,7 +63,7 @@ func TestValidation_CompletePayload(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -105,7 +105,7 @@ func TestValidation_ReturnsAllowWithoutDenyRules(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -144,7 +144,7 @@ func TestValidation_ReturnsDenyWhenRuleMatches(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -183,7 +183,7 @@ func TestValidation_ReturnsReviewWhenRuleMatches(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -218,7 +218,7 @@ func TestValidation_ReturnsDenyWhenLimitExceeded(t *testing.T) {
 
 	resp1, body1 := testutil.CreateValidation(t, firstReq)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "First validation should succeed: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First validation should succeed: %s", string(body1))
 
 	// Now try to exceed the limit with amount 200 (900 + 200 > 1000)
 	secondReq := &testutil.ValidationRequest{
@@ -235,7 +235,7 @@ func TestValidation_ReturnsDenyWhenLimitExceeded(t *testing.T) {
 	resp2, body2 := testutil.CreateValidation(t, secondReq)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created, got: %s", string(body2))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body2, &result)
@@ -318,7 +318,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -359,7 +359,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -394,7 +394,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -430,7 +430,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -467,7 +467,7 @@ func TestValidation_DecisionPrecedence(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 		var result testutil.ValidationResponse
 		err := json.Unmarshal(body, &result)
@@ -505,7 +505,7 @@ func TestValidation_DefaultDecisionWithoutRules(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -658,7 +658,7 @@ func TestValidation_1_1_8_MultipleMatchingRules(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created, got: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -928,8 +928,8 @@ func TestValidation_InvalidAmount(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		assert.Equal(t, http.StatusOK, resp.StatusCode,
-			"Amount 0.01 (minimum valid) should return 200 OK: %s", string(body))
+		assert.Equal(t, http.StatusCreated, resp.StatusCode,
+			"Amount 0.01 (minimum valid) should return 201 Created: %s", string(body))
 	})
 }
 
@@ -1073,7 +1073,7 @@ func TestValidation_OptionalMerchant(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode, "Request without merchant should return 200 OK: %s", string(body))
+	assert.Equal(t, http.StatusCreated, resp.StatusCode, "Request without merchant should return 201 Created: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -1110,8 +1110,8 @@ func TestValidation_1_1_17_ScopesArray(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
-		"Validation with multiple scopes should return 200 OK: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
+		"Validation with multiple scopes should return 201 Created: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -1151,8 +1151,8 @@ func TestValidation_1_1_18_CustomMetadata(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode,
-		"Validation with 50 metadata entries should return 200 OK: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode,
+		"Validation with 50 metadata entries should return 201 Created: %s", string(body))
 
 	var result testutil.ValidationResponse
 	err := json.Unmarshal(body, &result)
@@ -1712,8 +1712,8 @@ func TestValidation_1_1_29_AcceptsDecimalAmount(t *testing.T) {
 	resp, body := testutil.CreateValidationRaw(t, []byte(jsonPayload))
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode,
-		"Decimal amount should return 200 OK (decimal.Decimal accepts fractional values), body: %s", string(body))
+	assert.Equal(t, http.StatusCreated, resp.StatusCode,
+		"Decimal amount should return 201 Created (decimal.Decimal accepts fractional values), body: %s", string(body))
 }
 
 // Test 1.1.30: Validation rejects timestamp without timezone
@@ -1739,12 +1739,12 @@ func TestValidation_1_1_30_RejectsTimestampWithoutTimezone(t *testing.T) {
 		{
 			name:      "valid UTC timezone",
 			timestamp: timestamp,
-			expected:  http.StatusOK,
+			expected:  http.StatusCreated,
 		},
 		{
 			name:      "valid local timezone with offset",
 			timestamp: testutil.FixedTime().In(time.FixedZone("BRT", -3*3600)).Format(time.RFC3339),
-			expected:  http.StatusOK,
+			expected:  http.StatusCreated,
 		},
 	}
 
@@ -1840,17 +1840,17 @@ func TestValidation_1_1_32_RejectsInvalidAccountType(t *testing.T) {
 		{
 			name:        "valid checking",
 			accountType: "checking",
-			expected:    http.StatusOK,
+			expected:    http.StatusCreated,
 		},
 		{
 			name:        "valid savings",
 			accountType: "savings",
-			expected:    http.StatusOK,
+			expected:    http.StatusCreated,
 		},
 		{
 			name:        "valid credit",
 			accountType: "credit",
-			expected:    http.StatusOK,
+			expected:    http.StatusCreated,
 		},
 		{
 			name:        "invalid INVALID",
@@ -1865,7 +1865,7 @@ func TestValidation_1_1_32_RejectsInvalidAccountType(t *testing.T) {
 		{
 			name:        "omitted (empty string with omitempty)",
 			accountType: "",
-			expected:    http.StatusOK, // Empty string with omitempty = field not sent = optional field OK
+			expected:    http.StatusCreated, // Empty string with omitempty = field not sent = optional field OK
 		},
 	}
 
@@ -1916,17 +1916,17 @@ func TestValidation_1_1_33_RejectsInvalidAccountStatus(t *testing.T) {
 		{
 			name:          "valid active",
 			accountStatus: "active",
-			expected:      http.StatusOK,
+			expected:      http.StatusCreated,
 		},
 		{
 			name:          "valid suspended",
 			accountStatus: "suspended",
-			expected:      http.StatusOK,
+			expected:      http.StatusCreated,
 		},
 		{
 			name:          "valid closed",
 			accountStatus: "closed",
-			expected:      http.StatusOK,
+			expected:      http.StatusCreated,
 		},
 		{
 			name:          "invalid INVALID",
@@ -1941,7 +1941,7 @@ func TestValidation_1_1_33_RejectsInvalidAccountStatus(t *testing.T) {
 		{
 			name:          "omitted (empty string with omitempty)",
 			accountStatus: "",
-			expected:      http.StatusOK, // Empty string with omitempty = field not sent = optional field OK
+			expected:      http.StatusCreated, // Empty string with omitempty = field not sent = optional field OK
 		},
 	}
 
@@ -1993,12 +1993,12 @@ func TestValidation_1_1_34_RejectsInvalidMerchantCategory(t *testing.T) {
 		{
 			name:     "valid MCC 5411",
 			category: "5411",
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
 			name:     "valid MCC 5812",
 			category: "5812",
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
 			name:     "invalid non-numeric",
@@ -2018,7 +2018,7 @@ func TestValidation_1_1_34_RejectsInvalidMerchantCategory(t *testing.T) {
 		{
 			name:     "omitted (empty string with omitempty)",
 			category: "",
-			expected: http.StatusOK, // Empty string with omitempty = field not sent = optional field OK
+			expected: http.StatusCreated, // Empty string with omitempty = field not sent = optional field OK
 		},
 	}
 
@@ -2073,12 +2073,12 @@ func TestValidation_1_1_35_RejectsInvalidMerchantCountry(t *testing.T) {
 		{
 			name:     "valid BR",
 			country:  "BR",
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
 			name:     "valid US",
 			country:  "US",
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
 			name:     "invalid alpha-3",
@@ -2108,7 +2108,7 @@ func TestValidation_1_1_35_RejectsInvalidMerchantCountry(t *testing.T) {
 		{
 			name:     "omitted (empty string with omitempty)",
 			country:  "",
-			expected: http.StatusOK, // Empty string with omitempty = field not sent = optional field OK
+			expected: http.StatusCreated, // Empty string with omitempty = field not sent = optional field OK
 		},
 	}
 
@@ -2162,7 +2162,7 @@ func TestValidation_1_1_36_TimestampClockSkewBoundary(t *testing.T) {
 		{
 			name:     "+55 seconds safely within tolerance",
 			offset:   55 * time.Second,
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
 			name:     "+65 seconds safely beyond tolerance",
@@ -2214,22 +2214,22 @@ func TestValidation_1_1_37_ValidTransactionTypes(t *testing.T) {
 		{
 			name:            "valid CARD",
 			transactionType: "CARD",
-			expected:        http.StatusOK,
+			expected:        http.StatusCreated,
 		},
 		{
 			name:            "valid WIRE",
 			transactionType: "WIRE",
-			expected:        http.StatusOK,
+			expected:        http.StatusCreated,
 		},
 		{
 			name:            "valid PIX",
 			transactionType: "PIX",
-			expected:        http.StatusOK,
+			expected:        http.StatusCreated,
 		},
 		{
 			name:            "valid CRYPTO",
 			transactionType: "CRYPTO",
-			expected:        http.StatusOK,
+			expected:        http.StatusCreated,
 		},
 		{
 			name:            "invalid lowercase card",
@@ -2283,22 +2283,22 @@ func TestValidation_1_1_38_SubTypeField(t *testing.T) {
 		{
 			name:     "valid credit",
 			subType:  "credit",
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
 			name:     "valid debit",
 			subType:  "debit",
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
 			name:     "valid domestic",
 			subType:  "domestic",
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
 			name:     "valid international",
 			subType:  "international",
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
 			name:     "invalid too long",
@@ -2395,7 +2395,7 @@ func TestValidation_1_1_55_DeactivatedRuleNotEvaluated(t *testing.T) {
 	resp1, body1 := testutil.CreateValidation(t, req1)
 	defer resp1.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "Expected 200 OK, got: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "Expected 201 Created, got: %s", string(body1))
 
 	var result1 testutil.ValidationResponse
 	err := json.Unmarshal(body1, &result1)
@@ -2427,7 +2427,7 @@ func TestValidation_1_1_55_DeactivatedRuleNotEvaluated(t *testing.T) {
 	resp2, body2 := testutil.CreateValidation(t, req2)
 	defer resp2.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created, got: %s", string(body2))
 
 	var result2 testutil.ValidationResponse
 	err = json.Unmarshal(body2, &result2)
@@ -2466,7 +2466,7 @@ func TestValidation_1_2_1_RetrievesValidationByID(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -2556,7 +2556,7 @@ func TestValidation_1_2_4_RequiresAuthentication(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -2604,7 +2604,7 @@ func TestValidation_1_2_5_CompleteSnapshotPreserved(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -2677,7 +2677,7 @@ func TestValidation_1_2_6_CompleteResponseSnapshot(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -2750,7 +2750,7 @@ func TestValidation_1_2_7_CompleteDataWithSegmentPortfolio(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -2826,7 +2826,7 @@ func TestValidation_1_2_8_CompleteLimitUsagePreserved(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -2902,7 +2902,7 @@ func TestValidation_1_2_9_CreatedAtIsISO8601(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -2966,7 +2966,7 @@ func TestValidation_1_3_1_ListsValidationsWithoutFilters(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	// Now list validations without any filters
 	listResp, listBody := testutil.ListValidations(t, "")
@@ -3017,7 +3017,7 @@ func TestValidation_1_3_2_FiltersByDateRange(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	// Query with date range covering now
 	startDate := now.Add(-1 * time.Hour).Format(time.RFC3339)
@@ -3073,7 +3073,7 @@ func TestValidation_1_3_3_FiltersByDecision(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -3117,7 +3117,7 @@ func TestValidation_1_3_4_FiltersByAccountID(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	// Query with accountId filter
 	listResp, listBody := testutil.ListValidations(t, fmt.Sprintf("accountId=%s", accountID))
@@ -3164,7 +3164,7 @@ func TestValidation_1_3_5_FiltersBySegmentID(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	// Query with segmentId filter
 	listResp, listBody := testutil.ListValidations(t, fmt.Sprintf("segmentId=%s", segmentID))
@@ -3211,7 +3211,7 @@ func TestValidation_1_3_6_FiltersByPortfolioID(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	// Query with portfolioId filter
 	listResp, listBody := testutil.ListValidations(t, fmt.Sprintf("portfolioId=%s", portfolioID))
@@ -3254,7 +3254,7 @@ func TestValidation_1_3_7_FiltersByTransactionType(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	// Query with transactionType=CARD filter
 	listResp, listBody := testutil.ListValidations(t, "transactionType=CARD")
@@ -3305,7 +3305,7 @@ func TestValidation_1_3_8_FiltersByRuleID(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -3361,7 +3361,7 @@ func TestValidation_1_3_9_FiltersByExceededLimitId(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -3423,7 +3423,7 @@ func TestValidation_1_3_10_PaginationWorks(t *testing.T) {
 
 		resp, body := testutil.CreateValidation(t, req)
 		resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 	}
 
 	// Get first page with limit=10
@@ -3488,7 +3488,7 @@ func TestValidation_1_3_11_SortingWorks(t *testing.T) {
 		}
 
 		resp, body := testutil.CreateValidation(t, req)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 		resp.Body.Close()
 	}
 
@@ -3542,7 +3542,7 @@ func TestValidation_1_3_12_CombinedFilters(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -3815,7 +3815,7 @@ func TestValidation_1_3_13_SortingByProcessingTimeAsc(t *testing.T) {
 		}
 
 		resp, body := testutil.CreateValidation(t, req)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 		resp.Body.Close()
 	}
 
@@ -3869,7 +3869,7 @@ func TestValidation_1_3_27_CombinedFiltersWithNewParams(t *testing.T) {
 	}
 
 	resp1, body1 := testutil.CreateValidation(t, req1)
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "Expected 200 OK from POST, got: %s", string(body1))
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "Expected 201 Created from POST, got: %s", string(body1))
 	resp1.Body.Close()
 
 	var createResult1 testutil.ValidationResponse
@@ -3895,7 +3895,7 @@ func TestValidation_1_3_27_CombinedFiltersWithNewParams(t *testing.T) {
 	}
 
 	resp2, body2 := testutil.CreateValidation(t, req2)
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "Expected 200 OK from POST, got: %s", string(body2))
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "Expected 201 Created from POST, got: %s", string(body2))
 	resp2.Body.Close()
 
 	// Query with combined filters: decision + transactionType + startDate + endDate + accountId + limit
@@ -3968,7 +3968,7 @@ func TestValidation_1_2_10_ValidationIdEchoedCorrectly(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -4017,7 +4017,7 @@ func TestValidation_1_2_11_ProcessingTimeMsNonNegative(t *testing.T) {
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -4077,7 +4077,7 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var createResult testutil.ValidationResponse
 		err := json.Unmarshal(body, &createResult)
@@ -4126,7 +4126,7 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var createResult testutil.ValidationResponse
 		err := json.Unmarshal(body, &createResult)
@@ -4174,7 +4174,7 @@ func TestValidation_1_2_12_ReturnsCorrectDecisionEnumValues(t *testing.T) {
 		resp, body := testutil.CreateValidation(t, req)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var createResult testutil.ValidationResponse
 		err := json.Unmarshal(body, &createResult)
@@ -4223,7 +4223,7 @@ func TestValidation_1_3_14_CombinedFiltersAdvanced(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -4343,7 +4343,7 @@ func TestValidation_1_3_32_DefaultPaginationLimit(t *testing.T) {
 		}
 
 		resp, body := testutil.CreateValidation(t, req)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 		resp.Body.Close()
 	}
 
@@ -4384,7 +4384,7 @@ func TestValidation_1_3_33_SortingByCreatedAtAsc(t *testing.T) {
 		}
 
 		resp, body := testutil.CreateValidation(t, req)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 		resp.Body.Close()
 		time.Sleep(10 * time.Millisecond) // Small delay to ensure different timestamps
 	}
@@ -4434,7 +4434,7 @@ func TestValidation_1_3_34_MultipleParametersSimultaneously(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	var createResult testutil.ValidationResponse
 	err := json.Unmarshal(body, &createResult)
@@ -4543,7 +4543,7 @@ func TestValidation_1_3_40_CursorPaginationConsistency(t *testing.T) {
 		}
 
 		resp, body := testutil.CreateValidation(t, req)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 		var createResult testutil.ValidationResponse
 		err := json.Unmarshal(body, &createResult)
@@ -4623,7 +4623,7 @@ func TestValidation_1_3_41_FilterByMatchedRuleId(t *testing.T) {
 
 	resp1, body1 := testutil.CreateValidation(t, reqMatch)
 	defer resp1.Body.Close()
-	require.Equal(t, http.StatusOK, resp1.StatusCode)
+	require.Equal(t, http.StatusCreated, resp1.StatusCode)
 
 	var matchResult testutil.ValidationResponse
 	err := json.Unmarshal(body1, &matchResult)
@@ -4644,7 +4644,7 @@ func TestValidation_1_3_41_FilterByMatchedRuleId(t *testing.T) {
 
 	resp2, body2 := testutil.CreateValidation(t, reqNoMatch)
 	defer resp2.Body.Close()
-	require.Equal(t, http.StatusOK, resp2.StatusCode)
+	require.Equal(t, http.StatusCreated, resp2.StatusCode)
 
 	var noMatchResult testutil.ValidationResponse
 	err = json.Unmarshal(body2, &noMatchResult)
@@ -4702,7 +4702,7 @@ func TestValidation_1_3_42_AllSortBySortOrderCombinations(t *testing.T) {
 		}
 
 		resp, body := testutil.CreateValidation(t, req)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 		resp.Body.Close()
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -4781,7 +4781,7 @@ func TestValidation_1_3_43_DateRangeBoundarySemantics(t *testing.T) {
 
 	resp, _ := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	// Test startDate is inclusive
 	t.Run("startDate is inclusive", func(t *testing.T) {
@@ -4867,7 +4867,7 @@ func TestValidation_1_3_45_FilterByOnlyStartDate(t *testing.T) {
 
 	resp, _ := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	// Query with only startDate
 	startDate := now.Add(-1 * time.Hour).Format(time.RFC3339)
@@ -4918,7 +4918,7 @@ func TestValidation_1_3_46_FilterByOnlyEndDate(t *testing.T) {
 
 	resp, _ := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	// Query with only endDate (in the future to include recent validations)
 	endDate := now.Add(1 * time.Hour).Format(time.RFC3339)
@@ -4969,7 +4969,7 @@ func TestValidation_1_3_29_ValidationSummaryFields(t *testing.T) {
 
 	resp, body := testutil.CreateValidation(t, req)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected 200 OK from POST, got: %s", string(body))
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Expected 201 Created from POST, got: %s", string(body))
 
 	// List validations with limit=1 to get at least one item
 	listResp, listBody := testutil.ListValidations(t, fmt.Sprintf("accountId=%s&limit=1", accountID))

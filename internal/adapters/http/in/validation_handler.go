@@ -68,7 +68,8 @@ func NewValidationHandler(service ValidationService, clk clock.Clock) (*Validati
 //	@Produce		json
 //	@Security		ApiKeyAuth
 //	@Param			request		body		model.ValidationRequest	true	"Validation request"
-//	@Success		200			{object}	model.ValidationResponse	"Validation result"
+//	@Success		200			{object}	model.ValidationResponse	"Duplicate request (idempotent)"
+//	@Success		201			{object}	model.ValidationResponse	"New validation created"
 //	@Failure		400			{object}	api.ErrorResponse	"Invalid input"
 //	@Failure		401			{object}	api.ErrorResponse	"Unauthorized"
 //	@Failure		413			{object}	api.ErrorResponse	"Payload too large (exceeds 100KB)"

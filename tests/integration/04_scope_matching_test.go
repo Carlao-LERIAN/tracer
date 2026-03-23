@@ -61,7 +61,7 @@ func TestValidation_Scope_AccountId(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Rule evaluated and matched
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -76,7 +76,7 @@ func TestValidation_Scope_AccountId(t *testing.T) {
 	}
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	// VALIDATIONS: Rule NOT evaluated (filtered by scope)
 	testutil.AssertRuleNotEvaluated(t, result2, ruleID)
@@ -105,7 +105,7 @@ func TestValidation_Scope_SegmentId(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Rule evaluated and matched
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -119,7 +119,7 @@ func TestValidation_Scope_SegmentId(t *testing.T) {
 	}
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	// VALIDATIONS: Rule NOT evaluated (filtered by scope)
 	testutil.AssertRuleNotEvaluated(t, result2, ruleID)
@@ -149,7 +149,7 @@ func TestValidation_Scope_PortfolioId(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Rule evaluated and matched
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -163,7 +163,7 @@ func TestValidation_Scope_PortfolioId(t *testing.T) {
 	}
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	// VALIDATIONS: Rule NOT evaluated (filtered by scope)
 	testutil.AssertRuleNotEvaluated(t, result2, ruleID)
@@ -193,7 +193,7 @@ func TestValidation_Scope_MerchantId(t *testing.T) {
 	}
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Rule evaluated and matched
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -207,7 +207,7 @@ func TestValidation_Scope_MerchantId(t *testing.T) {
 	}
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	// VALIDATIONS: Rule NOT evaluated (filtered by scope)
 	testutil.AssertRuleNotEvaluated(t, result2, ruleID)
@@ -233,7 +233,7 @@ func TestValidation_Scope_TransactionType(t *testing.T) {
 	payload["transactionType"] = "CARD"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Rule evaluated and matched
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -244,7 +244,7 @@ func TestValidation_Scope_TransactionType(t *testing.T) {
 	payload2["transactionType"] = "PIX"
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	// VALIDATIONS: Rule NOT evaluated (filtered by scope)
 	testutil.AssertRuleNotEvaluated(t, result2, ruleID)
@@ -271,7 +271,7 @@ func TestValidation_Scope_SubType(t *testing.T) {
 	payload["subType"] = "credit"
 
 	result, status := testutil.ExecuteValidationRequest(t, payload)
-	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, http.StatusCreated, status)
 
 	// VALIDATIONS: Rule evaluated and matched
 	assert.Equal(t, "ALLOW", result["decision"])
@@ -282,7 +282,7 @@ func TestValidation_Scope_SubType(t *testing.T) {
 	payload2["subType"] = "debit"
 
 	result2, status2 := testutil.ExecuteValidationRequest(t, payload2)
-	require.Equal(t, http.StatusOK, status2)
+	require.Equal(t, http.StatusCreated, status2)
 
 	// VALIDATIONS: Rule NOT evaluated (filtered by scope)
 	testutil.AssertRuleNotEvaluated(t, result2, ruleID)
@@ -349,7 +349,7 @@ func TestValidation_Scope_MultipleScopeFields(t *testing.T) {
 			payload["transactionType"] = tc.transactionType
 
 			result, status := testutil.ExecuteValidationRequest(t, payload)
-			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, http.StatusCreated, status)
 
 			if tc.shouldBeEvaluated {
 				testutil.AssertRuleMatched(t, result, ruleID)
@@ -432,7 +432,7 @@ func TestValidation_Scope_MultipleScopes(t *testing.T) {
 			payload["transactionType"] = tc.transactionType
 
 			result, status := testutil.ExecuteValidationRequest(t, payload)
-			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, http.StatusCreated, status)
 
 			if tc.shouldBeEvaluated {
 				testutil.AssertRuleMatched(t, result, ruleID)
@@ -489,7 +489,7 @@ func TestValidation_Scope_EmptyScopes(t *testing.T) {
 			payload["amount"] = "5000.00" // Always > 0 to match expression
 
 			result, status := testutil.ExecuteValidationRequest(t, payload)
-			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, http.StatusCreated, status)
 
 			// VALIDATIONS: Global rule always evaluated and matched
 			testutil.AssertRuleMatched(t, result, ruleID)
