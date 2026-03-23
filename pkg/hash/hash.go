@@ -23,8 +23,8 @@ import (
 // - Built into Go standard library
 func HashUUIDToInt32(id uuid.UUID) int32 {
 	h := fnv.New32a()
-	// Write UUID bytes directly - uuid.UUID is a [16]byte array
-	h.Write(id[:])
+	// hash.Hash.Write never returns an error per Go documentation
+	_, _ = h.Write(id[:])
 
-	return int32(h.Sum32())
+	return int32(h.Sum32()) // #nosec G115 - deliberate wrap-around: advisory locks use full int32 range
 }

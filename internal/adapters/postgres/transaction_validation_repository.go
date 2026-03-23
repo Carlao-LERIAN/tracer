@@ -107,6 +107,10 @@ func NewTransactionValidationRepositoryWithConnection(conn pgdb.Connection) *Tra
 // This maintains the immutability requirement for compliance (SOX/GLBA).
 // Uses the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
 func (r *TransactionValidationRepository) Insert(ctx context.Context, validation *model.TransactionValidation) error {
+	if validation == nil {
+		return errors.New("validation cannot be nil")
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.transaction_validation.insert")
@@ -130,6 +134,10 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 // This maintains the immutability requirement for compliance (SOX/GLBA).
 // Uses the ToEntity/FromEntity pattern from Ring Standards (golang/domain.md).
 func (r *TransactionValidationRepository) InsertWithTx(ctx context.Context, db pgdb.DB, validation *model.TransactionValidation) error {
+	if validation == nil {
+		return errors.New("validation cannot be nil")
+	}
+
 	if db == nil {
 		// Span not annotated here: span starts after this check to avoid
 		// OpenTelemetry overhead for invalid calls (nil db is a programming error).
