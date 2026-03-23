@@ -948,6 +948,30 @@ func TestValidation_1_1_53_IdempotentBehavior(t *testing.T) {
 	// With idempotency, duplicate returns the same validationId
 	assert.Equal(t, result1.ValidationID, result2.ValidationID,
 		"Duplicate request should return the same validationId (cached)")
+
+	// Follow-up: prove no double-count by consuming remaining headroom (400 of 1000).
+	// If the duplicate had consumed 600 again, this 400 would exceed 1000 and DENY.
+	followUpReq := &testutil.ValidationRequest{
+		RequestID:            testutil.MustDeterministicUUID(1132).String(),
+		TransactionType:      "CARD",
+		Amount:               decimal.RequireFromString("400"),
+		Currency:             "BRL",
+		TransactionTimestamp: testutil.FixedTime().UTC().Format(time.RFC3339),
+		Account: &testutil.AccountContext{
+			ID: accountID,
+		},
+	}
+
+	resp3, body3 := testutil.CreateValidation(t, followUpReq)
+	defer resp3.Body.Close()
+	require.Equal(t, http.StatusCreated, resp3.StatusCode, "Follow-up should return 201: %s", string(body3))
+
+	var result3 testutil.ValidationResponse
+	err = json.Unmarshal(body3, &result3)
+	require.NoError(t, err)
+
+	assert.Equal(t, "ALLOW", result3.Decision,
+		"Follow-up 400 should ALLOW (usage=600+400=1000, proves duplicate did not double-count)")
 }
 
 // Test 1.1.54: Validation with all rule actions matching
