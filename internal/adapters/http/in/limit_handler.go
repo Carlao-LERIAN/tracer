@@ -278,6 +278,7 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 //	@Failure		400			{object}	api.ErrorResponse		"Invalid input"
 //	@Failure		401			{object}	api.ErrorResponse		"Unauthorized"
 //	@Failure		404			{object}	api.ErrorResponse		"Limit not found"
+//	@Failure		409			{object}	api.ErrorResponse		"Limit name already exists"
 //	@Failure		500			{object}	api.ErrorResponse		"Internal server error"
 //	@Router			/v1/limits/{id} [patch]
 func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
@@ -630,6 +631,10 @@ func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
 // handleLimitServiceError converts service errors to appropriate HTTP responses.
 func handleLimitServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
 	switch {
+	case errors.Is(err, constant.ErrLimitNameAlreadyExists):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name already exists", err)
+
+		return libHTTP.Conflict(c, "TRC-0304", "Conflict", "Limit name already exists")
 	case errors.Is(err, constant.ErrLimitNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
 

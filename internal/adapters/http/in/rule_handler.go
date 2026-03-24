@@ -558,6 +558,9 @@ func handleLifecycleError(c *fiber.Ctx, span *trace.Span, err error) error {
 // handleServiceError converts service errors to appropriate HTTP responses.
 func handleServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
 	switch {
+	case errors.Is(err, constant.ErrRuleNameAlreadyExistsInCtx):
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule name already exists in this context", err)
+		return libHTTP.Conflict(c, "TRC-0303", "Conflict", "Rule name already exists in this context")
 	case errors.Is(err, constant.ErrRuleNameAlreadyExists):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule name already exists", err)
 		return libHTTP.Conflict(c, "TRC-0101", "Conflict", "Rule name already exists")
