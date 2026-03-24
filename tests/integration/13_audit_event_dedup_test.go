@@ -210,7 +210,7 @@ func TestInsertAuditEvent_Duplicate_SilentlyIgnored(t *testing.T) {
 // Non-TRANSACTION_VALIDATED events should NOT be affected by dedup constraint
 // =============================================================================
 
-func TestInsertAuditEvent_DifferentEventType_Unaffected(t *testing.T) {
+func TestInsertAuditEvent_DifferentResourceType_Unaffected(t *testing.T) {
 	// Setup: Get database connection
 	db := testutil.SetupIntegrationDB(t)
 
@@ -298,7 +298,8 @@ func TestHashChainIntegrity_PreservedAfterDedupAttempt(t *testing.T) {
 	// Attempt duplicate insert (should be silently ignored)
 	event1Dup := createTestAuditEvent(resourceID1, model.AuditEventTransactionValidated)
 	event1Dup.EventID = uuid.New()
-	_ = insertAuditEventDirect(t, db, event1Dup) // Ignore error for now
+	err = insertAuditEventDirect(t, db, event1Dup)
+	assert.NoError(t, err, "Duplicate insert should not return error")
 
 	// Hash should be unchanged (no new event was inserted)
 	hashAfterDup := getLatestAuditEventHash(t, db)
