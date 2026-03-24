@@ -92,25 +92,15 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 		}
 	}
 
-	// Validate name uniqueness if changing and prepare normalized name
+	// Prepare normalized name if provided
+	// Name uniqueness is enforced at the database level with a partial unique index
+	// on (context_id, name) WHERE status != 'DELETED'. The repository will return
+	// ErrRuleNameAlreadyExistsInCtx if a duplicate name is detected within the same context.
 	var normalizedName *string
 
 	if input.Name != nil {
 		normalized := NormalizeName(*input.Name)
 		normalizedName = &normalized
-
-		if normalized != rule.Name {
-			existing, err := c.repo.GetByName(ctx, normalized)
-			if err != nil && !errors.Is(err, constant.ErrRuleNotFound) {
-				libOpentelemetry.HandleSpanError(&span, "Failed to check name uniqueness", err)
-				return nil, fmt.Errorf("failed to check name uniqueness: %w", err)
-			}
-
-			if existing != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule name already exists", constant.ErrRuleNameAlreadyExists)
-				return nil, constant.ErrRuleNameAlreadyExists
-			}
-		}
 	}
 
 	// Validate action FIRST (before any mutations) to ensure atomicity
@@ -134,6 +124,12 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 
 	result, err := c.repo.Update(ctx, rule)
 	if err != nil {
+		// Handle business error (name uniqueness violation) directly
+		if errors.Is(err, constant.ErrRuleNameAlreadyExistsInCtx) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule name already exists in this context", err)
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanError(&span, "Failed to update rule", err)
 		logger.WithFields(
 			"operation", "service.rule.update",

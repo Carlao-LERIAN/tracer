@@ -72,9 +72,6 @@ func TestCreateRuleCommand_Execute(t *testing.T) {
 					Compile(gomock.Any(), "amount > 1000000").
 					Return(nil, nil)
 				mockRepo.EXPECT().
-					GetByName(gomock.Any(), "high value transaction rule").
-					Return(nil, constant.ErrRuleNotFound)
-				mockRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, rule *model.Rule) (*model.Rule, error) {
 						return rule, nil
@@ -99,9 +96,6 @@ func TestCreateRuleCommand_Execute(t *testing.T) {
 				mockCEL.EXPECT().
 					Compile(gomock.Any(), "amount > 5000000").
 					Return(nil, nil)
-				mockRepo.EXPECT().
-					GetByName(gomock.Any(), "global fraud rule").
-					Return(nil, constant.ErrRuleNotFound)
 				mockRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, rule *model.Rule) (*model.Rule, error) {
@@ -133,7 +127,7 @@ func TestCreateRuleCommand_Execute(t *testing.T) {
 			errIs:   constant.ErrExpressionSyntax,
 		},
 		{
-			name: "error - rule name already exists (case insensitive)",
+			name: "error - rule name already exists in context (unique violation)",
 			input: &CreateRuleInput{
 				Name:       "  EXISTING Rule  ",
 				Expression: "amount > 100",
@@ -146,14 +140,15 @@ func TestCreateRuleCommand_Execute(t *testing.T) {
 				mockCEL.EXPECT().
 					Compile(gomock.Any(), "amount > 100").
 					Return(nil, nil)
+				// Repository returns ErrRuleNameAlreadyExistsInCtx on unique violation
 				mockRepo.EXPECT().
-					GetByName(gomock.Any(), "existing rule").
-					Return(&model.Rule{Name: "existing rule"}, nil)
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil, constant.ErrRuleNameAlreadyExistsInCtx)
 
 				return mockRepo, mockCEL
 			},
 			wantErr: true,
-			errIs:   constant.ErrRuleNameAlreadyExists,
+			errIs:   constant.ErrRuleNameAlreadyExistsInCtx,
 		},
 		{
 			name: "error - repository create fails",
@@ -170,33 +165,8 @@ func TestCreateRuleCommand_Execute(t *testing.T) {
 					Compile(gomock.Any(), "amount > 100").
 					Return(nil, nil)
 				mockRepo.EXPECT().
-					GetByName(gomock.Any(), "new rule").
-					Return(nil, constant.ErrRuleNotFound)
-				mockRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database error"))
-
-				return mockRepo, mockCEL
-			},
-			wantErr: true,
-		},
-		{
-			name: "error - GetByName fails with unexpected error",
-			input: &CreateRuleInput{
-				Name:       "Test Rule",
-				Expression: "amount > 100",
-				Action:     model.DecisionDeny,
-			},
-			mockSetup: func(ctrl *gomock.Controller) (*MockRuleRepository, *MockExpressionCompiler) {
-				mockRepo := NewMockRuleRepository(ctrl)
-				mockCEL := NewMockExpressionCompiler(ctrl)
-
-				mockCEL.EXPECT().
-					Compile(gomock.Any(), "amount > 100").
-					Return(nil, nil)
-				mockRepo.EXPECT().
-					GetByName(gomock.Any(), "test rule").
-					Return(nil, errors.New("database connection error"))
 
 				return mockRepo, mockCEL
 			},
@@ -298,9 +268,6 @@ func TestCreateRuleCommand_Execute_SetsCorrectFields(t *testing.T) {
 	mockCEL.EXPECT().
 		Compile(gomock.Any(), input.Expression).
 		Return(nil, nil)
-	mockRepo.EXPECT().
-		GetByName(gomock.Any(), normalizedName).
-		Return(nil, constant.ErrRuleNotFound)
 	mockRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, rule *model.Rule) (*model.Rule, error) {
