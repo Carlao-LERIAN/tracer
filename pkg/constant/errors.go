@@ -201,14 +201,16 @@ var (
 	ErrLimitTimeWindowMismatch       = errors.New("TRC-0300") // activeTimeStart and activeTimeEnd must both be set or both be nil
 	ErrLimitTimeWindowZeroWidth      = errors.New("TRC-0301") // activeTimeStart cannot equal activeTimeEnd
 	ErrTimeOfDayInvalidFormat        = errors.New("TRC-0302") // invalid time of day format, expected HH:MM
-	ErrLimitCustomDatesRequired      = errors.New("TRC-0303") // customStartDate and customEndDate required for CUSTOM limitType
-	ErrLimitCustomDatesOrder         = errors.New("TRC-0304") // customStartDate must be before customEndDate
+	ErrRuleNameAlreadyExistsInCtx    = errors.New("TRC-0303") // rule name already exists in this context
+	ErrLimitNameAlreadyExists        = errors.New("TRC-0304") // limit name already exists
 	ErrLimitCustomDatesNotAllowed    = errors.New("TRC-0305") // customStartDate/customEndDate only allowed for CUSTOM limitType
 	ErrLimitUnknownType              = errors.New("TRC-0306") // unknown limit type
 	ErrLimitCustomPeriodTooLong      = errors.New("TRC-0307") // custom period cannot exceed 5 years
 	ErrLimitCustomPeriodExpired      = errors.New("TRC-0308") // custom period end date must be in the future
 	ErrLimitInvalidCustomStartFormat = errors.New("TRC-0309") // invalid customStartDate format, expected RFC3339
 	ErrLimitInvalidCustomEndFormat   = errors.New("TRC-0310") // invalid customEndDate format, expected RFC3339
+	ErrLimitCustomDatesRequired      = errors.New("TRC-0311") // customStartDate and customEndDate required for CUSTOM limitType
+	ErrLimitCustomDatesOrder         = errors.New("TRC-0312") // customStartDate must be before customEndDate
 )
 
 // Error code constants for HTTP responses.
