@@ -196,8 +196,11 @@ func TestAuditEventRepository_Insert(t *testing.T) {
 						event.Actor.Name,
 						event.Actor.Role,
 						event.Actor.IPAddress,
-						sqlmock.AnyArg(), // contextJSON
-						sqlmock.AnyArg(), // metadataJSON
+						sqlmock.AnyArg(),           // contextJSON ($13)
+						sqlmock.AnyArg(),           // metadataJSON ($14)
+						event.ResourceID,           // $15: WHERE resource_id
+						string(event.EventType),    // $16: WHERE event_type
+						string(event.ResourceType), // $17: WHERE resource_type
 					).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
@@ -225,8 +228,11 @@ func TestAuditEventRepository_Insert(t *testing.T) {
 						event.Actor.Name,
 						nil, // actor role is nil
 						event.Actor.IPAddress,
-						sqlmock.AnyArg(),
-						sqlmock.AnyArg(),
+						sqlmock.AnyArg(),           // contextJSON ($13)
+						sqlmock.AnyArg(),           // metadataJSON ($14)
+						event.ResourceID,           // $15: WHERE resource_id
+						string(event.EventType),    // $16: WHERE event_type
+						string(event.ResourceType), // $17: WHERE resource_type
 					).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
@@ -264,8 +270,11 @@ func TestAuditEventRepository_Insert(t *testing.T) {
 						event.Actor.Name,
 						event.Actor.Role,
 						event.Actor.IPAddress,
-						sqlmock.AnyArg(),
-						sqlmock.AnyArg(),
+						sqlmock.AnyArg(),           // contextJSON ($13)
+						sqlmock.AnyArg(),           // metadataJSON ($14)
+						event.ResourceID,           // $15: WHERE resource_id
+						string(event.EventType),    // $16: WHERE event_type
+						string(event.ResourceType), // $17: WHERE resource_type
 					).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
@@ -289,6 +298,74 @@ func TestAuditEventRepository_Insert(t *testing.T) {
 			},
 			wantErr: true,
 			errMsg:  "failed to insert audit event",
+		},
+		// Deduplication Tests
+		{
+			name:  "Success - duplicate transaction validation silently ignored (dedup: RowsAffected=0)",
+			event: createTestAuditEvent(t), // transaction validation event
+			mockSetup: func(mock sqlmock.Sqlmock, event *model.AuditEvent) {
+				// WHERE NOT EXISTS returns 0 rows affected when duplicate exists
+				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO audit_events`)).
+					WithArgs(
+						event.EventID,
+						string(event.EventType),
+						event.CreatedAt,
+						string(event.Action),
+						string(event.Result),
+						event.ResourceID,
+						string(event.ResourceType),
+						string(event.Actor.ActorType),
+						event.Actor.ID,
+						event.Actor.Name,
+						event.Actor.Role,
+						event.Actor.IPAddress,
+						sqlmock.AnyArg(),           // contextJSON ($13)
+						sqlmock.AnyArg(),           // metadataJSON ($14)
+						event.ResourceID,           // $15: WHERE resource_id
+						string(event.EventType),    // $16: WHERE event_type
+						string(event.ResourceType), // $17: WHERE resource_type
+					).
+					WillReturnResult(sqlmock.NewResult(0, 0)) // 0 rows affected = duplicate ignored
+			},
+			wantErr: false,
+		},
+		{
+			name: "Success - non-transaction resource always inserts (no dedup constraint)",
+			event: func() *model.AuditEvent {
+				e := createTestAuditEvent(t)
+				e.EventType = model.AuditEventLimitCreated
+				e.Action = model.AuditActionCreate
+				e.Result = model.AuditResultSuccess
+				e.ResourceType = model.ResourceTypeLimit // Non-transaction type
+				e.ResourceID = "limit-12345"
+				return e
+			}(),
+			mockSetup: func(mock sqlmock.Sqlmock, event *model.AuditEvent) {
+				// For non-transaction resources, $17 != 'transaction' so
+				// WHERE NOT EXISTS is always true and INSERT proceeds
+				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO audit_events`)).
+					WithArgs(
+						event.EventID,
+						string(event.EventType),
+						event.CreatedAt,
+						string(event.Action),
+						string(event.Result),
+						event.ResourceID,
+						string(event.ResourceType),
+						string(event.Actor.ActorType),
+						event.Actor.ID,
+						event.Actor.Name,
+						event.Actor.Role,
+						event.Actor.IPAddress,
+						sqlmock.AnyArg(),           // contextJSON ($13)
+						sqlmock.AnyArg(),           // metadataJSON ($14)
+						event.ResourceID,           // $15: WHERE resource_id
+						string(event.EventType),    // $16: WHERE event_type
+						string(event.ResourceType), // $17: 'limit' != 'transaction'
+					).
+					WillReturnResult(sqlmock.NewResult(1, 1))
+			},
+			wantErr: false,
 		},
 	}
 
