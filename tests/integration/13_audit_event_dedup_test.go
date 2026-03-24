@@ -51,22 +51,22 @@ func insertAuditEventDirect(t *testing.T, db *sql.DB, event *model.AuditEvent) e
 	// For non-transaction resource types, this will always insert (no dedup).
 	// For transaction resource types, it will only insert if no matching record exists.
 	//
-	// Note: We use separate parameters ($14, $15, $16) for the WHERE clause to avoid
+	// Note: We use separate parameters ($15, $16, $17) for the WHERE clause to avoid
 	// PostgreSQL type inference issues with reusing parameters in different contexts.
 	query := `
 		INSERT INTO audit_events (
 			event_id, event_type, created_at, action, result,
 			resource_id, resource_type,
-			actor_type, actor_id, actor_name, actor_ip_address,
+			actor_type, actor_id, actor_name, actor_role, actor_ip_address,
 			context, metadata
 		)
-		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb
+		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb
 		WHERE NOT EXISTS (
 			SELECT 1 FROM audit_events
-			WHERE resource_id = $14
-			  AND event_type = $15
+			WHERE resource_id = $15
+			  AND event_type = $16
 			  AND resource_type = 'transaction'
-			  AND $16 = 'transaction'
+			  AND $17 = 'transaction'
 		)
 	`
 
@@ -81,12 +81,13 @@ func insertAuditEventDirect(t *testing.T, db *sql.DB, event *model.AuditEvent) e
 		string(event.Actor.ActorType),
 		event.Actor.ID,
 		event.Actor.Name,
+		event.Actor.Role,
 		event.Actor.IPAddress,
-		`{}`,                       // context JSON ($12)
-		`{}`,                       // metadata JSON ($13)
-		event.ResourceID,           // $14: duplicate for WHERE resource_id
-		string(event.EventType),    // $15: duplicate for WHERE event_type
-		string(event.ResourceType), // $16: duplicate for WHERE resource_type check
+		`{}`,                       // context JSON ($13)
+		`{}`,                       // metadata JSON ($14)
+		event.ResourceID,           // $15: duplicate for WHERE resource_id
+		string(event.EventType),    // $16: duplicate for WHERE event_type
+		string(event.ResourceType), // $17: duplicate for WHERE resource_type check
 	)
 
 	return err
