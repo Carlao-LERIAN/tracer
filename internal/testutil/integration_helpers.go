@@ -15,12 +15,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"tracer/pkg/constant"
 )
+
+// RandomSuffix returns an 8-char random suffix for unique test names.
+func RandomSuffix() string {
+	return uuid.New().String()[:8]
+}
 
 // HTTPClient is a shared HTTP client with timeout to prevent CI hangs.
 // Use this for all HTTP requests in integration tests.
@@ -821,7 +827,7 @@ func CreateLimitWithAccountScopeAndType(t *testing.T, accountID string, maxAmoun
 		safePrefix = accountID[:8]
 	}
 
-	uniqueName := "Test Limit " + safePrefix
+	uniqueName := "Test Limit " + safePrefix + " " + RandomSuffix()
 	reqBody := createLimitRequestAccount{
 		Name:      uniqueName,
 		LimitType: limitType,
@@ -865,7 +871,7 @@ func CreateLimitWithTransactionTypeScope(t *testing.T, transactionType string, m
 	apiKey := GetAPIKey()
 	baseURL := GetBaseURL()
 
-	uniqueName := "Test Per-Txn Limit " + transactionType
+	uniqueName := "Test Per-Txn Limit " + transactionType + " " + RandomSuffix()
 	reqBody := createLimitRequestTransactionType{
 		Name:      uniqueName,
 		LimitType: "PER_TRANSACTION",
