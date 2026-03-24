@@ -25,7 +25,7 @@ import (
 //
 // These tests verify:
 // 1. Duplicate audit INSERT for TRANSACTION_VALIDATED events returns no error
-// 2. Only 1 audit row exists per (resource_id, event_type) for TRANSACTION_VALIDATION
+// 2. Only 1 audit row exists per (resource_id, event_type) for TRANSACTION_VALIDATED
 // 3. Hash chain integrity is preserved after dedup
 // 4. Non-TRANSACTION_VALIDATED events are unaffected by dedup constraint
 //
@@ -140,10 +140,16 @@ func verifyHashChainIntegrity(t *testing.T, db *sql.DB) bool {
 		return true // Empty table, no chain to verify
 	}
 
+	// Get the earliest event ID
+	var minID int64
+	minQuery := `SELECT COALESCE(MIN(id), 0) FROM audit_events`
+	err = db.QueryRowContext(context.Background(), minQuery).Scan(&minID)
+	require.NoError(t, err, "Failed to get min audit event ID")
+
 	// Call the verification function
 	var isValid bool
-	verifyQuery := `SELECT is_valid FROM verify_audit_hash_chain(1, $1)`
-	err = db.QueryRowContext(context.Background(), verifyQuery, maxID).Scan(&isValid)
+	verifyQuery := `SELECT is_valid FROM verify_audit_hash_chain($1, $2)`
+	err = db.QueryRowContext(context.Background(), verifyQuery, minID, maxID).Scan(&isValid)
 	require.NoError(t, err, "Failed to verify hash chain")
 
 	return isValid
@@ -163,6 +169,7 @@ func createTestAuditEvent(resourceID string, eventType model.AuditEventType) *mo
 			ActorType: model.ActorTypeSystem,
 			ID:        "system",
 			Name:      "Tracer System",
+			Role:      "system",
 			IPAddress: "127.0.0.1",
 		},
 	}
