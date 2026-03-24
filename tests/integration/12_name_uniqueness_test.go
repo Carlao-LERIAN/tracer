@@ -27,7 +27,7 @@ import (
 // 1. Creating a rule with a duplicate name in the same context returns HTTP 409 + TRC-0303
 // 2. Creating a rule with the same name in a DIFFERENT context returns HTTP 201
 // 3. Creating a rule with a name that was previously soft-deleted returns HTTP 201
-// 4. Creating a limit with a duplicate name under the same rule returns HTTP 409 + TRC-0304
+// 4. Creating a limit with a duplicate name (globally unique) returns HTTP 409 + TRC-0304
 // 5. Creating a limit with a name that was previously soft-deleted returns HTTP 201
 //
 // Implementation complete:
@@ -74,7 +74,7 @@ func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
 
 	// Use deterministic UUIDs for test reproducibility (12000+ range for T-004)
 	contextID := testutil.MustDeterministicUUID(12001).String()
-	ruleName := "duplicate rule name test " + testutil.MustDeterministicUUID(12002).String()[:8]
+	ruleName := "duplicate rule name test " + testutil.RandomSuffix()
 
 	// Create the first rule (should succeed)
 	reqBody1 := createRuleRequestT004{
@@ -163,7 +163,7 @@ func TestCreateRule_DuplicateName_DifferentContext_Returns201(t *testing.T) {
 	// Use deterministic UUIDs for test reproducibility
 	contextID1 := testutil.MustDeterministicUUID(12003).String()
 	contextID2 := testutil.MustDeterministicUUID(12004).String()
-	ruleName := "same name different context " + testutil.MustDeterministicUUID(12005).String()[:8]
+	ruleName := "same name different context " + testutil.RandomSuffix()
 
 	// Create the first rule in context 1
 	reqBody1 := createRuleRequestT004{
@@ -256,7 +256,7 @@ func TestCreateRule_DeletedNameReuse_Returns201(t *testing.T) {
 
 	// Use deterministic UUIDs for test reproducibility
 	contextID := testutil.MustDeterministicUUID(12006).String()
-	ruleName := "deleted name reuse " + testutil.MustDeterministicUUID(12007).String()[:8]
+	ruleName := "deleted name reuse " + testutil.RandomSuffix()
 
 	// Create the first rule
 	reqBody1 := createRuleRequestT004{
@@ -341,7 +341,7 @@ func TestCreateRule_DeletedNameReuse_Returns201(t *testing.T) {
 
 // =============================================================================
 // Test 4: CreateLimit_DuplicateName_Returns409
-// Same name + same rule -> 409 + TRC-0304
+// Same name (globally unique) -> 409 + TRC-0304
 // =============================================================================
 
 func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
@@ -350,7 +350,7 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 
 	// Use deterministic UUIDs for test reproducibility
 	accountID := testutil.MustDeterministicUUID(12008).String()
-	limitName := "duplicate limit name test " + testutil.MustDeterministicUUID(12009).String()[:8]
+	limitName := "duplicate limit name test " + testutil.RandomSuffix()
 
 	// Create the first limit
 	reqBody1 := createLimitRequestT004{
@@ -390,7 +390,7 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 	})
 
 	// Create the second limit with the SAME name (should fail with 409)
-	// Note: When rule_id is implemented, both limits would need to be under the same rule
+	// Note: Limit names are globally unique among non-deleted limits
 	reqBody2 := createLimitRequestT004{
 		Name:      limitName, // Same name as first limit
 		LimitType: "DAILY",
@@ -441,7 +441,7 @@ func TestCreateLimit_DeletedNameReuse_Returns201(t *testing.T) {
 
 	// Use deterministic UUIDs for test reproducibility
 	accountID := testutil.MustDeterministicUUID(12010).String()
-	limitName := "deleted limit name reuse " + testutil.MustDeterministicUUID(12011).String()[:8]
+	limitName := "deleted limit name reuse " + testutil.RandomSuffix()
 
 	// Create the first limit
 	reqBody1 := createLimitRequestT004{
