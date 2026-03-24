@@ -29,7 +29,7 @@ type RulePostgreSQLModel struct {
 	Action        string         `db:"action"`
 	Scopes        string         `db:"scopes"`
 	Status        string         `db:"status"`
-	ContextID     sql.NullString `db:"context_id"` // Derived from the first scope with a segmentId
+	ContextID     sql.NullString `db:"context_id"` // Smallest segmentId across scopes (deterministic)
 	CreatedAt     time.Time      `db:"created_at"`
 	UpdatedAt     time.Time      `db:"updated_at"`
 	ActivatedAt   sql.NullTime   `db:"activated_at"`
@@ -143,14 +143,18 @@ func (m *RulePostgreSQLModel) FromEntity(entity *model.Rule) error {
 
 	m.Scopes = string(scopesJSON)
 
-	// Derive context_id from the first scope that has a segmentId
+	// Derive context_id from the smallest segmentId across all scopes (deterministic)
 	m.ContextID = sql.NullString{Valid: false}
+
+	var smallest string
 
 	for i := range scopes {
 		if scopes[i].SegmentID != nil {
-			m.ContextID = sql.NullString{String: scopes[i].SegmentID.String(), Valid: true}
-
-			break
+			s := scopes[i].SegmentID.String()
+			if !m.ContextID.Valid || s < smallest {
+				smallest = s
+				m.ContextID = sql.NullString{String: s, Valid: true}
+			}
 		}
 	}
 

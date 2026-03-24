@@ -8,6 +8,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -129,6 +130,12 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 
 	result, err := c.repo.Create(ctx, rule)
 	if err != nil {
+		if errors.Is(err, constant.ErrRuleNameAlreadyExistsInCtx) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule name already exists in this context", err)
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanError(&span, "Failed to create rule", err)
 		logger.WithFields(
 			"operation", "service.rule.create",

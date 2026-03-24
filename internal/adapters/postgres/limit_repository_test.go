@@ -559,6 +559,16 @@ func TestLimitRepository_Update(t *testing.T) {
 			errType: constant.ErrLimitNotFound,
 		},
 		{
+			name:  "Error - unique constraint violation returns TRC-0304",
+			limit: testLimit(),
+			mockSetup: func(mock sqlmock.Sqlmock, lmt *model.Limit) {
+				mock.ExpectExec(regexp.QuoteMeta(`UPDATE limits`)).
+					WillReturnError(&pgconn.PgError{Code: "23505", ConstraintName: "idx_limits_name_active", Message: "duplicate key value violates unique constraint"})
+			},
+			wantErr: true,
+			errType: constant.ErrLimitNameAlreadyExists,
+		},
+		{
 			name:  "Error - database update fails",
 			limit: testLimit(),
 			mockSetup: func(mock sqlmock.Sqlmock, lmt *model.Limit) {

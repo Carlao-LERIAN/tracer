@@ -18,13 +18,13 @@
 -- This stores the first scope's segmentId for uniqueness constraint
 ALTER TABLE rules ADD COLUMN IF NOT EXISTS context_id UUID;
 
--- Populate context_id from the first scope that contains a segmentId
+-- Populate context_id using the smallest segmentId across scopes (deterministic)
 UPDATE rules
 SET context_id = (
-    SELECT (elem->>'segmentId')::uuid
+    SELECT (MIN(elem->>'segmentId'))::uuid
     FROM jsonb_array_elements(scopes) AS elem
     WHERE elem->>'segmentId' IS NOT NULL
-    LIMIT 1
+      AND elem->>'segmentId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
 )
 WHERE scopes IS NOT NULL
   AND jsonb_array_length(scopes) > 0;
