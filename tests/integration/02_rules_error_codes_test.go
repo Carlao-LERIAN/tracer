@@ -231,7 +231,7 @@ func TestUpdateRule_InvalidBody_ReturnsError(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 
 	// Create a single rule for all PATCH tests
-	ruleID := testutil.CreateTestRuleWithExpression(t, "rule for patch error tests", "true", "ALLOW")
+	ruleID := testutil.CreateTestRuleWithExpression(t, "rule for patch error tests "+testutil.RandomSuffix(), "true", "ALLOW")
 	t.Cleanup(func() {
 		testutil.CleanupRule(t, ruleID)
 	})

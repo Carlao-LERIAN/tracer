@@ -208,6 +208,31 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			expectedBody:   func(t *testing.T, body []byte) {},
 		},
 		{
+			name: "error - service returns limit name already exists (TRC-0304)",
+			requestBody: map[string]any{
+				"name":      "Duplicate Limit Name",
+				"limitType": "DAILY",
+				"maxAmount": "1000.00",
+				"currency":  "BRL",
+				"scopes": []map[string]any{
+					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
+				},
+			},
+			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
+				mockService := NewMockLimitService(ctrl)
+				mockService.EXPECT().
+					CreateLimit(gomock.Any(), gomock.Any()).
+					Return(nil, constant.ErrLimitNameAlreadyExists)
+
+				return mockService
+			},
+			expectedStatus: http.StatusConflict,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "TRC-0304")
+				assert.Contains(t, string(body), "already exists")
+			},
+		},
+		{
 			name:        "error - invalid JSON body",
 			requestBody: "invalid json",
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {

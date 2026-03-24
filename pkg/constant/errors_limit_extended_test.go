@@ -40,16 +40,16 @@ func TestErrorConstants_LimitExtended(t *testing.T) {
 			category: "time of day parsing",
 		},
 		{
-			name:     "ErrLimitCustomDatesRequired exists with code TRC-0303",
-			err:      ErrLimitCustomDatesRequired,
+			name:     "ErrRuleNameAlreadyExistsInCtx exists with code TRC-0303",
+			err:      ErrRuleNameAlreadyExistsInCtx,
 			code:     "TRC-0303",
-			category: "custom period validation",
+			category: "rule name uniqueness",
 		},
 		{
-			name:     "ErrLimitCustomDatesOrder exists with code TRC-0304",
-			err:      ErrLimitCustomDatesOrder,
+			name:     "ErrLimitNameAlreadyExists exists with code TRC-0304",
+			err:      ErrLimitNameAlreadyExists,
 			code:     "TRC-0304",
-			category: "custom period validation",
+			category: "limit name uniqueness",
 		},
 		{
 			name:     "ErrLimitCustomDatesNotAllowed exists with code TRC-0305",
@@ -87,6 +87,18 @@ func TestErrorConstants_LimitExtended(t *testing.T) {
 			code:     "TRC-0310",
 			category: "custom period validation",
 		},
+		{
+			name:     "ErrLimitCustomDatesRequired exists with code TRC-0311",
+			err:      ErrLimitCustomDatesRequired,
+			code:     "TRC-0311",
+			category: "custom period validation",
+		},
+		{
+			name:     "ErrLimitCustomDatesOrder exists with code TRC-0312",
+			err:      ErrLimitCustomDatesOrder,
+			code:     "TRC-0312",
+			category: "custom period validation",
+		},
 	}
 
 	for _, tc := range tests {
@@ -113,14 +125,16 @@ func TestErrorConstants_UniquenessTRC0300Range(t *testing.T) {
 		ErrLimitTimeWindowMismatch,       // TRC-0300
 		ErrLimitTimeWindowZeroWidth,      // TRC-0301
 		ErrTimeOfDayInvalidFormat,        // TRC-0302
-		ErrLimitCustomDatesRequired,      // TRC-0303
-		ErrLimitCustomDatesOrder,         // TRC-0304
+		ErrRuleNameAlreadyExistsInCtx,    // TRC-0303
+		ErrLimitNameAlreadyExists,        // TRC-0304
 		ErrLimitCustomDatesNotAllowed,    // TRC-0305
 		ErrLimitUnknownType,              // TRC-0306
 		ErrLimitCustomPeriodTooLong,      // TRC-0307
 		ErrLimitCustomPeriodExpired,      // TRC-0308
 		ErrLimitInvalidCustomStartFormat, // TRC-0309
 		ErrLimitInvalidCustomEndFormat,   // TRC-0310
+		ErrLimitCustomDatesRequired,      // TRC-0311
+		ErrLimitCustomDatesOrder,         // TRC-0312
 	}
 
 	// Check for duplicates using error messages
@@ -149,14 +163,6 @@ func TestErrorConstants_NonEmptyMessages(t *testing.T) {
 			err:  ErrLimitTimeWindowZeroWidth,
 		},
 		{
-			name: "custom dates required has non-empty message",
-			err:  ErrLimitCustomDatesRequired,
-		},
-		{
-			name: "custom dates order has non-empty message",
-			err:  ErrLimitCustomDatesOrder,
-		},
-		{
 			name: "custom dates not allowed has non-empty message",
 			err:  ErrLimitCustomDatesNotAllowed,
 		},
@@ -183,6 +189,22 @@ func TestErrorConstants_NonEmptyMessages(t *testing.T) {
 		{
 			name: "invalid custom end format has non-empty message",
 			err:  ErrLimitInvalidCustomEndFormat,
+		},
+		{
+			name: "custom dates required has non-empty message",
+			err:  ErrLimitCustomDatesRequired,
+		},
+		{
+			name: "custom dates order has non-empty message",
+			err:  ErrLimitCustomDatesOrder,
+		},
+		{
+			name: "rule name already exists in context has non-empty message",
+			err:  ErrRuleNameAlreadyExistsInCtx,
+		},
+		{
+			name: "limit name already exists for rule has non-empty message",
+			err:  ErrLimitNameAlreadyExists,
 		},
 	}
 

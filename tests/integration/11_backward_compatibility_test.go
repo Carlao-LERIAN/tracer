@@ -455,7 +455,7 @@ func createTraditionalLimit(t *testing.T, accountID, limitType, maxAmount string
 	baseURL := testutil.GetBaseURL()
 
 	reqBody := map[string]interface{}{
-		"name":      "Test Traditional " + limitType + " " + accountID,
+		"name":      "Test Traditional " + limitType + " " + accountID + " " + testutil.RandomSuffix(),
 		"limitType": limitType,
 		"maxAmount": maxAmount,
 		"currency":  "BRL",

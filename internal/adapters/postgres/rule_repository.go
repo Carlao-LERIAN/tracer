@@ -97,8 +97,8 @@ func (r *Repository) Create(ctx context.Context, rule *model.Rule) (*model.Rule,
 	}
 
 	query := sq.Insert(tableName).
-		Columns("id", "name", "description", "expression", "action", "scopes", "status", "created_at", "updated_at").
-		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.Expression, dbModel.Action, dbModel.Scopes, dbModel.Status, dbModel.CreatedAt, dbModel.UpdatedAt).
+		Columns("id", "name", "description", "expression", "action", "scopes", "status", "context_id", "created_at", "updated_at").
+		Values(dbModel.ID, dbModel.Name, dbModel.Description, dbModel.Expression, dbModel.Action, dbModel.Scopes, dbModel.Status, dbModel.ContextID, dbModel.CreatedAt, dbModel.UpdatedAt).
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err := query.ToSql()
@@ -115,7 +115,13 @@ func (r *Repository) Create(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
+		if IsUniqueViolationOf(err, "idx_rules_name_per_context_active") {
+			libOtel.HandleSpanBusinessErrorEvent(&span, "Rule name already exists in this context", constant.ErrRuleNameAlreadyExistsInCtx)
+			return nil, constant.ErrRuleNameAlreadyExistsInCtx
+		}
+
 		libOtel.HandleSpanError(&span, "Failed to insert rule", err)
+
 		return nil, fmt.Errorf("failed to insert rule: %w", err)
 	}
 
@@ -328,6 +334,7 @@ func (r *Repository) Update(ctx context.Context, rule *model.Rule) (*model.Rule,
 		Set("action", dbModel.Action).
 		Set("scopes", dbModel.Scopes).
 		Set("status", dbModel.Status).
+		Set("context_id", dbModel.ContextID).
 		Set("updated_at", dbModel.UpdatedAt).
 		Where(sq.Eq{"id": dbModel.ID}).
 		Where(sq.Eq{"deleted_at": nil}).
@@ -346,7 +353,13 @@ func (r *Repository) Update(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
+		if IsUniqueViolationOf(err, "idx_rules_name_per_context_active") {
+			libOtel.HandleSpanBusinessErrorEvent(&span, "Rule name already exists in this context", constant.ErrRuleNameAlreadyExistsInCtx)
+			return nil, constant.ErrRuleNameAlreadyExistsInCtx
+		}
+
 		libOtel.HandleSpanError(&span, "Failed to update rule", err)
+
 		return nil, fmt.Errorf("failed to update rule: %w", err)
 	}
 

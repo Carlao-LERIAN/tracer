@@ -29,6 +29,7 @@ type RulePostgreSQLModel struct {
 	Action        string         `db:"action"`
 	Scopes        string         `db:"scopes"`
 	Status        string         `db:"status"`
+	ContextID     sql.NullString `db:"context_id"` // Smallest segmentId across scopes (deterministic)
 	CreatedAt     time.Time      `db:"created_at"`
 	UpdatedAt     time.Time      `db:"updated_at"`
 	ActivatedAt   sql.NullTime   `db:"activated_at"`
@@ -107,6 +108,7 @@ func (m *RulePostgreSQLModel) ToEntity() (*model.Rule, error) {
 // - Marshaling scopes to JSON
 // - Converting pointers to sql.Null* types
 // - Converting typed constants to strings
+// - Deriving context_id from first scope's segmentId
 // Returns an error if JSON marshaling fails.
 func (m *RulePostgreSQLModel) FromEntity(entity *model.Rule) error {
 	if entity == nil {
@@ -140,6 +142,21 @@ func (m *RulePostgreSQLModel) FromEntity(entity *model.Rule) error {
 	}
 
 	m.Scopes = string(scopesJSON)
+
+	// Derive context_id from the smallest segmentId across all scopes (deterministic)
+	m.ContextID = sql.NullString{Valid: false}
+
+	var smallest string
+
+	for i := range scopes {
+		if scopes[i].SegmentID != nil {
+			s := scopes[i].SegmentID.String()
+			if !m.ContextID.Valid || s < smallest {
+				smallest = s
+				m.ContextID = sql.NullString{String: s, Valid: true}
+			}
+		}
+	}
 
 	// Convert pointer timestamps to sql.NullTime
 	if entity.ActivatedAt != nil {

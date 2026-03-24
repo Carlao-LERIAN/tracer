@@ -632,6 +632,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/api.ErrorResponse'
           description: Limit not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Limit name already exists
         "500":
           content:
             application/json:

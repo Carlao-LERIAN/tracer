@@ -504,7 +504,7 @@ func createLimitWithTimeWindow(t *testing.T, accountID, start, end, maxAmount st
 	sanitizedEnd := strings.ReplaceAll(end, ":", "")
 
 	reqBody := map[string]interface{}{
-		"name":            fmt.Sprintf("Test Limit TW %s-%s", sanitizedStart, sanitizedEnd),
+		"name":            fmt.Sprintf("Test Limit TW %s-%s %s", sanitizedStart, sanitizedEnd, testutil.RandomSuffix()),
 		"limitType":       "DAILY",
 		"maxAmount":       maxAmount,
 		"currency":        "BRL",
@@ -928,7 +928,7 @@ func createLimitWithCustomPeriod(t *testing.T, accountID, startDate, endDate, ma
 	baseURL := testutil.GetBaseURL()
 
 	reqBody := map[string]interface{}{
-		"name":            "Test Limit Custom Period",
+		"name":            "Test Limit Custom Period " + testutil.RandomSuffix(),
 		"limitType":       "CUSTOM",
 		"maxAmount":       maxAmount,
 		"currency":        "BRL",
@@ -1621,7 +1621,7 @@ func createLimitWithCustomPeriodAndTimeWindow(t *testing.T, accountID, startDate
 	sanitizedEnd := strings.ReplaceAll(endTime, ":", "")
 
 	reqBody := map[string]interface{}{
-		"name":            fmt.Sprintf("Test Limit CustomTW %s-%s", sanitizedStart, sanitizedEnd),
+		"name":            fmt.Sprintf("Test Limit CustomTW %s-%s %s", sanitizedStart, sanitizedEnd, testutil.RandomSuffix()),
 		"limitType":       "CUSTOM",
 		"maxAmount":       maxAmount,
 		"currency":        "BRL",
@@ -1670,7 +1670,7 @@ func createLimitForWeeklyTest(t *testing.T, accountID, maxAmount string) string 
 	baseURL := testutil.GetBaseURL()
 
 	reqBody := map[string]interface{}{
-		"name":      "Test Limit WEEKLY",
+		"name":      "Test Limit WEEKLY " + testutil.RandomSuffix(),
 		"limitType": "WEEKLY",
 		"maxAmount": maxAmount,
 		"currency":  "BRL",

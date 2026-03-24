@@ -102,19 +102,7 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		return nil, err
 	}
 
-	// 2. Check name uniqueness (using normalized name)
-	existing, err := c.repo.GetByName(ctx, normalizedName)
-	if err != nil && !errors.Is(err, constant.ErrRuleNotFound) {
-		libOpentelemetry.HandleSpanError(&span, "Failed to check name uniqueness", err)
-		return nil, fmt.Errorf("failed to check name uniqueness: %w", err)
-	}
-
-	if existing != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule name already exists", constant.ErrRuleNameAlreadyExists)
-		return nil, constant.ErrRuleNameAlreadyExists
-	}
-
-	// 3. Build rule entity using validating constructor (store normalized name)
+	// 2. Build rule entity using validating constructor (store normalized name)
 	// model.NewRule normalizes nil scopes to empty slice for proper JSON serialization
 	var description *string
 	if input.Description != "" {
@@ -134,7 +122,7 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		return nil, err
 	}
 
-	// 4. Persist rule
+	// 3. Persist rule
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule_input", rule)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
@@ -142,6 +130,12 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 
 	result, err := c.repo.Create(ctx, rule)
 	if err != nil {
+		if errors.Is(err, constant.ErrRuleNameAlreadyExistsInCtx) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule name already exists in this context", err)
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanError(&span, "Failed to create rule", err)
 		logger.WithFields(
 			"operation", "service.rule.create",

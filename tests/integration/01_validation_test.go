@@ -539,7 +539,7 @@ func createTestLimitWithAccountScope(t *testing.T, accountID string, maxAmount s
 		ID string `json:"limitId"`
 	}
 
-	uniqueName := "Test Limit " + testutil.MustDeterministicUUID(1008).String()[:8]
+	uniqueName := "Test Limit " + testutil.RandomSuffix()
 	reqBody := createLimitRequest{
 		Name:      uniqueName,
 		LimitType: "DAILY",

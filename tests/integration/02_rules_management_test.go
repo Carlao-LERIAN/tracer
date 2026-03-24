@@ -806,9 +806,13 @@ func TestCreateRule_2_1_18_RejectsDuplicateRuleName(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
+	// Use a unique name to avoid collisions with other tests, but reuse it
+	// within this test to verify the duplicate-name constraint.
+	ruleName := "Unique rule name " + testutil.RandomSuffix()
+
 	// Create first rule
 	reqBody := map[string]any{
-		"name":       "Unique rule name",
+		"name":       ruleName,
 		"expression": "true",
 		"action":     "ALLOW",
 	}
@@ -840,7 +844,7 @@ func TestCreateRule_2_1_18_RejectsDuplicateRuleName(t *testing.T) {
 
 	// Try to create second rule with same name
 	reqBody2 := map[string]any{
-		"name":       "Unique rule name",
+		"name":       ruleName,
 		"expression": "false",
 		"action":     "DENY",
 	}
@@ -863,9 +867,9 @@ func TestCreateRule_2_1_18_RejectsDuplicateRuleName(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp2.StatusCode, "Response: %s", string(respBody2))
 
 	errResp := testutil.ParseErrorResponse(t, respBody2)
-	assert.Equal(t, "TRC-0101", errResp.Code)
+	assert.Equal(t, "TRC-0303", errResp.Code)
 	assert.Equal(t, "Conflict", errResp.Title)
-	assert.Equal(t, "Rule name already exists", errResp.Message)
+	assert.Equal(t, "Rule name already exists in this context", errResp.Message)
 }
 
 // TestCreateRule_2_1_19_RejectsInvalidNameType verifies type validation for name field.
@@ -3150,15 +3154,20 @@ func TestUpdateRule_2_4_11_RejectsDuplicateName(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
-	ruleID1 := testutil.CreateTestRuleWithExpression(t, "Unique name A", "true", "ALLOW")
-	ruleID2 := testutil.CreateTestRuleWithExpression(t, "Unique name B", "true", "ALLOW")
+	// Use unique names to avoid collisions with other tests
+	suffix := testutil.RandomSuffix()
+	nameA := "Unique name A " + suffix
+	nameB := "Unique name B " + suffix
+
+	ruleID1 := testutil.CreateTestRuleWithExpression(t, nameA, "true", "ALLOW")
+	ruleID2 := testutil.CreateTestRuleWithExpression(t, nameB, "true", "ALLOW")
 	t.Cleanup(func() {
 		testutil.CleanupRule(t, ruleID1)
 		testutil.CleanupRule(t, ruleID2)
 	})
 
 	reqBody := map[string]any{
-		"name": "Unique name A",
+		"name": nameA,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -3179,9 +3188,9 @@ func TestUpdateRule_2_4_11_RejectsDuplicateName(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp.StatusCode, "Response: %s", string(respBody))
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
-	assert.Equal(t, "TRC-0101", errResp.Code)
+	assert.Equal(t, "TRC-0303", errResp.Code)
 	assert.Equal(t, "Conflict", errResp.Title)
-	assert.Equal(t, "Rule name already exists", errResp.Message)
+	assert.Equal(t, "Rule name already exists in this context", errResp.Message)
 }
 
 // TestUpdateRule_2_4_12_AllowsSameName verifies updating to the same name is allowed (idempotent).

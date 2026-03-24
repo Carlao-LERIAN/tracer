@@ -15,7 +15,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"tracer/internal/testutil"
-	"tracer/pkg/constant"
 	"tracer/pkg/model"
 )
 
@@ -31,7 +30,6 @@ func TestAuditEventRecording_CreateRule(t *testing.T) {
 	auditWriter := NewMockAuditWriter(ctrl)
 
 	mockCEL.EXPECT().Compile(gomock.Any(), gomock.Any()).Return(nil, nil)
-	mockRepo.EXPECT().GetByName(gomock.Any(), gomock.Any()).Return(nil, constant.ErrRuleNotFound)
 	mockRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(&model.Rule{ID: testutil.MustDeterministicUUID(1)}, nil)
 
 	// VALIDATE: EventType, Action, Before/After
@@ -131,7 +129,7 @@ func TestAuditEventRecording_UpdateRule(t *testing.T) {
 	mockRepo.EXPECT().GetByID(gomock.Any(), ruleID).Return(&model.Rule{
 		ID: ruleID, Name: "Old", Expression: "true",
 	}, nil)
-	mockRepo.EXPECT().GetByName(gomock.Any(), gomock.Any()).Return(nil, constant.ErrRuleNotFound)
+	// No GetByName call - repository detects unique violation directly
 	mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, r *model.Rule) (*model.Rule, error) { return r, nil })
 
 	// VALIDATE: Both before and after captured

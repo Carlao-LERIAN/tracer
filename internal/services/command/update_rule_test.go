@@ -55,9 +55,7 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 				mockRepo.EXPECT().
 					GetByID(gomock.Any(), ruleID).
 					Return(copyRule(existingRule), nil)
-				mockRepo.EXPECT().
-					GetByName(gomock.Any(), "updated rule name").
-					Return(nil, constant.ErrRuleNotFound)
+				// No GetByName call - repository detects unique violation directly
 				mockRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, rule *model.Rule) (*model.Rule, error) {
@@ -161,9 +159,7 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 				mockCEL.EXPECT().
 					Compile(gomock.Any(), "amount > 10000").
 					Return(nil, nil)
-				mockRepo.EXPECT().
-					GetByName(gomock.Any(), "new name").
-					Return(nil, constant.ErrRuleNotFound)
+				// No GetByName call - repository detects unique violation directly
 				mockRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, rule *model.Rule) (*model.Rule, error) {
@@ -240,7 +236,7 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 			errIs:   constant.ErrExpressionSyntax,
 		},
 		{
-			name:   "error - name already exists",
+			name:   "error - name already exists in context",
 			ruleID: ruleID,
 			input: &UpdateRuleInput{
 				Name: testutil.StringPtr("Another Rule"),
@@ -252,14 +248,15 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 				mockRepo.EXPECT().
 					GetByID(gomock.Any(), ruleID).
 					Return(copyRule(existingRule), nil)
+				// Repository returns ErrRuleNameAlreadyExistsInCtx on unique violation
 				mockRepo.EXPECT().
-					GetByName(gomock.Any(), "another rule").
-					Return(&model.Rule{Name: "another rule"}, nil)
+					Update(gomock.Any(), gomock.Any()).
+					Return(nil, constant.ErrRuleNameAlreadyExistsInCtx)
 
 				return mockRepo, mockCEL
 			},
 			wantErr: true,
-			errIs:   constant.ErrRuleNameAlreadyExists,
+			errIs:   constant.ErrRuleNameAlreadyExistsInCtx,
 		},
 		{
 			name:   "error - repository update fails",
@@ -301,7 +298,7 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:   "error - GetByName fails with unexpected error during name change",
+			name:   "error - repository update fails with unexpected error during name change",
 			ruleID: ruleID,
 			input: &UpdateRuleInput{
 				Name: testutil.StringPtr("Different Name"),
@@ -313,8 +310,9 @@ func TestUpdateRuleCommand_Execute(t *testing.T) {
 				mockRepo.EXPECT().
 					GetByID(gomock.Any(), ruleID).
 					Return(copyRule(existingRule), nil)
+				// Generic database errors should still be propagated
 				mockRepo.EXPECT().
-					GetByName(gomock.Any(), "different name").
+					Update(gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database connection error"))
 
 				return mockRepo, mockCEL
@@ -430,9 +428,7 @@ func TestUpdateRuleCommand_Execute_AppliesChangesCorrectly(t *testing.T) {
 	mockCEL.EXPECT().
 		Compile(gomock.Any(), "amount > 999").
 		Return(nil, nil)
-	mockRepo.EXPECT().
-		GetByName(gomock.Any(), "new name").
-		Return(nil, constant.ErrRuleNotFound)
+	// No GetByName call - repository detects unique violation directly
 	mockRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, rule *model.Rule) (*model.Rule, error) {

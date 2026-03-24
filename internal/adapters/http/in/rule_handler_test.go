@@ -161,6 +161,29 @@ func TestHandler_CreateRule(t *testing.T) {
 			expectedBody:   func(t *testing.T, body []byte) {},
 		},
 		{
+			name: "error - service returns name already exists in context (TRC-0303)",
+			requestBody: map[string]interface{}{
+				"name":       "Duplicate Rule In Context",
+				"expression": "amount > 1000",
+				"action":     "DENY",
+				"scopes": []map[string]interface{}{
+					{"segmentId": "550e8400-e29b-41d4-a716-446655440000"},
+				},
+			},
+			mockSetup: func(ctrl *gomock.Controller) *MockRuleService {
+				mockService := NewMockRuleService(ctrl)
+				mockService.EXPECT().
+					CreateRule(gomock.Any(), gomock.Any()).
+					Return(nil, constant.ErrRuleNameAlreadyExistsInCtx)
+				return mockService
+			},
+			expectedStatus: http.StatusConflict,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "TRC-0303")
+				assert.Contains(t, string(body), "already exists in this context")
+			},
+		},
+		{
 			name: "error - service returns CEL syntax error",
 			requestBody: map[string]interface{}{
 				"name":       "Bad Expression Rule",
@@ -387,21 +410,23 @@ func TestHandler_UpdateRule(t *testing.T) {
 			},
 		},
 		{
-			name:        "error - name already exists",
+			name:        "error - name already exists in context",
 			ruleIDParam: ruleID.String(),
 			requestBody: map[string]interface{}{
 				"name": "Existing Rule",
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockRuleService {
 				mockService := NewMockRuleService(ctrl)
+				// Service returns ErrRuleNameAlreadyExistsInCtx on unique violation
 				mockService.EXPECT().
 					UpdateRule(gomock.Any(), ruleID, gomock.Any()).
-					Return(nil, constant.ErrRuleNameAlreadyExists)
+					Return(nil, constant.ErrRuleNameAlreadyExistsInCtx)
 				return mockService
 			},
 			expectedStatus: http.StatusConflict,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "Rule name already exists")
+				assert.Contains(t, string(body), "TRC-0303")
+				assert.Contains(t, string(body), "already exists in this context")
 			},
 		},
 		{

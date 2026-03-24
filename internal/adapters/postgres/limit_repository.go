@@ -111,7 +111,13 @@ func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
+		if IsUniqueViolationOf(err, "idx_limits_name_active") {
+			libOtel.HandleSpanBusinessErrorEvent(&span, "Limit name already exists", constant.ErrLimitNameAlreadyExists)
+			return constant.ErrLimitNameAlreadyExists
+		}
+
 		libOtel.HandleSpanError(&span, "Failed to insert limit", err)
+
 		return fmt.Errorf("failed to insert limit: %w", err)
 	}
 
@@ -347,7 +353,13 @@ func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
+		if IsUniqueViolationOf(err, "idx_limits_name_active") {
+			libOtel.HandleSpanBusinessErrorEvent(&span, "Limit name already exists", constant.ErrLimitNameAlreadyExists)
+			return constant.ErrLimitNameAlreadyExists
+		}
+
 		libOtel.HandleSpanError(&span, "Failed to update limit", err)
+
 		return fmt.Errorf("failed to update limit: %w", err)
 	}
 
