@@ -1670,7 +1670,7 @@ func TestAuditEvents_11_4_9_GeneratesAuditForLimitUpdate(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Update limit name
-	newName := "Updated Limit Name"
+	newName := "Updated Limit Name " + testutil.RandomSuffix()
 	updateReq := map[string]any{
 		"name": newName,
 	}
