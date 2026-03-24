@@ -15,6 +15,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -146,6 +147,7 @@ func TestRepository_Create(t *testing.T) {
 		rule      *model.Rule
 		mockSetup func(mock sqlmock.Sqlmock, rule *model.Rule)
 		wantErr   bool
+		errIs     error
 		errMsg    string
 	}{
 		{
@@ -161,6 +163,7 @@ func TestRepository_Create(t *testing.T) {
 						rule.Action,
 						sqlmock.AnyArg(), // scopesJSON
 						rule.Status,
+						sqlmock.AnyArg(), // context_id
 						rule.CreatedAt,
 						rule.UpdatedAt,
 					).
@@ -185,14 +188,25 @@ func TestRepository_Create(t *testing.T) {
 						rule.Description,
 						rule.Expression,
 						rule.Action,
-						sqlmock.AnyArg(),
+						sqlmock.AnyArg(), // scopesJSON
 						rule.Status,
+						sqlmock.AnyArg(), // context_id
 						rule.CreatedAt,
 						rule.UpdatedAt,
 					).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			wantErr: false,
+		},
+		{
+			name: "Error - unique constraint violation returns TRC-0303",
+			rule: testRule(),
+			mockSetup: func(mock sqlmock.Sqlmock, rule *model.Rule) {
+				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO rules`)).
+					WillReturnError(&pgconn.PgError{Code: "23505", ConstraintName: "idx_rules_name_per_context_active", Message: "duplicate key value violates unique constraint"})
+			},
+			wantErr: true,
+			errIs:   constant.ErrRuleNameAlreadyExistsInCtx,
 		},
 		{
 			name: "Error - database insert fails",
@@ -218,7 +232,12 @@ func TestRepository_Create(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				if tt.errIs != nil {
+					assert.True(t, errors.Is(err, tt.errIs), "expected error %v, got %v", tt.errIs, err)
+				}
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
 				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
@@ -395,6 +414,7 @@ func TestRepository_Update(t *testing.T) {
 						rule.Action,
 						sqlmock.AnyArg(), // scopesJSON
 						rule.Status,
+						sqlmock.AnyArg(), // context_id
 						rule.UpdatedAt,
 						rule.ID,
 					).
@@ -411,6 +431,16 @@ func TestRepository_Update(t *testing.T) {
 			},
 			wantErr: true,
 			errIs:   constant.ErrRuleNotFound,
+		},
+		{
+			name: "Error - unique constraint violation returns TRC-0303",
+			rule: testRule(),
+			mockSetup: func(mock sqlmock.Sqlmock, rule *model.Rule) {
+				mock.ExpectExec(regexp.QuoteMeta(`UPDATE rules`)).
+					WillReturnError(&pgconn.PgError{Code: "23505", ConstraintName: "idx_rules_name_per_context_active", Message: "duplicate key value violates unique constraint"})
+			},
+			wantErr: true,
+			errIs:   constant.ErrRuleNameAlreadyExistsInCtx,
 		},
 		{
 			name: "Error - database update fails",

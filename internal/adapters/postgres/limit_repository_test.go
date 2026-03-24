@@ -15,6 +15,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -156,6 +157,7 @@ func TestLimitRepository_Create(t *testing.T) {
 		limit     *model.Limit
 		mockSetup func(mock sqlmock.Sqlmock, lmt *model.Limit)
 		wantErr   bool
+		errIs     error
 		errMsg    string
 	}{
 		{
@@ -217,6 +219,16 @@ func TestLimitRepository_Create(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:  "Error - unique constraint violation returns TRC-0304",
+			limit: testLimit(),
+			mockSetup: func(mock sqlmock.Sqlmock, lmt *model.Limit) {
+				mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO limits`)).
+					WillReturnError(&pgconn.PgError{Code: "23505", ConstraintName: "idx_limits_name_active", Message: "duplicate key value violates unique constraint"})
+			},
+			wantErr: true,
+			errIs:   constant.ErrLimitNameAlreadyExists,
+		},
+		{
 			name:  "Error - database insert fails",
 			limit: testLimit(),
 			mockSetup: func(mock sqlmock.Sqlmock, lmt *model.Limit) {
@@ -240,7 +252,12 @@ func TestLimitRepository_Create(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				if tt.errIs != nil {
+					assert.ErrorIs(t, err, tt.errIs)
+				}
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
 			} else {
 				require.NoError(t, err)
 			}

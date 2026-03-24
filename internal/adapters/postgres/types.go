@@ -246,3 +246,13 @@ func IsUniqueViolation(err error) bool {
 
 	return false
 }
+
+// IsUniqueViolationOf checks if an error is a unique constraint violation for a specific constraint name.
+func IsUniqueViolationOf(err error, constraintName string) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505" && pgErr.ConstraintName == constraintName
+	}
+
+	return false
+}
