@@ -53,6 +53,15 @@ func TestTxBeginnerAdapter_BeginTx_NilAdapter(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNilConnection)
 }
 
+func TestTxBeginnerAdapter_BeginTx_NilDB(t *testing.T) {
+	adapter := &TxBeginnerAdapter{db: nil}
+
+	tx, err := adapter.BeginTx(context.Background(), nil)
+
+	assert.Nil(t, tx)
+	assert.ErrorIs(t, err, ErrNilConnection)
+}
+
 func TestTxBeginnerAdapter_BeginTx_ErrorPropagation(t *testing.T) {
 	dbErr := errors.New("connection refused")
 	adapter := NewTxBeginnerAdapter(&stubDB{err: dbErr})
