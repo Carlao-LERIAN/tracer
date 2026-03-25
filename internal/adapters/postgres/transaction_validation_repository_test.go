@@ -22,8 +22,11 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/internal/adapters/postgres/db/mocks"
+	"tracer/internal/services/command"
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
 	"tracer/pkg/model"
@@ -1565,4 +1568,56 @@ func TestTransactionValidationPostgresRepository_InsertWithTx_NilDB(t *testing.T
 	err := repo.InsertWithTx(ctx, nil, tv)
 
 	require.ErrorIs(t, err, pgdb.ErrNilConnection)
+}
+
+// TestTransactionValidationPostgresRepository_InsertWithTx_UniqueViolation verifies that
+// a unique constraint violation on request_id is wrapped as command.ErrDuplicateValidation.
+func TestTransactionValidationPostgresRepository_InsertWithTx_UniqueViolation(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() {
+		sqlMock.ExpectClose()
+		require.NoError(t, db.Close())
+	}()
+
+	ctrl := gomock.NewController(t)
+	mockConn := mocks.NewMockConnection(ctrl)
+	mockConn.EXPECT().GetDB().Times(0)
+
+	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
+
+	tv := testTransactionValidation()
+	sqlMock.ExpectExec(regexp.QuoteMeta(`INSERT INTO transaction_validations`)).
+		WithArgs(
+			tv.ID,
+			tv.RequestID,
+			string(tv.TransactionType),
+			tv.SubType,
+			tv.Amount,
+			tv.Currency,
+			tv.TransactionTimestamp,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			string(tv.Decision),
+			tv.Reason,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			tv.ProcessingTimeMs,
+			tv.CreatedAt,
+		).
+		WillReturnError(&pgconn.PgError{Code: "23505", Message: "duplicate key value violates unique constraint"})
+
+	ctx := context.Background()
+	err = repo.InsertWithTx(ctx, db, tv)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, command.ErrDuplicateValidation)
+	assert.Contains(t, err.Error(), tv.RequestID.String())
+	require.NoError(t, sqlMock.ExpectationsWereMet())
 }

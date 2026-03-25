@@ -238,6 +238,7 @@ func TestInsertAuditEvent_DifferentResourceType_Unaffected(t *testing.T) {
 			ActorType: model.ActorTypeUser,
 			ID:        "user-123",
 			Name:      "Test User",
+			Role:      "system",
 			IPAddress: "192.168.1.1",
 		},
 	}
@@ -259,6 +260,7 @@ func TestInsertAuditEvent_DifferentResourceType_Unaffected(t *testing.T) {
 			ActorType: model.ActorTypeUser,
 			ID:        "user-123",
 			Name:      "Test User",
+			Role:      "system",
 			IPAddress: "192.168.1.1",
 		},
 	}

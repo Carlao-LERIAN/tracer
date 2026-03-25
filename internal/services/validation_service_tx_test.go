@@ -531,6 +531,83 @@ func TestValidationService_Validate_ConcurrentDuplicate_ReturnsCachedResponse(t 
 	assert.Equal(t, validationID, result.Response.ValidationID)
 }
 
+// TestValidationService_Validate_ConcurrentDuplicate_FindByRequestIDFails verifies that
+// when InsertWithTx returns ErrDuplicateValidation but the retry FindByRequestID also fails,
+// the original error is propagated to the caller.
+func TestValidationService_Validate_ConcurrentDuplicate_FindByRequestIDFails(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	ruleID := testutil.MustDeterministicUUID(10)
+	limitID := testutil.MustDeterministicUUID(20)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
+
+	// 1. Initial FindByRequestID - no duplicate (race window)
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), requestID).
+		Return(nil, nil).
+		Times(1)
+
+	// 2. Rule evaluation returns ALLOW
+	evalResult, err := model.NewEvaluationResult(model.DecisionAllow, []uuid.UUID{ruleID}, []uuid.UUID{ruleID}, "Transaction allowed")
+	require.NoError(t, err)
+	ruleEval.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(evalResult, nil)
+
+	// 3. BeginTx
+	mockTxBeginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
+
+	// 4. CheckLimits passes
+	limitOutput := &model.CheckLimitsOutput{
+		Allowed:           true,
+		LimitUsageDetails: []model.LimitUsageDetail{{LimitID: limitID, LimitAmount: decimal.RequireFromString("1000"), CurrentUsage: decimal.RequireFromString("100"), Exceeded: false}},
+		ExceededLimitIDs:  []uuid.UUID{},
+	}
+	limitCheck.EXPECT().CheckLimits(gomock.Any(), mockTx, gomock.Any()).Return(limitOutput, nil)
+
+	// 5. InsertWithTx returns ErrDuplicateValidation
+	transactionValidationRepo.EXPECT().
+		InsertWithTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(fmt.Errorf("%w: request_id %s", command.ErrDuplicateValidation, requestID))
+
+	// 6. Retry FindByRequestID FAILS
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), requestID).
+		Return(nil, errors.New("database unavailable")).
+		Times(1)
+
+	// 7. Defer calls Rollback
+	mockTx.EXPECT().Rollback().Return(nil)
+
+	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
+	require.NoError(t, err)
+
+	result, err := service.Validate(context.Background(), request)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to persist transaction validation")
+}
+
 // TestValidationService_Validate_BeginTxFailure verifies that when BeginTx fails,
 // the error is properly propagated and no further processing occurs.
 func TestValidationService_Validate_BeginTxFailure(t *testing.T) {
@@ -829,4 +906,62 @@ func TestValidationService_Validate_Allow_AuditWriteFailure(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "failed to persist audit event")
 	assert.Contains(t, err.Error(), "audit service unavailable")
+}
+
+// TestValidationService_Validate_TxContextTimeout verifies that when the transaction
+// context times out during CheckLimits, the error propagates and defer rolls back.
+func TestValidationService_Validate_TxContextTimeout(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	ruleID := testutil.MustDeterministicUUID(10)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
+
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), requestID).
+		Return(nil, nil)
+
+	evalResult, err := model.NewEvaluationResult(model.DecisionAllow, []uuid.UUID{ruleID}, []uuid.UUID{ruleID}, "Transaction allowed")
+	require.NoError(t, err)
+	ruleEval.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(evalResult, nil)
+
+	mockTxBeginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
+
+	// CheckLimits returns DeadlineExceeded (txCtx timed out)
+	limitCheck.EXPECT().
+		CheckLimits(gomock.Any(), mockTx, gomock.Any()).
+		Return(nil, context.DeadlineExceeded)
+
+	// Defer rolls back
+	mockTx.EXPECT().Rollback().Return(nil)
+
+	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
+	require.NoError(t, err)
+
+	result, err := service.Validate(context.Background(), request)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "limit check failed")
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
