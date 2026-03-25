@@ -238,19 +238,17 @@ type LimitUsageDetail struct {
 	// Values: "outside_time_window" (outside active hours), "outside_custom_period" (outside custom date range).
 	SkipReason string `json:"skipReason,omitempty" example:"outside_time_window"`
 
-	// Internal fields for rollback operations - not serialized to JSON.
-	// InternalLimitType stores the persistent limit type for rollback logic.
-	// Used by RollbackUsage to skip PER_TRANSACTION limits (no persistent counters)
-	// without needing to re-fetch the limit from the database.
+	// Internal fields for transactional rollback - not serialized to JSON.
+	// InternalLimitType stores the persistent limit type to skip PER_TRANSACTION limits
+	// (no persistent counters) without needing to re-fetch the limit from the database.
 	// Note: Period (above) is the API-facing field; this is for internal use only.
 	InternalLimitType LimitType `json:"-"`
-	// Scopes contains the limit's scopes, used by RollbackUsage to calculate
-	// scopeKey without needing to re-fetch the limit from the database.
-	// This eliminates N+1 queries during rollback operations.
+	// Scopes contains the limit's scopes, used to calculate scopeKey without
+	// needing to re-fetch the limit from the database.
 	Scopes []Scope `json:"-"`
 	// InternalPeriodKey stores the period key computed during CheckLimits.
-	// Used by RollbackUsage to target the exact same period counter that was incremented,
-	// preventing period key mismatch when rollback crosses a period boundary.
+	// Targets the exact same period counter that was incremented, preventing
+	// period key mismatch when rollback crosses a period boundary.
 	// Empty for PER_TRANSACTION limits (no period counters).
 	InternalPeriodKey string `json:"-"`
 }
@@ -432,7 +430,7 @@ func (r *ValidationRequest) validateMetadata() error {
 }
 
 // ToCheckLimitsInput converts ValidationRequest to CheckLimitsInput for limit checking.
-// Used by T-011 (Validation Orchestration) to prepare input for T-010 (Limit Checking).
+// Used by Validation Orchestration to prepare input for Limit Checking.
 func (r *ValidationRequest) ToCheckLimitsInput() *CheckLimitsInput {
 	input := &CheckLimitsInput{
 		Amount:               r.Amount,

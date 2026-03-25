@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/pkg/model"
 )
 
@@ -57,6 +58,45 @@ func (c *RecordAuditEventCommand) RecordValidationEvent(
 	event.WithValidationContext(request, evalResult, responseContext)
 
 	return c.repo.Insert(ctx, event)
+}
+
+// RecordValidationEventWithTx records an audit event for a transaction validation using the provided database connection.
+// The db parameter accepts either a regular DB connection or a transaction (*sql.Tx via TxAdapter).
+// Atomicity with other database changes is only guaranteed when a transaction handle is passed;
+// a plain DB connection will execute the insert independently.
+// NOTE: evalResult is passed separately from responseContext to avoid embedding redundancy.
+// The decision is extracted from evalResult and stored in AuditEvent.Result field.
+func (c *RecordAuditEventCommand) RecordValidationEventWithTx(
+	ctx context.Context,
+	db pgdb.DB,
+	validationID uuid.UUID,
+	request map[string]any,
+	evalResult model.EvaluationResult,
+	responseContext model.ValidationResponseContext,
+	clientIP string,
+) error {
+	result := model.DecisionToAuditResult(evalResult.Decision)
+
+	event, err := model.NewAuditEvent(
+		model.AuditEventTransactionValidated,
+		model.AuditActionValidate,
+		result,
+		validationID.String(),
+		model.ResourceTypeTransaction,
+		model.Actor{
+			ActorType: model.ActorTypeSystem,
+			ID:        "svc_tracer",
+			Name:      "Tracer Validation Engine",
+			IPAddress: normalizeIP(clientIP),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create audit event: %w", err)
+	}
+
+	event.WithValidationContext(request, evalResult, responseContext)
+
+	return c.repo.InsertWithTx(ctx, db, event)
 }
 
 // RecordRuleEvent records an audit event for a rule operation.

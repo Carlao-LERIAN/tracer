@@ -27,11 +27,6 @@ import (
 	"tracer/pkg/model"
 )
 
-// rollbackTimeout bounds rollback compensation operations to prevent unbounded resource consumption.
-// 5 seconds is sufficient for typical database operations under normal conditions.
-// Follows the pattern established by validationPersistTimeout in validation_service.go.
-const rollbackTimeout = 5 * time.Second
-
 // calculateCounterExpiresAt calculates when a usage counter should expire based on limit type.
 // Returns nil for PER_TRANSACTION (no counter created) or when required dates are nil.
 // For DAILY/WEEKLY/MONTHLY: returns resetAt + CounterRetentionDays retention period.
@@ -67,20 +62,11 @@ func calculateCounterExpiresAt(limitType model.LimitType, resetAt *time.Time, cu
 
 // LimitChecker defines the interface for checking limits against transactions.
 type LimitChecker interface {
-	// CheckLimits evaluates all applicable limits for a transaction.
-	// Returns CheckLimitsOutput with:
-	//   - Allowed: true if no limits exceeded (or no active limits found)
-	//   - ExceededLimitIDs: IDs of limits that would be exceeded
-	//   - LimitUsageDetails: usage information for all checked limits
-	//
-	// For DAILY/MONTHLY limits: increments usage counters atomically
-	// For PER_TRANSACTION limits: checks maxAmount directly without persistent counters
-	CheckLimits(ctx context.Context, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error)
-
-	// CheckLimitsWithTx evaluates all applicable limits for a transaction.
-	// The db parameter is accepted for API consistency and will be used when
-	// underlying repositories support transactional operations.
-	// Currently behaves identically to CheckLimits.
+	// CheckLimits evaluates all applicable limits for a transaction using
+	// the provided database connection. This allows callers to pass either a
+	// regular DB connection or a transaction (*sql.Tx), enabling atomic operations
+	// with other database changes.
+	// Uses atomic upsert to prevent TOCTOU race conditions.
 	//
 	// Returns CheckLimitsOutput with:
 	//   - Allowed: true if no limits exceeded (or no active limits found)
@@ -89,13 +75,12 @@ type LimitChecker interface {
 	//
 	// For DAILY/MONTHLY limits: increments usage counters atomically
 	// For PER_TRANSACTION limits: checks maxAmount directly without persistent counters
-	CheckLimitsWithTx(ctx context.Context, db pgdb.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error)
-
-	// RollbackUsage decrements usage counters for limits that were previously incremented.
-	// Called when a transaction is denied by rules after limits were already incremented.
-	// Only affects DAILY/MONTHLY limits (PER_TRANSACTION has no persistent counters).
-	// usageDetails contains the limits to rollback (typically from a previous CheckLimits call).
-	RollbackUsage(ctx context.Context, input *model.CheckLimitsInput, usageDetails []model.LimitUsageDetail) error
+	//
+	// When db is provided (non-nil):
+	//   - Uses UpsertAndIncrementAtomic and GetUsageForLimits for transactional operations
+	//   - Does NOT perform compensating rollback on limit exceeded - caller MUST call tx.Rollback()
+	//   - This enables the caller to atomically rollback ALL changes (counters, validation, audit)
+	CheckLimits(ctx context.Context, db pgdb.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error)
 }
 
 // LimitCheckerService implements LimitChecker using repository pattern.
@@ -127,9 +112,20 @@ func NewLimitChecker(limitRepo LimitRepository, usageCounterRepo UsageCounterRep
 	}, nil
 }
 
-// CheckLimits evaluates all applicable limits for a transaction.
+// CheckLimits evaluates all applicable limits for a transaction using the provided database connection.
+// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
+// enabling atomic operations with other database changes.
 // Uses atomic upsert to prevent TOCTOU race conditions.
-func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
+//
+// The db parameter MUST be non-nil:
+//   - Uses UpsertAndIncrementAtomic and GetUsageForLimits for transactional operations
+//   - Does NOT perform compensating rollback on limit exceeded - caller MUST call tx.Rollback()
+//   - This enables the caller to atomically rollback ALL changes (counters, validation, audit)
+func (s *LimitCheckerService) CheckLimits(ctx context.Context, db pgdb.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
+	if db == nil {
+		return nil, pgdb.ErrNilConnection
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.limit_checker.check_limits")
@@ -137,37 +133,20 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, input *model.Chec
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return s.checkLimitsInternal(ctx, input, logger, &span, "service.limit_checker.check_limits")
+	// Pass db to enable transactional operations
+	return s.checkLimitsInternal(ctx, db, input, logger, &span, "service.limit_checker.check_limits")
 }
 
-// CheckLimitsWithTx evaluates all applicable limits for a transaction using the provided database connection.
-// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
-// enabling atomic operations with other database changes.
-// Uses atomic upsert to prevent TOCTOU race conditions.
-//
-// NOTE: The db parameter is accepted for API consistency with InsertWithTx and to enable future
-// transactional repository methods. Currently, the underlying repositories do not yet support
-// transactional operations, so the db parameter is not passed through to repository calls.
-// When repositories are updated to support WithTx variants, this method will pass db accordingly.
-//
-// NOTE: Wire db parameter through to LimitRepository and UsageCounterRepository
-// when those repositories gain WithTx variants.
-func (s *LimitCheckerService) CheckLimitsWithTx(ctx context.Context, _ pgdb.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "service.limit_checker.check_limits_with_tx")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	return s.checkLimitsInternal(ctx, input, logger, &span, "service.limit_checker.check_limits_with_tx")
-}
-
-// checkLimitsInternal contains the shared logic for CheckLimits and CheckLimitsWithTx.
+// checkLimitsInternal contains the core logic for CheckLimits.
 // It validates input, retrieves applicable limits, and processes each limit atomically.
-// The operationName parameter is used for consistent logging across both public methods.
+//
+// Transactional mode (db is always non-nil):
+//   - Uses transactional repository methods (UpsertAndIncrementAtomic, GetUsageForLimits)
+//   - Does NOT perform compensating rollback on limit exceeded or error
+//   - Caller is responsible for tx.Rollback() to atomically undo ALL changes
 func (s *LimitCheckerService) checkLimitsInternal(
 	ctx context.Context,
+	db pgdb.DB,
 	input *model.CheckLimitsInput,
 	logger libLog.Logger,
 	span *trace.Span,
@@ -223,9 +202,8 @@ func (s *LimitCheckerService) checkLimitsInternal(
 
 	// Process each limit with atomic upsert (increment happens in DB)
 	usageDetails := make([]model.LimitUsageDetail, 0, len(limits))
-	incrementedDetails := make([]model.LimitUsageDetail, 0, len(limits))
 
-	var exceededLimitID *uuid.UUID
+	var exceededLimitIDs []uuid.UUID
 
 	for i := range limits {
 		limit := &limits[i]
@@ -235,61 +213,31 @@ func (s *LimitCheckerService) checkLimitsInternal(
 		// Example: account-only limit must use "acct:X" key, not "acct:X:seg:Y:port:Z".
 		scopeKey := calculateScopeKeyFromScopes(limit.Scopes, txScope)
 
-		detail, exceeded, err := s.processLimitAtomic(ctx, limit, input, scopeKey, serverNow)
+		detail, exceeded, err := s.processLimitAtomic(ctx, db, limit, input, scopeKey, serverNow)
 		if err != nil {
-			// DB error - rollback already-incremented counters and return error
-			// Use detached context for rollback - request context may be canceled,
-			// but compensation MUST complete to maintain data integrity.
-			if len(incrementedDetails) > 0 {
-				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
-				defer cancel()
-				// Preserve trace context for observability
-				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
-				//nolint:contextcheck // Intentional: using detached context for compensation
-				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, txScope)
-			}
-
+			// DB error - caller will do tx.Rollback() to atomically undo all changes
 			libOtel.HandleSpanError(span, "Failed to process limit atomically", err)
-
 			return nil, err
 		}
 
 		usageDetails = append(usageDetails, *detail)
 
 		if exceeded {
-			// Limit exceeded - rollback already-incremented counters and break
-			exceededLimitID = &limit.ID
-
-			// Rollback with detached context - compensation must complete regardless
-			// of request cancellation to prevent false limit exhaustion.
-			if len(incrementedDetails) > 0 {
-				rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
-				defer cancel()
-				// Preserve trace context for observability
-				rollbackCtx = trace.ContextWithSpan(rollbackCtx, trace.SpanFromContext(ctx))
-				//nolint:contextcheck // Intentional: using detached context for compensation
-				s.rollbackIncrementedCounters(rollbackCtx, input, incrementedDetails, txScope)
-			}
-
-			break
-		}
-
-		// Only track actually-incremented counters for potential rollback.
-		// PER_TRANSACTION has no counters; skipped limits had no counter mutation.
-		if limit.LimitType != model.LimitTypePerTransaction && !detail.Skipped {
-			incrementedDetails = append(incrementedDetails, *detail)
+			exceededLimitIDs = append(exceededLimitIDs, limit.ID)
 		}
 	}
 
-	output := model.NewCheckLimitsOutput(exceededLimitID == nil, serverNow).WithLimitUsageDetails(usageDetails)
+	allowed := len(exceededLimitIDs) == 0
+	output := model.NewCheckLimitsOutput(allowed, serverNow).WithLimitUsageDetails(usageDetails)
 
-	if exceededLimitID != nil {
-		output = output.WithExceededLimits([]uuid.UUID{*exceededLimitID})
+	if !allowed {
+		output = output.WithExceededLimits(exceededLimitIDs)
 
 		logger.WithFields(
 			"operation", operationName,
-			"exceeded_limit_id", exceededLimitID.String(),
-		).Info("Limit exceeded")
+			"exceeded_limit_ids", exceededLimitIDs,
+			"exceeded_count", len(exceededLimitIDs),
+		).Info("Limits exceeded")
 	} else {
 		logger.WithFields(
 			"operation", operationName,
@@ -387,8 +335,12 @@ func handlePerTransactionLimit(
 
 // processLimitAtomic processes a single limit using atomic upsert for DAILY/MONTHLY limits.
 // Returns the usage detail, whether the limit was exceeded, and any error.
+//
+// Transactional mode (db is always non-nil):
+//   - Uses UpsertAndIncrementAtomic and GetUsageForLimits
 func (s *LimitCheckerService) processLimitAtomic(
 	ctx context.Context,
+	db pgdb.DB,
 	limit *model.Limit,
 	input *model.CheckLimitsInput,
 	scopeKey string,
@@ -449,7 +401,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 		// Fetch current usage to report projected total accurately
 		currentUsage := decimal.Zero
 
-		usageMap, err := s.usageCounterRepo.GetUsageForLimits(ctx, []uuid.UUID{limit.ID}, scopeKey, periodKey)
+		usageMap, err := s.usageCounterRepo.GetUsageForLimits(ctx, db, []uuid.UUID{limit.ID}, scopeKey, periodKey)
 		if err != nil {
 			libOtel.HandleSpanError(&span, "Failed to get existing usage for pre-check", err)
 			return nil, false, fmt.Errorf("failed to get existing usage for pre-check: %w", err)
@@ -479,6 +431,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 	// Atomic upsert: create or increment counter, enforcing maxAmount in DB
 	newUsage, err := s.usageCounterRepo.UpsertAndIncrementAtomic(
 		ctx,
+		db,
 		limit.ID,
 		scopeKey,
 		periodKey,
@@ -539,264 +492,6 @@ func (s *LimitCheckerService) processLimitAtomic(
 	// Debug only - hot path success logging removed for performance
 	// Only log errors/exceeded, not every successful check
 	return detail, false, nil
-}
-
-// rollbackIncrementedCounters decrements counters that were already incremented when a later limit fails.
-// Uses the InternalPeriodKey and Scopes stored in each detail to target the exact counter.
-// Best-effort: logs errors but continues (see EVENTUAL CONSISTENCY DESIGN in RollbackUsage).
-func (s *LimitCheckerService) rollbackIncrementedCounters(
-	ctx context.Context,
-	input *model.CheckLimitsInput,
-	incrementedDetails []model.LimitUsageDetail,
-	txScope *model.Scope,
-) {
-	logger, tracer, _, metricsFactory := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "service.limit_checker.rollback_incremented_counters")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	logger.WithFields(
-		"operation", "service.limit_checker.rollback_incremented_counters",
-		"details_count", len(incrementedDetails),
-	).Info("Rolling back incremented counters")
-
-	var failedLimits []uuid.UUID
-
-	for _, detail := range incrementedDetails {
-		// Use the stored period key (computed at increment time)
-		periodKey := detail.InternalPeriodKey
-
-		if periodKey == "" {
-			logger.WithFields(
-				"operation", "service.limit_checker.rollback_incremented_counters",
-				"limit_id", detail.LimitID.String(),
-			).Warn("No period key stored for rollback, skipping")
-
-			failedLimits = append(failedLimits, detail.LimitID)
-
-			continue
-		}
-
-		// Calculate scope key from the limit's scopes (stored in detail.Scopes)
-		// This ensures rollback uses the SAME key that was used during increment,
-		// preventing scope key mismatch when limits have different granularities.
-		scopeKey := calculateScopeKeyFromScopes(detail.Scopes, txScope)
-
-		// Get existing counter (do NOT create one - rollback should only affect existing counters)
-		counter, err := s.usageCounterRepo.GetForUpdate(ctx, detail.LimitID, scopeKey, periodKey)
-		if err != nil {
-			logger.WithFields(
-				"operation", "service.limit_checker.rollback_incremented_counters",
-				"limit_id", detail.LimitID.String(),
-				"period_key", periodKey,
-				"error", err.Error(),
-			).Warn("Failed to get counter for rollback, skipping")
-
-			failedLimits = append(failedLimits, detail.LimitID)
-
-			continue
-		}
-
-		if err := s.usageCounterRepo.DecrementAtomic(ctx, counter.ID, input.Amount); err != nil {
-			logger.WithFields(
-				"operation", "service.limit_checker.rollback_incremented_counters",
-				"limit_id", detail.LimitID.String(),
-				"counter_id", counter.ID.String(),
-				"amount", input.Amount.String(),
-				"error", err.Error(),
-			).Warn("Failed to decrement counter for rollback, skipping")
-
-			failedLimits = append(failedLimits, detail.LimitID)
-
-			continue
-		}
-
-		logger.WithFields(
-			"operation", "service.limit_checker.rollback_incremented_counters",
-			"limit_id", detail.LimitID.String(),
-			"counter_id", counter.ID.String(),
-			"amount", input.Amount.String(),
-		).Info("Rolled back counter")
-	}
-
-	if len(failedLimits) > 0 {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Some counters failed to rollback", fmt.Errorf("failed limits: %v", failedLimits))
-
-		// Emit metric for alerting
-		if metricsFactory != nil {
-			metricsFactory.Counter(MetricRollbackFailures).Add(ctx, int64(len(failedLimits)))
-		}
-
-		logger.WithFields(
-			"operation", "service.limit_checker.rollback_incremented_counters",
-			"failed_count", len(failedLimits),
-			"failed_limit_ids", failedLimits,
-		).Warn("Some counters failed to rollback")
-	}
-}
-
-// RollbackUsage decrements usage counters for limits that were previously incremented.
-//
-// EVENTUAL CONSISTENCY DESIGN:
-// This method intentionally returns nil even when some rollbacks fail. This is by design:
-//   - The primary operation (transaction denial) has already succeeded
-//   - Failing the rollback should not cause the overall denial to fail
-//   - Usage counters self-correct at period boundaries (daily/monthly resets)
-//   - Slightly over-counted limits are acceptable and conservative (may deny borderline transactions)
-//
-// Observability for failed rollbacks:
-//   - Span event recorded via libOtel.HandleSpanBusinessErrorEvent (for tracing)
-//   - Metric emitted via MetricRollbackFailures (for alerting dashboards)
-//   - Structured logging with failed limit IDs (for investigation)
-//
-// Operators should set up alerts on tracer_limit_rollback_failures_total > 0 to investigate
-// persistent rollback failures that may indicate infrastructure issues.
-func (s *LimitCheckerService) RollbackUsage(ctx context.Context, input *model.CheckLimitsInput, usageDetails []model.LimitUsageDetail) error {
-	logger, tracer, _, metricsFactory := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "service.limit_checker.rollback_usage")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	if input == nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid input", constant.ErrCheckLimitsNilInput)
-		return constant.ErrCheckLimitsNilInput
-	}
-
-	if len(usageDetails) == 0 {
-		logger.WithFields(
-			"operation", "service.limit_checker.rollback_usage",
-		).Info("No usage details to rollback")
-
-		return nil
-	}
-
-	logger.WithFields(
-		"operation", "service.limit_checker.rollback_usage",
-		"details_count", len(usageDetails),
-	).Info("Rolling back usage")
-
-	// Track limits that failed to rollback for alerting
-	// Note: PER_TRANSACTION limits don't have persistent counters and are skipped
-	var failedLimits []uuid.UUID
-
-	// Build transaction scope once; derive scope key per detail to match increment path
-	txScope := buildTransactionScope(input)
-
-	// Calculate server time once for consistent period key fallback
-	// Prevents period key mismatch when rollback crosses period boundary
-	serverTime := s.clock.Now()
-
-	for _, detail := range usageDetails {
-		// Skip non-mutated details: PER_TRANSACTION has no counters, skipped limits had no increment
-		if detail.InternalLimitType == model.LimitTypePerTransaction || detail.Skipped {
-			continue
-		}
-
-		// Use the stored period key (computed at increment time) to target exact counter
-		// This prevents period key mismatch when rollback crosses a period boundary
-		periodKey := detail.InternalPeriodKey
-		if periodKey == "" {
-			// Fallback for legacy callers or external rollback calls without stored period key
-			// Use InternalLimitType if populated, otherwise fall back to Period field
-			fallbackType := detail.InternalLimitType
-			if fallbackType == "" {
-				fallbackType = detail.Period
-			}
-
-			// Skip PER_TRANSACTION limits even in fallback path
-			// Legacy details may have empty InternalLimitType but Period == PER_TRANSACTION
-			if fallbackType == model.LimitTypePerTransaction {
-				continue
-			}
-
-			var calcErr error
-
-			periodKey, calcErr = model.CalculatePeriodKey(fallbackType, serverTime)
-			if calcErr != nil {
-				logger.WithFields(
-					"operation", "service.limit_checker.rollback_usage",
-					"limit_id", detail.LimitID.String(),
-					"limit_type", string(fallbackType),
-					"error", calcErr.Error(),
-				).Warn("Failed to calculate fallback period key, skipping")
-
-				failedLimits = append(failedLimits, detail.LimitID)
-
-				continue
-			}
-
-			logger.WithFields(
-				"operation", "service.limit_checker.rollback_usage",
-				"limit_id", detail.LimitID.String(),
-				"period_key", periodKey,
-			).Info("Using server clock fallback for period key")
-		}
-
-		// Calculate scope key from the limit's scopes (stored in detail.Scopes)
-		// This ensures rollback uses the SAME key that was used during increment,
-		// preventing scope key mismatch when limits have different granularities.
-		// For global limits (empty scopes), calculateScopeKeyFromScopes returns "global",
-		// matching the key used during increment.
-		scopeKey := calculateScopeKeyFromScopes(detail.Scopes, txScope)
-
-		// Get existing counter (do NOT create one - rollback should only affect existing counters)
-		counter, err := s.usageCounterRepo.GetForUpdate(ctx, detail.LimitID, scopeKey, periodKey)
-		if err != nil {
-			logger.WithFields(
-				"operation", "service.limit_checker.rollback_usage",
-				"limit_id", detail.LimitID.String(),
-				"period_key", periodKey,
-				"error", err.Error(),
-			).Warn("Failed to get counter for rollback, skipping")
-
-			failedLimits = append(failedLimits, detail.LimitID)
-
-			continue
-		}
-
-		if err := s.usageCounterRepo.DecrementAtomic(ctx, counter.ID, input.Amount); err != nil {
-			logger.WithFields(
-				"operation", "service.limit_checker.rollback_usage",
-				"limit_id", detail.LimitID.String(),
-				"counter_id", counter.ID.String(),
-				"amount", input.Amount.String(),
-				"error", err.Error(),
-			).Warn("Failed to decrement counter for rollback, skipping")
-
-			failedLimits = append(failedLimits, detail.LimitID)
-
-			continue
-		}
-
-		logger.WithFields(
-			"operation", "service.limit_checker.rollback_usage",
-			"limit_id", detail.LimitID.String(),
-			"counter_id", counter.ID.String(),
-			"period_key", periodKey,
-			"amount", input.Amount.String(),
-		).Info("Rolled back usage for limit")
-	}
-
-	if len(failedLimits) > 0 {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Some limits failed to rollback", fmt.Errorf("failed limits: %v", failedLimits))
-
-		// Emit metric for alerting (see EVENTUAL CONSISTENCY DESIGN comment above)
-		if metricsFactory != nil {
-			metricsFactory.Counter(MetricRollbackFailures).Add(ctx, int64(len(failedLimits)))
-		}
-
-		logger.WithFields(
-			"operation", "service.limit_checker.rollback_usage",
-			"failed_count", len(failedLimits),
-			"failed_limit_ids", failedLimits,
-		).Warn("Some limits failed to rollback")
-	}
-
-	return nil
 }
 
 // getApplicableLimits fetches active limits matching currency and scopes.
@@ -908,11 +603,10 @@ func scopeMatchesLimit(limitScopes []model.Scope, txScope *model.Scope) bool {
 // calculateScopeKeyFromScopes computes the scope key from a list of scopes based on the limit's scope, not the transaction's.
 // This prevents counter fragmentation when limits have different scope granularities.
 // Used for both CheckLimits and rollback operations.
-// Returns the first matching scope's key, or "global" if no scopes.
+// Returns the first matching scope's key, or constant.GlobalScopeKey if no scopes.
 func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) string {
-	// Global limit (no scopes) uses "global" key
 	if len(scopes) == 0 {
-		return "global"
+		return constant.GlobalScopeKey
 	}
 
 	// Find the first scope that matches the transaction
@@ -935,7 +629,7 @@ func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) str
 // Each scope is wrapped in parentheses; multiple scopes (OR alternatives) are joined with " OR ".
 func formatScopeString(scopes []model.Scope) string {
 	if len(scopes) == 0 {
-		return "global"
+		return constant.GlobalScopeKey
 	}
 
 	var scopeGroups []string
@@ -973,7 +667,7 @@ func formatScopeString(scopes []model.Scope) string {
 	}
 
 	if len(scopeGroups) == 0 {
-		return "global"
+		return constant.GlobalScopeKey
 	}
 
 	return strings.Join(scopeGroups, " OR ")

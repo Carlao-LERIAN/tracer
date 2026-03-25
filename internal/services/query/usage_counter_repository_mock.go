@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 	time "time"
+	db "tracer/internal/adapters/postgres/db"
 	model "tracer/pkg/model"
 
 	uuid "github.com/google/uuid"
@@ -42,20 +43,6 @@ func NewMockUsageCounterRepository(ctrl *gomock.Controller) *MockUsageCounterRep
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockUsageCounterRepository) EXPECT() *MockUsageCounterRepositoryMockRecorder {
 	return m.recorder
-}
-
-// DecrementAtomic mocks base method.
-func (m *MockUsageCounterRepository) DecrementAtomic(ctx context.Context, counterID uuid.UUID, amount decimal.Decimal) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DecrementAtomic", ctx, counterID, amount)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DecrementAtomic indicates an expected call of DecrementAtomic.
-func (mr *MockUsageCounterRepositoryMockRecorder) DecrementAtomic(ctx, counterID, amount any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DecrementAtomic", reflect.TypeOf((*MockUsageCounterRepository)(nil).DecrementAtomic), ctx, counterID, amount)
 }
 
 // DeleteExpiredCounters mocks base method.
@@ -88,21 +75,6 @@ func (mr *MockUsageCounterRepositoryMockRecorder) GetByLimitID(ctx, limitID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByLimitID", reflect.TypeOf((*MockUsageCounterRepository)(nil).GetByLimitID), ctx, limitID)
 }
 
-// GetForUpdate mocks base method.
-func (m *MockUsageCounterRepository) GetForUpdate(ctx context.Context, limitID uuid.UUID, scopeKey, periodKey string) (*model.UsageCounter, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetForUpdate", ctx, limitID, scopeKey, periodKey)
-	ret0, _ := ret[0].(*model.UsageCounter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetForUpdate indicates an expected call of GetForUpdate.
-func (mr *MockUsageCounterRepositoryMockRecorder) GetForUpdate(ctx, limitID, scopeKey, periodKey any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetForUpdate", reflect.TypeOf((*MockUsageCounterRepository)(nil).GetForUpdate), ctx, limitID, scopeKey, periodKey)
-}
-
 // GetOrCreateForUpdate mocks base method.
 func (m *MockUsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limitID uuid.UUID, scopeKey, periodKey string) (*model.UsageCounter, error) {
 	m.ctrl.T.Helper()
@@ -119,18 +91,18 @@ func (mr *MockUsageCounterRepositoryMockRecorder) GetOrCreateForUpdate(ctx, limi
 }
 
 // GetUsageForLimits mocks base method.
-func (m *MockUsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]decimal.Decimal, error) {
+func (m *MockUsageCounterRepository) GetUsageForLimits(ctx context.Context, arg1 db.DB, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]decimal.Decimal, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUsageForLimits", ctx, limitIDs, scopeKey, periodKey)
+	ret := m.ctrl.Call(m, "GetUsageForLimits", ctx, arg1, limitIDs, scopeKey, periodKey)
 	ret0, _ := ret[0].(map[uuid.UUID]decimal.Decimal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetUsageForLimits indicates an expected call of GetUsageForLimits.
-func (mr *MockUsageCounterRepositoryMockRecorder) GetUsageForLimits(ctx, limitIDs, scopeKey, periodKey any) *gomock.Call {
+func (mr *MockUsageCounterRepositoryMockRecorder) GetUsageForLimits(ctx, arg1, limitIDs, scopeKey, periodKey any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsageForLimits", reflect.TypeOf((*MockUsageCounterRepository)(nil).GetUsageForLimits), ctx, limitIDs, scopeKey, periodKey)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsageForLimits", reflect.TypeOf((*MockUsageCounterRepository)(nil).GetUsageForLimits), ctx, arg1, limitIDs, scopeKey, periodKey)
 }
 
 // IncrementAtomic mocks base method.
@@ -148,16 +120,16 @@ func (mr *MockUsageCounterRepositoryMockRecorder) IncrementAtomic(ctx, counterID
 }
 
 // UpsertAndIncrementAtomic mocks base method.
-func (m *MockUsageCounterRepository) UpsertAndIncrementAtomic(ctx context.Context, limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount decimal.Decimal, expiresAt *time.Time) (decimal.Decimal, error) {
+func (m *MockUsageCounterRepository) UpsertAndIncrementAtomic(ctx context.Context, arg1 db.DB, limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount decimal.Decimal, expiresAt *time.Time) (decimal.Decimal, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertAndIncrementAtomic", ctx, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt)
+	ret := m.ctrl.Call(m, "UpsertAndIncrementAtomic", ctx, arg1, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt)
 	ret0, _ := ret[0].(decimal.Decimal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpsertAndIncrementAtomic indicates an expected call of UpsertAndIncrementAtomic.
-func (mr *MockUsageCounterRepositoryMockRecorder) UpsertAndIncrementAtomic(ctx, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt any) *gomock.Call {
+func (mr *MockUsageCounterRepositoryMockRecorder) UpsertAndIncrementAtomic(ctx, arg1, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAndIncrementAtomic", reflect.TypeOf((*MockUsageCounterRepository)(nil).UpsertAndIncrementAtomic), ctx, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAndIncrementAtomic", reflect.TypeOf((*MockUsageCounterRepository)(nil).UpsertAndIncrementAtomic), ctx, arg1, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt)
 }

@@ -21,7 +21,7 @@ import (
 )
 
 // =============================================================================
-// T-004: Rules & Limits Name Uniqueness Tests
+// Rules & Limits Name Uniqueness Tests
 //
 // These tests verify:
 // 1. Creating a rule with a duplicate name in the same context returns HTTP 409 + TRC-0303
@@ -38,16 +38,16 @@ import (
 // TODO: update limit tests to include rule_id when limits become rule-scoped
 // =============================================================================
 
-// createRuleRequest is a helper struct for rule creation
-type createRuleRequestT004 struct {
+// nameUniquenessRuleRequest is a helper struct for rule creation
+type nameUniquenessRuleRequest struct {
 	Name       string                `json:"name"`
 	Expression string                `json:"expression"`
 	Action     string                `json:"action"`
 	Scopes     []testutil.ScopeInput `json:"scopes,omitempty"`
 }
 
-// createLimitRequestT004 is a helper struct for limit creation
-type createLimitRequestT004 struct {
+// nameUniquenessLimitRequest is a helper struct for limit creation
+type nameUniquenessLimitRequest struct {
 	Name      string                `json:"name"`
 	LimitType string                `json:"limitType"`
 	MaxAmount decimal.Decimal       `json:"maxAmount"`
@@ -56,8 +56,8 @@ type createLimitRequestT004 struct {
 	RuleID    *string               `json:"ruleId,omitempty"` // Future field for rule association
 }
 
-// errorResponseT004 represents the error response structure
-type errorResponseT004 struct {
+// nameUniquenessErrorResponse represents the error response structure
+type nameUniquenessErrorResponse struct {
 	Code    string `json:"code"`
 	Title   string `json:"title"`
 	Message string `json:"message"`
@@ -72,12 +72,12 @@ func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
-	// Use deterministic UUIDs for test reproducibility (12000+ range for T-004)
+	// Use deterministic UUIDs for test reproducibility (12000+ range to avoid conflicts with other test suites)
 	contextID := testutil.MustDeterministicUUID(12001).String()
 	ruleName := "duplicate rule name test " + testutil.RandomSuffix()
 
 	// Create the first rule (should succeed)
-	reqBody1 := createRuleRequestT004{
+	reqBody1 := nameUniquenessRuleRequest{
 		Name:       ruleName,
 		Expression: "amount > 100",
 		Action:     "DENY",
@@ -113,7 +113,7 @@ func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
 	})
 
 	// Create the second rule with the SAME name and SAME context (should fail with 409)
-	reqBody2 := createRuleRequestT004{
+	reqBody2 := nameUniquenessRuleRequest{
 		Name:       ruleName, // Same name as first rule
 		Expression: "amount > 200",
 		Action:     "ALLOW",
@@ -141,7 +141,7 @@ func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp2.StatusCode, "Duplicate rule name in same context should return 409: %s", string(respBody2))
 
 	if resp2.StatusCode == http.StatusConflict {
-		var errResp errorResponseT004
+		var errResp nameUniquenessErrorResponse
 		err = json.Unmarshal(respBody2, &errResp)
 		require.NoError(t, err)
 
@@ -166,7 +166,7 @@ func TestCreateRule_DuplicateName_DifferentContext_Returns201(t *testing.T) {
 	ruleName := "same name different context " + testutil.RandomSuffix()
 
 	// Create the first rule in context 1
-	reqBody1 := createRuleRequestT004{
+	reqBody1 := nameUniquenessRuleRequest{
 		Name:       ruleName,
 		Expression: "amount > 100",
 		Action:     "DENY",
@@ -202,7 +202,7 @@ func TestCreateRule_DuplicateName_DifferentContext_Returns201(t *testing.T) {
 	})
 
 	// Create the second rule with the SAME name but DIFFERENT context (should succeed)
-	reqBody2 := createRuleRequestT004{
+	reqBody2 := nameUniquenessRuleRequest{
 		Name:       ruleName, // Same name as first rule
 		Expression: "amount > 200",
 		Action:     "ALLOW",
@@ -259,7 +259,7 @@ func TestCreateRule_DeletedNameReuse_Returns201(t *testing.T) {
 	ruleName := "deleted name reuse " + testutil.RandomSuffix()
 
 	// Create the first rule
-	reqBody1 := createRuleRequestT004{
+	reqBody1 := nameUniquenessRuleRequest{
 		Name:       ruleName,
 		Expression: "amount > 100",
 		Action:     "DENY",
@@ -296,7 +296,7 @@ func TestCreateRule_DeletedNameReuse_Returns201(t *testing.T) {
 	testutil.DeleteRuleViaAPI(t, firstRuleID)
 
 	// Create a NEW rule with the SAME name (should succeed because old one is soft-deleted)
-	reqBody2 := createRuleRequestT004{
+	reqBody2 := nameUniquenessRuleRequest{
 		Name:       ruleName, // Same name as the deleted rule
 		Expression: "amount > 500",
 		Action:     "REVIEW",
@@ -353,7 +353,7 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 	limitName := "duplicate limit name test " + testutil.RandomSuffix()
 
 	// Create the first limit
-	reqBody1 := createLimitRequestT004{
+	reqBody1 := nameUniquenessLimitRequest{
 		Name:      limitName,
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
@@ -391,7 +391,7 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 
 	// Create the second limit with the SAME name (should fail with 409)
 	// Note: Limit names are globally unique among non-deleted limits
-	reqBody2 := createLimitRequestT004{
+	reqBody2 := nameUniquenessLimitRequest{
 		Name:      limitName, // Same name as first limit
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("2000"),
@@ -420,7 +420,7 @@ func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp2.StatusCode, "Duplicate limit name should return 409: %s", string(respBody2))
 
 	if resp2.StatusCode == http.StatusConflict {
-		var errResp errorResponseT004
+		var errResp nameUniquenessErrorResponse
 		err = json.Unmarshal(respBody2, &errResp)
 		require.NoError(t, err)
 
@@ -444,7 +444,7 @@ func TestCreateLimit_DeletedNameReuse_Returns201(t *testing.T) {
 	limitName := "deleted limit name reuse " + testutil.RandomSuffix()
 
 	// Create the first limit
-	reqBody1 := createLimitRequestT004{
+	reqBody1 := nameUniquenessLimitRequest{
 		Name:      limitName,
 		LimitType: "DAILY",
 		MaxAmount: decimal.RequireFromString("1000"),
@@ -482,7 +482,7 @@ func TestCreateLimit_DeletedNameReuse_Returns201(t *testing.T) {
 	testutil.CleanupLimit(t, firstLimitID) // This deactivates and deletes
 
 	// Create a NEW limit with the SAME name (should succeed because old one is soft-deleted)
-	reqBody2 := createLimitRequestT004{
+	reqBody2 := nameUniquenessLimitRequest{
 		Name:      limitName, // Same name as the deleted limit
 		LimitType: "MONTHLY",
 		MaxAmount: decimal.RequireFromString("5000"),

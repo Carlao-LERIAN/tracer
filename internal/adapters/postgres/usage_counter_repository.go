@@ -12,11 +12,13 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/pkg/constant"
@@ -92,63 +94,6 @@ func NewUsageCounterRepositoryWithConnection(conn pgdb.Connection) *UsageCounter
 		conn:            conn,
 		deleteBatchSize: DefaultDeleteBatchSize,
 	}
-}
-
-// GetForUpdate retrieves an existing usage counter with row-level lock.
-// Uses SELECT FOR UPDATE to prevent race conditions during concurrent operations.
-// Returns sql.ErrNoRows if the counter doesn't exist (does NOT create one).
-// Used by rollback operations where creating a counter would be incorrect.
-func (r *UsageCounterRepository) GetForUpdate(ctx context.Context, limitID uuid.UUID, scopeKey, periodKey string) (*model.UsageCounter, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "repository.usage_counter.get_for_update")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	db, err := r.conn.GetDB()
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
-	}
-
-	logger.WithFields(
-		"operation", "repository.usage_counter.get_for_update",
-		"limit_id", limitID.String(),
-		"scope_key", scopeKey,
-		"period_key", periodKey,
-	).Info("Getting usage counter with lock")
-
-	selectQuery := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
-		From(usageCountersTable).
-		Where(sq.Eq{
-			"limit_id":   limitID,
-			"scope_key":  scopeKey,
-			"period_key": periodKey,
-		}).
-		Suffix("FOR UPDATE").
-		PlaceholderFormat(sq.Dollar)
-
-	sqlStr, args, err := selectQuery.ToSql()
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build select query", err)
-		return nil, fmt.Errorf("failed to build select query: %w", err)
-	}
-
-	counter, err := r.scanCounter(ctx, db.QueryRowContext(ctx, sqlStr, args...))
-	if err != nil {
-		// Return sql.ErrNoRows as-is so caller can distinguish "not found" from other errors
-		libOtel.HandleSpanError(&span, "Failed to get usage counter", err)
-		return nil, err
-	}
-
-	logger.WithFields(
-		"operation", "repository.usage_counter.get_for_update",
-		"counter_id", counter.ID.String(),
-		"current_usage", counter.CurrentUsage,
-	).Info("Found usage counter")
-
-	return counter, nil
 }
 
 // GetOrCreateForUpdate retrieves or creates a usage counter with row-level lock.
@@ -368,104 +313,9 @@ func (r *UsageCounterRepository) IncrementAtomic(ctx context.Context, counterID 
 	return nil
 }
 
-// DecrementAtomic atomically decrements the usage counter for rollback operations.
-// Uses a conditional UPDATE to prevent TOCTOU race conditions.
-func (r *UsageCounterRepository) DecrementAtomic(ctx context.Context, counterID uuid.UUID, amount decimal.Decimal) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "repository.usage_counter.decrement_atomic")
-	defer span.End()
-
-	logger = logging.WithTrace(ctx, logger)
-
-	if amount.IsNegative() {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid decrement amount", constant.ErrUsageCounterDecrementNonNegative)
-		return constant.ErrUsageCounterDecrementNonNegative
-	}
-
-	if amount.IsZero() {
-		return nil
-	}
-
-	db, err := r.conn.GetDB()
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
-		return fmt.Errorf("failed to get database connection: %w", err)
-	}
-
-	// Perform atomic conditional decrement in a single UPDATE.
-	// The WHERE clause ensures we only decrement if current_usage >= amount,
-	// preventing negative values and TOCTOU race conditions.
-	updateQuery := sq.Update(usageCountersTable).
-		Set("current_usage", sq.Expr("current_usage - ?", amount)).
-		Set("last_updated_at", time.Now().UTC()).
-		Where(sq.Eq{"id": counterID}).
-		Where(sq.GtOrEq{"current_usage": amount}).
-		PlaceholderFormat(sq.Dollar)
-
-	sqlStr, args, err := updateQuery.ToSql()
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build update query", err)
-		return fmt.Errorf("failed to build update query: %w", err)
-	}
-
-	result, err := db.ExecContext(ctx, sqlStr, args...)
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to decrement counter", err)
-		return fmt.Errorf("failed to decrement counter: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		// No rows affected: either counter doesn't exist or insufficient balance.
-		// Run a minimal SELECT to distinguish between the two cases.
-		selectQuery := sq.Select("current_usage").
-			From(usageCountersTable).
-			Where(sq.Eq{"id": counterID}).
-			PlaceholderFormat(sq.Dollar)
-
-		sqlStr, args, err = selectQuery.ToSql()
-		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to build select query", err)
-			return fmt.Errorf("failed to build select query: %w", err)
-		}
-
-		var currentUsage decimal.Decimal
-
-		err = db.QueryRowContext(ctx, sqlStr, args...).Scan(&currentUsage)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				libOtel.HandleSpanBusinessErrorEvent(&span, "Usage counter not found", constant.ErrUsageCounterNotFound)
-				return constant.ErrUsageCounterNotFound
-			}
-
-			libOtel.HandleSpanError(&span, "Failed to check counter existence", err)
-
-			return fmt.Errorf("failed to check counter existence: %w", err)
-		}
-
-		// Counter exists but current_usage < amount (insufficient balance)
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Decrement would result in negative usage", constant.ErrUsageCounterCurrentUsageNegative)
-
-		return constant.ErrUsageCounterCurrentUsageNegative
-	}
-
-	logger.WithFields(
-		"operation", "repository.usage_counter.decrement_atomic",
-		"counter_id", counterID.String(),
-		"amount", amount.String(),
-	).Info("Decremented usage counter")
-
-	return nil
-}
-
-// UpsertAndIncrementAtomic atomically creates or increments a usage counter.
-// Uses INSERT ... ON CONFLICT DO UPDATE ... WHERE current_usage + amount <= maxAmount RETURNING current_usage.
+// UpsertAndIncrementAtomic atomically creates or increments a usage counter using the provided database connection.
+// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
+// enabling atomic operations with other database changes.
 //
 // IMPORTANT: The WHERE guard only applies to the DO UPDATE (conflict) path.
 // The INSERT path creates a new counter with current_usage = amount without a WHERE guard.
@@ -475,6 +325,7 @@ func (r *UsageCounterRepository) DecrementAtomic(ctx context.Context, counterID 
 // If expiresAt is nil, the counter will never be automatically deleted (fail-safe behavior).
 func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 	ctx context.Context,
+	db pgdb.DB,
 	limitID uuid.UUID,
 	scopeKey string,
 	periodKey string,
@@ -482,6 +333,10 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 	maxAmount decimal.Decimal,
 	expiresAt *time.Time,
 ) (decimal.Decimal, error) {
+	if db == nil {
+		return decimal.Zero, pgdb.ErrNilConnection
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.usage_counter.upsert_and_increment_atomic")
@@ -489,6 +344,24 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 
 	logger = logging.WithTrace(ctx, logger)
 
+	return r.upsertAndIncrementAtomicInternal(ctx, db, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt, logger, &span, "repository.usage_counter.upsert_and_increment_atomic")
+}
+
+// upsertAndIncrementAtomicInternal contains the shared upsert logic.
+// It performs validation, query building, and execution using the provided database connection.
+func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
+	ctx context.Context,
+	db pgdb.DB,
+	limitID uuid.UUID,
+	scopeKey string,
+	periodKey string,
+	amount decimal.Decimal,
+	maxAmount decimal.Decimal,
+	expiresAt *time.Time,
+	logger libLog.Logger,
+	span *trace.Span,
+	operationName string,
+) (decimal.Decimal, error) {
 	// Early return for zero amount: no-op, avoids unnecessary DB round-trip.
 	if amount.IsZero() {
 		return decimal.Zero, nil
@@ -503,24 +376,18 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 	// This is MANDATORY because the INSERT path has no WHERE guard.
 	if amount.GreaterThan(maxAmount) {
 		logger.WithFields(
-			"operation", "repository.usage_counter.upsert_and_increment_atomic",
+			"operation", operationName,
 			"amount", amount.String(),
 			"max_amount", maxAmount.String(),
 			"limit_id", limitID.String(),
 		).Info("Amount exceeds maxAmount (pre-check)")
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Amount exceeds limit (pre-check)", constant.ErrUsageCounterExceedsLimit)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Amount exceeds limit (pre-check)", constant.ErrUsageCounterExceedsLimit)
 
 		return decimal.Zero, constant.ErrUsageCounterExceedsLimit
 	}
 
 	now := time.Now().UTC()
 	counterID := uuid.New()
-
-	db, err := r.conn.GetDB()
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
-		return decimal.Zero, fmt.Errorf("failed to get database connection: %w", err)
-	}
 
 	// Use pre-defined CTE query for atomic upsert+increment
 	query := upsertAndIncrementCTEQuery
@@ -544,9 +411,9 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 		succeeded    bool
 	)
 
-	err = db.QueryRowContext(ctx, query, args...).Scan(&currentUsage, &succeeded)
+	err := db.QueryRowContext(ctx, query, args...).Scan(&currentUsage, &succeeded)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Database error in CTE upsert", err)
+		libOtel.HandleSpanError(span, "Database error in CTE upsert", err)
 
 		return decimal.Zero, fmt.Errorf("failed to scan CTE result for limit %s scope %s period %s: %w",
 			limitID, scopeKey, periodKey, err)
@@ -557,7 +424,7 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 		// WHERE guard failed: current_usage + amount > maxAmount
 		// The CTE attempt returned no rows, so COALESCE returned the old current_usage
 		logger.WithFields(
-			"operation", "repository.usage_counter.upsert_and_increment_atomic",
+			"operation", operationName,
 			"limit_id", limitID.String(),
 			"scope_key", scopeKey,
 			"period_key", periodKey,
@@ -565,14 +432,14 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 			"amount", amount.String(),
 			"max_amount", maxAmount.String(),
 		).Info("Limit exceeded (WHERE guard)")
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
 
 		return currentUsage, constant.ErrUsageCounterExceedsLimit
 	}
 
 	// Success: counter was incremented
 	logger.WithFields(
-		"operation", "repository.usage_counter.upsert_and_increment_atomic",
+		"operation", operationName,
 		"limit_id", limitID.String(),
 		"scope_key", scopeKey,
 		"period_key", periodKey,
@@ -647,8 +514,14 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	return counters, nil
 }
 
-// GetUsageForLimits retrieves current usage for multiple limits in a single query.
-func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]decimal.Decimal, error) {
+// GetUsageForLimits retrieves current usage for multiple limits using the provided database connection.
+// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
+// enabling atomic operations with other database changes.
+func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, db pgdb.DB, limitIDs []uuid.UUID, scopeKey, periodKey string) (map[uuid.UUID]decimal.Decimal, error) {
+	if db == nil {
+		return nil, pgdb.ErrNilConnection
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.usage_counter.get_usage_for_limits")
@@ -660,12 +533,20 @@ func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs
 		return make(map[uuid.UUID]decimal.Decimal), nil
 	}
 
-	db, err := r.conn.GetDB()
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
-	}
+	return r.getUsageForLimitsInternal(ctx, db, limitIDs, scopeKey, periodKey, logger, &span, "repository.usage_counter.get_usage_for_limits")
+}
 
+// getUsageForLimitsInternal contains the shared query logic for GetUsageForLimits.
+// It performs query building and execution using the provided database connection.
+func (r *UsageCounterRepository) getUsageForLimitsInternal(
+	ctx context.Context,
+	db pgdb.DB,
+	limitIDs []uuid.UUID,
+	scopeKey, periodKey string,
+	logger libLog.Logger,
+	span *trace.Span,
+	operationName string,
+) (map[uuid.UUID]decimal.Decimal, error) {
 	query := sq.Select("limit_id", "current_usage").
 		From(usageCountersTable).
 		Where(sq.Eq{
@@ -677,12 +558,12 @@ func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	logger.WithFields(
-		"operation", "repository.usage_counter.get_usage_for_limits",
+		"operation", operationName,
 		"limit_ids_count", len(limitIDs),
 		"scope_key", scopeKey,
 		"period_key", periodKey,
@@ -690,7 +571,7 @@ func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get usage", err)
+		libOtel.HandleSpanError(span, "Failed to get usage", err)
 		return nil, fmt.Errorf("failed to get usage: %w", err)
 	}
 	defer rows.Close()
@@ -703,7 +584,7 @@ func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs
 		var currentUsage decimal.Decimal
 
 		if err := rows.Scan(&limitID, &currentUsage); err != nil {
-			libOtel.HandleSpanError(&span, "Failed to scan usage", err)
+			libOtel.HandleSpanError(span, "Failed to scan usage", err)
 			return nil, fmt.Errorf("failed to scan usage: %w", err)
 		}
 
@@ -711,12 +592,12 @@ func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, limitIDs
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Error iterating usage", err)
+		libOtel.HandleSpanError(span, "Error iterating usage", err)
 		return nil, fmt.Errorf("error iterating usage: %w", err)
 	}
 
 	logger.WithFields(
-		"operation", "repository.usage_counter.get_usage_for_limits",
+		"operation", operationName,
 		"found_count", len(result),
 	).Info("Retrieved usage for limits")
 

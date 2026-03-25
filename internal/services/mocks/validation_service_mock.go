@@ -12,9 +12,9 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	db "tracer/internal/adapters/postgres/db"
 	model "tracer/pkg/model"
 
-	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -82,69 +82,16 @@ func (m *MockLimitChecker) EXPECT() *MockLimitCheckerMockRecorder {
 }
 
 // CheckLimits mocks base method.
-func (m *MockLimitChecker) CheckLimits(ctx context.Context, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
+func (m *MockLimitChecker) CheckLimits(ctx context.Context, arg1 db.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckLimits", ctx, input)
+	ret := m.ctrl.Call(m, "CheckLimits", ctx, arg1, input)
 	ret0, _ := ret[0].(*model.CheckLimitsOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CheckLimits indicates an expected call of CheckLimits.
-func (mr *MockLimitCheckerMockRecorder) CheckLimits(ctx, input any) *gomock.Call {
+func (mr *MockLimitCheckerMockRecorder) CheckLimits(ctx, arg1, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckLimits", reflect.TypeOf((*MockLimitChecker)(nil).CheckLimits), ctx, input)
-}
-
-// RollbackUsage mocks base method.
-func (m *MockLimitChecker) RollbackUsage(ctx context.Context, input *model.CheckLimitsInput, usageDetails []model.LimitUsageDetail) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RollbackUsage", ctx, input, usageDetails)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RollbackUsage indicates an expected call of RollbackUsage.
-func (mr *MockLimitCheckerMockRecorder) RollbackUsage(ctx, input, usageDetails any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RollbackUsage", reflect.TypeOf((*MockLimitChecker)(nil).RollbackUsage), ctx, input, usageDetails)
-}
-
-// MockTransactionValidationQueryRepository is a mock of TransactionValidationQueryRepository interface.
-type MockTransactionValidationQueryRepository struct {
-	ctrl     *gomock.Controller
-	recorder *MockTransactionValidationQueryRepositoryMockRecorder
-	isgomock struct{}
-}
-
-// MockTransactionValidationQueryRepositoryMockRecorder is the mock recorder for MockTransactionValidationQueryRepository.
-type MockTransactionValidationQueryRepositoryMockRecorder struct {
-	mock *MockTransactionValidationQueryRepository
-}
-
-// NewMockTransactionValidationQueryRepository creates a new mock instance.
-func NewMockTransactionValidationQueryRepository(ctrl *gomock.Controller) *MockTransactionValidationQueryRepository {
-	mock := &MockTransactionValidationQueryRepository{ctrl: ctrl}
-	mock.recorder = &MockTransactionValidationQueryRepositoryMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTransactionValidationQueryRepository) EXPECT() *MockTransactionValidationQueryRepositoryMockRecorder {
-	return m.recorder
-}
-
-// FindByRequestID mocks base method.
-func (m *MockTransactionValidationQueryRepository) FindByRequestID(ctx context.Context, requestID uuid.UUID) (*model.TransactionValidation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByRequestID", ctx, requestID)
-	ret0, _ := ret[0].(*model.TransactionValidation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindByRequestID indicates an expected call of FindByRequestID.
-func (mr *MockTransactionValidationQueryRepositoryMockRecorder) FindByRequestID(ctx, requestID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByRequestID", reflect.TypeOf((*MockTransactionValidationQueryRepository)(nil).FindByRequestID), ctx, requestID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckLimits", reflect.TypeOf((*MockLimitChecker)(nil).CheckLimits), ctx, arg1, input)
 }

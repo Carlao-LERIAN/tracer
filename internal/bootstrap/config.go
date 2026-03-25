@@ -25,6 +25,7 @@ import (
 	"tracer/internal/adapters/http/in"
 	httpMiddleware "tracer/internal/adapters/http/in/middleware"
 	"tracer/internal/adapters/postgres"
+	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/internal/services"
 	"tracer/internal/services/cache"
 	"tracer/internal/services/command"
@@ -643,9 +644,21 @@ func initHTTPServer(
 		return nil, fmt.Errorf("failed to create limit checker: %w", err)
 	}
 
+	// Get the database connection for transactions
+	// TxBeginnerAdapter wraps dbresolver.DB to match our TxBeginner interface
+	dbConn, err := postgresConn.GetDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database connection for transactions: %w", err)
+	}
+
+	txBeginner := pgdb.NewTxBeginnerAdapter(dbConn)
+	if txBeginner == nil {
+		return nil, fmt.Errorf("failed to create transaction beginner adapter: connection is nil")
+	}
+
 	// Init ValidationService with audit writer for SOX/GLBA compliance
 	// Pass transactionValidationRepo for both command (insert) and query (FindByRequestID) operations
-	validationService, err := services.NewValidationService(evaluateRulesQuery, limitChecker, transactionValidationRepo, transactionValidationRepo, auditWriter, clk)
+	validationService, err := services.NewValidationService(txBeginner, evaluateRulesQuery, limitChecker, transactionValidationRepo, transactionValidationRepo, auditWriter, clk)
 	if err != nil {
 		return nil, err
 	}

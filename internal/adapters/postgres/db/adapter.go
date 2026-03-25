@@ -5,9 +5,12 @@
 package db
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	"github.com/bxcodec/dbresolver/v2"
 )
 
 // ErrNilConnection is returned when attempting to use a nil database connection.
@@ -39,3 +42,40 @@ func (p *PostgresConnectionAdapter) GetDB() (DB, error) {
 
 	return p.conn.GetDB()
 }
+
+// TxBeginnerAdapter adapts dbresolver.DB to our TxBeginner interface.
+// This is necessary because dbresolver.DB.BeginTx returns dbresolver.Tx,
+// while our TxBeginner interface expects Tx (our interface).
+// Both interfaces are structurally compatible, but Go requires explicit adaptation.
+type TxBeginnerAdapter struct {
+	db dbresolver.DB
+}
+
+// NewTxBeginnerAdapter creates a new TxBeginnerAdapter.
+// Returns nil if db is nil. Callers should check for nil before use.
+func NewTxBeginnerAdapter(db dbresolver.DB) *TxBeginnerAdapter {
+	if db == nil {
+		return nil
+	}
+
+	return &TxBeginnerAdapter{db: db}
+}
+
+// BeginTx starts a new database transaction.
+// The returned Tx is a wrapper around dbresolver.Tx that satisfies our Tx interface.
+func (t *TxBeginnerAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (Tx, error) {
+	if t == nil || t.db == nil {
+		return nil, ErrNilConnection
+	}
+
+	tx, err := t.db.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// dbresolver.Tx satisfies our Tx interface (structurally compatible)
+	return tx, nil
+}
+
+// Compile-time interface satisfaction checks.
+var _ TxBeginner = (*TxBeginnerAdapter)(nil)

@@ -231,213 +231,6 @@ func TestUsageCounterRepository_GetOrCreateForUpdate_Concurrent_Integration(t *t
 	t.Logf("SUCCESS: %d goroutines all returned the same counter ID %s", numGoroutines, firstID)
 }
 
-// TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration tests that
-// concurrent DecrementAtomic calls do not under-decrement when using conditional UPDATE.
-func TestUsageCounterRepository_DecrementAtomic_Concurrent_Integration(t *testing.T) {
-	testutil.SetupTestTracing(t)
-
-	db := testutil.SetupIntegrationDB(t)
-
-	adapter := &testutil.IntegrationDBAdapter{DB: db}
-	repo := NewUsageCounterRepositoryWithConnection(adapter)
-
-	const numGoroutines = 10
-	decrementAmount := decimal.RequireFromString("5")
-	initialUsage := decimal.RequireFromString("100")
-	expectedFinalUsage := decimal.RequireFromString("50") // 100 - numGoroutines(10) * decrementAmount(5)
-
-	// Create a test limit first (required for FK constraint)
-	limitID := createTestLimit(t, db, 9003)
-	scopeKey := "test:concurrent-decrement-" + testutil.MustDeterministicUUID(9103).String()[:8]
-	periodKey := "2025-01"
-
-	// Cleanup: remove test limit (cascades to counters)
-	t.Cleanup(func() {
-		cleanupTestLimit(t, db, limitID)
-	})
-
-	// Create counter with initial usage
-	ctx := context.Background()
-	counter, err := repo.GetOrCreateForUpdate(ctx, limitID, scopeKey, periodKey)
-	require.NoError(t, err)
-
-	counterID := counter.ID
-
-	// Set initial usage directly in database
-	_, err = db.ExecContext(ctx, "UPDATE usage_counters SET current_usage = $1 WHERE id = $2", initialUsage, counterID)
-	require.NoError(t, err)
-
-	// Run concurrent decrements
-	var wg sync.WaitGroup
-	errors := make(chan error, numGoroutines)
-
-	for i := range numGoroutines {
-		wg.Add(1)
-
-		go func(goroutineID int) {
-			defer wg.Done()
-
-			err := repo.DecrementAtomic(context.Background(), counterID, decrementAmount)
-			if err != nil {
-				errors <- fmt.Errorf("goroutine %d: %w", goroutineID, err)
-			}
-		}(i)
-	}
-
-	wg.Wait()
-	close(errors)
-
-	var goroutineErrors []error
-	for err := range errors {
-		goroutineErrors = append(goroutineErrors, err)
-	}
-
-	require.Empty(t, goroutineErrors, "Goroutines should not have errors: %v", goroutineErrors)
-
-	// Verify final usage
-	var finalUsage decimal.Decimal
-	err = db.QueryRowContext(ctx, "SELECT current_usage FROM usage_counters WHERE id = $1", counterID).Scan(&finalUsage)
-	require.NoError(t, err)
-
-	assert.True(t, expectedFinalUsage.Equal(finalUsage),
-		"Final usage should be exactly %s, but got %s",
-		expectedFinalUsage.String(), finalUsage.String())
-
-	t.Logf("SUCCESS: %d goroutines each decremented by %s from %s, final usage = %s",
-		numGoroutines, decrementAmount.String(), initialUsage.String(), finalUsage.String())
-}
-
-// TestUsageCounterRepository_DecrementAtomic_UnderflowProtection_Integration tests that
-// DecrementAtomic returns an error and does not modify current_usage when the decrement
-// amount exceeds the current balance.
-func TestUsageCounterRepository_DecrementAtomic_UnderflowProtection_Integration(t *testing.T) {
-	testutil.SetupTestTracing(t)
-
-	db := testutil.SetupIntegrationDB(t)
-	adapter := &testutil.IntegrationDBAdapter{DB: db}
-	repo := NewUsageCounterRepositoryWithConnection(adapter)
-
-	limitID := createTestLimit(t, db, 9004)
-	scopeKey := "test:decrement-underflow-" + testutil.MustDeterministicUUID(9104).String()[:8]
-	periodKey := "2025-01"
-
-	t.Cleanup(func() {
-		cleanupTestLimit(t, db, limitID)
-	})
-
-	ctx := context.Background()
-	counter, err := repo.GetOrCreateForUpdate(ctx, limitID, scopeKey, periodKey)
-	require.NoError(t, err)
-
-	// Set initial usage to 10
-	initialUsage := decimal.RequireFromString("10")
-	_, err = db.ExecContext(ctx, "UPDATE usage_counters SET current_usage = $1 WHERE id = $2", initialUsage, counter.ID)
-	require.NoError(t, err)
-
-	// Attempt to decrement by 15 (exceeds current_usage of 10)
-	decrementAmount := decimal.RequireFromString("15")
-	err = repo.DecrementAtomic(ctx, counter.ID, decrementAmount)
-	require.ErrorIs(t, err, constant.ErrUsageCounterCurrentUsageNegative)
-
-	// Verify usage was NOT modified
-	var finalUsage decimal.Decimal
-	err = db.QueryRowContext(ctx, "SELECT current_usage FROM usage_counters WHERE id = $1", counter.ID).Scan(&finalUsage)
-	require.NoError(t, err)
-	assert.True(t, initialUsage.Equal(finalUsage),
-		"Usage should remain %s after failed underflow decrement, got %s",
-		initialUsage.String(), finalUsage.String())
-}
-
-// TestUsageCounterRepository_MixedOperations_Concurrent_Integration tests concurrent
-// increment and decrement operations to verify atomicity under mixed workloads.
-func TestUsageCounterRepository_MixedOperations_Concurrent_Integration(t *testing.T) {
-	testutil.SetupTestTracing(t)
-
-	db := testutil.SetupIntegrationDB(t)
-
-	adapter := &testutil.IntegrationDBAdapter{DB: db}
-	repo := NewUsageCounterRepositoryWithConnection(adapter)
-
-	const numIncrements = 5
-	const numDecrements = 5
-	incrementAmount := decimal.RequireFromString("10")
-	decrementAmount := decimal.RequireFromString("5")
-	initialUsage := decimal.RequireFromString("50")
-
-	// Expected: 50 + (5 * 10) - (5 * 5) = 50 + 50 - 25 = 75
-	expectedFinalUsage := decimal.RequireFromString("75")
-
-	// Create a test limit first (required for FK constraint)
-	limitID := createTestLimit(t, db, 9005)
-	scopeKey := "test:mixed-ops-" + testutil.MustDeterministicUUID(9105).String()[:8]
-	periodKey := "2025-01"
-
-	// Cleanup: remove test limit (cascades to counters)
-	t.Cleanup(func() {
-		cleanupTestLimit(t, db, limitID)
-	})
-
-	ctx := context.Background()
-	counter, err := repo.GetOrCreateForUpdate(ctx, limitID, scopeKey, periodKey)
-	require.NoError(t, err)
-
-	counterID := counter.ID
-
-	// Set initial usage
-	_, err = db.ExecContext(ctx, "UPDATE usage_counters SET current_usage = $1 WHERE id = $2", initialUsage, counterID)
-	require.NoError(t, err)
-
-	var wg sync.WaitGroup
-	errors := make(chan error, numIncrements+numDecrements)
-
-	// Launch increment goroutines
-	for i := range numIncrements {
-		wg.Add(1)
-
-		go func(id int) {
-			defer wg.Done()
-
-			if err := repo.IncrementAtomic(context.Background(), counterID, incrementAmount); err != nil {
-				errors <- fmt.Errorf("increment %d: %w", id, err)
-			}
-		}(i)
-	}
-
-	// Launch decrement goroutines
-	for i := range numDecrements {
-		wg.Add(1)
-
-		go func(id int) {
-			defer wg.Done()
-
-			if err := repo.DecrementAtomic(context.Background(), counterID, decrementAmount); err != nil {
-				errors <- fmt.Errorf("decrement %d: %w", id, err)
-			}
-		}(i)
-	}
-
-	wg.Wait()
-	close(errors)
-
-	var goroutineErrors []error
-	for err := range errors {
-		goroutineErrors = append(goroutineErrors, err)
-	}
-
-	require.Empty(t, goroutineErrors, "Operations should not have errors: %v", goroutineErrors)
-
-	var finalUsage decimal.Decimal
-	err = db.QueryRowContext(ctx, "SELECT current_usage FROM usage_counters WHERE id = $1", counterID).Scan(&finalUsage)
-	require.NoError(t, err)
-
-	assert.True(t, expectedFinalUsage.Equal(finalUsage),
-		"Final usage should be exactly %s, but got %s",
-		expectedFinalUsage.String(), finalUsage.String())
-
-	t.Logf("SUCCESS: Mixed ops (5 increments of %s, 5 decrements of %s) from %s, final = %s (expected %s)",
-		incrementAmount.String(), decrementAmount.String(), initialUsage.String(), finalUsage.String(), expectedFinalUsage.String())
-}
-
 // TestUsageCounterRepository_UpsertAndIncrementAtomic_Concurrent_Integration tests that
 // concurrent UpsertAndIncrementAtomic calls correctly enforce maxAmount limits under race conditions.
 //
@@ -494,7 +287,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_Concurrent_Integration(
 
 			ctx := context.Background()
 
-			_, err := repo.UpsertAndIncrementAtomic(ctx, limitID, scopeKey, periodKey, amount, maxAmount, nil)
+			_, err := repo.UpsertAndIncrementAtomic(ctx, db, limitID, scopeKey, periodKey, amount, maxAmount, nil)
 			if err != nil {
 				results <- fmt.Errorf("goroutine %d: %w", goroutineID, err)
 			} else {
@@ -627,7 +420,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_InsertRace_Integration(
 
 			goroutineCtx := context.Background()
 
-			_, err := repo.UpsertAndIncrementAtomic(goroutineCtx, limitID, scopeKey, periodKey, amount, maxAmount, nil)
+			_, err := repo.UpsertAndIncrementAtomic(goroutineCtx, db, limitID, scopeKey, periodKey, amount, maxAmount, nil)
 			if err != nil {
 				results <- fmt.Errorf("goroutine %d: %w", goroutineID, err)
 			} else {
@@ -779,7 +572,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_Boundary_Integration(t 
 
 			goroutineCtx := context.Background()
 
-			_, err := repo.UpsertAndIncrementAtomic(goroutineCtx, limitID, scopeKey, periodKey, amount, maxAmount, nil)
+			_, err := repo.UpsertAndIncrementAtomic(goroutineCtx, db, limitID, scopeKey, periodKey, amount, maxAmount, nil)
 			if err != nil {
 				results <- fmt.Errorf("goroutine %d: %w", goroutineID, err)
 			} else {

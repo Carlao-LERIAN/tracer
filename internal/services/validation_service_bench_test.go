@@ -13,6 +13,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
 
+	pgdbMocks "tracer/internal/adapters/postgres/db/mocks"
 	commandMocks "tracer/internal/services/command/mocks"
 	"tracer/internal/services/mocks"
 	queryMocks "tracer/internal/services/query/mocks"
@@ -26,6 +27,8 @@ var benchSink any
 func BenchmarkValidationService_Validate(b *testing.B) {
 	ctrl := gomock.NewController(b)
 
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
 	mockRuleEval := mocks.NewMockRuleEvaluator(ctrl)
 	mockLimitCheck := mocks.NewMockLimitChecker(ctrl)
 	mockAuditRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
@@ -58,23 +61,37 @@ func BenchmarkValidationService_Validate(b *testing.B) {
 		Return(evalResult, nil).
 		AnyTimes()
 
+	// BeginTx is called for ALLOW path
+	mockTxBeginner.EXPECT().
+		BeginTx(gomock.Any(), gomock.Any()).
+		Return(mockTx, nil).
+		AnyTimes()
+
+	// CheckLimits is called for ALLOW path
 	mockLimitCheck.EXPECT().
-		CheckLimits(gomock.Any(), gomock.Any()).
+		CheckLimits(gomock.Any(), mockTx, gomock.Any()).
 		Return(limitOutput, nil).
 		AnyTimes()
 
+	// InsertWithTx is called for ALLOW path
 	mockAuditRepo.EXPECT().
-		Insert(gomock.Any(), gomock.Any()).
+		InsertWithTx(gomock.Any(), mockTx, gomock.Any()).
 		Return(nil).
 		AnyTimes()
 
 	mockAuditWriter := mocks.NewMockAuditWriter(ctrl)
 	mockAuditWriter.EXPECT().
-		RecordValidationEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		RecordValidationEventWithTx(gomock.Any(), mockTx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
 		AnyTimes()
 
-	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditQueryRepo, mockAuditWriter, nil)
+	// Commit is called for ALLOW path
+	mockTx.EXPECT().
+		Commit().
+		Return(nil).
+		AnyTimes()
+
+	service, err := NewValidationService(mockTxBeginner, mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditQueryRepo, mockAuditWriter, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -106,6 +123,7 @@ func BenchmarkValidationService_Validate(b *testing.B) {
 func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 	ctrl := gomock.NewController(b)
 
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
 	mockRuleEval := mocks.NewMockRuleEvaluator(ctrl)
 	mockLimitCheck := mocks.NewMockLimitChecker(ctrl)
 	mockAuditRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
@@ -133,11 +151,17 @@ func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 		Return(evalResult, nil).
 		AnyTimes()
 
-	// LimitChecker should NOT be called when DENY by rule
-	mockLimitCheck.EXPECT().
-		CheckLimits(gomock.Any(), gomock.Any()).
+	// No BeginTx for DENY-by-rule
+	mockTxBeginner.EXPECT().
+		BeginTx(gomock.Any(), gomock.Any()).
 		Times(0)
 
+	// LimitChecker should NOT be called when DENY by rule
+	mockLimitCheck.EXPECT().
+		CheckLimits(gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+
+	// Non-transactional Insert for DENY-by-rule
 	mockAuditRepo.EXPECT().
 		Insert(gomock.Any(), gomock.Any()).
 		Return(nil).
@@ -149,7 +173,7 @@ func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 		Return(nil).
 		AnyTimes()
 
-	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditQueryRepo, mockAuditWriter, nil)
+	service, err := NewValidationService(mockTxBeginner, mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditQueryRepo, mockAuditWriter, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -181,6 +205,8 @@ func BenchmarkValidationService_Validate_WithDenyRule(b *testing.B) {
 func BenchmarkValidationService_Validate_Parallel(b *testing.B) {
 	ctrl := gomock.NewController(b)
 
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
 	mockRuleEval := mocks.NewMockRuleEvaluator(ctrl)
 	mockLimitCheck := mocks.NewMockLimitChecker(ctrl)
 	mockAuditRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
@@ -212,23 +238,37 @@ func BenchmarkValidationService_Validate_Parallel(b *testing.B) {
 		Return(evalResult, nil).
 		AnyTimes()
 
+	// BeginTx is called for ALLOW path
+	mockTxBeginner.EXPECT().
+		BeginTx(gomock.Any(), gomock.Any()).
+		Return(mockTx, nil).
+		AnyTimes()
+
+	// CheckLimits is called for ALLOW path
 	mockLimitCheck.EXPECT().
-		CheckLimits(gomock.Any(), gomock.Any()).
+		CheckLimits(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(limitOutput, nil).
 		AnyTimes()
 
+	// InsertWithTx is called for ALLOW path
 	mockAuditRepo.EXPECT().
-		Insert(gomock.Any(), gomock.Any()).
+		InsertWithTx(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
 		AnyTimes()
 
 	mockAuditWriter := mocks.NewMockAuditWriter(ctrl)
 	mockAuditWriter.EXPECT().
-		RecordValidationEvent(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		RecordValidationEventWithTx(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
 		AnyTimes()
 
-	service, err := NewValidationService(mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditQueryRepo, mockAuditWriter, nil)
+	// Commit is called for ALLOW path
+	mockTx.EXPECT().
+		Commit().
+		Return(nil).
+		AnyTimes()
+
+	service, err := NewValidationService(mockTxBeginner, mockRuleEval, mockLimitCheck, mockAuditRepo, mockAuditQueryRepo, mockAuditWriter, nil)
 	if err != nil {
 		b.Fatal(err)
 	}

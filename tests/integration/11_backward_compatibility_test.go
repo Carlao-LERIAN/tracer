@@ -24,7 +24,7 @@ import (
 )
 
 // =============================================================================
-// T-007: Backward Compatibility Tests
+// Backward Compatibility Tests
 //
 // These tests validate that the new Time Windows and Custom Periods features
 // do not break existing limit functionality.
