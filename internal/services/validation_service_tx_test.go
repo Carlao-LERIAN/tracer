@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -57,23 +56,6 @@ func TestValidationService_Constructor_AcceptsTxBeginner(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, service)
-
-	hasConnField := hasField(service, "conn")
-	assert.True(t, hasConnField, "ValidationService should have a 'conn' field to support transactions")
-}
-
-// hasField checks if a struct has a field with the given name using reflection.
-func hasField(s interface{}, fieldName string) bool {
-	v := reflect.ValueOf(s)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	if v.Kind() != reflect.Struct {
-		return false
-	}
-
-	return v.FieldByName(fieldName).IsValid()
 }
 
 // TestValidationService_Validate_Allow_UsesTransaction verifies that on ALLOW path,

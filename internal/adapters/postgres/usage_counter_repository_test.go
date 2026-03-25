@@ -51,6 +51,31 @@ func setupUsageCounterRepositoryMockDB(t *testing.T) (*UsageCounterRepository, *
 	return repo, db, sqlMock, cleanup
 }
 
+// setupUsageCounterRepositoryCallerDB creates a test setup for methods that receive db as parameter
+// (e.g., GetUsageForLimits, UpsertAndIncrementAtomic). GetDB is expected NOT to be called.
+func setupUsageCounterRepositoryCallerDB(t *testing.T) (*UsageCounterRepository, *sql.DB, sqlmock.Sqlmock, func()) {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	db, sqlMock, err := sqlmock.New()
+	require.NoError(t, err)
+
+	mockConn := mocks.NewMockConnection(ctrl)
+	mockConn.EXPECT().GetDB().Times(0)
+
+	repo := NewUsageCounterRepositoryWithConnection(mockConn)
+
+	cleanup := func() {
+		require.NoError(t, sqlMock.ExpectationsWereMet())
+
+		if err := db.Close(); err != nil {
+			t.Logf("failed to close mock db: %v", err)
+		}
+	}
+
+	return repo, db, sqlMock, cleanup
+}
+
 // usageCounterColumns returns the column names for usage counter queries.
 func usageCounterColumns() []string {
 	return []string{"id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at"}
@@ -585,7 +610,7 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryCallerDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
@@ -701,7 +726,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryCallerDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
@@ -850,7 +875,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryCallerDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
@@ -975,7 +1000,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ErrorPropagation(t *tes
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryCallerDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
@@ -999,6 +1024,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ContextCancellation(t *
 	defer cleanup()
 
 	// When context is cancelled, the database driver returns context.Canceled
+	// Note: uses MockDB helper because cancelled context may prevent SQL expectations from being met.
 	sqlMock.ExpectQuery(regexp.QuoteMeta(
 		upsertAtomicSQL,
 	)).
@@ -1165,7 +1191,7 @@ func TestUpsertAndIncrementAtomic_WithExpiresAt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryCallerDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
@@ -1195,7 +1221,7 @@ func TestUpsertAndIncrementAtomic_ExpiresAtStoredInDB(t *testing.T) {
 	periodKey := "2026-03-11"
 	expiresAt := time.Date(2026, 6, 9, 0, 0, 0, 0, time.UTC)
 
-	repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+	repo, db, sqlMock, cleanup := setupUsageCounterRepositoryCallerDB(t)
 	defer cleanup()
 
 	// Expect the INSERT to include expires_at column
