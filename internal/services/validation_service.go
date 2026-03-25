@@ -33,6 +33,10 @@ import (
 // 5 seconds is sufficient for DB operations in normal conditions.
 const validationPersistTimeout = 5 * time.Second
 
+// validationTxTimeout bounds the entire transaction lifecycle (BeginTx through Commit/Rollback).
+// Prevents connection pool exhaustion from stalled queries or deadlocks.
+const validationTxTimeout = 10 * time.Second
+
 // Sentinel errors for ValidationService constructor validation.
 var (
 	ErrNilRuleEvaluator                  = errors.New("rule evaluator cannot be nil")
@@ -240,7 +244,11 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// Step 2: Begin transaction for limit checks + persistence
 	// This ensures atomicity: counter increments, validation record, and audit event
 	// are either ALL committed (ALLOW) or ALL rolled back (DENY/REVIEW).
-	tx, err := s.conn.BeginTx(ctx, nil) // nil = default isolation level (typically READ COMMITTED)
+	// txCtx bounds the entire transaction lifecycle to prevent connection pool exhaustion.
+	txCtx, txCancel := context.WithTimeout(ctx, validationTxTimeout)
+	defer txCancel()
+
+	tx, err := s.conn.BeginTx(txCtx, nil) // nil = default isolation level (typically READ COMMITTED)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "failed to begin transaction", err)
 
@@ -251,14 +259,19 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// The defer will be a no-op if we explicitly commit
 	defer func() {
 		if tx != nil {
-			_ = tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				logger.WithFields(
+					"operation", "service.validation.orchestrate",
+					"error", rollbackErr.Error(),
+				).Warn("Failed to rollback transaction in defer cleanup")
+			}
 		}
 	}()
 
 	// Step 3: Check limits (INSIDE transaction)
 	limitInput := req.ToCheckLimitsInput()
 
-	limitOutput, err := s.limitChecker.CheckLimits(ctx, tx, limitInput)
+	limitOutput, err := s.limitChecker.CheckLimits(txCtx, tx, limitInput)
 	if err != nil {
 		// tx.Rollback() will be called by defer
 		libOpentelemetry.HandleSpanError(&span, "limit check failed", err)
@@ -276,73 +289,36 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	response.LimitUsageDetails = limitOutput.LimitUsageDetails
 	response.EvaluatedAt = limitOutput.EvaluatedAt
 
-	// If limit exceeded, rollback and persist DENY (outside tx)
+	// If limit exceeded, rollback counters and persist DENY outside tx
 	if !limitOutput.Allowed {
-		// Explicit rollback to undo counter increments
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			logger.WithFields(
-				"operation", "service.validation.orchestrate",
-				"request.id", req.RequestID,
-				"error", rollbackErr.Error(),
-			).Warn("Failed to rollback transaction for limit exceeded")
-		}
-
-		tx = nil // Prevent defer from rolling back again
-
 		response.Decision = model.DecisionDeny
 		response.Reason = "limit_exceeded"
 		response.ProcessingTimeMs = time.Since(startTime).Milliseconds()
-		s.persistTransactionValidation(ctx, req, response, logger)
-		s.persistAuditEvent(ctx, req, response, logger)
+		s.rollbackAndPersist(ctx, tx, req, response, logger, "limit exceeded")
+		tx = nil
 
-		logger.WithFields(
-			"operation", "service.validation.orchestrate",
-			"request.id", req.RequestID,
-			"decision", "DENY",
-			"reason", "limit_exceeded",
-		).Info("Validation completed (limit exceeded)")
-
-		return &ValidateResult{
-			Response:    response,
-			IsDuplicate: false,
-		}, nil
+		return &ValidateResult{Response: response, IsDuplicate: false}, nil
 	}
 
-	// Step 4: If rules returned REVIEW, rollback and persist REVIEW (outside tx)
+	// Step 4: If rules returned REVIEW, rollback counters and persist outside tx
 	// REVIEW means "manual review required" - don't count transaction against limits
 	if evalResult.Decision == model.DecisionReview {
-		// Explicit rollback to undo counter increments
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			logger.WithFields(
-				"operation", "service.validation.orchestrate",
-				"request.id", req.RequestID,
-				"error", rollbackErr.Error(),
-			).Warn("Failed to rollback transaction for REVIEW decision")
-		}
-
-		tx = nil // Prevent defer from rolling back again
-
 		response.ProcessingTimeMs = time.Since(startTime).Milliseconds()
-		s.persistTransactionValidation(ctx, req, response, logger)
-		s.persistAuditEvent(ctx, req, response, logger)
+		s.rollbackAndPersist(ctx, tx, req, response, logger, "REVIEW decision")
+		tx = nil
 
-		logger.WithFields(
-			"operation", "service.validation.orchestrate",
-			"request.id", req.RequestID,
-			"decision", response.Decision,
-		).Info("Validation completed")
-
-		return &ValidateResult{
-			Response:    response,
-			IsDuplicate: false,
-		}, nil
+		return &ValidateResult{Response: response, IsDuplicate: false}, nil
 	}
 
 	// Step 5: ALLOW path - persist validation and audit inside transaction, then COMMIT
 	response.ProcessingTimeMs = time.Since(startTime).Milliseconds()
 
 	// Persist transaction validation inside tx
-	if err := s.persistTransactionValidationWithTx(ctx, tx, req, response, logger); err != nil {
+	if err := s.persistTransactionValidationWithTx(txCtx, tx, req, response, logger); err != nil {
+		if result := s.handleConcurrentDuplicate(ctx, err, req, logger); result != nil {
+			return result, nil
+		}
+
 		// tx.Rollback() will be called by defer
 		libOpentelemetry.HandleSpanError(&span, "failed to persist transaction validation", err)
 
@@ -350,7 +326,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	}
 
 	// Persist audit event inside tx
-	if err := s.persistAuditEventWithTx(ctx, tx, req, response, logger); err != nil {
+	if err := s.persistAuditEventWithTx(txCtx, tx, req, response, logger); err != nil {
 		// tx.Rollback() will be called by defer
 		libOpentelemetry.HandleSpanError(&span, "failed to persist audit event", err)
 
@@ -378,9 +354,59 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	}, nil
 }
 
+// rollbackAndPersist rolls back the transaction to undo counter increments,
+// then persists validation and audit records outside the transaction (best-effort).
+// Used by DENY-by-limit and REVIEW paths.
+func (s *ValidationService) rollbackAndPersist(ctx context.Context, tx pgdb.Tx, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger, reason string) {
+	if rollbackErr := tx.Rollback(); rollbackErr != nil {
+		logger.WithFields(
+			"operation", "service.validation.orchestrate",
+			"request.id", req.RequestID,
+			"error", rollbackErr.Error(),
+		).Warn("Failed to rollback transaction for " + reason)
+	}
+
+	s.persistTransactionValidation(ctx, req, resp, logger)
+	s.persistAuditEvent(ctx, req, resp, logger)
+
+	logger.WithFields(
+		"operation", "service.validation.orchestrate",
+		"request.id", req.RequestID,
+		"decision", resp.Decision,
+	).Info("Validation completed")
+}
+
+// handleConcurrentDuplicate checks if a persist error is a concurrent duplicate (TOCTOU race)
+// and returns the cached response if so. Returns nil if the error is not a duplicate.
+func (s *ValidationService) handleConcurrentDuplicate(ctx context.Context, err error, req *model.ValidationRequest, logger libLog.Logger) *ValidateResult {
+	if !errors.Is(err, command.ErrDuplicateValidation) {
+		return nil
+	}
+
+	logger.WithFields(
+		"operation", "service.validation.orchestrate",
+		"request.id", req.RequestID,
+	).Info("Concurrent duplicate detected - fetching cached response")
+
+	existing, findErr := s.transactionValidationQueryRepo.FindByRequestID(ctx, req.RequestID)
+	if findErr == nil && existing != nil {
+		return &ValidateResult{
+			Response:    existing.ToValidationResponse(),
+			IsDuplicate: true,
+		}
+	}
+
+	return nil
+}
+
 // persistTransactionValidation persists a transaction validation record synchronously.
-// The write is "best effort" - failures are logged but do not fail the validation.
-// Populates individual fields for SOX/GLBA compliance (full reconstruction of decisions).
+//
+// # Error Contract: BEST-EFFORT (errors logged, NOT returned)
+//
+// This method is used outside transactions (DENY-by-rule, DENY-by-limit, REVIEW paths).
+// Errors are logged and metrics emitted, but NOT returned to the caller. The validation
+// response is always delivered to the client regardless of persistence outcome.
+// This differs from persistTransactionValidationWithTx which returns errors for tx rollback.
 //
 // # Design Decision: Synchronous Persistence
 //
@@ -397,40 +423,12 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 //
 // The timeout (validationPersistTimeout) bounds the maximum wait time.
 func (s *ValidationService) persistTransactionValidation(ctx context.Context, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) {
-	tv, err := model.NewTransactionValidation(resp.ValidationID, resp.Decision, time.Now().UTC())
+	tv, err := buildTransactionValidation(req, resp, s.clock.Now().UTC())
 	if err != nil {
 		logger.WithFields(
 			"request.id", resp.RequestID,
 			"error.message", err.Error(),
-		).Error("failed to create transaction validation record - invalid parameters")
-
-		return
-	}
-
-	// Populate request fields for compliance (SOX/GLBA: full reconstruction of validation input)
-	tv.RequestID = req.RequestID
-	tv.TransactionType = req.TransactionType
-	tv.SubType = req.SubType
-	tv.Amount = req.Amount
-	tv.Currency = req.Currency
-	tv.TransactionTimestamp = req.TransactionTimestamp
-	tv.Account = req.Account
-	tv.Segment = req.Segment
-	tv.Portfolio = req.Portfolio
-	tv.Merchant = req.Merchant
-	tv.Metadata = sanitize.SanitizeMetadata(req.Metadata)
-
-	// Assign entire EvaluationResult to preserve all fields (Decision, TotalRulesLoaded, Truncated, etc.)
-	tv.EvaluationResult = resp.EvaluationResult
-	tv.LimitUsageDetails = resp.LimitUsageDetails
-	tv.ProcessingTimeMs = resp.ProcessingTimeMs
-
-	// Validate compliance fields before persisting (SOX/GLBA: ensure record integrity)
-	if err := validateTransactionValidation(tv); err != nil {
-		logger.WithFields(
-			"request.id", resp.RequestID,
-			"error.message", err.Error(),
-		).Error("transaction validation record validation failed - record not persisted")
+		).Error("failed to build transaction validation record")
 
 		return
 	}
@@ -463,6 +461,37 @@ func (s *ValidationService) persistTransactionValidation(ctx context.Context, re
 			"error.message", err.Error(),
 		).Error("failed to persist transaction validation record")
 	}
+}
+
+// buildTransactionValidation creates and populates a TransactionValidation record from the request and response.
+// Populates all compliance fields (SOX/GLBA) and validates the record before returning.
+// createdAt should come from the injected clock for testability.
+func buildTransactionValidation(req *model.ValidationRequest, resp *model.ValidationResponse, createdAt time.Time) (*model.TransactionValidation, error) {
+	tv, err := model.NewTransactionValidation(resp.ValidationID, resp.Decision, createdAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction validation record: %w", err)
+	}
+
+	tv.RequestID = req.RequestID
+	tv.TransactionType = req.TransactionType
+	tv.SubType = req.SubType
+	tv.Amount = req.Amount
+	tv.Currency = req.Currency
+	tv.TransactionTimestamp = req.TransactionTimestamp
+	tv.Account = req.Account
+	tv.Segment = req.Segment
+	tv.Portfolio = req.Portfolio
+	tv.Merchant = req.Merchant
+	tv.Metadata = sanitize.SanitizeMetadata(req.Metadata)
+	tv.EvaluationResult = resp.EvaluationResult
+	tv.LimitUsageDetails = resp.LimitUsageDetails
+	tv.ProcessingTimeMs = resp.ProcessingTimeMs
+
+	if err := validateTransactionValidation(tv); err != nil {
+		return nil, fmt.Errorf("transaction validation record validation failed: %w", err)
+	}
+
+	return tv, nil
 }
 
 // validateTransactionValidation ensures compliance-critical fields are present before persistence.
@@ -512,14 +541,8 @@ func validateTransactionValidation(tv *model.TransactionValidation) error {
 	return nil
 }
 
-// persistAuditEvent persists an audit event for the transaction validation.
-// The write is "best effort" - failures are logged but do not fail the validation.
-// Note: clientIP is extracted from context metadata (set by HTTP handler).
-func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) {
-	// Extract client IP from context (injected by ClientIPMiddleware)
-	clientIP := contextutil.GetClientIP(ctx)
-
-	// Build request snapshot
+// buildRequestSnapshot creates the request snapshot map used for audit event persistence.
+func buildRequestSnapshot(req *model.ValidationRequest) map[string]any {
 	requestSnapshot := map[string]any{
 		"requestId":       req.RequestID.String(),
 		"transactionType": req.TransactionType,
@@ -536,7 +559,6 @@ func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.Va
 		"metadata": req.Metadata,
 	}
 
-	// Add segment if present
 	if req.Segment != nil {
 		requestSnapshot["account"].(map[string]any)["segmentId"] = req.Segment.ID.String()
 		requestSnapshot["segment"] = map[string]any{
@@ -546,7 +568,6 @@ func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.Va
 		}
 	}
 
-	// Add portfolio if present
 	if req.Portfolio != nil {
 		requestSnapshot["account"].(map[string]any)["portfolioId"] = req.Portfolio.ID.String()
 		requestSnapshot["portfolio"] = map[string]any{
@@ -556,7 +577,6 @@ func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.Va
 		}
 	}
 
-	// Add merchant if present
 	if req.Merchant != nil {
 		requestSnapshot["merchant"] = map[string]any{
 			"merchantId": req.Merchant.ID,
@@ -567,7 +587,19 @@ func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.Va
 		}
 	}
 
-	// ValidationResponseContext holds only additional fields (NOT embedding EvaluationResult)
+	return requestSnapshot
+}
+
+// persistAuditEvent persists an audit event for the transaction validation.
+//
+// # Error Contract: BEST-EFFORT (errors logged, NOT returned)
+//
+// See persistTransactionValidation for rationale.
+// Note: clientIP is extracted from context metadata (set by HTTP handler).
+func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) {
+	clientIP := contextutil.GetClientIP(ctx)
+	requestSnapshot := buildRequestSnapshot(req)
+
 	responseContext := model.ValidationResponseContext{
 		ProcessingTimeMs:  resp.ProcessingTimeMs,
 		LimitUsageDetails: resp.LimitUsageDetails,
@@ -589,44 +621,21 @@ func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.Va
 }
 
 // persistTransactionValidationWithTx persists a transaction validation record using the provided transaction.
-// Unlike persistTransactionValidation, this method returns errors to allow proper rollback handling.
+//
+// # Error Contract: STRICT (errors returned to caller)
+//
+// This method is used inside transactions (ALLOW path). Errors are returned so the caller
+// can let the deferred tx.Rollback() undo all changes atomically (counters + validation + audit).
+// This differs from persistTransactionValidation which uses best-effort semantics.
 func (s *ValidationService) persistTransactionValidationWithTx(ctx context.Context, tx pgdb.DB, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) error {
-	tv, err := model.NewTransactionValidation(resp.ValidationID, resp.Decision, time.Now().UTC())
+	tv, err := buildTransactionValidation(req, resp, s.clock.Now().UTC())
 	if err != nil {
 		logger.WithFields(
 			"request.id", resp.RequestID,
 			"error.message", err.Error(),
-		).Error("failed to create transaction validation record - invalid parameters")
+		).Error("failed to build transaction validation record")
 
-		return fmt.Errorf("failed to create transaction validation record: %w", err)
-	}
-
-	// Populate request fields for compliance (SOX/GLBA: full reconstruction of validation input)
-	tv.RequestID = req.RequestID
-	tv.TransactionType = req.TransactionType
-	tv.SubType = req.SubType
-	tv.Amount = req.Amount
-	tv.Currency = req.Currency
-	tv.TransactionTimestamp = req.TransactionTimestamp
-	tv.Account = req.Account
-	tv.Segment = req.Segment
-	tv.Portfolio = req.Portfolio
-	tv.Merchant = req.Merchant
-	tv.Metadata = sanitize.SanitizeMetadata(req.Metadata)
-
-	// Assign entire EvaluationResult to preserve all fields (Decision, TotalRulesLoaded, Truncated, etc.)
-	tv.EvaluationResult = resp.EvaluationResult
-	tv.LimitUsageDetails = resp.LimitUsageDetails
-	tv.ProcessingTimeMs = resp.ProcessingTimeMs
-
-	// Validate compliance fields before persisting (SOX/GLBA: ensure record integrity)
-	if err := validateTransactionValidation(tv); err != nil {
-		logger.WithFields(
-			"request.id", resp.RequestID,
-			"error.message", err.Error(),
-		).Error("transaction validation record validation failed - record not persisted")
-
-		return fmt.Errorf("transaction validation record validation failed: %w", err)
+		return fmt.Errorf("failed to build transaction validation record: %w", err)
 	}
 
 	if err := s.transactionValidationRepo.InsertWithTx(ctx, tx, tv); err != nil {
@@ -641,61 +650,15 @@ func (s *ValidationService) persistTransactionValidationWithTx(ctx context.Conte
 	return nil
 }
 
-// persistAuditEventWithTx persists an audit event for the transaction validation using the provided transaction.
-// Unlike persistAuditEvent, this method returns errors to allow proper rollback handling.
+// persistAuditEventWithTx persists an audit event using the provided transaction.
+//
+// # Error Contract: STRICT (errors returned to caller)
+//
+// See persistTransactionValidationWithTx for rationale.
 func (s *ValidationService) persistAuditEventWithTx(ctx context.Context, tx pgdb.DB, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) error {
-	// Extract client IP from context (injected by ClientIPMiddleware)
 	clientIP := contextutil.GetClientIP(ctx)
+	requestSnapshot := buildRequestSnapshot(req)
 
-	// Build request snapshot
-	requestSnapshot := map[string]any{
-		"requestId":       req.RequestID.String(),
-		"transactionType": req.TransactionType,
-		"subType":         req.SubType,
-		"amount":          req.Amount,
-		"currency":        req.Currency,
-		"timestamp":       req.TransactionTimestamp,
-		"account": map[string]any{
-			"id":       req.Account.ID.String(),
-			"type":     req.Account.Type,
-			"status":   req.Account.Status,
-			"metadata": req.Account.Metadata,
-		},
-		"metadata": req.Metadata,
-	}
-
-	// Add segment if present
-	if req.Segment != nil {
-		requestSnapshot["account"].(map[string]any)["segmentId"] = req.Segment.ID.String()
-		requestSnapshot["segment"] = map[string]any{
-			"segmentId": req.Segment.ID.String(),
-			"name":      req.Segment.Name,
-			"metadata":  req.Segment.Metadata,
-		}
-	}
-
-	// Add portfolio if present
-	if req.Portfolio != nil {
-		requestSnapshot["account"].(map[string]any)["portfolioId"] = req.Portfolio.ID.String()
-		requestSnapshot["portfolio"] = map[string]any{
-			"portfolioId": req.Portfolio.ID.String(),
-			"name":        req.Portfolio.Name,
-			"metadata":    req.Portfolio.Metadata,
-		}
-	}
-
-	// Add merchant if present
-	if req.Merchant != nil {
-		requestSnapshot["merchant"] = map[string]any{
-			"merchantId": req.Merchant.ID,
-			"name":       req.Merchant.Name,
-			"category":   req.Merchant.Category,
-			"country":    req.Merchant.Country,
-			"metadata":   req.Merchant.Metadata,
-		}
-	}
-
-	// ValidationResponseContext holds only additional fields (NOT embedding EvaluationResult)
 	responseContext := model.ValidationResponseContext{
 		ProcessingTimeMs:  resp.ProcessingTimeMs,
 		LimitUsageDetails: resp.LimitUsageDetails,

@@ -243,6 +243,10 @@ func (r *TransactionValidationRepository) insertInternal(
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
+		if IsUniqueViolation(err) {
+			return fmt.Errorf("%w: request_id %s", command.ErrDuplicateValidation, validation.RequestID)
+		}
+
 		libOtel.HandleSpanError(span, "Failed to insert transaction validation", err)
 
 		return fmt.Errorf("failed to insert transaction validation: %w", err)

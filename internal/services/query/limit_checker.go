@@ -27,6 +27,9 @@ import (
 	"tracer/pkg/model"
 )
 
+// GlobalScopeKey is the scope key used when a limit has no scopes defined.
+const GlobalScopeKey = "global"
+
 // calculateCounterExpiresAt calculates when a usage counter should expire based on limit type.
 // Returns nil for PER_TRANSACTION (no counter created) or when required dates are nil.
 // For DAILY/WEEKLY/MONTHLY: returns resetAt + CounterRetentionDays retention period.
@@ -599,11 +602,10 @@ func scopeMatchesLimit(limitScopes []model.Scope, txScope *model.Scope) bool {
 // calculateScopeKeyFromScopes computes the scope key from a list of scopes based on the limit's scope, not the transaction's.
 // This prevents counter fragmentation when limits have different scope granularities.
 // Used for both CheckLimits and rollback operations.
-// Returns the first matching scope's key, or "global" if no scopes.
+// Returns the first matching scope's key, or GlobalScopeKey if no scopes.
 func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) string {
-	// Global limit (no scopes) uses "global" key
 	if len(scopes) == 0 {
-		return "global"
+		return GlobalScopeKey
 	}
 
 	// Find the first scope that matches the transaction
@@ -626,7 +628,7 @@ func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) str
 // Each scope is wrapped in parentheses; multiple scopes (OR alternatives) are joined with " OR ".
 func formatScopeString(scopes []model.Scope) string {
 	if len(scopes) == 0 {
-		return "global"
+		return GlobalScopeKey
 	}
 
 	var scopeGroups []string
@@ -664,7 +666,7 @@ func formatScopeString(scopes []model.Scope) string {
 	}
 
 	if len(scopeGroups) == 0 {
-		return "global"
+		return GlobalScopeKey
 	}
 
 	return strings.Join(scopeGroups, " OR ")

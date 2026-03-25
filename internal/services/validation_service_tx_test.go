@@ -6,6 +6,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ import (
 
 	pgdb "tracer/internal/adapters/postgres/db"
 	pgdbMocks "tracer/internal/adapters/postgres/db/mocks"
+	"tracer/internal/services/command"
 	commandMocks "tracer/internal/services/command/mocks"
 	"tracer/internal/services/mocks"
 	queryMocks "tracer/internal/services/query/mocks"
@@ -421,4 +424,409 @@ func TestValidationService_Validate_Review_RollsBackCounters(t *testing.T) {
 	assert.Equal(t, "Transaction requires review", result.Response.Reason)
 
 	assert.True(t, rollbackCalled, "REVIEW path should use tx.Rollback() to undo counter increments")
+}
+
+// TestValidationService_Validate_ConcurrentDuplicate_ReturnsCachedResponse verifies that
+// when two concurrent requests with the same request_id race past the idempotency check,
+// the second request detects the unique constraint violation and returns the cached response.
+func TestValidationService_Validate_ConcurrentDuplicate_ReturnsCachedResponse(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	validationID := testutil.MustDeterministicUUID(3)
+	ruleID := testutil.MustDeterministicUUID(10)
+	limitID := testutil.MustDeterministicUUID(20)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
+
+	// 1. FindByRequestID returns nil (race: both requests pass idempotency check)
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), requestID).
+		Return(nil, nil).
+		Times(1)
+
+	// 2. Rule evaluation returns ALLOW
+	evalResult, err := model.NewEvaluationResult(
+		model.DecisionAllow,
+		[]uuid.UUID{ruleID},
+		[]uuid.UUID{ruleID},
+		"Transaction allowed",
+	)
+	require.NoError(t, err)
+	ruleEval.EXPECT().
+		Execute(gomock.Any(), gomock.Any()).
+		Return(evalResult, nil)
+
+	// 3. BeginTx
+	mockTxBeginner.EXPECT().
+		BeginTx(gomock.Any(), gomock.Any()).
+		Return(mockTx, nil)
+
+	// 4. CheckLimits passes
+	limitOutput := &model.CheckLimitsOutput{
+		Allowed: true,
+		LimitUsageDetails: []model.LimitUsageDetail{
+			{
+				LimitID:      limitID,
+				LimitAmount:  decimal.RequireFromString("1000"),
+				CurrentUsage: decimal.RequireFromString("100"),
+				Exceeded:     false,
+			},
+		},
+		ExceededLimitIDs: []uuid.UUID{},
+	}
+	limitCheck.EXPECT().
+		CheckLimits(gomock.Any(), mockTx, gomock.Any()).
+		Return(limitOutput, nil)
+
+	// 5. InsertWithTx returns ErrDuplicateValidation (concurrent request already inserted)
+	transactionValidationRepo.EXPECT().
+		InsertWithTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(fmt.Errorf("%w: request_id %s", command.ErrDuplicateValidation, requestID))
+
+	// 6. tx.Rollback() called by defer (tx is poisoned after unique violation)
+	mockTx.EXPECT().
+		Rollback().
+		Return(nil)
+
+	// 7. FindByRequestID retried - returns the existing record from the other request
+	existingValidation, err := model.NewTransactionValidation(validationID, model.DecisionAllow, fixedTime)
+	require.NoError(t, err)
+	existingValidation.RequestID = requestID
+	existingValidation.Amount = decimal.RequireFromString("100")
+	existingValidation.Currency = "USD"
+	existingValidation.Account = model.AccountContext{ID: accountID}
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), requestID).
+		Return(existingValidation, nil).
+		Times(1)
+
+	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
+	require.NoError(t, err)
+
+	result, err := service.Validate(context.Background(), request)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.IsDuplicate, "Concurrent duplicate should return IsDuplicate=true")
+	assert.Equal(t, validationID, result.Response.ValidationID)
+}
+
+// TestValidationService_Validate_BeginTxFailure verifies that when BeginTx fails,
+// the error is properly propagated and no further processing occurs.
+func TestValidationService_Validate_BeginTxFailure(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	ruleID := testutil.MustDeterministicUUID(10)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+
+	// 1. FindByRequestID - no duplicate
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), requestID).
+		Return(nil, nil)
+
+	// 2. Rule evaluation returns ALLOW (proceeds to tx path)
+	evalResult, err := model.NewEvaluationResult(
+		model.DecisionAllow,
+		[]uuid.UUID{ruleID},
+		[]uuid.UUID{ruleID},
+		"Transaction allowed",
+	)
+	require.NoError(t, err)
+	ruleEval.EXPECT().
+		Execute(gomock.Any(), gomock.Any()).
+		Return(evalResult, nil)
+
+	// 3. BeginTx fails
+	mockTxBeginner.EXPECT().
+		BeginTx(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("connection refused"))
+
+	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
+	require.NoError(t, err)
+
+	result, err := service.Validate(context.Background(), request)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to begin transaction")
+	assert.Contains(t, err.Error(), "connection refused")
+}
+
+// TestValidationService_Validate_CommitFailure verifies that when tx.Commit() fails
+// on the ALLOW path, the error is propagated and defer handles rollback.
+func TestValidationService_Validate_CommitFailure(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	ruleID := testutil.MustDeterministicUUID(10)
+	limitID := testutil.MustDeterministicUUID(20)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
+
+	// 1. FindByRequestID - no duplicate
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), requestID).
+		Return(nil, nil)
+
+	// 2. Rule evaluation returns ALLOW
+	evalResult, err := model.NewEvaluationResult(
+		model.DecisionAllow,
+		[]uuid.UUID{ruleID},
+		[]uuid.UUID{ruleID},
+		"Transaction allowed",
+	)
+	require.NoError(t, err)
+	ruleEval.EXPECT().
+		Execute(gomock.Any(), gomock.Any()).
+		Return(evalResult, nil)
+
+	// 3. BeginTx succeeds
+	mockTxBeginner.EXPECT().
+		BeginTx(gomock.Any(), gomock.Any()).
+		Return(mockTx, nil)
+
+	// 4. CheckLimits passes
+	limitOutput := &model.CheckLimitsOutput{
+		Allowed: true,
+		LimitUsageDetails: []model.LimitUsageDetail{
+			{
+				LimitID:      limitID,
+				LimitAmount:  decimal.RequireFromString("1000"),
+				CurrentUsage: decimal.RequireFromString("100"),
+				Exceeded:     false,
+			},
+		},
+		ExceededLimitIDs: []uuid.UUID{},
+	}
+	limitCheck.EXPECT().
+		CheckLimits(gomock.Any(), mockTx, gomock.Any()).
+		Return(limitOutput, nil)
+
+	// 5. InsertWithTx succeeds
+	transactionValidationRepo.EXPECT().
+		InsertWithTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(nil)
+
+	// 6. RecordValidationEventWithTx succeeds
+	auditWriter.EXPECT().
+		RecordValidationEventWithTx(gomock.Any(), mockTx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil)
+
+	// 7. Commit FAILS
+	mockTx.EXPECT().
+		Commit().
+		Return(errors.New("commit failed: serialization failure"))
+
+	// 8. Defer calls Rollback (tx still non-nil after failed commit)
+	mockTx.EXPECT().
+		Rollback().
+		Return(nil)
+
+	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
+	require.NoError(t, err)
+
+	result, err := service.Validate(context.Background(), request)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to commit transaction")
+	assert.Contains(t, err.Error(), "serialization failure")
+}
+
+// TestValidationService_Validate_Allow_InsertWithTxFailure verifies that when
+// InsertWithTx fails with a non-duplicate error on the ALLOW path,
+// the error is propagated and defer handles rollback.
+func TestValidationService_Validate_Allow_InsertWithTxFailure(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	ruleID := testutil.MustDeterministicUUID(10)
+	limitID := testutil.MustDeterministicUUID(20)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
+
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), requestID).
+		Return(nil, nil)
+
+	evalResult, err := model.NewEvaluationResult(model.DecisionAllow, []uuid.UUID{ruleID}, []uuid.UUID{ruleID}, "Transaction allowed")
+	require.NoError(t, err)
+	ruleEval.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(evalResult, nil)
+
+	mockTxBeginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
+
+	limitOutput := &model.CheckLimitsOutput{
+		Allowed:           true,
+		LimitUsageDetails: []model.LimitUsageDetail{{LimitID: limitID, LimitAmount: decimal.RequireFromString("1000"), CurrentUsage: decimal.RequireFromString("100"), Exceeded: false}},
+		ExceededLimitIDs:  []uuid.UUID{},
+	}
+	limitCheck.EXPECT().CheckLimits(gomock.Any(), mockTx, gomock.Any()).Return(limitOutput, nil)
+
+	// InsertWithTx fails with a non-duplicate DB error
+	transactionValidationRepo.EXPECT().
+		InsertWithTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(errors.New("disk full"))
+
+	// Defer calls Rollback
+	mockTx.EXPECT().Rollback().Return(nil)
+
+	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
+	require.NoError(t, err)
+
+	result, err := service.Validate(context.Background(), request)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to persist transaction validation")
+	assert.Contains(t, err.Error(), "disk full")
+}
+
+// TestValidationService_Validate_Allow_AuditWriteFailure verifies that when
+// persistAuditEventWithTx fails on the ALLOW path, the error is propagated
+// and defer handles rollback (counters + validation record are rolled back atomically).
+func TestValidationService_Validate_Allow_AuditWriteFailure(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	fixedTime := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	requestID := testutil.MustDeterministicUUID(1)
+	accountID := testutil.MustDeterministicUUID(2)
+	ruleID := testutil.MustDeterministicUUID(10)
+	limitID := testutil.MustDeterministicUUID(20)
+
+	request := &model.ValidationRequest{
+		RequestID:            requestID,
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.RequireFromString("100"),
+		Currency:             "USD",
+		TransactionTimestamp: fixedTime,
+		Account:              model.AccountContext{ID: accountID},
+	}
+
+	ctrl := gomock.NewController(t)
+
+	ruleEval := mocks.NewMockRuleEvaluator(ctrl)
+	limitCheck := mocks.NewMockLimitChecker(ctrl)
+	transactionValidationRepo := commandMocks.NewMockTransactionValidationRepository(ctrl)
+	transactionValidationQueryRepo := queryMocks.NewMockTransactionValidationRepository(ctrl)
+	auditWriter := mocks.NewMockAuditWriter(ctrl)
+	mockTxBeginner := pgdbMocks.NewMockTxBeginner(ctrl)
+	mockTx := pgdbMocks.NewMockTx(ctrl)
+
+	transactionValidationQueryRepo.EXPECT().
+		FindByRequestID(gomock.Any(), requestID).
+		Return(nil, nil)
+
+	evalResult, err := model.NewEvaluationResult(model.DecisionAllow, []uuid.UUID{ruleID}, []uuid.UUID{ruleID}, "Transaction allowed")
+	require.NoError(t, err)
+	ruleEval.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(evalResult, nil)
+
+	mockTxBeginner.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
+
+	limitOutput := &model.CheckLimitsOutput{
+		Allowed:           true,
+		LimitUsageDetails: []model.LimitUsageDetail{{LimitID: limitID, LimitAmount: decimal.RequireFromString("1000"), CurrentUsage: decimal.RequireFromString("100"), Exceeded: false}},
+		ExceededLimitIDs:  []uuid.UUID{},
+	}
+	limitCheck.EXPECT().CheckLimits(gomock.Any(), mockTx, gomock.Any()).Return(limitOutput, nil)
+
+	// InsertWithTx succeeds
+	transactionValidationRepo.EXPECT().
+		InsertWithTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(nil)
+
+	// Audit write fails
+	auditWriter.EXPECT().
+		RecordValidationEventWithTx(gomock.Any(), mockTx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(errors.New("audit service unavailable"))
+
+	// Defer calls Rollback (validation record + counters rolled back atomically)
+	mockTx.EXPECT().Rollback().Return(nil)
+
+	service, err := NewValidationService(mockTxBeginner, ruleEval, limitCheck, transactionValidationRepo, transactionValidationQueryRepo, auditWriter, nil)
+	require.NoError(t, err)
+
+	result, err := service.Validate(context.Background(), request)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to persist audit event")
+	assert.Contains(t, err.Error(), "audit service unavailable")
 }

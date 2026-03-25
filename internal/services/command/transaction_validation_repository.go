@@ -8,10 +8,15 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/pkg/model"
 )
+
+// ErrDuplicateValidation is returned when a transaction validation record with the same
+// request_id already exists. Callers should handle this by fetching the existing record.
+var ErrDuplicateValidation = errors.New("duplicate transaction validation")
 
 // TransactionValidationRepository defines the interface for transaction validation persistence.
 // This interface is for write operations only per CQRS pattern.
