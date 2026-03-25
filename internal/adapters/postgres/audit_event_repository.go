@@ -87,27 +87,40 @@ func (r *AuditEventRepository) Insert(ctx context.Context, event *model.AuditEve
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	qb := sq.Insert(r.tableName).
-		Columns(
-			"event_id", "event_type", "created_at", "action", "result",
-			"resource_id", "resource_type",
-			"actor_type", "actor_id", "actor_name", "actor_role", "actor_ip_address",
-			"context", "metadata",
-		).
-		Values(
-			event.EventID, string(event.EventType), event.CreatedAt,
-			string(event.Action), string(event.Result),
-			event.ResourceID, string(event.ResourceType),
-			string(event.Actor.ActorType), event.Actor.ID, event.Actor.Name,
-			nullableString(event.Actor.Role), event.Actor.IPAddress,
-			contextJSON, metadataJSON,
-		).
-		PlaceholderFormat(sq.Dollar)
-
-	sqlStr, args, err := qb.ToSql()
-	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
-		return fmt.Errorf("failed to build query: %w", err)
+	// Deduplication for transaction validation events:
+	// The partial unique index idx_audit_events_validation_dedup ensures only the first
+	// audit event per (resource_id, event_type) is stored when resource_type = 'transaction'.
+	//
+	// We use INSERT...SELECT...WHERE NOT EXISTS instead of ON CONFLICT DO NOTHING because
+	// audit_events has PostgreSQL RULEs (prevent_audit_event_update, prevent_audit_event_delete)
+	// and PostgreSQL does not allow ON CONFLICT on tables with RULEs.
+	//
+	// For non-transaction resource types, the condition ($17 = 'transaction') is false,
+	// so the WHERE NOT EXISTS clause is bypassed and the INSERT always proceeds.
+	sqlStr := `
+		INSERT INTO audit_events (
+			event_id, event_type, created_at, action, result,
+			resource_id, resource_type,
+			actor_type, actor_id, actor_name, actor_role, actor_ip_address,
+			context, metadata
+		)
+		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb
+		WHERE NOT EXISTS (
+			SELECT 1 FROM audit_events
+			WHERE resource_id = $15
+			  AND event_type = $16
+			  AND resource_type = 'transaction'
+			  AND $17 = 'transaction'
+		)
+	`
+	args := []any{
+		event.EventID, string(event.EventType), event.CreatedAt,
+		string(event.Action), string(event.Result),
+		event.ResourceID, string(event.ResourceType),
+		string(event.Actor.ActorType), event.Actor.ID, event.Actor.Name,
+		nullableString(event.Actor.Role), event.Actor.IPAddress,
+		contextJSON, metadataJSON,
+		event.ResourceID, string(event.EventType), string(event.ResourceType),
 	}
 
 	logger.WithFields(
@@ -116,10 +129,22 @@ func (r *AuditEventRepository) Insert(ctx context.Context, event *model.AuditEve
 		"event.type", string(event.EventType),
 	).Info("Inserting audit event record")
 
-	_, err = db.ExecContext(ctx, sqlStr, args...)
+	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		libOtel.HandleSpanError(&span, "Failed to insert audit event", err)
 		return fmt.Errorf("failed to insert audit event: %w", err)
+	}
+
+	// Log dedup visibility for transaction validation events
+	if event.ResourceType == model.ResourceTypeTransaction {
+		rowsAffected, rowsErr := result.RowsAffected()
+		if rowsErr == nil && rowsAffected == 0 {
+			logger.WithFields(
+				"event.id", event.EventID.String(),
+				"resource.id", event.ResourceID,
+				"event.type", string(event.EventType),
+			).Debug("Audit event skipped due to deduplication")
+		}
 	}
 
 	return nil

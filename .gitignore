@@ -44,6 +44,7 @@ go.work.sum
 # Artifacts (build outputs, coverage, reports)
 artifacts/
 reports/
+coverage*
 
 # Logs
 *.log
