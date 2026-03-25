@@ -21,6 +21,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/internal/adapters/postgres/db/mocks"
 	"tracer/internal/testutil"
 	"tracer/pkg/constant"
@@ -28,7 +29,8 @@ import (
 )
 
 // setupUsageCounterRepositoryMockDB creates a gomock controller, mock DBConnection, and sqlmock for testing.
-func setupUsageCounterRepositoryMockDB(t *testing.T) (*UsageCounterRepository, sqlmock.Sqlmock, func()) {
+// Returns the repo, the raw *sql.DB (which satisfies pgdb.DB for WithTx calls), sqlmock, and cleanup.
+func setupUsageCounterRepositoryMockDB(t *testing.T) (*UsageCounterRepository, *sql.DB, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
@@ -46,7 +48,7 @@ func setupUsageCounterRepositoryMockDB(t *testing.T) (*UsageCounterRepository, s
 		}
 	}
 
-	return repo, sqlMock, cleanup
+	return repo, db, sqlMock, cleanup
 }
 
 // usageCounterColumns returns the column names for usage counter queries.
@@ -256,7 +258,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, _, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
@@ -357,7 +359,7 @@ func TestUsageCounterRepository_IncrementAtomic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, _, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
@@ -372,127 +374,6 @@ func TestUsageCounterRepository_IncrementAtomic(t *testing.T) {
 				}
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
-				}
-				return
-			}
-
-			require.NoError(t, err)
-		})
-	}
-}
-
-func TestUsageCounterRepository_DecrementAtomic_ConnectionError(t *testing.T) {
-	testutil.SetupTestTracing(t)
-
-	ctrl := gomock.NewController(t)
-
-	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
-
-	repo := NewUsageCounterRepositoryWithConnection(mockConn)
-
-	ctx := context.Background()
-	err := repo.DecrementAtomic(ctx, testutil.MustDeterministicUUID(997), decimal.RequireFromString("1"))
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get database connection")
-}
-
-func TestUsageCounterRepository_DecrementAtomic(t *testing.T) {
-	testutil.SetupTestTracing(t)
-
-	counterID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
-
-	tests := []struct {
-		name      string
-		counterID uuid.UUID
-		amount    decimal.Decimal
-		mockSetup func(mock sqlmock.Sqlmock)
-		wantErr   bool
-		errVal    error
-	}{
-		{
-			name:      "Success - decrements counter",
-			counterID: counterID,
-			amount:    decimal.RequireFromString("5"),
-			mockSetup: func(mock sqlmock.Sqlmock) {
-				// Atomic conditional UPDATE with WHERE current_usage >= amount
-				mock.ExpectExec(regexp.QuoteMeta(`UPDATE usage_counters SET`)).
-					WithArgs(decimal.RequireFromString("5"), sqlmock.AnyArg(), counterID, decimal.RequireFromString("5")).
-					WillReturnResult(sqlmock.NewResult(0, 1))
-			},
-		},
-		{
-			name:      "Success - zero amount is no-op",
-			counterID: counterID,
-			amount:    decimal.RequireFromString("0"),
-			mockSetup: func(mock sqlmock.Sqlmock) {
-				// No database calls expected
-			},
-		},
-		{
-			name:      "Error - negative amount",
-			counterID: counterID,
-			amount:    decimal.RequireFromString("-1"),
-			mockSetup: func(mock sqlmock.Sqlmock) {
-				// No database calls expected
-			},
-			wantErr: true,
-			errVal:  constant.ErrUsageCounterDecrementNonNegative,
-		},
-		{
-			name:      "Error - counter not found",
-			counterID: counterID,
-			amount:    decimal.RequireFromString("1"),
-			mockSetup: func(mock sqlmock.Sqlmock) {
-				// UPDATE returns 0 rows (counter not found or insufficient balance)
-				mock.ExpectExec(regexp.QuoteMeta(`UPDATE usage_counters SET`)).
-					WithArgs(decimal.RequireFromString("1"), sqlmock.AnyArg(), counterID, decimal.RequireFromString("1")).
-					WillReturnResult(sqlmock.NewResult(0, 0))
-
-				// SELECT to distinguish: counter not found
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT current_usage FROM usage_counters WHERE id = $1`)).
-					WithArgs(counterID).
-					WillReturnError(sql.ErrNoRows)
-			},
-			wantErr: true,
-			errVal:  constant.ErrUsageCounterNotFound,
-		},
-		{
-			name:      "Error - would result in negative usage",
-			counterID: counterID,
-			amount:    decimal.RequireFromString("10"),
-			mockSetup: func(mock sqlmock.Sqlmock) {
-				// UPDATE returns 0 rows (current_usage < amount)
-				mock.ExpectExec(regexp.QuoteMeta(`UPDATE usage_counters SET`)).
-					WithArgs(decimal.RequireFromString("10"), sqlmock.AnyArg(), counterID, decimal.RequireFromString("10")).
-					WillReturnResult(sqlmock.NewResult(0, 0))
-
-				// SELECT to distinguish: counter exists but insufficient balance
-				rows := sqlmock.NewRows([]string{"current_usage"}).AddRow(decimal.RequireFromString("5"))
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT current_usage FROM usage_counters WHERE id = $1`)).
-					WithArgs(counterID).
-					WillReturnRows(rows)
-			},
-			wantErr: true,
-			errVal:  constant.ErrUsageCounterCurrentUsageNegative,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
-			defer cleanup()
-
-			tt.mockSetup(sqlMock)
-
-			ctx := context.Background()
-			err := repo.DecrementAtomic(ctx, tt.counterID, tt.amount)
-
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.errVal != nil {
-					assert.ErrorIs(t, err, tt.errVal)
 				}
 				return
 			}
@@ -583,7 +464,7 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, _, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
@@ -603,21 +484,20 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 	}
 }
 
-func TestUsageCounterRepository_GetUsageForLimits_ConnectionError(t *testing.T) {
+func TestUsageCounterRepository_GetUsageForLimits_NilDB(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
 
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	_, err := repo.GetUsageForLimits(ctx, []uuid.UUID{testutil.MustDeterministicUUID(995)}, "acct:123", "2025-01")
+	_, err := repo.GetUsageForLimits(ctx, nil, []uuid.UUID{testutil.MustDeterministicUUID(995)}, "acct:123", "2025-01")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get database connection")
+	assert.ErrorIs(t, err, pgdb.ErrNilConnection)
 }
 
 func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
@@ -705,13 +585,13 @@ func TestUsageCounterRepository_GetUsageForLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
 
 			ctx := context.Background()
-			result, err := repo.GetUsageForLimits(ctx, tt.limitIDs, tt.scopeKey, tt.periodKey)
+			result, err := repo.GetUsageForLimits(ctx, db, tt.limitIDs, tt.scopeKey, tt.periodKey)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -821,13 +701,13 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ExceedsLimit(t *testing
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
 
 			ctx := context.Background()
-			usage, err := repo.UpsertAndIncrementAtomic(ctx, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount, nil)
+			usage, err := repo.UpsertAndIncrementAtomic(ctx, db, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount, nil)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
@@ -970,13 +850,13 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
 
 			ctx := context.Background()
-			usage, err := repo.UpsertAndIncrementAtomic(ctx, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount, nil)
+			usage, err := repo.UpsertAndIncrementAtomic(ctx, db, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount, nil)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
@@ -996,21 +876,20 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_PreCheck(t *testing.T) 
 	}
 }
 
-func TestUsageCounterRepository_UpsertAndIncrementAtomic_ConnectionError(t *testing.T) {
+func TestUsageCounterRepository_UpsertAndIncrementAtomic_NilDB(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
 
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	usage, err := repo.UpsertAndIncrementAtomic(ctx, testutil.MustDeterministicUUID(8029), "acct:8029", "2025-06", decimal.RequireFromString("100"), decimal.RequireFromString("1000"), nil)
+	usage, err := repo.UpsertAndIncrementAtomic(ctx, nil, testutil.MustDeterministicUUID(8029), "acct:8029", "2025-06", decimal.RequireFromString("100"), decimal.RequireFromString("1000"), nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get database connection")
+	assert.ErrorIs(t, err, pgdb.ErrNilConnection)
 	assert.True(t, usage.IsZero(), "expected zero usage on error, got %s", usage)
 }
 
@@ -1096,13 +975,13 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ErrorPropagation(t *tes
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
 
 			ctx := context.Background()
-			usage, err := repo.UpsertAndIncrementAtomic(ctx, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount, nil)
+			usage, err := repo.UpsertAndIncrementAtomic(ctx, db, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount, nil)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errMsg)
@@ -1116,7 +995,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ContextCancellation(t *
 
 	limitID := testutil.MustDeterministicUUID(8040)
 
-	repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+	repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 	defer cleanup()
 
 	// When context is cancelled, the database driver returns context.Canceled
@@ -1141,7 +1020,7 @@ func TestUsageCounterRepository_UpsertAndIncrementAtomic_ContextCancellation(t *
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	usage, err := repo.UpsertAndIncrementAtomic(ctx, limitID, "acct:8040", "2025-06", decimal.RequireFromString("100"), decimal.RequireFromString("1000"), nil)
+	usage, err := repo.UpsertAndIncrementAtomic(ctx, db, limitID, "acct:8040", "2025-06", decimal.RequireFromString("100"), decimal.RequireFromString("1000"), nil)
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.True(t, usage.IsZero(), "expected zero usage on cancellation, got %s", usage)
@@ -1286,14 +1165,14 @@ func TestUpsertAndIncrementAtomic_WithExpiresAt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+			repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 			defer cleanup()
 
 			tt.mockSetup(sqlMock)
 
 			ctx := context.Background()
 
-			usage, err := repo.UpsertAndIncrementAtomic(ctx, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount, tt.expiresAt)
+			usage, err := repo.UpsertAndIncrementAtomic(ctx, db, tt.limitID, tt.scopeKey, tt.periodKey, tt.amount, tt.maxAmount, tt.expiresAt)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -1316,7 +1195,7 @@ func TestUpsertAndIncrementAtomic_ExpiresAtStoredInDB(t *testing.T) {
 	periodKey := "2026-03-11"
 	expiresAt := time.Date(2026, 6, 9, 0, 0, 0, 0, time.UTC)
 
-	repo, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
+	repo, db, sqlMock, cleanup := setupUsageCounterRepositoryMockDB(t)
 	defer cleanup()
 
 	// Expect the INSERT to include expires_at column
@@ -1344,7 +1223,7 @@ func TestUpsertAndIncrementAtomic_ExpiresAtStoredInDB(t *testing.T) {
 
 	ctx := context.Background()
 
-	usage, err := repo.UpsertAndIncrementAtomic(ctx, limitID, scopeKey, periodKey, decimal.RequireFromString("100"), decimal.RequireFromString("1000"), testutil.Ptr(expiresAt))
+	usage, err := repo.UpsertAndIncrementAtomic(ctx, db, limitID, scopeKey, periodKey, decimal.RequireFromString("100"), decimal.RequireFromString("1000"), testutil.Ptr(expiresAt))
 
 	require.NoError(t, err)
 	assert.True(t, decimal.RequireFromString("100").Equal(usage))

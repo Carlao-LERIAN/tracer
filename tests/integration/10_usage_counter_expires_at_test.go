@@ -26,13 +26,13 @@ import (
 )
 
 // =============================================================================
-// Integration Tests: Usage Counter ExpiresAt Calculation (T-005 Validation)
+// Integration Tests: Usage Counter ExpiresAt Calculation
 //
 // These tests validate that the expires_at column is correctly calculated
 // and stored in the database when usage counters are created.
 //
 // Identified by: SRE Agent review as a reliability gap
-// Related Task: T-005 (Expired Usage Counters Are Automatically Cleaned Up)
+// Related: Expired Usage Counters Are Automatically Cleaned Up
 //
 // Business Logic:
 // - expires_at = resetAt + 90 days (for DAILY/WEEKLY/MONTHLY)

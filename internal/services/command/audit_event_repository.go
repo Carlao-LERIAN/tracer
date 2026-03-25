@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 
+	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/pkg/model"
 )
 
@@ -15,4 +16,9 @@ import (
 // AuditEventRepository defines the write interface for audit event persistence.
 type AuditEventRepository interface {
 	Insert(ctx context.Context, event *model.AuditEvent) error
+
+	// InsertWithTx inserts an audit event using the provided database connection.
+	// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
+	// enabling atomic operations with other database changes.
+	InsertWithTx(ctx context.Context, db pgdb.DB, event *model.AuditEvent) error
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/pkg/model"
 )
 
@@ -21,6 +22,19 @@ import (
 type AuditWriter interface {
 	RecordValidationEvent(
 		ctx context.Context,
+		validationID uuid.UUID,
+		request map[string]any,
+		evalResult model.EvaluationResult,
+		responseContext model.ValidationResponseContext,
+		clientIP string,
+	) error
+
+	// RecordValidationEventWithTx records a validation event using the provided database connection.
+	// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
+	// enabling atomic operations with other database changes.
+	RecordValidationEventWithTx(
+		ctx context.Context,
+		db pgdb.DB,
 		validationID uuid.UUID,
 		request map[string]any,
 		evalResult model.EvaluationResult,

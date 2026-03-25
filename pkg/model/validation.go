@@ -432,7 +432,7 @@ func (r *ValidationRequest) validateMetadata() error {
 }
 
 // ToCheckLimitsInput converts ValidationRequest to CheckLimitsInput for limit checking.
-// Used by T-011 (Validation Orchestration) to prepare input for T-010 (Limit Checking).
+// Used by Validation Orchestration to prepare input for Limit Checking.
 func (r *ValidationRequest) ToCheckLimitsInput() *CheckLimitsInput {
 	input := &CheckLimitsInput{
 		Amount:               r.Amount,

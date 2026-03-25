@@ -12,6 +12,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	db "tracer/internal/adapters/postgres/db"
 	model "tracer/pkg/model"
 
 	gomock "go.uber.org/mock/gomock"
@@ -53,4 +54,18 @@ func (m *MockAuditEventRepository) Insert(ctx context.Context, event *model.Audi
 func (mr *MockAuditEventRepositoryMockRecorder) Insert(ctx, event any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MockAuditEventRepository)(nil).Insert), ctx, event)
+}
+
+// InsertWithTx mocks base method.
+func (m *MockAuditEventRepository) InsertWithTx(ctx context.Context, arg1 db.DB, event *model.AuditEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWithTx", ctx, arg1, event)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertWithTx indicates an expected call of InsertWithTx.
+func (mr *MockAuditEventRepositoryMockRecorder) InsertWithTx(ctx, arg1, event any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWithTx", reflect.TypeOf((*MockAuditEventRepository)(nil).InsertWithTx), ctx, arg1, event)
 }

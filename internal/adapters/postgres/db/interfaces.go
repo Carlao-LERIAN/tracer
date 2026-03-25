@@ -19,6 +19,23 @@ type DB interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
+// Tx defines the interface for database transactions.
+// This interface is satisfied by both *sql.Tx and dbresolver.Tx.
+// It extends DB with Commit and Rollback capabilities.
+type Tx interface {
+	DB
+	Commit() error
+	Rollback() error
+}
+
+// TxBeginner defines the interface for starting database transactions.
+// Satisfied by dbresolver.DB (from lib-commons PostgresConnection.GetDB()).
+// Used by ValidationService to start transactions for atomic operations
+// across validation, limits, and audit persistence.
+type TxBeginner interface {
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (Tx, error)
+}
+
 // Connection defines the interface for database connection providers.
 // This allows for easy mocking in tests while maintaining compatibility
 // with *libPostgres.PostgresConnection in production.

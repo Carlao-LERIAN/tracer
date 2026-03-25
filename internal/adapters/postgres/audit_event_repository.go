@@ -13,10 +13,12 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/internal/services/command"
@@ -75,15 +77,50 @@ func (r *AuditEventRepository) Insert(ctx context.Context, event *model.AuditEve
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
+	return r.insertInternal(ctx, db, event, logger, &span, "repository.audit_event.insert")
+}
+
+// InsertWithTx creates a new audit event record using the provided database connection.
+// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
+// enabling atomic operations with other database changes.
+func (r *AuditEventRepository) InsertWithTx(ctx context.Context, db pgdb.DB, event *model.AuditEvent) error {
+	if event == nil {
+		return errors.New("event cannot be nil")
+	}
+
+	if db == nil {
+		return pgdb.ErrNilConnection
+	}
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.audit_event.insert_with_tx")
+	defer span.End()
+
+	logger = logging.WithTrace(ctx, logger)
+
+	return r.insertInternal(ctx, db, event, logger, &span, "repository.audit_event.insert_with_tx")
+}
+
+// insertInternal contains the shared logic for Insert and InsertWithTx.
+// It performs marshaling, query building, and execution using the provided database connection.
+func (r *AuditEventRepository) insertInternal(
+	ctx context.Context,
+	db pgdb.DB,
+	event *model.AuditEvent,
+	logger libLog.Logger,
+	span *trace.Span,
+	operationName string,
+) error {
 	contextJSON, err := json.Marshal(event.Context)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to marshal context", err)
+		libOtel.HandleSpanError(span, "Failed to marshal context", err)
 		return fmt.Errorf("failed to marshal context: %w", err)
 	}
 
 	metadataJSON, err := json.Marshal(event.Metadata)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to marshal metadata", err)
+		libOtel.HandleSpanError(span, "Failed to marshal metadata", err)
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
@@ -124,14 +161,14 @@ func (r *AuditEventRepository) Insert(ctx context.Context, event *model.AuditEve
 	}
 
 	logger.WithFields(
-		"operation", "repository.audit_event.insert",
+		"operation", operationName,
 		"event.id", event.EventID.String(),
 		"event.type", string(event.EventType),
 	).Info("Inserting audit event record")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to insert audit event", err)
+		libOtel.HandleSpanError(span, "Failed to insert audit event", err)
 		return fmt.Errorf("failed to insert audit event: %w", err)
 	}
 

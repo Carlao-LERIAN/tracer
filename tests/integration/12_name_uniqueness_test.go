@@ -21,7 +21,7 @@ import (
 )
 
 // =============================================================================
-// T-004: Rules & Limits Name Uniqueness Tests
+// Rules & Limits Name Uniqueness Tests
 //
 // These tests verify:
 // 1. Creating a rule with a duplicate name in the same context returns HTTP 409 + TRC-0303
@@ -72,7 +72,7 @@ func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
-	// Use deterministic UUIDs for test reproducibility (12000+ range for T-004)
+	// Use deterministic UUIDs for test reproducibility (12000+ range)
 	contextID := testutil.MustDeterministicUUID(12001).String()
 	ruleName := "duplicate rule name test " + testutil.RandomSuffix()
 

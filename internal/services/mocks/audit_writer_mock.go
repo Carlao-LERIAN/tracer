@@ -12,6 +12,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	db "tracer/internal/adapters/postgres/db"
 	model "tracer/pkg/model"
 
 	uuid "github.com/google/uuid"
@@ -82,4 +83,18 @@ func (m *MockAuditWriter) RecordValidationEvent(ctx context.Context, validationI
 func (mr *MockAuditWriterMockRecorder) RecordValidationEvent(ctx, validationID, request, evalResult, responseContext, clientIP any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordValidationEvent", reflect.TypeOf((*MockAuditWriter)(nil).RecordValidationEvent), ctx, validationID, request, evalResult, responseContext, clientIP)
+}
+
+// RecordValidationEventWithTx mocks base method.
+func (m *MockAuditWriter) RecordValidationEventWithTx(ctx context.Context, arg1 db.DB, validationID uuid.UUID, request map[string]any, evalResult model.EvaluationResult, responseContext model.ValidationResponseContext, clientIP string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RecordValidationEventWithTx", ctx, arg1, validationID, request, evalResult, responseContext, clientIP)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecordValidationEventWithTx indicates an expected call of RecordValidationEventWithTx.
+func (mr *MockAuditWriterMockRecorder) RecordValidationEventWithTx(ctx, arg1, validationID, request, evalResult, responseContext, clientIP any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordValidationEventWithTx", reflect.TypeOf((*MockAuditWriter)(nil).RecordValidationEventWithTx), ctx, arg1, validationID, request, evalResult, responseContext, clientIP)
 }
