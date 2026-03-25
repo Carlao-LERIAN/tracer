@@ -61,8 +61,9 @@ func (c *RecordAuditEventCommand) RecordValidationEvent(
 }
 
 // RecordValidationEventWithTx records an audit event for a transaction validation using the provided database connection.
-// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),
-// enabling atomic operations with other database changes.
+// The db parameter accepts either a regular DB connection or a transaction (*sql.Tx via TxAdapter).
+// Atomicity with other database changes is only guaranteed when a transaction handle is passed;
+// a plain DB connection will execute the insert independently.
 // NOTE: evalResult is passed separately from responseContext to avoid embedding redundancy.
 // The decision is extracted from evalResult and stored in AuditEvent.Result field.
 func (c *RecordAuditEventCommand) RecordValidationEventWithTx(
