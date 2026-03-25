@@ -209,10 +209,10 @@ func CalculatePeriodKey(limitType LimitType, timestamp time.Time) (string, error
 // CalculateScopeKey computes a deterministic scope key for usage tracking.
 // Format: "prefix:uuid|prefix:uuid|..." ordered alphabetically by prefix.
 // Prefixes: acct (account), merch (merchant), port (portfolio), seg (segment).
-// Returns "global" for empty scopes.
+// Returns constant.GlobalScopeKey for empty scopes.
 func CalculateScopeKey(scope *Scope) string {
 	if scope == nil || scope.IsEmpty() {
-		return "global"
+		return constant.GlobalScopeKey
 	}
 
 	var parts []string

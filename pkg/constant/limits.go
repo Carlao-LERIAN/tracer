@@ -20,3 +20,6 @@ const MaxMetadataEntries = 50
 // MaxMetadataKeyLength defines the maximum length of a metadata key string
 // in context objects for validation requests.
 const MaxMetadataKeyLength = 64
+
+// GlobalScopeKey is the scope key used when a limit has no scopes defined.
+const GlobalScopeKey = "global"

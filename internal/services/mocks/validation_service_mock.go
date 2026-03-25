@@ -15,7 +15,6 @@ import (
 	db "tracer/internal/adapters/postgres/db"
 	model "tracer/pkg/model"
 
-	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -95,43 +94,4 @@ func (m *MockLimitChecker) CheckLimits(ctx context.Context, arg1 db.DB, input *m
 func (mr *MockLimitCheckerMockRecorder) CheckLimits(ctx, arg1, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckLimits", reflect.TypeOf((*MockLimitChecker)(nil).CheckLimits), ctx, arg1, input)
-}
-
-// MockTransactionValidationQueryRepository is a mock of TransactionValidationQueryRepository interface.
-type MockTransactionValidationQueryRepository struct {
-	ctrl     *gomock.Controller
-	recorder *MockTransactionValidationQueryRepositoryMockRecorder
-	isgomock struct{}
-}
-
-// MockTransactionValidationQueryRepositoryMockRecorder is the mock recorder for MockTransactionValidationQueryRepository.
-type MockTransactionValidationQueryRepositoryMockRecorder struct {
-	mock *MockTransactionValidationQueryRepository
-}
-
-// NewMockTransactionValidationQueryRepository creates a new mock instance.
-func NewMockTransactionValidationQueryRepository(ctrl *gomock.Controller) *MockTransactionValidationQueryRepository {
-	mock := &MockTransactionValidationQueryRepository{ctrl: ctrl}
-	mock.recorder = &MockTransactionValidationQueryRepositoryMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTransactionValidationQueryRepository) EXPECT() *MockTransactionValidationQueryRepositoryMockRecorder {
-	return m.recorder
-}
-
-// FindByRequestID mocks base method.
-func (m *MockTransactionValidationQueryRepository) FindByRequestID(ctx context.Context, requestID uuid.UUID) (*model.TransactionValidation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByRequestID", ctx, requestID)
-	ret0, _ := ret[0].(*model.TransactionValidation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindByRequestID indicates an expected call of FindByRequestID.
-func (mr *MockTransactionValidationQueryRepositoryMockRecorder) FindByRequestID(ctx, requestID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByRequestID", reflect.TypeOf((*MockTransactionValidationQueryRepository)(nil).FindByRequestID), ctx, requestID)
 }

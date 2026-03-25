@@ -27,9 +27,6 @@ import (
 	"tracer/pkg/model"
 )
 
-// GlobalScopeKey is the scope key used when a limit has no scopes defined.
-const GlobalScopeKey = "global"
-
 // calculateCounterExpiresAt calculates when a usage counter should expire based on limit type.
 // Returns nil for PER_TRANSACTION (no counter created) or when required dates are nil.
 // For DAILY/WEEKLY/MONTHLY: returns resetAt + CounterRetentionDays retention period.
@@ -125,6 +122,10 @@ func NewLimitChecker(limitRepo LimitRepository, usageCounterRepo UsageCounterRep
 //   - Does NOT perform compensating rollback on limit exceeded - caller MUST call tx.Rollback()
 //   - This enables the caller to atomically rollback ALL changes (counters, validation, audit)
 func (s *LimitCheckerService) CheckLimits(ctx context.Context, db pgdb.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error) {
+	if db == nil {
+		return nil, pgdb.ErrNilConnection
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.limit_checker.check_limits")
@@ -202,7 +203,7 @@ func (s *LimitCheckerService) checkLimitsInternal(
 	// Process each limit with atomic upsert (increment happens in DB)
 	usageDetails := make([]model.LimitUsageDetail, 0, len(limits))
 
-	var exceededLimitID *uuid.UUID
+	var exceededLimitIDs []uuid.UUID
 
 	for i := range limits {
 		limit := &limits[i]
@@ -222,21 +223,21 @@ func (s *LimitCheckerService) checkLimitsInternal(
 		usageDetails = append(usageDetails, *detail)
 
 		if exceeded {
-			// Limit exceeded - caller will do tx.Rollback() to atomically undo all changes
-			exceededLimitID = &limit.ID
-			break
+			exceededLimitIDs = append(exceededLimitIDs, limit.ID)
 		}
 	}
 
-	output := model.NewCheckLimitsOutput(exceededLimitID == nil, serverNow).WithLimitUsageDetails(usageDetails)
+	allowed := len(exceededLimitIDs) == 0
+	output := model.NewCheckLimitsOutput(allowed, serverNow).WithLimitUsageDetails(usageDetails)
 
-	if exceededLimitID != nil {
-		output = output.WithExceededLimits([]uuid.UUID{*exceededLimitID})
+	if !allowed {
+		output = output.WithExceededLimits(exceededLimitIDs)
 
 		logger.WithFields(
 			"operation", operationName,
-			"exceeded_limit_id", exceededLimitID.String(),
-		).Info("Limit exceeded")
+			"exceeded_limit_ids", exceededLimitIDs,
+			"exceeded_count", len(exceededLimitIDs),
+		).Info("Limits exceeded")
 	} else {
 		logger.WithFields(
 			"operation", operationName,
@@ -602,10 +603,10 @@ func scopeMatchesLimit(limitScopes []model.Scope, txScope *model.Scope) bool {
 // calculateScopeKeyFromScopes computes the scope key from a list of scopes based on the limit's scope, not the transaction's.
 // This prevents counter fragmentation when limits have different scope granularities.
 // Used for both CheckLimits and rollback operations.
-// Returns the first matching scope's key, or GlobalScopeKey if no scopes.
+// Returns the first matching scope's key, or constant.GlobalScopeKey if no scopes.
 func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) string {
 	if len(scopes) == 0 {
-		return GlobalScopeKey
+		return constant.GlobalScopeKey
 	}
 
 	// Find the first scope that matches the transaction
@@ -628,7 +629,7 @@ func calculateScopeKeyFromScopes(scopes []model.Scope, txScope *model.Scope) str
 // Each scope is wrapped in parentheses; multiple scopes (OR alternatives) are joined with " OR ".
 func formatScopeString(scopes []model.Scope) string {
 	if len(scopes) == 0 {
-		return GlobalScopeKey
+		return constant.GlobalScopeKey
 	}
 
 	var scopeGroups []string
@@ -666,7 +667,7 @@ func formatScopeString(scopes []model.Scope) string {
 	}
 
 	if len(scopeGroups) == 0 {
-		return GlobalScopeKey
+		return constant.GlobalScopeKey
 	}
 
 	return strings.Join(scopeGroups, " OR ")

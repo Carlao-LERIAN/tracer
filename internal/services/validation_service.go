@@ -65,12 +65,6 @@ type LimitChecker interface {
 	CheckLimits(ctx context.Context, db pgdb.DB, input *model.CheckLimitsInput) (*model.CheckLimitsOutput, error)
 }
 
-// TransactionValidationQueryRepository defines read operations for transaction validations.
-// Used for idempotency checks via FindByRequestID.
-type TransactionValidationQueryRepository interface {
-	FindByRequestID(ctx context.Context, requestID uuid.UUID) (*model.TransactionValidation, error)
-}
-
 // ValidationService orchestrates transaction validation.
 type ValidationService struct {
 	conn                           pgdb.TxBeginner
@@ -358,12 +352,14 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 // then persists validation and audit records outside the transaction (best-effort).
 // Used by DENY-by-limit and REVIEW paths.
 func (s *ValidationService) rollbackAndPersist(ctx context.Context, tx pgdb.Tx, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger, reason string) {
-	if rollbackErr := tx.Rollback(); rollbackErr != nil {
-		logger.WithFields(
-			"operation", "service.validation.orchestrate",
-			"request.id", req.RequestID,
-			"error", rollbackErr.Error(),
-		).Warn("Failed to rollback transaction for " + reason)
+	if tx != nil {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			logger.WithFields(
+				"operation", "service.validation.orchestrate",
+				"request.id", req.RequestID,
+				"error", rollbackErr.Error(),
+			).Warn("Failed to rollback transaction for " + reason)
+		}
 	}
 
 	s.persistTransactionValidation(ctx, req, resp, logger)
