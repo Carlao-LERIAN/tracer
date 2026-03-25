@@ -385,7 +385,17 @@ func (s *ValidationService) handleConcurrentDuplicate(ctx context.Context, err e
 	).Info("Concurrent duplicate detected - fetching cached response")
 
 	existing, findErr := s.transactionValidationQueryRepo.FindByRequestID(ctx, req.RequestID)
-	if findErr == nil && existing != nil {
+	if findErr != nil {
+		logger.WithFields(
+			"operation", "service.validation.orchestrate",
+			"request.id", req.RequestID,
+			"error", findErr.Error(),
+		).Warn("Failed to fetch cached response for concurrent duplicate")
+
+		return nil
+	}
+
+	if existing != nil {
 		return &ValidateResult{
 			Response:    existing.ToValidationResponse(),
 			IsDuplicate: true,

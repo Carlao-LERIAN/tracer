@@ -536,7 +536,7 @@ func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, db pgdb.
 	return r.getUsageForLimitsInternal(ctx, db, limitIDs, scopeKey, periodKey, logger, &span, "repository.usage_counter.get_usage_for_limits")
 }
 
-// getUsageForLimitsInternal contains the shared logic for GetUsageForLimits and GetUsageForLimits.
+// getUsageForLimitsInternal contains the shared query logic for GetUsageForLimits.
 // It performs query building and execution using the provided database connection.
 func (r *UsageCounterRepository) getUsageForLimitsInternal(
 	ctx context.Context,

@@ -244,6 +244,8 @@ func (r *TransactionValidationRepository) insertInternal(
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		if IsUniqueViolation(err) {
+			(*span).AddEvent("duplicate_request_id_detected")
+
 			return fmt.Errorf("%w: request_id %s", command.ErrDuplicateValidation, validation.RequestID)
 		}
 
