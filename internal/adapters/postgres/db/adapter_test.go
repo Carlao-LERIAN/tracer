@@ -23,11 +23,14 @@ type stubTx struct {
 // stubDB is a test double for dbresolver.DB that controls BeginTx behavior.
 type stubDB struct {
 	dbresolver.DB
-	tx  dbresolver.Tx
-	err error
+	tx           dbresolver.Tx
+	err          error
+	receivedOpts *sql.TxOptions
 }
 
-func (s *stubDB) BeginTx(_ context.Context, _ *sql.TxOptions) (dbresolver.Tx, error) {
+func (s *stubDB) BeginTx(_ context.Context, opts *sql.TxOptions) (dbresolver.Tx, error) {
+	s.receivedOpts = opts
+
 	return s.tx, s.err
 }
 
@@ -68,4 +71,16 @@ func TestTxBeginnerAdapter_BeginTx_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedTx, tx)
+}
+
+func TestTxBeginnerAdapter_BeginTx_ForwardsOptions(t *testing.T) {
+	stub := &stubDB{tx: &stubTx{}}
+	adapter := NewTxBeginnerAdapter(stub)
+
+	opts := &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true}
+	tx, err := adapter.BeginTx(context.Background(), opts)
+
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+	assert.Equal(t, opts, stub.receivedOpts)
 }
