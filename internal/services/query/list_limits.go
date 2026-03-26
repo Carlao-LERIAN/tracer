@@ -148,9 +148,12 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 		return nil, err
 	}
 
-	// Mark span as successful
+	// Record result attributes on span
 	if attrErr := libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_result", map[string]any{
 		"service.success": true,
+		"limits_count":    len(result.Limits),
+		"has_more":        result.HasMore,
+		"has_cursor":      result.NextCursor != "",
 	}, nil); attrErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", attrErr)
 	}
@@ -160,16 +163,6 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 		libLog.Int("result.count", len(result.Limits)),
 		libLog.Bool("result.has_more", result.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Limits listed successfully")
-
-	// Add span attributes for result (consistent with list_rules.go)
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_result", map[string]any{
-		"limits_count": len(result.Limits),
-		"has_more":     result.HasMore,
-		"has_cursor":   result.NextCursor != "",
-	}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set result span attributes", err)
-	}
 
 	return result, nil
 }

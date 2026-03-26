@@ -65,15 +65,20 @@ func (s *TransactionValidationService) GetTransactionValidation(ctx context.Cont
 
 	traceLogger := logging.WithTrace(ctx, logger)
 
-	// Check for context cancellation before query execution
+	// Check for context cancellation/timeout before query execution
 	if err := ctx.Err(); err != nil {
-		libOtel.HandleSpanError(span, "Context cancelled", err)
+		spanMsg := "Context cancelled"
+		if errors.Is(err, context.DeadlineExceeded) {
+			spanMsg = "Context deadline exceeded"
+		}
+
+		libOtel.HandleSpanError(span, spanMsg, err)
 
 		traceLogger.With(
 			libLog.String("operation", "service.transaction_validation.get"),
 			libLog.String("validation.id", id.String()),
 			libLog.String("error.message", err.Error()),
-		).Log(ctx, libLog.LevelError, "Context cancelled before query execution")
+		).Log(ctx, libLog.LevelError, spanMsg+" before query execution")
 
 		return nil, fmt.Errorf("get transaction validation: %w", err)
 	}
@@ -128,13 +133,20 @@ func (s *TransactionValidationService) ListTransactionValidations(ctx context.Co
 
 	result, err := s.listQuery.Execute(ctx, filters)
 	if err != nil {
-		if errors.Is(err, constant.ErrInvalidTransactionValidationFilters) || errors.Is(err, constant.ErrInvalidCursor) {
+		if errors.Is(err, constant.ErrInvalidTransactionValidationFilters) {
 			libOtel.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation filters", err)
 
 			traceLogger.With(
 				libLog.String("operation", "service.transaction_validation.list"),
 				libLog.String("error.message", err.Error()),
 			).Log(ctx, libLog.LevelWarn, "Invalid filters provided")
+		} else if errors.Is(err, constant.ErrInvalidCursor) {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Invalid pagination cursor", err)
+
+			traceLogger.With(
+				libLog.String("operation", "service.transaction_validation.list"),
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Invalid cursor provided")
 		} else {
 			libOtel.HandleSpanError(span, "Failed to list transaction validations", err)
 
