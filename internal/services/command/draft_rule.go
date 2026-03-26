@@ -60,10 +60,12 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 
 	logger = logging.WithTrace(ctx, logger)
 
-	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "draft_input", map[string]any{
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "draft_input", map[string]any{
 		"rule_id":   ruleID.String(),
 		"operation": "draft",
-	}, nil)
+	}, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
+	}
 
 	logger.With(
 		libLog.String("operation", "service.rule.draft"),

@@ -236,7 +236,7 @@ func (r *TransactionValidationRepository) insertInternal(
 	}
 
 	logger.With(
-		libLog.Any("operation", operationName),
+		libLog.String("operation", operationName),
 		libLog.String("validation.id", validation.ID.String()),
 		libLog.String("validation.decision", string(validation.Decision)),
 	).Log(ctx, libLog.LevelInfo, "Inserting transaction validation record")
@@ -452,8 +452,8 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 
 	logger.With(
 		libLog.String("operation", "repository.transaction_validation.list"),
-		libLog.Any("filter.limit", filters.Limit),
-		libLog.Any("filter.has_cursor", filters.Cursor != ""),
+		libLog.Int("filter.limit", filters.Limit),
+		libLog.Bool("filter.has_cursor", filters.Cursor != ""),
 	).Log(ctx, libLog.LevelInfo, "Listing transaction validations")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
@@ -514,7 +514,7 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 	logger.With(
 		libLog.String("operation", "repository.transaction_validation.list"),
 		libLog.Int("result.count", len(validations)),
-		libLog.Any("result.has_more", hasMore),
+		libLog.Bool("result.has_more", hasMore),
 	).Log(ctx, libLog.LevelInfo, "Listed transaction validations")
 
 	return result, nil

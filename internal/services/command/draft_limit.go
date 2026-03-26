@@ -63,7 +63,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if ctx.Err() != nil {
 		libOpentelemetry.HandleSpanError(span, "Context cancelled", ctx.Err())
 		logger.With(
-			libLog.Any("operation", opDraftLimit),
+			libLog.String("operation", opDraftLimit),
 		).Log(ctx, libLog.LevelWarn, "Context cancelled")
 
 		return nil, ctx.Err()
@@ -73,19 +73,21 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if id == uuid.Nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid input: nil UUID", constant.ErrLimitInvalidID)
 		logger.With(
-			libLog.Any("operation", opDraftLimit),
+			libLog.String("operation", opDraftLimit),
 		).Log(ctx, libLog.LevelWarn, "Invalid input: nil UUID")
 
 		return nil, constant.ErrLimitInvalidID
 	}
 
-	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "draft_input", map[string]any{
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "draft_input", map[string]any{
 		"limit_id":  id.String(),
 		"operation": "draft",
-	}, nil)
+	}, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
+	}
 
 	logger.With(
-		libLog.Any("operation", opDraftLimit),
+		libLog.String("operation", opDraftLimit),
 		libLog.String("limit.id", id.String()),
 	).Log(ctx, libLog.LevelInfo, "Transitioning limit to draft")
 
@@ -94,7 +96,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 		if errors.Is(err, constant.ErrLimitNotFound) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
 			logger.With(
-				libLog.Any("operation", opDraftLimit),
+				libLog.String("operation", opDraftLimit),
 				libLog.String("limit.id", id.String()),
 			).Log(ctx, libLog.LevelWarn, "Limit not found")
 
@@ -103,7 +105,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 
 		libOpentelemetry.HandleSpanError(span, "Failed to get limit from repository", err)
 		logger.With(
-			libLog.Any("operation", opDraftLimit),
+			libLog.String("operation", opDraftLimit),
 			libLog.String("limit.id", id.String()),
 			libLog.String("error.message", err.Error()),
 		).Log(ctx, libLog.LevelError, "Failed to get limit")
@@ -115,7 +117,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if limit == nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", constant.ErrLimitNotFound)
 		logger.With(
-			libLog.Any("operation", opDraftLimit),
+			libLog.String("operation", opDraftLimit),
 			libLog.String("limit.id", id.String()),
 		).Log(ctx, libLog.LevelWarn, "Limit not found")
 
@@ -125,7 +127,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	// Idempotency: if already draft, return the limit (no-op)
 	if limit.Status == model.LimitStatusDraft {
 		logger.With(
-			libLog.Any("operation", opDraftLimit),
+			libLog.String("operation", opDraftLimit),
 			libLog.String("limit.id", id.String()),
 		).Log(ctx, libLog.LevelInfo, "Limit already in draft (idempotent no-op)")
 
@@ -142,7 +144,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if err := limit.SetStatus(model.LimitStatusDraft, c.clock.Now()); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
 		logger.With(
-			libLog.Any("operation", opDraftLimit),
+			libLog.String("operation", opDraftLimit),
 			libLog.String("limit.id", id.String()),
 			libLog.String("limit.status_from", string(originalStatus)),
 			libLog.String("limit.status_to", "DRAFT"),
@@ -154,7 +156,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	if err := c.repo.UpdateStatus(ctx, id, model.LimitStatusDraft, limit.UpdatedAt); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update limit status", err)
 		logger.With(
-			libLog.Any("operation", opDraftLimit),
+			libLog.String("operation", opDraftLimit),
 			libLog.String("limit.id", id.String()),
 			libLog.String("error.message", err.Error()),
 		).Log(ctx, libLog.LevelError, "Failed to update limit status")
@@ -163,7 +165,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 	}
 
 	logger.With(
-		libLog.Any("operation", opDraftLimit),
+		libLog.String("operation", opDraftLimit),
 		libLog.String("limit.id", id.String()),
 		libLog.String("limit.status", string(limit.Status)),
 	).Log(ctx, libLog.LevelInfo, "Limit transitioned to draft successfully")
@@ -184,7 +186,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*model.L
 			clientIP,
 		); err != nil {
 			logger.With(
-				libLog.Any("operation", opDraftLimit+".audit"),
+				libLog.String("operation", opDraftLimit+".audit"),
 				libLog.String("limit.id", limit.ID.String()),
 				libLog.String("error", err.Error()),
 			).Log(ctx, libLog.LevelWarn, "Failed to record audit event")

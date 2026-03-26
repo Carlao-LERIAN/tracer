@@ -145,7 +145,7 @@ func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*m
 		libLog.Any("current_usage", snapshot.CurrentUsage),
 		libLog.Any("limit_amount", snapshot.LimitAmount),
 		libLog.Any("utilization_percent", snapshot.UtilizationPercent),
-		libLog.Any("near_limit", snapshot.NearLimit),
+		libLog.Bool("near_limit", snapshot.NearLimit),
 	).Log(ctx, libLog.LevelInfo, "Retrieved usage snapshot")
 
 	return snapshot, nil

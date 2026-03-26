@@ -96,7 +96,7 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 
 	logger.With(
 		libLog.String("operation", "handler.limit.create"),
-		libLog.Any("limit.name", input.Name),
+		libLog.String("limit.name", input.Name),
 	).Log(ctx, libLog.LevelInfo, "Creating limit")
 
 	err := libOpentelemetry.SetSpanAttributesFromValue(span, "limit_input", input, nil)
@@ -168,7 +168,7 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.limit.get"),
 		libLog.String("limit.id", result.ID.String()),
-		libLog.Any("limit.name", result.Name),
+		libLog.String("limit.name", result.Name),
 	).Log(ctx, libLog.LevelInfo, "Limit retrieved")
 
 	return pkgHTTP.OK(c, result)
@@ -237,10 +237,10 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.limit.list"),
 		libLog.Any("list.limit", input.Limit),
-		libLog.Any("list.cursor", input.Cursor),
+		libLog.String("list.cursor", input.Cursor),
 		libLog.Any("list.name", input.Name),
-		libLog.Any("list.sort_by", input.SortBy),
-		libLog.Any("list.sort_order", input.SortOrder),
+		libLog.String("list.sort_by", input.SortBy),
+		libLog.String("list.sort_order", input.SortOrder),
 	).Log(ctx, libLog.LevelInfo, "Listing limits")
 
 	// Convert to service filter
@@ -257,7 +257,7 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.limit.list"),
 		libLog.Int("list.count", len(response.Limits)),
-		libLog.Any("list.has_more", response.HasMore),
+		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Limits listed")
 
 	return pkgHTTP.OK(c, response)

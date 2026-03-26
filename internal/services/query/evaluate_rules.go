@@ -129,7 +129,7 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 		logger.With(
 			libLog.String("operation", "service.rules.evaluate"),
 			libLog.Int("rules.original_count", len(rules)),
-			libLog.Any("rules.truncated_to", q.config.MaxRulesPerRequest),
+			libLog.Int("rules.truncated_to", q.config.MaxRulesPerRequest),
 		).Log(ctx, libLog.LevelWarn, "Truncating rules due to max limit")
 
 		rules = rules[:q.config.MaxRulesPerRequest]
@@ -184,8 +184,8 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 		libLog.String("decision", result.Decision.String()),
 		libLog.Int("rules.matched_count", len(result.MatchedRuleIDs)),
 		libLog.Int("rules.evaluated_count", len(result.EvaluatedRuleIDs)),
-		libLog.Any("rules.total_loaded", originalCount),
-		libLog.Any("rules.truncated", truncated),
+		libLog.Int("rules.total_loaded", originalCount),
+		libLog.Bool("rules.truncated", truncated),
 	).Log(ctx, libLog.LevelInfo, "Evaluation complete")
 
 	return result.WithTruncationInfo(originalCount, truncated), nil

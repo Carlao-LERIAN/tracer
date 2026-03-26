@@ -166,7 +166,7 @@ func (s *LimitCheckerService) checkLimitsInternal(
 		span.RecordError(err)
 
 		logger.With(
-			libLog.Any("operation", operationName),
+			libLog.String("operation", operationName),
 			libLog.String("error", err.Error()),
 		).Log(ctx, libLog.LevelWarn, "Failed to set span attributes for input")
 	}
@@ -183,8 +183,8 @@ func (s *LimitCheckerService) checkLimitsInternal(
 
 	if len(limits) == 0 {
 		logger.With(
-			libLog.Any("operation", operationName),
-			libLog.Any("currency", input.Currency),
+			libLog.String("operation", operationName),
+			libLog.String("currency", input.Currency),
 		).Log(ctx, libLog.LevelInfo, "No active limits found for criteria")
 
 		output := model.NewCheckLimitsOutput(true, serverNow)
@@ -193,7 +193,7 @@ func (s *LimitCheckerService) checkLimitsInternal(
 	}
 
 	logger.With(
-		libLog.Any("operation", operationName),
+		libLog.String("operation", operationName),
 		libLog.Int("applicable_limits_count", len(limits)),
 	).Log(ctx, libLog.LevelInfo, "Found applicable limits")
 
@@ -234,13 +234,13 @@ func (s *LimitCheckerService) checkLimitsInternal(
 		output = output.WithExceededLimits(exceededLimitIDs)
 
 		logger.With(
-			libLog.Any("operation", operationName),
+			libLog.String("operation", operationName),
 			libLog.Any("exceeded_limit_ids", exceededLimitIDs),
 			libLog.Int("exceeded_count", len(exceededLimitIDs)),
 		).Log(ctx, libLog.LevelInfo, "Limits exceeded")
 	} else {
 		logger.With(
-			libLog.Any("operation", operationName),
+			libLog.String("operation", operationName),
 			libLog.Int("checked_count", len(usageDetails)),
 		).Log(ctx, libLog.LevelInfo, "All limits passed")
 	}
@@ -364,7 +364,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 		logger.With(
 			libLog.String("operation", "service.limit_checker.process_limit_atomic"),
 			libLog.String("limit_id", limit.ID.String()),
-			libLog.Any("limit_name", limit.Name),
+			libLog.String("limit_name", limit.Name),
 			libLog.String("error", err.Error()),
 		).Log(ctx, libLog.LevelWarn, "Failed to set span attributes for limit")
 	}
@@ -556,7 +556,7 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 		libLog.String("operation", "service.limit_checker.get_applicable_limits"),
 		libLog.Int("limits_for_currency", len(allLimits)),
 		libLog.Int("applicable_limits", len(applicable)),
-		libLog.Any("currency", input.Currency),
+		libLog.String("currency", input.Currency),
 	).Log(ctx, libLog.LevelInfo, "Filtered applicable limits")
 
 	return applicable, nil

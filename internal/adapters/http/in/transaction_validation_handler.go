@@ -166,9 +166,9 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 	logger.With(
 		libLog.String("operation", "handler.transaction-validation.list"),
 		libLog.Any("list.limit", input.Limit),
-		libLog.Any("list.cursor", input.Cursor),
-		libLog.Any("list.sort_by", input.SortBy),
-		libLog.Any("list.sort_order", input.SortOrder),
+		libLog.String("list.cursor", input.Cursor),
+		libLog.String("list.sort_by", input.SortBy),
+		libLog.String("list.sort_order", input.SortOrder),
 	).Log(ctx, libLog.LevelInfo, "Listing transaction validation records")
 
 	// Convert to service filter
@@ -190,7 +190,7 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 	logger.With(
 		libLog.String("operation", "handler.transaction-validation.list"),
 		libLog.Int("list.count", len(response.TransactionValidations)),
-		libLog.Any("list.has_more", response.HasMore),
+		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Transaction validation records listed")
 
 	return pkgHTTP.OK(c, response)

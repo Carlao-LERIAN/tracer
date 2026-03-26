@@ -107,7 +107,7 @@ func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
 	logger.With(
 		libLog.String("operation", "repository.limit.create"),
 		libLog.String("limit.id", lmt.ID.String()),
-		libLog.Any("limit.name", lmt.Name),
+		libLog.String("limit.name", lmt.Name),
 	).Log(ctx, libLog.LevelInfo, "Creating limit")
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
@@ -239,8 +239,8 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 
 	logger.With(
 		libLog.String("operation", "repository.limit.list"),
-		libLog.Any("filter.limit", filters.Limit),
-		libLog.Any("filter.has_cursor", filters.Cursor != ""),
+		libLog.Int("filter.limit", filters.Limit),
+		libLog.Bool("filter.has_cursor", filters.Cursor != ""),
 	).Log(ctx, libLog.LevelInfo, "Listing limits")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
@@ -297,7 +297,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 	logger.With(
 		libLog.String("operation", "repository.limit.list"),
 		libLog.Int("result.count", len(limits)),
-		libLog.Any("result.has_more", hasMore),
+		libLog.Bool("result.has_more", hasMore),
 	).Log(ctx, libLog.LevelInfo, "Listed limits")
 
 	return result, nil

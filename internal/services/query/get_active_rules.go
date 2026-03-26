@@ -72,7 +72,7 @@ func (q *GetActiveRulesQuery) Execute(ctx context.Context, txScope *model.Scope)
 
 	logger.With(
 		libLog.String("operation", "service.rules.get_active"),
-		libLog.Any("scope.provided", txScope != nil),
+		libLog.Bool("scope.provided", txScope != nil),
 	).Log(ctx, libLog.LevelInfo, "Getting active rules")
 
 	rules, err := q.repo.GetActiveRules(ctx, txScope)

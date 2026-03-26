@@ -115,9 +115,9 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.audit_event.list"),
 		libLog.Any("list.limit", input.Limit),
-		libLog.Any("list.cursor", input.Cursor),
-		libLog.Any("list.sort_by", input.SortBy),
-		libLog.Any("list.sort_order", input.SortOrder),
+		libLog.String("list.cursor", input.Cursor),
+		libLog.String("list.sort_by", input.SortBy),
+		libLog.String("list.sort_order", input.SortOrder),
 	).Log(ctx, libLog.LevelInfo, "Listing audit events")
 
 	// Convert to service filters
@@ -148,7 +148,7 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.audit_event.list"),
 		libLog.Int("list.count", len(response.AuditEvents)),
-		libLog.Any("list.has_more", response.HasMore),
+		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Audit events listed")
 
 	return pkgHTTP.OK(c, response)
@@ -253,7 +253,7 @@ func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
 
 	logger.With(
 		libLog.String("operation", "handler.audit_event.verify_chain"),
-		libLog.Any("is_valid", result.IsValid),
+		libLog.Bool("is_valid", result.IsValid),
 		libLog.Any("total_checked", result.TotalChecked),
 	).Log(ctx, libLog.LevelInfo, "Hash chain verification completed")
 

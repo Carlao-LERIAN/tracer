@@ -116,8 +116,8 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 	logger.With(
 		libLog.String("operation", "repository.usage_counter.get_or_create_for_update"),
 		libLog.String("limit_id", limitID.String()),
-		libLog.Any("scope_key", scopeKey),
-		libLog.Any("period_key", periodKey),
+		libLog.String("scope_key", scopeKey),
+		libLog.String("period_key", periodKey),
 	).Log(ctx, libLog.LevelInfo, "Getting or creating usage counter with lock")
 
 	// Try to get existing counter with FOR UPDATE lock
@@ -376,7 +376,7 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 	// This is MANDATORY because the INSERT path has no WHERE guard.
 	if amount.GreaterThan(maxAmount) {
 		logger.With(
-			libLog.Any("operation", operationName),
+			libLog.String("operation", operationName),
 			libLog.String("amount", amount.String()),
 			libLog.String("max_amount", maxAmount.String()),
 			libLog.String("limit_id", limitID.String()),
@@ -424,10 +424,10 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 		// WHERE guard failed: current_usage + amount > maxAmount
 		// The CTE attempt returned no rows, so COALESCE returned the old current_usage
 		logger.With(
-			libLog.Any("operation", operationName),
+			libLog.String("operation", operationName),
 			libLog.String("limit_id", limitID.String()),
-			libLog.Any("scope_key", scopeKey),
-			libLog.Any("period_key", periodKey),
+			libLog.String("scope_key", scopeKey),
+			libLog.String("period_key", periodKey),
 			libLog.String("current_usage", currentUsage.String()),
 			libLog.String("amount", amount.String()),
 			libLog.String("max_amount", maxAmount.String()),
@@ -439,10 +439,10 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 
 	// Success: counter was incremented
 	logger.With(
-		libLog.Any("operation", operationName),
+		libLog.String("operation", operationName),
 		libLog.String("limit_id", limitID.String()),
-		libLog.Any("scope_key", scopeKey),
-		libLog.Any("period_key", periodKey),
+		libLog.String("scope_key", scopeKey),
+		libLog.String("period_key", periodKey),
 		libLog.String("new_usage", currentUsage.String()),
 	).Log(ctx, libLog.LevelInfo, "Upsert and increment completed")
 
@@ -563,10 +563,10 @@ func (r *UsageCounterRepository) getUsageForLimitsInternal(
 	}
 
 	logger.With(
-		libLog.Any("operation", operationName),
+		libLog.String("operation", operationName),
 		libLog.Int("limit_ids_count", len(limitIDs)),
-		libLog.Any("scope_key", scopeKey),
-		libLog.Any("period_key", periodKey),
+		libLog.String("scope_key", scopeKey),
+		libLog.String("period_key", periodKey),
 	).Log(ctx, libLog.LevelInfo, "Getting usage for limits")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
@@ -597,7 +597,7 @@ func (r *UsageCounterRepository) getUsageForLimitsInternal(
 	}
 
 	logger.With(
-		libLog.Any("operation", operationName),
+		libLog.String("operation", operationName),
 		libLog.Int("found_count", len(result)),
 	).Log(ctx, libLog.LevelInfo, "Retrieved usage for limits")
 
@@ -679,7 +679,7 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 	logger.With(
 		libLog.String("operation", "repository.usage_counter.delete_expired_counters_by_expires_at"),
 		libLog.String("now", now.Format(time.RFC3339)),
-		libLog.Any("batch_size", r.deleteBatchSize),
+		libLog.Int("batch_size", r.deleteBatchSize),
 	).Log(ctx, libLog.LevelInfo, "Deleting expired usage counters by expires_at in batches")
 
 	var totalDeleted int64

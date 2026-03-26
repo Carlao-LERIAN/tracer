@@ -101,10 +101,10 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 
 	logger.With(
 		libLog.String("operation", "service.limit.create"),
-		libLog.Any("limit.name", normalizedInput.Name),
+		libLog.String("limit.name", normalizedInput.Name),
 		libLog.String("limit.type", string(normalizedInput.LimitType)),
 		libLog.Any("limit.amount", normalizedInput.MaxAmount),
-		libLog.Any("limit.currency", normalizedInput.Currency),
+		libLog.String("limit.currency", normalizedInput.Currency),
 	).Log(ctx, libLog.LevelInfo, "Creating limit")
 
 	err := libOpentelemetry.SetSpanAttributesFromValue(span, "create_limit_input", map[string]any{
@@ -241,7 +241,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	logger.With(
 		libLog.String("operation", "service.limit.create"),
 		libLog.String("limit.id", limit.ID.String()),
-		libLog.Any("limit.name", limit.Name),
+		libLog.String("limit.name", limit.Name),
 		libLog.String("limit.status", string(limit.Status)),
 	).Log(ctx, libLog.LevelInfo, "Limit created successfully")
 

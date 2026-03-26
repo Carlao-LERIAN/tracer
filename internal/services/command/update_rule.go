@@ -143,7 +143,7 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 	logger.With(
 		libLog.String("operation", "service.rule.update"),
 		libLog.String("rule.id", result.ID.String()),
-		libLog.Any("rule.name", result.Name),
+		libLog.String("rule.name", result.Name),
 	).Log(ctx, libLog.LevelInfo, "Rule updated successfully")
 
 	c.recordAuditEvent(ctx, logger, result, beforeState)

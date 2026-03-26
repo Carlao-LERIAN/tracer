@@ -93,7 +93,7 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 
 	logger.With(
 		libLog.String("operation", "handler.rule.create"),
-		libLog.Any("rule.name", input.Name),
+		libLog.String("rule.name", input.Name),
 	).Log(ctx, libLog.LevelInfo, "Creating rule")
 
 	err := libOpentelemetry.SetSpanAttributesFromValue(span, "rule_input", input, nil)
@@ -248,7 +248,7 @@ func (h *Handler) GetRule(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.rule.get"),
 		libLog.String("rule.id", result.ID.String()),
-		libLog.Any("rule.name", result.Name),
+		libLog.String("rule.name", result.Name),
 	).Log(ctx, libLog.LevelInfo, "Rule retrieved")
 
 	return pkgHTTP.OK(c, result)
@@ -316,9 +316,9 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.rule.list"),
 		libLog.Any("list.limit", input.Limit),
-		libLog.Any("list.cursor", input.Cursor),
-		libLog.Any("list.sort_by", input.SortBy),
-		libLog.Any("list.sort_order", input.SortOrder),
+		libLog.String("list.cursor", input.Cursor),
+		libLog.String("list.sort_by", input.SortBy),
+		libLog.String("list.sort_order", input.SortOrder),
 	).Log(ctx, libLog.LevelInfo, "Listing rules")
 
 	// Convert to service filter
@@ -335,7 +335,7 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 	logger.With(
 		libLog.String("operation", "handler.rule.list"),
 		libLog.Int("list.count", len(response.Rules)),
-		libLog.Any("list.has_more", response.HasMore),
+		libLog.Bool("list.has_more", response.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Rules listed")
 
 	return pkgHTTP.OK(c, response)

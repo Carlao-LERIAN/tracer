@@ -303,13 +303,15 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		}
 	}
 
-	_ = libOtel.SetSpanAttributesFromValue(span, "sync_result", map[string]any{
+	if err := libOtel.SetSpanAttributesFromValue(span, "sync_result", map[string]any{
 		"new_count":      len(changes.New),
 		"updated_count":  len(changes.Updated),
 		"deleted_count":  len(changes.Deleted),
 		"compile_errors": compileErrors,
 		"cache_size":     w.cache.Size(),
-	}, nil)
+	}, nil); err != nil {
+		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
+	}
 }
 
 // emitSuccessMetrics records metrics for a successful sync cycle.

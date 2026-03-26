@@ -91,7 +91,7 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 		logger.With(
 			libLog.String("operation", "handler.validations.validate"),
 			libLog.Int("payload_size", len(c.Body())),
-			libLog.Any("max_size", maxPayloadSize),
+			libLog.Int("max_size", maxPayloadSize),
 		).Log(ctx, libLog.LevelWarn, "Payload too large")
 
 		libOpentelemetry.HandleSpanError(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
@@ -134,7 +134,7 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 		libLog.String("operation", "handler.validations.validate"),
 		libLog.String("request.id", request.RequestID.String()),
 		libLog.Any("request.amount", request.Amount),
-		libLog.Any("request.currency", request.Currency),
+		libLog.String("request.currency", request.Currency),
 		libLog.String("request.transaction_type", string(request.TransactionType)),
 	).Log(ctx, libLog.LevelInfo, "Processing validation request")
 
@@ -159,7 +159,7 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 		libLog.String("request.id", request.RequestID.String()),
 		libLog.String("decision", string(result.Response.Decision)),
 		libLog.Any("processing_time_ms", result.Response.ProcessingTimeMs),
-		libLog.Any("is_duplicate", result.IsDuplicate),
+		libLog.Bool("is_duplicate", result.IsDuplicate),
 	).Log(ctx, libLog.LevelInfo, "Validation completed")
 
 	// Return HTTP 201 for new requests, HTTP 200 for duplicate (idempotent) requests (DD-9)

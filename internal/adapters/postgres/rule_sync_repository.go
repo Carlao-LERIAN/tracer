@@ -32,7 +32,7 @@ type RuleSyncRepository struct {
 // NewRuleSyncRepository creates a new RuleSyncRepository.
 func NewRuleSyncRepository(conn *libPostgres.Client) *RuleSyncRepository {
 	return &RuleSyncRepository{
-		conn: &postgresConnectionAdapter{conn: conn},
+		conn: pgdb.NewPostgresConnectionAdapter(conn),
 	}
 }
 

@@ -76,12 +76,12 @@ func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *
 	// Log the filters AFTER SetDefaults() so we log the actual values being used
 	logger.With(
 		libLog.String("operation", "service.transaction-validation.list"),
-		libLog.Any("filters.limit", filters.Limit),
-		libLog.Any("filters.cursor", filters.Cursor),
-		libLog.Any("filters.sort_by", filters.SortBy),
-		libLog.Any("filters.sort_order", filters.SortOrder),
-		libLog.Any("filters.start_date", formatTimeOrNotSet(filters.StartDate)),
-		libLog.Any("filters.end_date", formatTimeOrNotSet(filters.EndDate)),
+		libLog.Int("filters.limit", filters.Limit),
+		libLog.String("filters.cursor", filters.Cursor),
+		libLog.String("filters.sort_by", filters.SortBy),
+		libLog.String("filters.sort_order", filters.SortOrder),
+		libLog.String("filters.start_date", formatTimeOrNotSet(filters.StartDate)),
+		libLog.String("filters.end_date", formatTimeOrNotSet(filters.EndDate)),
 	).Log(ctx, libLog.LevelInfo, "Listing transaction validation records")
 
 	// Get transaction validation records with cursor-based pagination
@@ -102,7 +102,7 @@ func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *
 	logger.With(
 		libLog.String("operation", "service.transaction-validation.list"),
 		libLog.Int("list.count", len(result.TransactionValidations)),
-		libLog.Any("list.has_more", result.HasMore),
+		libLog.Bool("list.has_more", result.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Transaction validation records listed")
 
 	return result, nil

@@ -72,7 +72,7 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 
 	// Validate filter values after defaults are applied
 	if err := filter.Validate(); err != nil {
-		_ = libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_filter", map[string]any{
+		if attrErr := libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_filter", map[string]any{
 			"limit":           filter.Limit,
 			"has_cursor":      filter.Cursor != "",
 			"sort_by":         filter.SortBy,
@@ -80,16 +80,18 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 			"status":          filterStatus,
 			"limit_type":      filterLimitType,
 			"service.success": false,
-		}, nil)
+		}, nil); attrErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", attrErr)
+		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filter", err)
 		logger.With(
 			libLog.String("operation", "service.limit.list"),
 			libLog.String("error.message", err.Error()),
-			libLog.Any("filter.status", filterStatus),
-			libLog.Any("filter.limit_type", filterLimitType),
-			libLog.Any("filter.sort_by", filter.SortBy),
-			libLog.Any("filter.sort_order", filter.SortOrder),
+			libLog.String("filter.status", filterStatus),
+			libLog.String("filter.limit_type", filterLimitType),
+			libLog.String("filter.sort_by", filter.SortBy),
+			libLog.String("filter.sort_order", filter.SortOrder),
 		).Log(ctx, libLog.LevelWarn, "Invalid filter provided")
 
 		return nil, err
@@ -97,10 +99,10 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 
 	logger.With(
 		libLog.String("operation", "service.limit.list"),
-		libLog.Any("filter.limit", filter.Limit),
-		libLog.Any("filter.has_cursor", filter.Cursor != ""),
-		libLog.Any("filter.sort_by", filter.SortBy),
-		libLog.Any("filter.sort_order", filter.SortOrder),
+		libLog.Int("filter.limit", filter.Limit),
+		libLog.Bool("filter.has_cursor", filter.Cursor != ""),
+		libLog.String("filter.sort_by", filter.SortBy),
+		libLog.String("filter.sort_order", filter.SortOrder),
 	).Log(ctx, libLog.LevelInfo, "Listing limits")
 
 	// Check context cancellation before repository call
@@ -151,7 +153,7 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 	logger.With(
 		libLog.String("operation", "service.limit.list"),
 		libLog.Int("result.count", len(result.Limits)),
-		libLog.Any("result.has_more", result.HasMore),
+		libLog.Bool("result.has_more", result.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Limits listed successfully")
 
 	// Add span attributes for result (consistent with list_rules.go)

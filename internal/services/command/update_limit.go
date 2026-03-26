@@ -99,13 +99,15 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 
 	normalizedInput := c.normalizeInput(input)
 
-	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "update_limit_input", map[string]any{
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "update_limit_input", map[string]any{
 		"limit_id":        id.String(),
 		"has_name":        normalizedInput.Name != nil,
 		"has_max_amount":  normalizedInput.MaxAmount != nil,
 		"has_description": normalizedInput.Description != nil,
 		"has_scopes":      normalizedInput.Scopes != nil,
-	}, nil)
+	}, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
+	}
 
 	if ctx.Err() != nil {
 		libOpentelemetry.HandleSpanError(span, "Context cancelled", ctx.Err())
@@ -212,7 +214,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 	logger.With(
 		libLog.String("operation", "service.limit.update"),
 		libLog.String("limit.id", limit.ID.String()),
-		libLog.Any("limit.name", limit.Name),
+		libLog.String("limit.name", limit.Name),
 	).Log(ctx, libLog.LevelInfo, "Limit updated successfully")
 
 	c.recordAudit(ctx, logger, limit, beforeState)

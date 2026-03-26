@@ -69,10 +69,10 @@ func (q *ListRulesQuery) Execute(ctx context.Context, filter *model.ListRulesFil
 
 	logger.With(
 		libLog.String("operation", "service.rule.list"),
-		libLog.Any("list.limit", normalizedFilter.Limit),
-		libLog.Any("list.cursor", normalizedFilter.Cursor),
-		libLog.Any("list.sort_by", normalizedFilter.SortBy),
-		libLog.Any("list.sort_order", normalizedFilter.SortOrder),
+		libLog.Int("list.limit", normalizedFilter.Limit),
+		libLog.String("list.cursor", normalizedFilter.Cursor),
+		libLog.String("list.sort_by", normalizedFilter.SortBy),
+		libLog.String("list.sort_order", normalizedFilter.SortOrder),
 	).Log(ctx, libLog.LevelInfo, "Listing rules")
 
 	result, err := q.repo.List(ctx, &normalizedFilter)
@@ -92,7 +92,7 @@ func (q *ListRulesQuery) Execute(ctx context.Context, filter *model.ListRulesFil
 	logger.With(
 		libLog.String("operation", "service.rule.list"),
 		libLog.Int("list.count", len(result.Rules)),
-		libLog.Any("list.has_more", result.HasMore),
+		libLog.Bool("list.has_more", result.HasMore),
 	).Log(ctx, libLog.LevelInfo, "Rules listed")
 
 	return result, nil

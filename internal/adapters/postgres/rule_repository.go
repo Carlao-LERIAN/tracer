@@ -111,7 +111,7 @@ func (r *Repository) Create(ctx context.Context, rule *model.Rule) (*model.Rule,
 	logger.With(
 		libLog.String("operation", "repository.rule.create"),
 		libLog.String("rule.id", rule.ID.String()),
-		libLog.Any("rule.name", rule.Name),
+		libLog.String("rule.name", rule.Name),
 	).Log(ctx, libLog.LevelInfo, "Creating rule")
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
@@ -205,7 +205,7 @@ func (r *Repository) GetByName(ctx context.Context, name string) (*model.Rule, e
 
 	logger.With(
 		libLog.String("operation", "repository.rule.get_by_name"),
-		libLog.Any("rule.name", name),
+		libLog.String("rule.name", name),
 	).Log(ctx, libLog.LevelInfo, "Getting rule by name")
 
 	rule, err := r.scanRule(ctx, db.QueryRowContext(ctx, sqlStr, args...))
@@ -508,8 +508,8 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 
 	logger.With(
 		libLog.String("operation", "repository.rule.list_with_filter"),
-		libLog.Any("list.limit", filter.Limit),
-		libLog.Any("list.cursor", filter.Cursor),
+		libLog.Int("list.limit", filter.Limit),
+		libLog.String("list.cursor", filter.Cursor),
 	).Log(ctx, libLog.LevelInfo, "Listing rules with filter")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
@@ -573,7 +573,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 	logger.With(
 		libLog.String("operation", "repository.rule.list_with_filter"),
 		libLog.Int("list.count", len(rules)),
-		libLog.Any("list.has_more", hasMore),
+		libLog.Bool("list.has_more", hasMore),
 	).Log(ctx, libLog.LevelInfo, "Listed rules")
 
 	return result, nil

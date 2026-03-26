@@ -92,8 +92,8 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 
 	logger.With(
 		libLog.String("operation", "service.rule.create"),
-		libLog.Any("rule.name", input.Name),
-		libLog.Any("rule.name_normalized", normalizedName),
+		libLog.String("rule.name", input.Name),
+		libLog.String("rule.name_normalized", normalizedName),
 	).Log(ctx, libLog.LevelInfo, "Creating rule")
 
 	// 1. Validate CEL expression syntax
@@ -149,7 +149,7 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 	logger.With(
 		libLog.String("operation", "service.rule.create"),
 		libLog.String("rule.id", result.ID.String()),
-		libLog.Any("rule.name", result.Name),
+		libLog.String("rule.name", result.Name),
 	).Log(ctx, libLog.LevelInfo, "Rule created")
 
 	// Record audit event (best-effort, failures logged but don't fail the operation)

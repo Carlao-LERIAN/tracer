@@ -66,10 +66,12 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 
 	logger = logging.WithTrace(ctx, logger)
 
-	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "deactivate_input", map[string]any{
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "deactivate_input", map[string]any{
 		"rule_id":   ruleID.String(),
 		"operation": "deactivate",
-	}, nil)
+	}, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
+	}
 
 	logger.With(
 		libLog.String("operation", "service.rule.deactivate"),

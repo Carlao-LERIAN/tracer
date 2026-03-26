@@ -161,7 +161,7 @@ func (r *AuditEventRepository) insertInternal(
 	}
 
 	logger.With(
-		libLog.Any("operation", operationName),
+		libLog.String("operation", operationName),
 		libLog.String("event.id", event.EventID.String()),
 		libLog.String("event.type", string(event.EventType)),
 	).Log(ctx, libLog.LevelInfo, "Inserting audit event record")
@@ -178,7 +178,7 @@ func (r *AuditEventRepository) insertInternal(
 		if rowsErr == nil && rowsAffected == 0 {
 			logger.With(
 				libLog.String("event.id", event.EventID.String()),
-				libLog.Any("resource.id", event.ResourceID),
+				libLog.String("resource.id", event.ResourceID),
 				libLog.String("event.type", string(event.EventType)),
 			).Log(ctx, libLog.LevelDebug, "Audit event skipped due to deduplication")
 		}
@@ -290,7 +290,7 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 
 	logger.With(
 		libLog.String("operation", "repository.audit_event.list"),
-		libLog.Any("filter.limit", filters.Limit),
+		libLog.Int("filter.limit", filters.Limit),
 	).Log(ctx, libLog.LevelInfo, "Listing audit events")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
@@ -389,7 +389,7 @@ func (r *AuditEventRepository) VerifyHashChain(ctx context.Context, eventID uuid
 	logger.With(
 		libLog.String("operation", "repository.audit_event.verify_hash_chain"),
 		libLog.String("event.id", eventID.String()),
-		libLog.Any("is_valid", isValid),
+		libLog.Bool("is_valid", isValid),
 		libLog.Any("total_checked", totalChecked),
 	).Log(ctx, libLog.LevelInfo, "Hash chain verification completed")
 
@@ -504,8 +504,8 @@ func (r *AuditEventRepository) generateNextCursor(ctx context.Context, events []
 	if err != nil {
 		logger.With(
 			libLog.String("operation", "repository.audit_event.generate_next_cursor"),
-			libLog.Any("cursor.id", cursor.ID),
-			libLog.Any("cursor.sort_value", cursor.SortValue),
+			libLog.String("cursor.id", cursor.ID),
+			libLog.String("cursor.sort_value", cursor.SortValue),
 			libLog.String("error", err.Error()),
 		).Log(ctx, libLog.LevelError, "Failed to encode pagination cursor")
 

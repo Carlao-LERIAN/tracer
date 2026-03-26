@@ -83,7 +83,7 @@ func (q *GetLimitQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Limit
 	logger.With(
 		libLog.String("operation", "service.limit.get"),
 		libLog.String("limit.id", limit.ID.String()),
-		libLog.Any("limit.name", limit.Name),
+		libLog.String("limit.name", limit.Name),
 		libLog.String("limit.status", string(limit.Status)),
 	).Log(ctx, libLog.LevelInfo, "Limit retrieved successfully")
 

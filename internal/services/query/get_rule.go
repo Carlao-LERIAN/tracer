@@ -72,7 +72,7 @@ func (q *GetRuleQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Rule, 
 	logger.With(
 		libLog.String("operation", "service.rule.get"),
 		libLog.String("rule.id", rule.ID.String()),
-		libLog.Any("rule.name", rule.Name),
+		libLog.String("rule.name", rule.Name),
 	).Log(ctx, libLog.LevelInfo, "Rule retrieved")
 
 	return rule, nil

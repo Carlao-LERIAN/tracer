@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"tracer/internal/services/query"
+	"tracer/pkg/constant"
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
 )
@@ -88,6 +89,10 @@ func (s *TransactionValidationService) GetTransactionValidation(ctx context.Cont
 		).Log(ctx, libLog.LevelError, "Failed to get transaction validation")
 
 		return nil, fmt.Errorf("get transaction validation: %w", err)
+	}
+
+	if result == nil {
+		return nil, constant.ErrTransactionValidationNotFound
 	}
 
 	return result, nil

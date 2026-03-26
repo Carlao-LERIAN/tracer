@@ -77,10 +77,12 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 		return nil, constant.ErrLimitInvalidID
 	}
 
-	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "deactivate_input", map[string]any{
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "deactivate_input", map[string]any{
 		"limit_id":  id.String(),
 		"operation": "deactivate",
-	}, nil)
+	}, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
+	}
 
 	logger.With(
 		libLog.String("operation", "service.limit.deactivate"),
