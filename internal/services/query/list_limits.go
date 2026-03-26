@@ -97,6 +97,18 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 		return nil, err
 	}
 
+	// Record validated filter on span for all paths (success, cancellation, repo error)
+	if attrErr := libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_filter", map[string]any{
+		"limit":      filter.Limit,
+		"has_cursor": filter.Cursor != "",
+		"sort_by":    filter.SortBy,
+		"sort_order": filter.SortOrder,
+		"status":     filterStatus,
+		"limit_type": filterLimitType,
+	}, nil); attrErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", attrErr)
+	}
+
 	logger.With(
 		libLog.String("operation", "service.limit.list"),
 		libLog.Int("filter.limit", filter.Limit),
@@ -136,18 +148,11 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 		return nil, err
 	}
 
-	// Set span attributes after successful repository call
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_filter", map[string]any{
-		"limit":           filter.Limit,
-		"has_cursor":      filter.Cursor != "",
-		"sort_by":         filter.SortBy,
-		"sort_order":      filter.SortOrder,
-		"status":          filterStatus,
-		"limit_type":      filterLimitType,
+	// Mark span as successful
+	if attrErr := libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_result", map[string]any{
 		"service.success": true,
-	}, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
+	}, nil); attrErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", attrErr)
 	}
 
 	logger.With(

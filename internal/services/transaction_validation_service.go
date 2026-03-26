@@ -80,7 +80,11 @@ func (s *TransactionValidationService) GetTransactionValidation(ctx context.Cont
 
 	result, err := s.getQuery.Execute(ctx, id)
 	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to get transaction validation", err)
+		if errors.Is(err, constant.ErrTransactionValidationNotFound) || errors.Is(err, constant.ErrInvalidPathParameter) {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Transaction validation not found", err)
+		} else {
+			libOtel.HandleSpanError(span, "Failed to get transaction validation", err)
+		}
 
 		traceLogger.With(
 			libLog.String("operation", "service.transaction_validation.get"),
@@ -92,6 +96,7 @@ func (s *TransactionValidationService) GetTransactionValidation(ctx context.Cont
 	}
 
 	if result == nil {
+		libOtel.HandleSpanBusinessErrorEvent(span, "Transaction validation not found", constant.ErrTransactionValidationNotFound)
 		return nil, constant.ErrTransactionValidationNotFound
 	}
 
