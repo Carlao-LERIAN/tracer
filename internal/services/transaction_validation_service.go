@@ -80,8 +80,10 @@ func (s *TransactionValidationService) GetTransactionValidation(ctx context.Cont
 
 	result, err := s.getQuery.Execute(ctx, id)
 	if err != nil {
-		if errors.Is(err, constant.ErrTransactionValidationNotFound) || errors.Is(err, constant.ErrInvalidPathParameter) {
+		if errors.Is(err, constant.ErrTransactionValidationNotFound) {
 			libOtel.HandleSpanBusinessErrorEvent(span, "Transaction validation not found", err)
+		} else if errors.Is(err, constant.ErrInvalidPathParameter) {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Invalid path parameter", err)
 		} else {
 			libOtel.HandleSpanError(span, "Failed to get transaction validation", err)
 		}
@@ -126,12 +128,21 @@ func (s *TransactionValidationService) ListTransactionValidations(ctx context.Co
 
 	result, err := s.listQuery.Execute(ctx, filters)
 	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to list transaction validations", err)
+		if errors.Is(err, constant.ErrInvalidTransactionValidationFilters) || errors.Is(err, constant.ErrInvalidCursor) {
+			libOtel.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation filters", err)
 
-		traceLogger.With(
-			libLog.String("operation", "service.transaction_validation.list"),
-			libLog.String("error.message", err.Error()),
-		).Log(ctx, libLog.LevelError, "Failed to list transaction validations")
+			traceLogger.With(
+				libLog.String("operation", "service.transaction_validation.list"),
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Invalid filters provided")
+		} else {
+			libOtel.HandleSpanError(span, "Failed to list transaction validations", err)
+
+			traceLogger.With(
+				libLog.String("operation", "service.transaction_validation.list"),
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelError, "Failed to list transaction validations")
+		}
 
 		return nil, fmt.Errorf("list transaction validations: %w", err)
 	}
