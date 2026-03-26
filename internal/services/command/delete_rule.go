@@ -9,8 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/pkg/constant"
@@ -55,34 +56,34 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 
 	logger = logging.WithTrace(ctx, logger)
 
-	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "delete_input", map[string]any{
+	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "delete_input", map[string]any{
 		"rule_id":   ruleID.String(),
 		"operation": "delete",
-	})
+	}, nil)
 
-	logger.WithFields(
-		"operation", "service.rule.delete",
-		"rule.id", ruleID.String(),
-	).Info("Deleting rule")
+	logger.With(
+		libLog.String("operation", "service.rule.delete"),
+		libLog.String("rule.id", ruleID.String()),
+	).Log(ctx, libLog.LevelInfo, "Deleting rule")
 
 	rule, err := s.repository.GetByID(ctx, ruleID)
 	if err != nil {
 		if errors.Is(err, constant.ErrRuleNotFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule not found", err)
-			logger.WithFields(
-				"operation", "service.rule.delete",
-				"rule.id", ruleID.String(),
-			).Warn("Rule not found")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule not found", err)
+			logger.With(
+				libLog.String("operation", "service.rule.delete"),
+				libLog.String("rule.id", ruleID.String()),
+			).Log(ctx, libLog.LevelWarn, "Rule not found")
 
 			return libCommons.ValidateBusinessError(constant.ErrRuleNotFound, "Rule")
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rule from repository", err)
-		logger.WithFields(
-			"operation", "service.rule.delete",
-			"rule.id", ruleID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to get rule")
+		libOpentelemetry.HandleSpanError(span, "Failed to get rule from repository", err)
+		logger.With(
+			libLog.String("operation", "service.rule.delete"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to get rule")
 
 		return fmt.Errorf("failed to get rule: %w", err)
 	}
@@ -90,10 +91,10 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 	// Idempotency: if already deleted, return success (no-op)
 	// Check before audit capture to avoid unnecessary state snapshots
 	if rule.Status == model.RuleStatusDeleted {
-		logger.WithFields(
-			"operation", "service.rule.delete",
-			"rule.id", ruleID.String(),
-		).Info("Rule already deleted (idempotent no-op)")
+		logger.With(
+			libLog.String("operation", "service.rule.delete"),
+			libLog.String("rule.id", ruleID.String()),
+		).Log(ctx, libLog.LevelInfo, "Rule already deleted (idempotent no-op)")
 
 		return nil
 	}
@@ -104,13 +105,13 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 	// Check if transition is valid (only DRAFT/INACTIVE → DELETED allowed)
 	if !rule.Status.CanTransitionTo(model.RuleStatusDeleted) {
 		err := model.NewInvalidTransitionError(rule.Status, model.RuleStatusDeleted)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
-		logger.WithFields(
-			"operation", "service.rule.delete",
-			"rule.id", ruleID.String(),
-			"rule.status_from", string(rule.Status),
-			"rule.status_to", "DELETED",
-		).Warn("Invalid transition")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
+		logger.With(
+			libLog.String("operation", "service.rule.delete"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("rule.status_from", string(rule.Status)),
+			libLog.String("rule.status_to", "DELETED"),
+		).Log(ctx, libLog.LevelWarn, "Invalid transition")
 
 		return err
 	}
@@ -118,20 +119,20 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 	// Persist deletion (repository.Delete handles status update to DELETED)
 	// Do NOT call rule.SetStatus() before this - would mutate object before persistence succeeds
 	if err := s.repository.Delete(ctx, ruleID); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete rule", err)
-		logger.WithFields(
-			"operation", "service.rule.delete",
-			"rule.id", ruleID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to delete rule")
+		libOpentelemetry.HandleSpanError(span, "Failed to delete rule", err)
+		logger.With(
+			libLog.String("operation", "service.rule.delete"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to delete rule")
 
 		return fmt.Errorf("failed to delete rule: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.rule.delete",
-		"rule.id", ruleID.String(),
-	).Info("Rule deleted successfully")
+	logger.With(
+		libLog.String("operation", "service.rule.delete"),
+		libLog.String("rule.id", ruleID.String()),
+	).Log(ctx, libLog.LevelInfo, "Rule deleted successfully")
 
 	// Record audit event (best-effort)
 	if s.auditWriter != nil {
@@ -148,11 +149,11 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) error
 			"Rule deleted via API",
 			clientIP,
 		); err != nil {
-			logger.WithFields(
-				"operation", "service.rule.delete.audit",
-				"rule.id", ruleID.String(),
-				"error", err.Error(),
-			).Warn("Failed to record audit event")
+			logger.With(
+				libLog.String("operation", "service.rule.delete.audit"),
+				libLog.String("rule.id", ruleID.String()),
+				libLog.String("error", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to record audit event")
 		}
 	}
 

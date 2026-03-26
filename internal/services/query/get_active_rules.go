@@ -11,8 +11,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
@@ -69,34 +70,34 @@ func (q *GetActiveRulesQuery) Execute(ctx context.Context, txScope *model.Scope)
 
 	logger = logging.WithTrace(ctx, logger)
 
-	logger.WithFields(
-		"operation", "service.rules.get_active",
-		"scope.provided", txScope != nil,
-	).Info("Getting active rules")
+	logger.With(
+		libLog.String("operation", "service.rules.get_active"),
+		libLog.Any("scope.provided", txScope != nil),
+	).Log(ctx, libLog.LevelInfo, "Getting active rules")
 
 	rules, err := q.repo.GetActiveRules(ctx, txScope)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get active rules", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get active rules", err)
 
-		logger.WithFields(
-			"operation", "service.rules.get_active",
-			"error.message", err.Error(),
-		).Error("Failed to get active rules")
+		logger.With(
+			libLog.String("operation", "service.rules.get_active"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to get active rules")
 
 		return nil, fmt.Errorf("failed to get active rules: %w", err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "result", map[string]any{
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "result", map[string]any{
 		"rules.count": len(rules),
-	})
+	}, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.rules.get_active",
-		"rules.count", len(rules),
-	).Info("Active rules retrieved successfully")
+	logger.With(
+		libLog.String("operation", "service.rules.get_active"),
+		libLog.Int("rules.count", len(rules)),
+	).Log(ctx, libLog.LevelInfo, "Active rules retrieved successfully")
 
 	// Normalize nil to empty slice for consistent behavior
 	if rules == nil {

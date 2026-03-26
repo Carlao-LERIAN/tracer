@@ -15,9 +15,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	pgdb "tracer/internal/adapters/postgres/db"
 	"tracer/internal/services/command"
@@ -160,18 +160,18 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// This is done BEFORE any processing to avoid double-counting limits.
 	existingValidation, err := s.transactionValidationQueryRepo.FindByRequestID(ctx, req.RequestID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "failed to check for duplicate request", err)
+		libOpentelemetry.HandleSpanError(span, "failed to check for duplicate request", err)
 
 		return nil, fmt.Errorf("failed to check for duplicate request: %w", err)
 	}
 
 	if existingValidation != nil {
 		// Duplicate detected - return cached response without processing
-		logger.WithFields(
-			"operation", "service.validation.orchestrate",
-			"request.id", req.RequestID,
-			"existing.validation.id", existingValidation.ID,
-		).Info("Duplicate request detected - returning cached response")
+		logger.With(
+			libLog.String("operation", "service.validation.orchestrate"),
+			libLog.Any("request.id", req.RequestID),
+			libLog.Any("existing.validation.id", existingValidation.ID),
+		).Log(ctx, libLog.LevelInfo, "Duplicate request detected - returning cached response")
 
 		span.AddEvent("duplicate_request_detected")
 
@@ -187,13 +187,13 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// Generate validationId for audit record (used in both response and persistence)
 	validationID := uuid.New()
 
-	logger.WithFields(
-		"operation", "service.validation.orchestrate",
-		"validation.id", validationID,
-		"request.id", req.RequestID,
-		"transaction.type", req.TransactionType,
-		"transaction.amount", req.Amount,
-	).Info("Starting validation")
+	logger.With(
+		libLog.String("operation", "service.validation.orchestrate"),
+		libLog.Any("validation.id", validationID),
+		libLog.Any("request.id", req.RequestID),
+		libLog.Any("transaction.type", req.TransactionType),
+		libLog.Any("transaction.amount", req.Amount),
+	).Log(ctx, libLog.LevelInfo, "Starting validation")
 
 	// Build response
 	response := model.NewValidationResponse(validationID, req.RequestID, model.DecisionAllow, evaluatedAt)
@@ -201,13 +201,13 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// Step 1: Evaluate rules (OUTSIDE transaction)
 	evalResult, err := s.ruleEvaluator.Execute(ctx, req)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "rule evaluation failed", err)
+		libOpentelemetry.HandleSpanError(span, "rule evaluation failed", err)
 
 		return nil, fmt.Errorf("rule evaluation failed: %w", err)
 	}
 
 	if evalResult == nil {
-		libOpentelemetry.HandleSpanError(&span, "rule evaluation returned nil", nil)
+		libOpentelemetry.HandleSpanError(span, "rule evaluation returned nil", nil)
 
 		return nil, fmt.Errorf("rule evaluation returned nil result")
 	}
@@ -223,11 +223,11 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		s.persistTransactionValidation(ctx, req, response, logger)
 		s.persistAuditEvent(ctx, req, response, logger)
 
-		logger.WithFields(
-			"operation", "service.validation.orchestrate",
-			"request.id", req.RequestID,
-			"decision", "DENY",
-		).Info("Validation completed (by rule)")
+		logger.With(
+			libLog.String("operation", "service.validation.orchestrate"),
+			libLog.Any("request.id", req.RequestID),
+			libLog.String("decision", "DENY"),
+		).Log(ctx, libLog.LevelInfo, "Validation completed (by rule)")
 
 		return &ValidateResult{
 			Response:    response,
@@ -244,7 +244,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 
 	tx, err := s.conn.BeginTx(txCtx, nil) // nil = default isolation level (typically READ COMMITTED)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "failed to begin transaction", err)
+		libOpentelemetry.HandleSpanError(span, "failed to begin transaction", err)
 
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -254,10 +254,10 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	defer func() {
 		if tx != nil {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
-				logger.WithFields(
-					"operation", "service.validation.orchestrate",
-					"error", rollbackErr.Error(),
-				).Warn("Failed to rollback transaction in defer cleanup")
+				logger.With(
+					libLog.String("operation", "service.validation.orchestrate"),
+					libLog.String("error", rollbackErr.Error()),
+				).Log(ctx, libLog.LevelWarn, "Failed to rollback transaction in defer cleanup")
 			}
 		}
 	}()
@@ -268,14 +268,14 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	limitOutput, err := s.limitChecker.CheckLimits(txCtx, tx, limitInput)
 	if err != nil {
 		// tx.Rollback() will be called by defer
-		libOpentelemetry.HandleSpanError(&span, "limit check failed", err)
+		libOpentelemetry.HandleSpanError(span, "limit check failed", err)
 
 		return nil, fmt.Errorf("limit check failed: %w", err)
 	}
 
 	if limitOutput == nil {
 		// tx.Rollback() will be called by defer
-		libOpentelemetry.HandleSpanError(&span, "limit check returned nil", nil)
+		libOpentelemetry.HandleSpanError(span, "limit check returned nil", nil)
 
 		return nil, fmt.Errorf("limit check returned nil result")
 	}
@@ -314,7 +314,7 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 		}
 
 		// tx.Rollback() will be called by defer
-		libOpentelemetry.HandleSpanError(&span, "failed to persist transaction validation", err)
+		libOpentelemetry.HandleSpanError(span, "failed to persist transaction validation", err)
 
 		return nil, fmt.Errorf("failed to persist transaction validation: %w", err)
 	}
@@ -322,25 +322,25 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 	// Persist audit event inside tx
 	if err := s.persistAuditEventWithTx(txCtx, tx, req, response, logger); err != nil {
 		// tx.Rollback() will be called by defer
-		libOpentelemetry.HandleSpanError(&span, "failed to persist audit event", err)
+		libOpentelemetry.HandleSpanError(span, "failed to persist audit event", err)
 
 		return nil, fmt.Errorf("failed to persist audit event: %w", err)
 	}
 
 	// COMMIT the transaction
 	if err := tx.Commit(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "failed to commit transaction", err)
+		libOpentelemetry.HandleSpanError(span, "failed to commit transaction", err)
 
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	tx = nil // Prevent defer from rolling back after successful commit
 
-	logger.WithFields(
-		"operation", "service.validation.orchestrate",
-		"request.id", req.RequestID,
-		"decision", response.Decision,
-	).Info("Validation completed")
+	logger.With(
+		libLog.String("operation", "service.validation.orchestrate"),
+		libLog.Any("request.id", req.RequestID),
+		libLog.Any("decision", response.Decision),
+	).Log(ctx, libLog.LevelInfo, "Validation completed")
 
 	return &ValidateResult{
 		Response:    response,
@@ -354,22 +354,22 @@ func (s *ValidationService) Validate(ctx context.Context, req *model.ValidationR
 func (s *ValidationService) rollbackAndPersist(ctx context.Context, tx pgdb.Tx, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger, reason string) {
 	if tx != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			logger.WithFields(
-				"operation", "service.validation.orchestrate",
-				"request.id", req.RequestID,
-				"error", rollbackErr.Error(),
-			).Warn("Failed to rollback transaction for " + reason)
+			logger.With(
+				libLog.String("operation", "service.validation.orchestrate"),
+				libLog.Any("request.id", req.RequestID),
+				libLog.String("error", rollbackErr.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to rollback transaction for "+reason)
 		}
 	}
 
 	s.persistTransactionValidation(ctx, req, resp, logger)
 	s.persistAuditEvent(ctx, req, resp, logger)
 
-	logger.WithFields(
-		"operation", "service.validation.orchestrate",
-		"request.id", req.RequestID,
-		"decision", resp.Decision,
-	).Info("Validation completed")
+	logger.With(
+		libLog.String("operation", "service.validation.orchestrate"),
+		libLog.Any("request.id", req.RequestID),
+		libLog.Any("decision", resp.Decision),
+	).Log(ctx, libLog.LevelInfo, "Validation completed")
 }
 
 // handleConcurrentDuplicate checks if a persist error is a concurrent duplicate (TOCTOU race)
@@ -379,18 +379,18 @@ func (s *ValidationService) handleConcurrentDuplicate(ctx context.Context, err e
 		return nil
 	}
 
-	logger.WithFields(
-		"operation", "service.validation.orchestrate",
-		"request.id", req.RequestID,
-	).Info("Concurrent duplicate detected - fetching cached response")
+	logger.With(
+		libLog.String("operation", "service.validation.orchestrate"),
+		libLog.Any("request.id", req.RequestID),
+	).Log(ctx, libLog.LevelInfo, "Concurrent duplicate detected - fetching cached response")
 
 	existing, findErr := s.transactionValidationQueryRepo.FindByRequestID(ctx, req.RequestID)
 	if findErr != nil {
-		logger.WithFields(
-			"operation", "service.validation.orchestrate",
-			"request.id", req.RequestID,
-			"error", findErr.Error(),
-		).Warn("Failed to fetch cached response for concurrent duplicate")
+		logger.With(
+			libLog.String("operation", "service.validation.orchestrate"),
+			libLog.Any("request.id", req.RequestID),
+			libLog.String("error", findErr.Error()),
+		).Log(ctx, libLog.LevelWarn, "Failed to fetch cached response for concurrent duplicate")
 
 		return nil
 	}
@@ -431,10 +431,10 @@ func (s *ValidationService) handleConcurrentDuplicate(ctx context.Context, err e
 func (s *ValidationService) persistTransactionValidation(ctx context.Context, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) {
 	tv, err := buildTransactionValidation(req, resp, s.clock.Now().UTC())
 	if err != nil {
-		logger.WithFields(
-			"request.id", resp.RequestID,
-			"error.message", err.Error(),
-		).Error("failed to build transaction validation record")
+		logger.With(
+			libLog.Any("request.id", resp.RequestID),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "failed to build transaction validation record")
 
 		return
 	}
@@ -454,18 +454,20 @@ func (s *ValidationService) persistTransactionValidation(ctx context.Context, re
 	defer span.End()
 
 	if err := s.transactionValidationRepo.Insert(persistCtx, tv); err != nil { //nolint:contextcheck // persistCtx intentionally from Background()
-		libOpentelemetry.HandleSpanError(&span, "failed to persist transaction validation record", err)
+		libOpentelemetry.HandleSpanError(span, "failed to persist transaction validation record", err)
 
 		// Emit metric for alerting (compliance risk: audit trail gap)
 		// Note: persistCtx is intentionally derived from Background(), not parent ctx
 		if metricsFactory != nil {
-			metricsFactory.Counter(MetricAuditPersistFailures).Add(persistCtx, 1) //nolint:contextcheck // persistCtx intentionally independent
+			if counter, cErr := metricsFactory.Counter(MetricAuditPersistFailures); cErr == nil && counter != nil {
+				_ = counter.Add(persistCtx, 1) //nolint:contextcheck // persistCtx intentionally independent
+			}
 		}
 
-		logger.WithFields(
-			"request.id", resp.RequestID,
-			"error.message", err.Error(),
-		).Error("failed to persist transaction validation record")
+		logger.With(
+			libLog.Any("request.id", resp.RequestID),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "failed to persist transaction validation record")
 	}
 }
 
@@ -619,10 +621,10 @@ func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.Va
 		responseContext,
 		clientIP,
 	); err != nil {
-		logger.WithFields(
-			"request.id", req.RequestID,
-			"error", err.Error(),
-		).Error("failed to persist audit event")
+		logger.With(
+			libLog.Any("request.id", req.RequestID),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelError, "failed to persist audit event")
 	}
 }
 
@@ -636,19 +638,19 @@ func (s *ValidationService) persistAuditEvent(ctx context.Context, req *model.Va
 func (s *ValidationService) persistTransactionValidationWithTx(ctx context.Context, tx pgdb.DB, req *model.ValidationRequest, resp *model.ValidationResponse, logger libLog.Logger) error {
 	tv, err := buildTransactionValidation(req, resp, s.clock.Now().UTC())
 	if err != nil {
-		logger.WithFields(
-			"request.id", resp.RequestID,
-			"error.message", err.Error(),
-		).Error("failed to build transaction validation record")
+		logger.With(
+			libLog.Any("request.id", resp.RequestID),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "failed to build transaction validation record")
 
 		return fmt.Errorf("failed to build transaction validation record: %w", err)
 	}
 
 	if err := s.transactionValidationRepo.InsertWithTx(ctx, tx, tv); err != nil {
-		logger.WithFields(
-			"request.id", resp.RequestID,
-			"error.message", err.Error(),
-		).Error("failed to persist transaction validation record")
+		logger.With(
+			libLog.Any("request.id", resp.RequestID),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "failed to persist transaction validation record")
 
 		return fmt.Errorf("failed to persist transaction validation record: %w", err)
 	}
@@ -679,10 +681,10 @@ func (s *ValidationService) persistAuditEventWithTx(ctx context.Context, tx pgdb
 		responseContext,
 		clientIP,
 	); err != nil {
-		logger.WithFields(
-			"request.id", req.RequestID,
-			"error", err.Error(),
-		).Error("failed to persist audit event")
+		logger.With(
+			libLog.Any("request.id", req.RequestID),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelError, "failed to persist audit event")
 
 		return fmt.Errorf("failed to persist audit event: %w", err)
 	}

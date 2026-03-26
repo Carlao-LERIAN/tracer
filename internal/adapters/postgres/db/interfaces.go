@@ -38,7 +38,7 @@ type TxBeginner interface {
 
 // Connection defines the interface for database connection providers.
 // This allows for easy mocking in tests while maintaining compatibility
-// with *libPostgres.PostgresConnection in production.
+// with *libPostgres.Client in production.
 type Connection interface {
 	GetDB() (DB, error)
 }

@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker"
 
@@ -114,7 +114,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// Validate expression is not empty (fail fast before any processing)
 	if expression == "" {
 		err := fmt.Errorf("%w: expression cannot be empty", constant.ErrExpressionSyntax)
-		libOtel.HandleSpanBusinessErrorEvent(&span, "empty expression", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "empty expression", err)
 
 		return nil, err
 	}
@@ -122,11 +122,11 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// Compute expression hash
 	hash := HashExpression(expression)
 
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "compile_input", map[string]any{
+	if err := libOtel.SetSpanAttributesFromValue(span, "compile_input", map[string]any{
 		"expression_hash":   hash,
 		"expression_length": len(expression),
-	}); err != nil {
-		libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
+	}, nil); err != nil {
+		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Compile to AST
@@ -142,15 +142,15 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 			// Use the structured IsTypeError flag for deterministic classification
 			if compileErr.IsTypeError {
 				wrappedErr = fmt.Errorf("%w: %w", constant.ErrExpressionType, err)
-				libOtel.HandleSpanBusinessErrorEvent(&span, "type error", wrappedErr)
+				libOtel.HandleSpanBusinessErrorEvent(span, "type error", wrappedErr)
 			} else {
 				wrappedErr = fmt.Errorf("%w: %w", constant.ErrExpressionSyntax, err)
-				libOtel.HandleSpanBusinessErrorEvent(&span, "compilation failed", wrappedErr)
+				libOtel.HandleSpanBusinessErrorEvent(span, "compilation failed", wrappedErr)
 			}
 		} else {
 			// Fallback for unexpected error types (shouldn't happen with our Environment)
 			wrappedErr = fmt.Errorf("%w: %w", constant.ErrExpressionSyntax, err)
-			libOtel.HandleSpanBusinessErrorEvent(&span, "compilation failed", wrappedErr)
+			libOtel.HandleSpanBusinessErrorEvent(span, "compilation failed", wrappedErr)
 		}
 
 		return nil, wrappedErr
@@ -159,7 +159,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// Validate boolean return type
 	if ast.OutputType() != cel.BoolType {
 		err := fmt.Errorf("%w: expression returns %v, expected bool", constant.ErrExpressionType, ast.OutputType())
-		libOtel.HandleSpanBusinessErrorEvent(&span, "type validation failed", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "type validation failed", err)
 
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	if err != nil {
 		// Use distinct error for estimation failures vs actual cost exceeded
 		costErr := fmt.Errorf("%w: %w", constant.ErrExpressionCostEstimation, err)
-		libOtel.HandleSpanError(&span, "cost estimation failed", costErr)
+		libOtel.HandleSpanError(span, "cost estimation failed", costErr)
 
 		return nil, costErr
 	}
@@ -179,34 +179,34 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 	// costEstimate.Max is uint64, so we compare with costLimit
 	if costEstimate.Max > a.costLimit {
 		costErr := fmt.Errorf("%w: estimated cost %d exceeds limit %d", constant.ErrExpressionCostExceeded, costEstimate.Max, a.costLimit)
-		libOtel.HandleSpanBusinessErrorEvent(&span, "expression cost exceeds limit", costErr)
+		libOtel.HandleSpanBusinessErrorEvent(span, "expression cost exceeds limit", costErr)
 
-		if err := libOtel.SetSpanAttributesFromStruct(&span, "cost_validation", map[string]any{
+		if err := libOtel.SetSpanAttributesFromValue(span, "cost_validation", map[string]any{
 			"estimated_cost_min": costEstimate.Min,
 			"estimated_cost_max": costEstimate.Max,
 			"cost_limit":         a.costLimit,
 			"exceeded":           true,
-		}); err != nil {
-			libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
+		}, nil); err != nil {
+			libOtel.HandleSpanError(span, "Failed to set span attributes", err)
 		}
 
 		return nil, costErr
 	}
 
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "cost_validation", map[string]any{
+	if err := libOtel.SetSpanAttributesFromValue(span, "cost_validation", map[string]any{
 		"estimated_cost_min": costEstimate.Min,
 		"estimated_cost_max": costEstimate.Max,
 		"cost_limit":         a.costLimit,
 		"exceeded":           false,
-	}); err != nil {
-		libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
+	}, nil); err != nil {
+		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Create program (compile-time cost validation already done above via checker.Cost)
 	program, err := a.env.Program(ast)
 	if err != nil {
 		progErr := fmt.Errorf("%w: %w", constant.ErrExpressionProgram, err)
-		libOtel.HandleSpanError(&span, "program creation failed", progErr)
+		libOtel.HandleSpanError(span, "program creation failed", progErr)
 
 		return nil, progErr
 	}
@@ -223,17 +223,17 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		CompileTimeMs:    compileTimeMs,
 	}
 
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "compile_result", map[string]any{
+	if err := libOtel.SetSpanAttributesFromValue(span, "compile_result", map[string]any{
 		"compile_time_ms": compileTimeMs,
-	}); err != nil {
-		libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
+	}, nil); err != nil {
+		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	logger.WithFields(
-		"operation", "adapter.cel.compile",
-		"expression.hash", safePrefix(hash, 8),
-		"compile.time_ms", compileTimeMs,
-	).Info("CEL expression compiled")
+	logger.With(
+		libLog.String("operation", "adapter.cel.compile"),
+		libLog.String("expression.hash", safePrefix(hash, 8)),
+		libLog.Any("compile.time_ms", compileTimeMs),
+	).Log(ctx, libLog.LevelInfo, "CEL expression compiled")
 
 	return compiled, nil
 }
@@ -251,28 +251,28 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	// Validate inputs
 	if program == nil {
 		err := fmt.Errorf("program is required")
-		libOtel.HandleSpanError(&span, "nil program", err)
+		libOtel.HandleSpanError(span, "nil program", err)
 
 		return false, err
 	}
 
 	if program.Program == nil {
 		err := fmt.Errorf("compiled program is nil")
-		libOtel.HandleSpanError(&span, "nil compiled program", err)
+		libOtel.HandleSpanError(span, "nil compiled program", err)
 
 		return false, err
 	}
 
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "evaluate_input", map[string]any{
+	if err := libOtel.SetSpanAttributesFromValue(span, "evaluate_input", map[string]any{
 		"expression_hash": program.ExpressionHash,
-	}); err != nil {
-		libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
+	}, nil); err != nil {
+		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Validate request is not nil
 	if req == nil {
 		err := fmt.Errorf("validation request is required")
-		libOtel.HandleSpanError(&span, "nil request", err)
+		libOtel.HandleSpanError(span, "nil request", err)
 
 		return false, err
 	}
@@ -281,7 +281,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	activation, err := BuildActivation(req)
 	if err != nil {
 		wrappedErr := fmt.Errorf("%w: failed to build activation: %w", constant.ErrExpressionEvaluation, err)
-		libOtel.HandleSpanBusinessErrorEvent(&span, "failed to build activation", wrappedErr)
+		libOtel.HandleSpanBusinessErrorEvent(span, "failed to build activation", wrappedErr)
 
 		return false, wrappedErr
 	}
@@ -290,7 +290,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	out, _, err := program.Program.Eval(activation)
 	if err != nil {
 		evalErr := fmt.Errorf("%w: %w", constant.ErrExpressionEvaluation, err)
-		libOtel.HandleSpanBusinessErrorEvent(&span, "evaluation failed", evalErr)
+		libOtel.HandleSpanBusinessErrorEvent(span, "evaluation failed", evalErr)
 
 		return false, evalErr
 	}
@@ -299,7 +299,7 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	result, ok := out.Value().(bool)
 	if !ok {
 		err := fmt.Errorf("%w: expected bool, got %T", constant.ErrExpressionType, out.Value())
-		libOtel.HandleSpanBusinessErrorEvent(&span, "type assertion failed", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "type assertion failed", err)
 
 		return false, err
 	}
@@ -307,11 +307,11 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	// Record span attributes
 	durationMs := time.Since(start).Milliseconds()
 
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "evaluate_result", map[string]any{
+	if err := libOtel.SetSpanAttributesFromValue(span, "evaluate_result", map[string]any{
 		"duration_ms": durationMs,
 		"result":      result,
-	}); err != nil {
-		libOtel.HandleSpanError(&span, "Failed to set span attributes", err)
+	}, nil); err != nil {
+		libOtel.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	return result, nil

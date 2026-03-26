@@ -9,8 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/internal/services/query"
@@ -65,26 +66,26 @@ func (s *TransactionValidationService) GetTransactionValidation(ctx context.Cont
 
 	// Check for context cancellation before query execution
 	if err := ctx.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Context cancelled", err)
+		libOtel.HandleSpanError(span, "Context cancelled", err)
 
-		traceLogger.WithFields(
-			"operation", "service.transaction_validation.get",
-			"validation.id", id.String(),
-			"error.message", err.Error(),
-		).Error("Context cancelled before query execution")
+		traceLogger.With(
+			libLog.String("operation", "service.transaction_validation.get"),
+			libLog.String("validation.id", id.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Context cancelled before query execution")
 
 		return nil, fmt.Errorf("get transaction validation: %w", err)
 	}
 
 	result, err := s.getQuery.Execute(ctx, id)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get transaction validation", err)
+		libOtel.HandleSpanError(span, "Failed to get transaction validation", err)
 
-		traceLogger.WithFields(
-			"operation", "service.transaction_validation.get",
-			"validation.id", id.String(),
-			"error.message", err.Error(),
-		).Error("Failed to get transaction validation")
+		traceLogger.With(
+			libLog.String("operation", "service.transaction_validation.get"),
+			libLog.String("validation.id", id.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to get transaction validation")
 
 		return nil, fmt.Errorf("get transaction validation: %w", err)
 	}
@@ -103,24 +104,24 @@ func (s *TransactionValidationService) ListTransactionValidations(ctx context.Co
 
 	// Check for context cancellation before query execution
 	if err := ctx.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Context cancelled", err)
+		libOtel.HandleSpanError(span, "Context cancelled", err)
 
-		traceLogger.WithFields(
-			"operation", "service.transaction_validation.list",
-			"error.message", err.Error(),
-		).Error("Context cancelled before query execution")
+		traceLogger.With(
+			libLog.String("operation", "service.transaction_validation.list"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Context cancelled before query execution")
 
 		return nil, fmt.Errorf("list transaction validations: %w", err)
 	}
 
 	result, err := s.listQuery.Execute(ctx, filters)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to list transaction validations", err)
+		libOtel.HandleSpanError(span, "Failed to list transaction validations", err)
 
-		traceLogger.WithFields(
-			"operation", "service.transaction_validation.list",
-			"error.message", err.Error(),
-		).Error("Failed to list transaction validations")
+		traceLogger.With(
+			libLog.String("operation", "service.transaction_validation.list"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to list transaction validations")
 
 		return nil, fmt.Errorf("list transaction validations: %w", err)
 	}

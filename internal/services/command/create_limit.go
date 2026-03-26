@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/shopspring/decimal"
 
 	"tracer/pkg/clock"
@@ -88,7 +89,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	// Handle nil input
 	if input == nil {
 		err := constant.ErrLimitNilInput
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Nil input provided", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil input provided", err)
 
 		return nil, err
 	}
@@ -98,22 +99,22 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	normalizedInput.Name = strings.TrimSpace(normalizedInput.Name)
 	normalizedInput.Currency = strings.ToUpper(strings.TrimSpace(normalizedInput.Currency))
 
-	logger.WithFields(
-		"operation", "service.limit.create",
-		"limit.name", normalizedInput.Name,
-		"limit.type", string(normalizedInput.LimitType),
-		"limit.amount", normalizedInput.MaxAmount,
-		"limit.currency", normalizedInput.Currency,
-	).Info("Creating limit")
+	logger.With(
+		libLog.String("operation", "service.limit.create"),
+		libLog.Any("limit.name", normalizedInput.Name),
+		libLog.String("limit.type", string(normalizedInput.LimitType)),
+		libLog.Any("limit.amount", normalizedInput.MaxAmount),
+		libLog.Any("limit.currency", normalizedInput.Currency),
+	).Log(ctx, libLog.LevelInfo, "Creating limit")
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "create_limit_input", map[string]any{
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "create_limit_input", map[string]any{
 		"name":       normalizedInput.Name,
 		"limit_type": string(normalizedInput.LimitType),
 		"max_amount": normalizedInput.MaxAmount,
 		"currency":   normalizedInput.Currency,
-	})
+	}, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Create domain entity via appropriate NewLimit* function
@@ -127,13 +128,13 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 
 	hasPartialTimeWindow := (normalizedInput.ActiveTimeStart != nil) != (normalizedInput.ActiveTimeEnd != nil)
 	if hasPartialTimeWindow {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Partial time window", constant.ErrLimitTimeWindowMismatch)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Partial time window", constant.ErrLimitTimeWindowMismatch)
 		return nil, constant.ErrLimitTimeWindowMismatch
 	}
 
 	hasPartialCustomPeriod := (normalizedInput.CustomStartDate != nil) != (normalizedInput.CustomEndDate != nil)
 	if hasPartialCustomPeriod {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Partial custom period", constant.ErrLimitCustomDatesRequired)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Partial custom period", constant.ErrLimitCustomDatesRequired)
 		return nil, constant.ErrLimitCustomDatesRequired
 	}
 
@@ -141,13 +142,13 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 		// Parse custom period dates
 		customStart, parseErr := time.Parse(time.RFC3339, *normalizedInput.CustomStartDate)
 		if parseErr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse customStartDate", constant.ErrLimitInvalidCustomStartFormat)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse customStartDate", constant.ErrLimitInvalidCustomStartFormat)
 			return nil, fmt.Errorf("%w: %w", constant.ErrLimitInvalidCustomStartFormat, parseErr)
 		}
 
 		customEnd, parseErr := time.Parse(time.RFC3339, *normalizedInput.CustomEndDate)
 		if parseErr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse customEndDate", constant.ErrLimitInvalidCustomEndFormat)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse customEndDate", constant.ErrLimitInvalidCustomEndFormat)
 			return nil, fmt.Errorf("%w: %w", constant.ErrLimitInvalidCustomEndFormat, parseErr)
 		}
 
@@ -206,43 +207,43 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	}
 
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create limit entity", err)
-		logger.WithFields(
-			"operation", "service.limit.create",
-			"error.message", err.Error(),
-		).Warn("Failed to create limit entity")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create limit entity", err)
+		logger.With(
+			libLog.String("operation", "service.limit.create"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Failed to create limit entity")
 
 		return nil, err
 	}
 
 	// Check for context cancellation before repository call
 	if err := ctx.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Context canceled before persist", err)
-		logger.WithFields(
-			"operation", "service.limit.create",
-			"error.message", err.Error(),
-		).Warn("Context canceled before persisting limit")
+		libOpentelemetry.HandleSpanError(span, "Context canceled before persist", err)
+		logger.With(
+			libLog.String("operation", "service.limit.create"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Context canceled before persisting limit")
 
 		return nil, err
 	}
 
 	// Persist to repository
 	if err := c.repo.Create(ctx, limit); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to persist limit", err)
-		logger.WithFields(
-			"operation", "service.limit.create",
-			"error.message", err.Error(),
-		).Error("Failed to persist limit")
+		libOpentelemetry.HandleSpanError(span, "Failed to persist limit", err)
+		logger.With(
+			libLog.String("operation", "service.limit.create"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to persist limit")
 
 		return nil, err
 	}
 
-	logger.WithFields(
-		"operation", "service.limit.create",
-		"limit.id", limit.ID.String(),
-		"limit.name", limit.Name,
-		"limit.status", string(limit.Status),
-	).Info("Limit created successfully")
+	logger.With(
+		libLog.String("operation", "service.limit.create"),
+		libLog.String("limit.id", limit.ID.String()),
+		libLog.Any("limit.name", limit.Name),
+		libLog.String("limit.status", string(limit.Status)),
+	).Log(ctx, libLog.LevelInfo, "Limit created successfully")
 
 	// Record audit event (best-effort)
 	if c.auditWriter != nil {
@@ -259,11 +260,11 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 			"Limit created via API",
 			clientIP,
 		); err != nil {
-			logger.WithFields(
-				"operation", "service.limit.create.audit",
-				"limit.id", limit.ID.String(),
-				"error", err.Error(),
-			).Warn("Failed to record audit event")
+			logger.With(
+				libLog.String("operation", "service.limit.create.audit"),
+				libLog.String("limit.id", limit.ID.String()),
+				libLog.String("error", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to record audit event")
 		}
 	}
 

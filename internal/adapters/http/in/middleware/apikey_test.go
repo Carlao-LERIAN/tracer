@@ -440,7 +440,7 @@ func TestAPIKeyAuthWithLogger_NeverLogsAPIKeyValue(t *testing.T) {
 
 				// Check fields don't contain the API key
 				for _, field := range call.Fields {
-					fieldStr, ok := field.(string)
+					fieldStr, ok := field.Value.(string)
 					if ok {
 						assert.False(t, strings.Contains(fieldStr, secretKey),
 							"field should not contain API key value")

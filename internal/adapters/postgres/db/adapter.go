@@ -9,23 +9,23 @@ import (
 	"database/sql"
 	"errors"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	"github.com/bxcodec/dbresolver/v2"
 )
 
 // ErrNilConnection is returned when attempting to use a nil database connection.
 var ErrNilConnection = errors.New("database connection is nil")
 
-// PostgresConnectionAdapter adapts *libPostgres.PostgresConnection to Connection interface.
+// PostgresConnectionAdapter adapts *libPostgres.Client to Connection interface.
 // This allows repositories to use a common interface for database connections,
 // enabling easier testing with mocks while maintaining compatibility with production connections.
 type PostgresConnectionAdapter struct {
-	conn *libPostgres.PostgresConnection
+	conn *libPostgres.Client
 }
 
-// NewPostgresConnectionAdapter creates a new adapter for a PostgresConnection.
+// NewPostgresConnectionAdapter creates a new adapter for a postgres Client.
 // Returns nil if conn is nil. Callers should check for nil before use.
-func NewPostgresConnectionAdapter(conn *libPostgres.PostgresConnection) *PostgresConnectionAdapter {
+func NewPostgresConnectionAdapter(conn *libPostgres.Client) *PostgresConnectionAdapter {
 	if conn == nil {
 		return nil
 	}
@@ -35,12 +35,13 @@ func NewPostgresConnectionAdapter(conn *libPostgres.PostgresConnection) *Postgre
 
 // GetDB returns the underlying database connection.
 // Returns ErrNilConnection if the adapter was created with a nil connection.
+// Uses context.Background() because the Connection interface does not carry a context.
 func (p *PostgresConnectionAdapter) GetDB() (DB, error) {
 	if p == nil || p.conn == nil {
 		return nil, ErrNilConnection
 	}
 
-	return p.conn.GetDB()
+	return p.conn.Resolver(context.Background())
 }
 
 // TxBeginnerAdapter adapts dbresolver.DB to our TxBeginner interface.

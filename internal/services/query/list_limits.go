@@ -8,8 +8,9 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
@@ -71,7 +72,7 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 
 	// Validate filter values after defaults are applied
 	if err := filter.Validate(); err != nil {
-		_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "list_limits_filter", map[string]any{
+		_ = libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_filter", map[string]any{
 			"limit":           filter.Limit,
 			"has_cursor":      filter.Cursor != "",
 			"sort_by":         filter.SortBy,
@@ -79,35 +80,35 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 			"status":          filterStatus,
 			"limit_type":      filterLimitType,
 			"service.success": false,
-		})
+		}, nil)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid filter", err)
-		logger.WithFields(
-			"operation", "service.limit.list",
-			"error.message", err.Error(),
-			"filter.status", filterStatus,
-			"filter.limit_type", filterLimitType,
-			"filter.sort_by", filter.SortBy,
-			"filter.sort_order", filter.SortOrder,
-		).Warn("Invalid filter provided")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filter", err)
+		logger.With(
+			libLog.String("operation", "service.limit.list"),
+			libLog.String("error.message", err.Error()),
+			libLog.Any("filter.status", filterStatus),
+			libLog.Any("filter.limit_type", filterLimitType),
+			libLog.Any("filter.sort_by", filter.SortBy),
+			libLog.Any("filter.sort_order", filter.SortOrder),
+		).Log(ctx, libLog.LevelWarn, "Invalid filter provided")
 
 		return nil, err
 	}
 
-	logger.WithFields(
-		"operation", "service.limit.list",
-		"filter.limit", filter.Limit,
-		"filter.has_cursor", filter.Cursor != "",
-		"filter.sort_by", filter.SortBy,
-		"filter.sort_order", filter.SortOrder,
-	).Info("Listing limits")
+	logger.With(
+		libLog.String("operation", "service.limit.list"),
+		libLog.Any("filter.limit", filter.Limit),
+		libLog.Any("filter.has_cursor", filter.Cursor != ""),
+		libLog.Any("filter.sort_by", filter.SortBy),
+		libLog.Any("filter.sort_order", filter.SortOrder),
+	).Log(ctx, libLog.LevelInfo, "Listing limits")
 
 	// Check context cancellation before repository call
 	if ctx.Err() != nil {
-		libOpentelemetry.HandleSpanError(&span, "Context cancelled", ctx.Err())
-		logger.WithFields(
-			"operation", "service.limit.list",
-		).Warn("Context cancelled before repository call")
+		libOpentelemetry.HandleSpanError(span, "Context cancelled", ctx.Err())
+		logger.With(
+			libLog.String("operation", "service.limit.list"),
+		).Log(ctx, libLog.LevelWarn, "Context cancelled before repository call")
 
 		return nil, ctx.Err()
 	}
@@ -117,24 +118,24 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 	if err != nil {
 		// Distinguish business errors (invalid cursor) from infrastructure errors
 		if errors.Is(err, constant.ErrInvalidCursor) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid pagination cursor", err)
-			logger.WithFields(
-				"operation", "service.limit.list",
-				"error.message", err.Error(),
-			).Warn("Invalid cursor provided")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid pagination cursor", err)
+			logger.With(
+				libLog.String("operation", "service.limit.list"),
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Invalid cursor provided")
 		} else {
-			libOpentelemetry.HandleSpanError(&span, "Failed to list limits", err)
-			logger.WithFields(
-				"operation", "service.limit.list",
-				"error.message", err.Error(),
-			).Error("Failed to list limits")
+			libOpentelemetry.HandleSpanError(span, "Failed to list limits", err)
+			logger.With(
+				libLog.String("operation", "service.limit.list"),
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelError, "Failed to list limits")
 		}
 
 		return nil, err
 	}
 
 	// Set span attributes after successful repository call
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "list_limits_filter", map[string]any{
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_filter", map[string]any{
 		"limit":           filter.Limit,
 		"has_cursor":      filter.Cursor != "",
 		"sort_by":         filter.SortBy,
@@ -142,25 +143,25 @@ func (q *ListLimitsQuery) Execute(ctx context.Context, filter *model.ListLimitsF
 		"status":          filterStatus,
 		"limit_type":      filterLimitType,
 		"service.success": true,
-	})
+	}, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.limit.list",
-		"result.count", len(result.Limits),
-		"result.has_more", result.HasMore,
-	).Info("Limits listed successfully")
+	logger.With(
+		libLog.String("operation", "service.limit.list"),
+		libLog.Int("result.count", len(result.Limits)),
+		libLog.Any("result.has_more", result.HasMore),
+	).Log(ctx, libLog.LevelInfo, "Limits listed successfully")
 
 	// Add span attributes for result (consistent with list_rules.go)
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "list_limits_result", map[string]any{
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "list_limits_result", map[string]any{
 		"limits_count": len(result.Limits),
 		"has_more":     result.HasMore,
 		"has_cursor":   result.NextCursor != "",
-	})
+	}, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set result span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set result span attributes", err)
 	}
 
 	return result, nil

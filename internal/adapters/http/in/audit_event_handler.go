@@ -10,9 +10,9 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -88,17 +88,17 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 	var input ListAuditEventsInput
 
 	if err := c.QueryParser(&input); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse query parameters", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", "Invalid query parameters")
 	}
 
 	// Validate before applying defaults to ensure fail-fast behavior
 	if err := input.Validate(); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Validation failed", err)
-		logger.WithFields(
-			"operation", "handler.audit_event.list",
-			"error", err.Error(),
-		).Error("Failed to validate request parameters")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
+		logger.With(
+			libLog.String("operation", "handler.audit_event.list"),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to validate request parameters")
 
 		// Check if it's a ValidationError with a specific code (e.g., TRC-0043)
 		var valErr *ValidationError
@@ -112,22 +112,22 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 	// Apply defaults after validation
 	input.SetDefaults()
 
-	logger.WithFields(
-		"operation", "handler.audit_event.list",
-		"list.limit", input.Limit,
-		"list.cursor", input.Cursor,
-		"list.sort_by", input.SortBy,
-		"list.sort_order", input.SortOrder,
-	).Info("Listing audit events")
+	logger.With(
+		libLog.String("operation", "handler.audit_event.list"),
+		libLog.Any("list.limit", input.Limit),
+		libLog.Any("list.cursor", input.Cursor),
+		libLog.Any("list.sort_by", input.SortBy),
+		libLog.Any("list.sort_order", input.SortOrder),
+	).Log(ctx, libLog.LevelInfo, "Listing audit events")
 
 	// Convert to service filters
 	filters, err := toAuditEventFilters(&input)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid filters", err)
-		logger.WithFields(
-			"operation", "handler.audit_event.list",
-			"error", err.Error(),
-		).Error("Failed to convert filter parameters")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filters", err)
+		logger.With(
+			libLog.String("operation", "handler.audit_event.list"),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to convert filter parameters")
 
 		var valErr *ValidationError
 		if errors.As(err, &valErr) && valErr.Code != "" {
@@ -139,19 +139,19 @@ func (h *AuditEventHandler) ListAuditEvents(c *fiber.Ctx) error {
 
 	result, err := h.service.ListAuditEvents(ctx, filters)
 	if err != nil {
-		return handleAuditEventServiceError(c, &span, err)
+		return handleAuditEventServiceError(c, span, err)
 	}
 
 	// Convert to response
 	response := toListAuditEventsResponse(result)
 
-	logger.WithFields(
-		"operation", "handler.audit_event.list",
-		"list.count", len(response.AuditEvents),
-		"list.has_more", response.HasMore,
-	).Info("Audit events listed")
+	logger.With(
+		libLog.String("operation", "handler.audit_event.list"),
+		libLog.Int("list.count", len(response.AuditEvents)),
+		libLog.Any("list.has_more", response.HasMore),
+	).Log(ctx, libLog.LevelInfo, "Audit events listed")
 
-	return libHTTP.OK(c, response)
+	return pkgHTTP.OK(c, response)
 }
 
 // GetAuditEvent godoc
@@ -184,27 +184,27 @@ func (h *AuditEventHandler) GetAuditEvent(c *fiber.Ctx) error {
 
 	eventID, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid event ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid event ID", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid event ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.audit_event.get",
-		"audit_event.id", eventID.String(),
-	).Info("Getting audit event")
+	logger.With(
+		libLog.String("operation", "handler.audit_event.get"),
+		libLog.String("audit_event.id", eventID.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting audit event")
 
 	result, err := h.service.GetAuditEvent(ctx, eventID)
 	if err != nil {
-		return handleAuditEventServiceError(c, &span, err)
+		return handleAuditEventServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.audit_event.get",
-		"audit_event.id", result.EventID.String(),
-		"audit_event.type", result.EventType,
-	).Info("Audit event retrieved")
+	logger.With(
+		libLog.String("operation", "handler.audit_event.get"),
+		libLog.String("audit_event.id", result.EventID.String()),
+		libLog.Any("audit_event.type", result.EventType),
+	).Log(ctx, libLog.LevelInfo, "Audit event retrieved")
 
-	return libHTTP.OK(c, result)
+	return pkgHTTP.OK(c, result)
 }
 
 // VerifyHashChain godoc
@@ -237,35 +237,35 @@ func (h *AuditEventHandler) VerifyHashChain(c *fiber.Ctx) error {
 
 	eventID, err := uuid.Parse(eventIDParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid event ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid event ID", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid event ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.audit_event.verify_chain",
-		"event_id", eventID.String(),
-	).Info("Verifying hash chain")
+	logger.With(
+		libLog.String("operation", "handler.audit_event.verify_chain"),
+		libLog.String("event_id", eventID.String()),
+	).Log(ctx, libLog.LevelInfo, "Verifying hash chain")
 
 	result, err := h.service.VerifyHashChain(ctx, eventID)
 	if err != nil {
-		return handleAuditEventServiceError(c, &span, err)
+		return handleAuditEventServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.audit_event.verify_chain",
-		"is_valid", result.IsValid,
-		"total_checked", result.TotalChecked,
-	).Info("Hash chain verification completed")
+	logger.With(
+		libLog.String("operation", "handler.audit_event.verify_chain"),
+		libLog.Any("is_valid", result.IsValid),
+		libLog.Any("total_checked", result.TotalChecked),
+	).Log(ctx, libLog.LevelInfo, "Hash chain verification completed")
 
-	return libHTTP.OK(c, result)
+	return pkgHTTP.OK(c, result)
 }
 
 // handleAuditEventServiceError converts service errors to appropriate HTTP responses.
-func handleAuditEventServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
+func handleAuditEventServiceError(c *fiber.Ctx, span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrAuditEventNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Audit event not found", err)
-		return libHTTP.NotFound(c, "TRC-0140", "Not Found", "Audit event not found")
+		return pkgHTTP.NotFound(c, "TRC-0140", "Not Found", "Audit event not found")
 	case errors.Is(err, constant.ErrInvalidAuditEventFilters):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filters", err)
 
@@ -280,6 +280,6 @@ func handleAuditEventServiceError(c *fiber.Ctx, span *trace.Span, err error) err
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0043", "Bad Request", "Invalid sort column")
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
-		return libHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
+		return pkgHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
 	}
 }

@@ -7,8 +7,8 @@ package bootstrap
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 
 	"tracer/internal/services/workers"
 )
@@ -49,10 +49,10 @@ func (app *Service) Shutdown(ctx context.Context) error {
 
 	if app.HTTPServer != nil && app.app != nil {
 		if err := app.app.ShutdownWithContext(ctx); err != nil {
-			logger.WithFields(
-				"service.name", "HTTP Service",
-				"error.message", err.Error(),
-			).Error("failed to shutdown HTTP server")
+			logger.With(
+				libLog.String("service.name", "HTTP Service"),
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelError, "failed to shutdown HTTP server")
 
 			return err
 		}
@@ -62,15 +62,15 @@ func (app *Service) Shutdown(ctx context.Context) error {
 	// When running via Launcher, shutdown is coordinated through OS signals.
 	// For programmatic shutdown scenarios, the worker stops when its context is cancelled.
 	if app.cleanupWorker != nil {
-		logger.WithFields(
-			"service.name", "Usage Cleanup Worker",
-		).Info("cleanup worker shutdown is managed by Launcher via OS signals")
+		logger.With(
+			libLog.String("service.name", "Usage Cleanup Worker"),
+		).Log(ctx, libLog.LevelInfo, "cleanup worker shutdown is managed by Launcher via OS signals")
 	}
 
 	if app.syncWorker != nil {
-		logger.WithFields(
-			"service.name", "Rule Sync Worker",
-		).Info("rule sync worker shutdown is managed by Launcher via OS signals")
+		logger.With(
+			libLog.String("service.name", "Rule Sync Worker"),
+		).Log(ctx, libLog.LevelInfo, "rule sync worker shutdown is managed by Launcher via OS signals")
 	}
 
 	return nil

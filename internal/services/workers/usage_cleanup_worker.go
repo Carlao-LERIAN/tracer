@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	"tracer/pkg/clock"
 	"tracer/pkg/logging"
@@ -92,10 +92,10 @@ func (w *UsageCleanupWorker) RunWithContext(ctx context.Context) error {
 
 // runLoop is the internal loop that handles cleanup cycles.
 func (w *UsageCleanupWorker) runLoop(ctx context.Context) error {
-	w.logger.WithFields(
-		"operation", "worker.usage_cleanup.run",
-		"cleanup_interval", w.config.CleanupInterval.String(),
-	).Info("Starting usage cleanup worker")
+	w.logger.With(
+		libLog.String("operation", "worker.usage_cleanup.run"),
+		libLog.String("cleanup_interval", w.config.CleanupInterval.String()),
+	).Log(ctx, libLog.LevelInfo, "Starting usage cleanup worker")
 
 	// Use injected clock's ticker for deterministic testing
 	tickerChan, stopTicker := w.clock.NewTicker(w.config.CleanupInterval)
@@ -105,9 +105,9 @@ func (w *UsageCleanupWorker) runLoop(ctx context.Context) error {
 	// Check for cancellation before initial cleanup to avoid work after shutdown
 	select {
 	case <-ctx.Done():
-		w.logger.WithFields(
-			"operation", "worker.usage_cleanup.run",
-		).Info("Usage cleanup worker stopped before initial cycle")
+		w.logger.With(
+			libLog.String("operation", "worker.usage_cleanup.run"),
+		).Log(ctx, libLog.LevelInfo, "Usage cleanup worker stopped before initial cycle")
 
 		return nil
 	default:
@@ -117,9 +117,9 @@ func (w *UsageCleanupWorker) runLoop(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			w.logger.WithFields(
-				"operation", "worker.usage_cleanup.run",
-			).Info("Usage cleanup worker stopped")
+			w.logger.With(
+				libLog.String("operation", "worker.usage_cleanup.run"),
+			).Log(ctx, libLog.LevelInfo, "Usage cleanup worker stopped")
 
 			return nil
 
@@ -140,25 +140,25 @@ func (w *UsageCleanupWorker) runCleanupCycle(ctx context.Context) {
 	// Use w.logger (guaranteed non-nil) instead of context logger which may be empty
 	logger := logging.WithTrace(ctx, w.logger)
 
-	logger.WithFields(
-		"operation", "worker.usage_cleanup.run_cycle",
-	).Info("Running usage counter cleanup cycle")
+	logger.With(
+		libLog.String("operation", "worker.usage_cleanup.run_cycle"),
+	).Log(ctx, libLog.LevelInfo, "Running usage counter cleanup cycle")
 
 	deleted, err := w.RunOnce(ctx)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Cleanup cycle failed", err)
-		logger.WithFields(
-			"operation", "worker.usage_cleanup.run_cycle",
-			"error.message", err.Error(),
-		).Error("Failed to cleanup expired counters")
+		libOtel.HandleSpanError(span, "Cleanup cycle failed", err)
+		logger.With(
+			libLog.String("operation", "worker.usage_cleanup.run_cycle"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to cleanup expired counters")
 
 		return
 	}
 
-	logger.WithFields(
-		"operation", "worker.usage_cleanup.run_cycle",
-		"deleted_count", deleted,
-	).Info("Cleanup cycle completed successfully")
+	logger.With(
+		libLog.String("operation", "worker.usage_cleanup.run_cycle"),
+		libLog.Any("deleted_count", deleted),
+	).Log(ctx, libLog.LevelInfo, "Cleanup cycle completed successfully")
 }
 
 // RunOnce executes a single cleanup operation.
@@ -180,22 +180,22 @@ func (w *UsageCleanupWorker) RunOnce(ctx context.Context) (int64, error) {
 	// Counters with NULL expires_at are preserved (never deleted)
 	now := w.clock.Now().UTC()
 
-	logger.WithFields(
-		"operation", "worker.usage_cleanup.run_once",
-		"now", now.Format(time.RFC3339),
-	).Info("Deleting expired usage counters by expires_at")
+	logger.With(
+		libLog.String("operation", "worker.usage_cleanup.run_once"),
+		libLog.String("now", now.Format(time.RFC3339)),
+	).Log(ctx, libLog.LevelInfo, "Deleting expired usage counters by expires_at")
 
 	deleted, err := w.repo.DeleteExpiredCounters(ctx, now)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to delete expired counters", err)
+		libOtel.HandleSpanError(span, "Failed to delete expired counters", err)
 
 		return 0, fmt.Errorf("failed to delete expired counters: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "worker.usage_cleanup.run_once",
-		"deleted_count", deleted,
-	).Info("Deleted expired usage counters")
+	logger.With(
+		libLog.String("operation", "worker.usage_cleanup.run_once"),
+		libLog.Any("deleted_count", deleted),
+	).Log(ctx, libLog.LevelInfo, "Deleted expired usage counters")
 
 	return deleted, nil
 }

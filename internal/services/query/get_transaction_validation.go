@@ -8,8 +8,9 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/pkg/constant"
@@ -40,43 +41,43 @@ func (q *GetTransactionValidationQuery) Execute(ctx context.Context, validationI
 
 	// Fast-fail on nil UUID
 	if validationID == uuid.Nil {
-		logger.WithFields(
-			"operation", "service.transaction-validation.get",
-			"validation.id", validationID.String(),
-		).Error("Invalid validation id: cannot be nil UUID")
+		logger.With(
+			libLog.String("operation", "service.transaction-validation.get"),
+			libLog.String("validation.id", validationID.String()),
+		).Log(ctx, libLog.LevelError, "Invalid validation id: cannot be nil UUID")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid validation id", constant.ErrInvalidPathParameter)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid validation id", constant.ErrInvalidPathParameter)
 
 		return nil, constant.ErrInvalidPathParameter
 	}
 
-	logger.WithFields(
-		"operation", "service.transaction-validation.get",
-		"validation.id", validationID.String(),
-	).Info("Getting transaction validation record")
+	logger.With(
+		libLog.String("operation", "service.transaction-validation.get"),
+		libLog.String("validation.id", validationID.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting transaction validation record")
 
 	validation, err := q.repo.GetByID(ctx, validationID)
 	if err != nil {
 		if errors.Is(err, constant.ErrTransactionValidationNotFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction validation not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction validation not found", err)
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction validation", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get transaction validation", err)
 
 		return nil, err
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "transaction_validation", validation)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "transaction_validation", validation, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.transaction-validation.get",
-		"validation.id", validation.ID.String(),
-		"validation.decision", string(validation.Decision),
-	).Info("Transaction validation record retrieved")
+	logger.With(
+		libLog.String("operation", "service.transaction-validation.get"),
+		libLog.String("validation.id", validation.ID.String()),
+		libLog.String("validation.decision", string(validation.Decision)),
+	).Log(ctx, libLog.LevelInfo, "Transaction validation record retrieved")
 
 	return validation, nil
 }

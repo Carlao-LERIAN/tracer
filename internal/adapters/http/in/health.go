@@ -12,13 +12,13 @@ import (
 	"errors"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	"github.com/gofiber/fiber/v2"
 
 	"tracer/api"
+	pkgHTTP "tracer/pkg/net/http"
 )
 
 // Sentinel errors for health check failures.
@@ -70,15 +70,15 @@ type PostgresDBProvider interface {
 	IsConnected() bool
 }
 
-// postgresConnectionAdapter adapts *libPostgres.PostgresConnection to PostgresDBProvider.
+// postgresConnectionAdapter adapts *libPostgres.Client to PostgresDBProvider.
 type postgresConnectionAdapter struct {
-	conn *libPostgres.PostgresConnection
+	conn *libPostgres.Client
 }
 
 // GetDB returns the underlying database connection.
 // The dbresolver.DB returned by lib-commons wraps *sql.DB, so we type assert it.
 func (p *postgresConnectionAdapter) GetDB() (*sql.DB, error) {
-	db, err := p.conn.GetDB()
+	db, err := p.conn.Resolver(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,13 @@ func (p *postgresConnectionAdapter) GetDB() (*sql.DB, error) {
 
 // IsConnected returns whether the connection is established.
 func (p *postgresConnectionAdapter) IsConnected() bool {
-	return p.conn != nil && p.conn.Connected
+	if p.conn == nil {
+		return false
+	}
+
+	connected, err := p.conn.IsConnected()
+
+	return err == nil && connected
 }
 
 // HealthChecker holds the connection pools for dependency health checks.
@@ -112,7 +118,7 @@ type HealthChecker struct {
 
 // NewHealthChecker creates a new HealthChecker instance with connection pools.
 // Uses DefaultHealthCheckTimeout (3s) which is suitable for liveness probes.
-func NewHealthChecker(postgresConn *libPostgres.PostgresConnection) *HealthChecker {
+func NewHealthChecker(postgresConn *libPostgres.Client) *HealthChecker {
 	var provider PostgresDBProvider
 
 	if postgresConn != nil {
@@ -191,19 +197,19 @@ func (h *HealthChecker) ReadinessHandler() fiber.Handler {
 			// DB failed — return 503 regardless of cache state
 			response.Status = StatusNotReady
 
-			libOtel.HandleSpanError(&span, "readiness check failed", ErrDependenciesUnhealthy)
+			libOtel.HandleSpanError(span, "readiness check failed", ErrDependenciesUnhealthy)
 
-			return libHTTP.JSONResponse(c, fiber.StatusServiceUnavailable, response)
+			return pkgHTTP.JSONResponse(c, fiber.StatusServiceUnavailable, response)
 		}
 
 		if cacheCheck.Status == StatusFailed {
 			// Cache degraded but DB healthy — return 200 DEGRADED (avoids K8s restarts)
 			response.Status = StatusDegraded
 
-			return libHTTP.OK(c, response)
+			return pkgHTTP.OK(c, response)
 		}
 
-		return libHTTP.OK(c, response)
+		return pkgHTTP.OK(c, response)
 	}
 }
 
@@ -227,7 +233,7 @@ func (h *HealthChecker) checkPostgres(ctx context.Context) api.HealthCheck {
 		status.Status = StatusFailed
 		status.Message = ErrConnectionNotEstablished.Error()
 
-		libOtel.HandleSpanError(&span, status.Message, ErrConnectionNotEstablished)
+		libOtel.HandleSpanError(span, status.Message, ErrConnectionNotEstablished)
 
 		return status
 	}
@@ -237,7 +243,7 @@ func (h *HealthChecker) checkPostgres(ctx context.Context) api.HealthCheck {
 		status.Status = StatusFailed
 		status.Message = ErrConnectionFailed.Error()
 
-		libOtel.HandleSpanError(&span, status.Message, ErrConnectionFailed)
+		libOtel.HandleSpanError(span, status.Message, ErrConnectionFailed)
 
 		return status
 	}
@@ -246,7 +252,7 @@ func (h *HealthChecker) checkPostgres(ctx context.Context) api.HealthCheck {
 		status.Status = StatusFailed
 		status.Message = ErrPingFailed.Error()
 
-		libOtel.HandleSpanError(&span, status.Message, ErrPingFailed)
+		libOtel.HandleSpanError(span, status.Message, ErrPingFailed)
 
 		return status
 	}
@@ -270,12 +276,12 @@ func (h *HealthChecker) checkRuleCache(ctx context.Context) api.HealthCheck {
 	}
 
 	if !h.cacheHealth.IsReady() {
-		libOtel.HandleSpanError(&span, "cache not ready", ErrCacheNotReady)
+		libOtel.HandleSpanError(span, "cache not ready", ErrCacheNotReady)
 		return api.HealthCheck{Component: ComponentRuleCache, Status: StatusFailed, Message: "cache not ready"}
 	}
 
 	if h.cacheHealth.Staleness() > h.cacheStalenessThreshold {
-		libOtel.HandleSpanError(&span, "cache data stale", ErrCacheStale)
+		libOtel.HandleSpanError(span, "cache data stale", ErrCacheStale)
 		return api.HealthCheck{Component: ComponentRuleCache, Status: StatusFailed, Message: "cache data stale"}
 	}
 

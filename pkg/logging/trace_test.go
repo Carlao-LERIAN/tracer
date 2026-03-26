@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -113,8 +114,8 @@ func TestWithTrace_FieldValues(t *testing.T) {
 	// Call WithTrace
 	enrichedLogger := WithTrace(ctx, mockLogger)
 
-	// Log something to capture the fields (using Debug which is implemented in mock)
-	enrichedLogger.Debug("test message")
+	// Log something to capture the fields
+	enrichedLogger.Log(ctx, libLog.LevelDebug, "test message")
 
 	// Verify the mock captured the call with fields
 	require.Len(t, mockLogger.Calls, 1, "Should have one log call")

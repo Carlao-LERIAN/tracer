@@ -15,9 +15,9 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
@@ -88,36 +88,36 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 
 	logger = logging.WithTrace(ctx, logger)
 
-	if err := c.validateInput(&span, id, input); err != nil {
+	if err := c.validateInput(span, id, input); err != nil {
 		return nil, err
 	}
 
-	logger.WithFields(
-		"operation", "service.limit.update",
-		"limit.id", id.String(),
-	).Info("Updating limit")
+	logger.With(
+		libLog.String("operation", "service.limit.update"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Updating limit")
 
 	normalizedInput := c.normalizeInput(input)
 
-	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "update_limit_input", map[string]any{
+	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "update_limit_input", map[string]any{
 		"limit_id":        id.String(),
 		"has_name":        normalizedInput.Name != nil,
 		"has_max_amount":  normalizedInput.MaxAmount != nil,
 		"has_description": normalizedInput.Description != nil,
 		"has_scopes":      normalizedInput.Scopes != nil,
-	})
+	}, nil)
 
 	if ctx.Err() != nil {
-		libOpentelemetry.HandleSpanError(&span, "Context cancelled", ctx.Err())
-		logger.WithFields(
-			"operation", "service.limit.update",
-			"limit.id", id.String(),
-		).Warn("Context cancelled before fetching limit")
+		libOpentelemetry.HandleSpanError(span, "Context cancelled", ctx.Err())
+		logger.With(
+			libLog.String("operation", "service.limit.update"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelWarn, "Context cancelled before fetching limit")
 
 		return nil, ctx.Err()
 	}
 
-	limit, err := c.fetchLimit(ctx, &span, logger, id)
+	limit, err := c.fetchLimit(ctx, span, logger, id)
 	if err != nil {
 		return nil, err
 	}
@@ -126,20 +126,20 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 
 	if limit.Status == model.LimitStatusDeleted {
 		err := constant.ErrLimitAlreadyDeleted
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Cannot update deleted limit", err)
-		logger.WithFields(
-			"operation", "service.limit.update",
-			"limit.id", id.String(),
-		).Warn("Attempted to update deleted limit")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cannot update deleted limit", err)
+		logger.With(
+			libLog.String("operation", "service.limit.update"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelWarn, "Attempted to update deleted limit")
 
 		return nil, err
 	}
 
 	if !c.hasChanges(normalizedInput) {
-		logger.WithFields(
-			"operation", "service.limit.update",
-			"limit.id", id.String(),
-		).Info("No changes requested, returning existing limit")
+		logger.With(
+			libLog.String("operation", "service.limit.update"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelInfo, "No changes requested, returning existing limit")
 
 		return limit, nil
 	}
@@ -150,7 +150,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 	if normalizedInput.CustomStartDate != nil {
 		parsed, parseErr := time.Parse(time.RFC3339, *normalizedInput.CustomStartDate)
 		if parseErr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse customStartDate", constant.ErrLimitInvalidCustomStartFormat)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse customStartDate", constant.ErrLimitInvalidCustomStartFormat)
 			return nil, fmt.Errorf("%w: %w", constant.ErrLimitInvalidCustomStartFormat, parseErr)
 		}
 
@@ -160,7 +160,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 	if normalizedInput.CustomEndDate != nil {
 		parsed, parseErr := time.Parse(time.RFC3339, *normalizedInput.CustomEndDate)
 		if parseErr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse customEndDate", constant.ErrLimitInvalidCustomEndFormat)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse customEndDate", constant.ErrLimitInvalidCustomEndFormat)
 			return nil, fmt.Errorf("%w: %w", constant.ErrLimitInvalidCustomEndFormat, parseErr)
 		}
 
@@ -178,49 +178,49 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		customEndDate,
 		c.clock.Now(),
 	); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Update validation failed", err)
-		logger.WithFields(
-			"operation", "service.limit.update",
-			"limit.id", id.String(),
-			"error.message", err.Error(),
-		).Warn("Failed to update limit entity")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Update validation failed", err)
+		logger.With(
+			libLog.String("operation", "service.limit.update"),
+			libLog.String("limit.id", id.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Failed to update limit entity")
 
 		return nil, err
 	}
 
 	if ctx.Err() != nil {
-		libOpentelemetry.HandleSpanError(&span, "Context cancelled", ctx.Err())
-		logger.WithFields(
-			"operation", "service.limit.update",
-			"limit.id", id.String(),
-		).Warn("Context cancelled")
+		libOpentelemetry.HandleSpanError(span, "Context cancelled", ctx.Err())
+		logger.With(
+			libLog.String("operation", "service.limit.update"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelWarn, "Context cancelled")
 
 		return nil, ctx.Err()
 	}
 
 	if err := c.repo.Update(ctx, limit); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to persist update", err)
-		logger.WithFields(
-			"operation", "service.limit.update",
-			"limit.id", id.String(),
-			"error.message", err.Error(),
-		).Error("Failed to persist limit update")
+		libOpentelemetry.HandleSpanError(span, "Failed to persist update", err)
+		logger.With(
+			libLog.String("operation", "service.limit.update"),
+			libLog.String("limit.id", id.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to persist limit update")
 
 		return nil, err
 	}
 
-	logger.WithFields(
-		"operation", "service.limit.update",
-		"limit.id", limit.ID.String(),
-		"limit.name", limit.Name,
-	).Info("Limit updated successfully")
+	logger.With(
+		libLog.String("operation", "service.limit.update"),
+		libLog.String("limit.id", limit.ID.String()),
+		libLog.Any("limit.name", limit.Name),
+	).Log(ctx, libLog.LevelInfo, "Limit updated successfully")
 
 	c.recordAudit(ctx, logger, limit, beforeState)
 
 	return limit, nil
 }
 
-func (c *UpdateLimitCommand) validateInput(span *trace.Span, id uuid.UUID, input *UpdateLimitInput) error {
+func (c *UpdateLimitCommand) validateInput(span trace.Span, id uuid.UUID, input *UpdateLimitInput) error {
 	if input == nil {
 		err := constant.ErrLimitNilInput
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil input provided", err)
@@ -261,19 +261,19 @@ func (c *UpdateLimitCommand) normalizeInput(input *UpdateLimitInput) *UpdateLimi
 	return normalizedInput
 }
 
-func (c *UpdateLimitCommand) fetchLimit(ctx context.Context, span *trace.Span, logger libLog.Logger, id uuid.UUID) (*model.Limit, error) {
+func (c *UpdateLimitCommand) fetchLimit(ctx context.Context, span trace.Span, logger libLog.Logger, id uuid.UUID) (*model.Limit, error) {
 	limit, err := c.repo.GetByID(ctx, id)
 	if err != nil {
-		c.handleFetchError(span, logger, id, err)
+		c.handleFetchError(ctx, span, logger, id, err)
 		return nil, err
 	}
 
 	if limit == nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", constant.ErrLimitNotFound)
-		logger.WithFields(
-			"operation", "service.limit.update",
-			"limit.id", id.String(),
-		).Warn("Limit not found")
+		logger.With(
+			libLog.String("operation", "service.limit.update"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelWarn, "Limit not found")
 
 		return nil, constant.ErrLimitNotFound
 	}
@@ -281,20 +281,20 @@ func (c *UpdateLimitCommand) fetchLimit(ctx context.Context, span *trace.Span, l
 	return limit, nil
 }
 
-func (c *UpdateLimitCommand) handleFetchError(span *trace.Span, logger libLog.Logger, id uuid.UUID, err error) {
+func (c *UpdateLimitCommand) handleFetchError(ctx context.Context, span trace.Span, logger libLog.Logger, id uuid.UUID, err error) {
 	if errors.Is(err, constant.ErrLimitNotFound) {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
-		logger.WithFields(
-			"operation", "service.limit.update",
-			"limit.id", id.String(),
-		).Warn("Limit not found")
+		logger.With(
+			libLog.String("operation", "service.limit.update"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelWarn, "Limit not found")
 	} else {
 		libOpentelemetry.HandleSpanError(span, "Failed to fetch limit", err)
-		logger.WithFields(
-			"operation", "service.limit.update",
-			"limit.id", id.String(),
-			"error.message", err.Error(),
-		).Error("Failed to fetch limit")
+		logger.With(
+			libLog.String("operation", "service.limit.update"),
+			libLog.String("limit.id", id.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to fetch limit")
 	}
 }
 
@@ -327,10 +327,10 @@ func (c *UpdateLimitCommand) recordAudit(ctx context.Context, logger libLog.Logg
 		"Limit updated via API",
 		clientIP,
 	); err != nil {
-		logger.WithFields(
-			"operation", "service.limit.update.audit",
-			"limit.id", limit.ID.String(),
-			"error", err.Error(),
-		).Warn("Failed to record audit event")
+		logger.With(
+			libLog.String("operation", "service.limit.update.audit"),
+			libLog.String("limit.id", limit.ID.String()),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Failed to record audit event")
 	}
 }

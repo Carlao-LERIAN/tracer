@@ -6,7 +6,6 @@ package cel
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"tracer/internal/testutil"
@@ -276,28 +275,29 @@ func TestCompile_SpanAttributes(t *testing.T) {
 
 			require.NotNil(t, compileSpan, "Compile span should exist")
 
-			// Verify attributes - SetSpanAttributesFromStruct stores as JSON in a single attribute
+			// Verify attributes - lib-commons v4 flattens struct attributes into dotted keys
+			// e.g. "compile_input.expression_hash", "compile_input.expression_length"
 			attrs := attributesToMap(compileSpan.Attributes)
-			assert.Contains(t, attrs, "compile_input", "Should have compile_input attribute")
 
-			// The attribute value is a JSON string containing the struct data
-			compileInputJSON, ok := attrs["compile_input"].(string)
-			require.True(t, ok, "compile_input should be a string")
+			for expectedKey, expectedVal := range tc.expectedAttrs {
+				assert.Contains(t, attrs, expectedKey, "Should have %s attribute", expectedKey)
 
-			// Parse JSON and verify actual values
-			var compileInput map[string]any
-			err = json.Unmarshal([]byte(compileInputJSON), &compileInput)
-			require.NoError(t, err, "compile_input should be valid JSON")
+				actualVal, exists := attrs[expectedKey]
+				if !exists {
+					continue
+				}
 
-			if expectedHash, ok := tc.expectedAttrs["compile_input.expression_hash"]; ok {
-				assert.Equal(t, expectedHash, compileInput["expression_hash"],
-					"expression_hash value should match")
-			}
-
-			if expectedLength, ok := tc.expectedAttrs["compile_input.expression_length"]; ok {
-				// JSON unmarshals numbers as float64
-				assert.Equal(t, float64(expectedLength.(int)), compileInput["expression_length"],
-					"expression_length value should match")
+				switch ev := expectedVal.(type) {
+				case int:
+					assert.Equal(t, int64(ev), actualVal,
+						"%s value should match", expectedKey)
+				case string:
+					assert.Equal(t, ev, actualVal,
+						"%s value should match", expectedKey)
+				default:
+					assert.Equal(t, expectedVal, actualVal,
+						"%s value should match", expectedKey)
+				}
 			}
 		})
 	}

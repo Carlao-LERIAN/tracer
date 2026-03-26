@@ -12,10 +12,10 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -42,7 +42,7 @@ type AuditEventRepository struct {
 }
 
 // NewAuditEventRepository creates a new PostgreSQL audit event repository.
-func NewAuditEventRepository(conn *libPostgres.PostgresConnection) *AuditEventRepository {
+func NewAuditEventRepository(conn *libPostgres.Client) *AuditEventRepository {
 	return &AuditEventRepository{
 		conn:      pgdb.NewPostgresConnectionAdapter(conn),
 		tableName: "audit_events",
@@ -73,11 +73,11 @@ func (r *AuditEventRepository) Insert(ctx context.Context, event *model.AuditEve
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	return r.insertInternal(ctx, db, event, logger, &span, "repository.audit_event.insert")
+	return r.insertInternal(ctx, db, event, logger, span, "repository.audit_event.insert")
 }
 
 // InsertWithTx creates a new audit event record using the provided database connection.
@@ -99,7 +99,7 @@ func (r *AuditEventRepository) InsertWithTx(ctx context.Context, db pgdb.DB, eve
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return r.insertInternal(ctx, db, event, logger, &span, "repository.audit_event.insert_with_tx")
+	return r.insertInternal(ctx, db, event, logger, span, "repository.audit_event.insert_with_tx")
 }
 
 // insertInternal contains the shared logic for Insert and InsertWithTx.
@@ -109,7 +109,7 @@ func (r *AuditEventRepository) insertInternal(
 	db pgdb.DB,
 	event *model.AuditEvent,
 	logger libLog.Logger,
-	span *trace.Span,
+	span trace.Span,
 	operationName string,
 ) error {
 	contextJSON, err := json.Marshal(event.Context)
@@ -160,11 +160,11 @@ func (r *AuditEventRepository) insertInternal(
 		event.ResourceID, string(event.EventType), string(event.ResourceType),
 	}
 
-	logger.WithFields(
-		"operation", operationName,
-		"event.id", event.EventID.String(),
-		"event.type", string(event.EventType),
-	).Info("Inserting audit event record")
+	logger.With(
+		libLog.Any("operation", operationName),
+		libLog.String("event.id", event.EventID.String()),
+		libLog.String("event.type", string(event.EventType)),
+	).Log(ctx, libLog.LevelInfo, "Inserting audit event record")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -176,11 +176,11 @@ func (r *AuditEventRepository) insertInternal(
 	if event.ResourceType == model.ResourceTypeTransaction {
 		rowsAffected, rowsErr := result.RowsAffected()
 		if rowsErr == nil && rowsAffected == 0 {
-			logger.WithFields(
-				"event.id", event.EventID.String(),
-				"resource.id", event.ResourceID,
-				"event.type", string(event.EventType),
-			).Debug("Audit event skipped due to deduplication")
+			logger.With(
+				libLog.String("event.id", event.EventID.String()),
+				libLog.Any("resource.id", event.ResourceID),
+				libLog.String("event.type", string(event.EventType)),
+			).Log(ctx, libLog.LevelDebug, "Audit event skipped due to deduplication")
 		}
 	}
 
@@ -198,7 +198,7 @@ func (r *AuditEventRepository) GetByID(ctx context.Context, eventID uuid.UUID) (
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -208,23 +208,23 @@ func (r *AuditEventRepository) GetByID(ctx context.Context, eventID uuid.UUID) (
 
 	sqlStr, args, err := qb.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.audit_event.get_by_event_id",
-		"event.id", eventID.String(),
-	).Info("Getting audit event by event ID")
+	logger.With(
+		libLog.String("operation", "repository.audit_event.get_by_event_id"),
+		libLog.String("event.id", eventID.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting audit event by event ID")
 
 	event, err := r.scanEvent(db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Audit event not found", constant.ErrAuditEventNotFound)
+			libOtel.HandleSpanBusinessErrorEvent(span, "Audit event not found", constant.ErrAuditEventNotFound)
 			return nil, constant.ErrAuditEventNotFound
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to get audit event", err)
+		libOtel.HandleSpanError(span, "Failed to get audit event", err)
 
 		return nil, fmt.Errorf("failed to get audit event: %w", err)
 	}
@@ -248,13 +248,13 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 	filters.SetDefaults()
 
 	if err := filters.Validate(); err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid audit event filters", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid audit event filters", err)
 		return nil, fmt.Errorf("%w: %w", constant.ErrInvalidAuditEventFilters, err)
 	}
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -284,18 +284,18 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 
 	sqlStr, args, err := qb.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.audit_event.list",
-		"filter.limit", filters.Limit,
-	).Info("Listing audit events")
+	logger.With(
+		libLog.String("operation", "repository.audit_event.list"),
+		libLog.Any("filter.limit", filters.Limit),
+	).Log(ctx, libLog.LevelInfo, "Listing audit events")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to list audit events", err)
+		libOtel.HandleSpanError(span, "Failed to list audit events", err)
 		return nil, fmt.Errorf("failed to list audit events: %w", err)
 	}
 	defer rows.Close()
@@ -305,7 +305,7 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 	for rows.Next() {
 		event, err := r.scanEventFromRows(rows)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to scan audit event", err)
+			libOtel.HandleSpanError(span, "Failed to scan audit event", err)
 			return nil, fmt.Errorf("failed to scan audit event: %w", err)
 		}
 
@@ -313,7 +313,7 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Error iterating audit events", err)
+		libOtel.HandleSpanError(span, "Error iterating audit events", err)
 		return nil, fmt.Errorf("error iterating audit events: %w", err)
 	}
 
@@ -324,7 +324,7 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 
 	nextCursor, err := r.generateNextCursor(ctx, events, hasMore, filters)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to generate next cursor", err)
+		libOtel.HandleSpanError(span, "Failed to generate next cursor", err)
 		return nil, fmt.Errorf("failed to generate next cursor: %w", err)
 	}
 
@@ -350,7 +350,7 @@ func (r *AuditEventRepository) VerifyHashChain(ctx context.Context, eventID uuid
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -382,16 +382,16 @@ func (r *AuditEventRepository) VerifyHashChain(ctx context.Context, eventID uuid
 		internalID,
 	).Scan(&isValid, &firstInvalidID, &totalChecked, &errorDetail)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to verify hash chain", err)
+		libOtel.HandleSpanError(span, "Failed to verify hash chain", err)
 		return nil, fmt.Errorf("failed to verify hash chain: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.audit_event.verify_hash_chain",
-		"event.id", eventID.String(),
-		"is_valid", isValid,
-		"total_checked", totalChecked,
-	).Info("Hash chain verification completed")
+	logger.With(
+		libLog.String("operation", "repository.audit_event.verify_hash_chain"),
+		libLog.String("event.id", eventID.String()),
+		libLog.Any("is_valid", isValid),
+		libLog.Any("total_checked", totalChecked),
+	).Log(ctx, libLog.LevelInfo, "Hash chain verification completed")
 
 	result := &model.HashChainVerificationResult{
 		IsValid:      isValid,
@@ -502,12 +502,12 @@ func (r *AuditEventRepository) generateNextCursor(ctx context.Context, events []
 
 	token, err := pkgHTTP.EncodeCursor(cursor)
 	if err != nil {
-		logger.WithFields(
-			"operation", "repository.audit_event.generate_next_cursor",
-			"cursor.id", cursor.ID,
-			"cursor.sort_value", cursor.SortValue,
-			"error", err.Error(),
-		).Error("Failed to encode pagination cursor")
+		logger.With(
+			libLog.String("operation", "repository.audit_event.generate_next_cursor"),
+			libLog.Any("cursor.id", cursor.ID),
+			libLog.Any("cursor.sort_value", cursor.SortValue),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to encode pagination cursor")
 
 		return "", fmt.Errorf("failed to encode cursor: %w", err)
 	}

@@ -9,8 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/pkg/clock"
@@ -57,33 +58,33 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "delete_input", map[string]any{
+	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "delete_input", map[string]any{
 		"limit_id":  id.String(),
 		"operation": "delete",
-	})
+	}, nil)
 
-	logger.WithFields(
-		"operation", "service.limit.delete",
-		"limit.id", id.String(),
-	).Info("Deleting limit")
+	logger.With(
+		libLog.String("operation", "service.limit.delete"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Deleting limit")
 
 	// Validate input
 	if id == uuid.Nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid input: nil UUID", constant.ErrLimitInvalidID)
-		logger.WithFields(
-			"operation", "service.limit.delete",
-		).Warn("Invalid input: nil UUID")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid input: nil UUID", constant.ErrLimitInvalidID)
+		logger.With(
+			libLog.String("operation", "service.limit.delete"),
+		).Log(ctx, libLog.LevelWarn, "Invalid input: nil UUID")
 
 		return constant.ErrLimitInvalidID
 	}
 
 	// Check context cancellation
 	if ctx.Err() != nil {
-		libOpentelemetry.HandleSpanError(&span, "Context cancelled", ctx.Err())
-		logger.WithFields(
-			"operation", "service.limit.delete",
-			"limit.id", id.String(),
-		).Warn("Context cancelled")
+		libOpentelemetry.HandleSpanError(span, "Context cancelled", ctx.Err())
+		logger.With(
+			libLog.String("operation", "service.limit.delete"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelWarn, "Context cancelled")
 
 		return ctx.Err()
 	}
@@ -91,32 +92,32 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 	limit, err := c.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, constant.ErrLimitNotFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Limit not found", err)
-			logger.WithFields(
-				"operation", "service.limit.delete",
-				"limit.id", id.String(),
-			).Warn("Limit not found")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
+			logger.With(
+				libLog.String("operation", "service.limit.delete"),
+				libLog.String("limit.id", id.String()),
+			).Log(ctx, libLog.LevelWarn, "Limit not found")
 
 			return err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to get limit from repository", err)
-		logger.WithFields(
-			"operation", "service.limit.delete",
-			"limit.id", id.String(),
-			"error.message", err.Error(),
-		).Error("Failed to get limit")
+		libOpentelemetry.HandleSpanError(span, "Failed to get limit from repository", err)
+		logger.With(
+			libLog.String("operation", "service.limit.delete"),
+			libLog.String("limit.id", id.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to get limit")
 
 		return fmt.Errorf("failed to get limit: %w", err)
 	}
 
 	// Defensive check: treat nil limit as not found (guards against repo returning nil, nil)
 	if limit == nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
-		logger.WithFields(
-			"operation", "service.limit.delete",
-			"limit.id", id.String(),
-		).Warn("Limit not found")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", constant.ErrLimitNotFound)
+		logger.With(
+			libLog.String("operation", "service.limit.delete"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelWarn, "Limit not found")
 
 		return constant.ErrLimitNotFound
 	}
@@ -126,10 +127,10 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 
 	// Idempotency: if already deleted, return success (no-op)
 	if limit.Status == model.LimitStatusDeleted {
-		logger.WithFields(
-			"operation", "service.limit.delete",
-			"limit.id", id.String(),
-		).Info("Limit already deleted (idempotent no-op)")
+		logger.With(
+			libLog.String("operation", "service.limit.delete"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelInfo, "Limit already deleted (idempotent no-op)")
 
 		return nil
 	}
@@ -141,34 +142,34 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 	// ACTIVE → DELETED and INACTIVE → DELETED are valid; DELETED → DELETED is handled
 	// above as idempotent. See model.LimitStatus and model.Limit.SetStatus for rules.
 	if err := limit.SetStatus(model.LimitStatusDeleted, c.clock.Now()); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
-		logger.WithFields(
-			"operation", "service.limit.delete",
-			"limit.id", id.String(),
-			"limit.status_from", string(originalStatus),
-			"limit.status_to", "DELETED",
-		).Warn("Invalid transition")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
+		logger.With(
+			libLog.String("operation", "service.limit.delete"),
+			libLog.String("limit.id", id.String()),
+			libLog.String("limit.status_from", string(originalStatus)),
+			libLog.String("limit.status_to", "DELETED"),
+		).Log(ctx, libLog.LevelWarn, "Invalid transition")
 
 		return libCommons.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, err.Error())
 	}
 
 	// Use limit.UpdatedAt from SetStatus() for timestamp consistency
 	if err := c.repo.UpdateStatus(ctx, id, model.LimitStatusDeleted, limit.UpdatedAt); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete limit", err)
-		logger.WithFields(
-			"operation", "service.limit.delete",
-			"limit.id", id.String(),
-			"error.message", err.Error(),
-		).Error("Failed to delete limit")
+		libOpentelemetry.HandleSpanError(span, "Failed to delete limit", err)
+		logger.With(
+			libLog.String("operation", "service.limit.delete"),
+			libLog.String("limit.id", id.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to delete limit")
 
 		return fmt.Errorf("failed to delete limit: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.limit.delete",
-		"limit.id", id.String(),
-		"limit.status", string(limit.Status),
-	).Info("Limit deleted successfully")
+	logger.With(
+		libLog.String("operation", "service.limit.delete"),
+		libLog.String("limit.id", id.String()),
+		libLog.String("limit.status", string(limit.Status)),
+	).Log(ctx, libLog.LevelInfo, "Limit deleted successfully")
 
 	// Record audit event (best-effort)
 	if c.auditWriter != nil {
@@ -185,11 +186,11 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) error {
 			"Limit deleted via API",
 			clientIP,
 		); err != nil {
-			logger.WithFields(
-				"operation", "service.limit.delete.audit",
-				"limit.id", id.String(),
-				"error", err.Error(),
-			).Warn("Failed to record audit event")
+			logger.With(
+				libLog.String("operation", "service.limit.delete.audit"),
+				libLog.String("limit.id", id.String()),
+				libLog.String("error", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to record audit event")
 		}
 	}
 

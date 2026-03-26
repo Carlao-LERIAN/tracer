@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
 
 	pgdb "tracer/internal/adapters/postgres/db"
@@ -30,7 +30,7 @@ type RuleSyncRepository struct {
 }
 
 // NewRuleSyncRepository creates a new RuleSyncRepository.
-func NewRuleSyncRepository(conn *libPostgres.PostgresConnection) *RuleSyncRepository {
+func NewRuleSyncRepository(conn *libPostgres.Client) *RuleSyncRepository {
 	return &RuleSyncRepository{
 		conn: &postgresConnectionAdapter{conn: conn},
 	}

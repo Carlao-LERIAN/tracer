@@ -9,8 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/pkg/clock"
@@ -72,45 +73,45 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 
 	logger = logging.WithTrace(ctx, logger)
 
-	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "activate_input", map[string]any{
+	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "activate_input", map[string]any{
 		"rule_id":   ruleID.String(),
 		"operation": "activate",
-	})
+	}, nil)
 
-	logger.WithFields(
-		"operation", "service.rule.activate",
-		"rule.id", ruleID.String(),
-	).Info("Activating rule")
+	logger.With(
+		libLog.String("operation", "service.rule.activate"),
+		libLog.String("rule.id", ruleID.String()),
+	).Log(ctx, libLog.LevelInfo, "Activating rule")
 
 	rule, err := s.repository.GetByID(ctx, ruleID)
 	if err != nil {
 		if errors.Is(err, constant.ErrRuleNotFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule not found", err)
-			logger.WithFields(
-				"operation", "service.rule.activate",
-				"rule.id", ruleID.String(),
-			).Warn("Rule not found")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule not found", err)
+			logger.With(
+				libLog.String("operation", "service.rule.activate"),
+				libLog.String("rule.id", ruleID.String()),
+			).Log(ctx, libLog.LevelWarn, "Rule not found")
 
 			return nil, libCommons.ValidateBusinessError(constant.ErrRuleNotFound, "Rule")
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rule from repository", err)
-		logger.WithFields(
-			"operation", "service.rule.activate",
-			"rule.id", ruleID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to get rule")
+		libOpentelemetry.HandleSpanError(span, "Failed to get rule from repository", err)
+		logger.With(
+			libLog.String("operation", "service.rule.activate"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to get rule")
 
 		return nil, fmt.Errorf("failed to get rule: %w", err)
 	}
 
 	if rule.Expression == "" {
 		err := libCommons.ValidateBusinessError(constant.ErrBadRequest, "expression is required to activate rule")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Empty expression", err)
-		logger.WithFields(
-			"operation", "service.rule.activate",
-			"rule.id", ruleID.String(),
-		).Warn("Cannot activate rule with empty expression")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Empty expression", err)
+		logger.With(
+			libLog.String("operation", "service.rule.activate"),
+			libLog.String("rule.id", ruleID.String()),
+		).Log(ctx, libLog.LevelWarn, "Cannot activate rule with empty expression")
 
 		return nil, err
 	}
@@ -118,10 +119,10 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 	// Idempotency: if already active, return the rule (no-op)
 	// Check before audit capture to avoid unnecessary state snapshots
 	if rule.Status == model.RuleStatusActive {
-		logger.WithFields(
-			"operation", "service.rule.activate",
-			"rule.id", ruleID.String(),
-		).Info("Rule already active (idempotent no-op)")
+		logger.With(
+			libLog.String("operation", "service.rule.activate"),
+			libLog.String("rule.id", ruleID.String()),
+		).Log(ctx, libLog.LevelInfo, "Rule already active (idempotent no-op)")
 
 		return rule, nil
 	}
@@ -129,20 +130,20 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 	// Capture "before" state for audit
 	beforeState := RuleToMap(rule)
 
-	logger.WithFields(
-		"operation", "service.rule.activate",
-		"rule.id", ruleID.String(),
-	).Info("Validating expression for rule")
+	logger.With(
+		libLog.String("operation", "service.rule.activate"),
+		libLog.String("rule.id", ruleID.String()),
+	).Log(ctx, libLog.LevelInfo, "Validating expression for rule")
 
 	program, err := s.expressionCompiler.Compile(ctx, rule.Expression)
 	if err != nil {
 		businessErr := libCommons.ValidateBusinessError(constant.ErrExpressionSyntax, err.Error())
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Expression compilation failed", businessErr)
-		logger.WithFields(
-			"operation", "service.rule.activate",
-			"rule.id", ruleID.String(),
-			"error.message", err.Error(),
-		).Warn("Expression validation failed")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression compilation failed", businessErr)
+		logger.With(
+			libLog.String("operation", "service.rule.activate"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Expression validation failed")
 
 		return nil, businessErr
 	}
@@ -152,24 +153,24 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 		// Check for invalid transition (business error)
 		var transitionErr *model.InvalidTransitionError
 		if errors.As(err, &transitionErr) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", transitionErr)
-			logger.WithFields(
-				"operation", "service.rule.activate",
-				"rule.id", ruleID.String(),
-				"rule.status_from", string(transitionErr.From),
-				"rule.status_to", string(transitionErr.To),
-			).Warn("Invalid transition")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", transitionErr)
+			logger.With(
+				libLog.String("operation", "service.rule.activate"),
+				libLog.String("rule.id", ruleID.String()),
+				libLog.String("rule.status_from", string(transitionErr.From)),
+				libLog.String("rule.status_to", string(transitionErr.To)),
+			).Log(ctx, libLog.LevelWarn, "Invalid transition")
 
 			return nil, transitionErr
 		}
 
 		// Technical error (invalid status value or other)
-		libOpentelemetry.HandleSpanError(&span, "Failed to set rule status", err)
-		logger.WithFields(
-			"operation", "service.rule.activate",
-			"rule.id", ruleID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to set rule status")
+		libOpentelemetry.HandleSpanError(span, "Failed to set rule status", err)
+		logger.With(
+			libLog.String("operation", "service.rule.activate"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to set rule status")
 
 		return nil, fmt.Errorf("failed to set rule status: %w", err)
 	}
@@ -177,20 +178,20 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 	// Persist updated rule
 	updatedRule, err := s.repository.Update(ctx, rule)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update rule", err)
-		logger.WithFields(
-			"operation", "service.rule.activate",
-			"rule.id", ruleID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to update rule")
+		libOpentelemetry.HandleSpanError(span, "Failed to update rule", err)
+		logger.With(
+			libLog.String("operation", "service.rule.activate"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to update rule")
 
 		return nil, fmt.Errorf("failed to update rule: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.rule.activate",
-		"rule.id", updatedRule.ID.String(),
-	).Info("Rule activated successfully")
+	logger.With(
+		libLog.String("operation", "service.rule.activate"),
+		libLog.String("rule.id", updatedRule.ID.String()),
+	).Log(ctx, libLog.LevelInfo, "Rule activated successfully")
 
 	// Record audit event (best-effort)
 	if s.auditWriter != nil {
@@ -207,11 +208,11 @@ func (s *ActivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*m
 			"Rule activated via API",
 			clientIP,
 		); err != nil {
-			logger.WithFields(
-				"operation", "service.rule.activate.audit",
-				"rule.id", updatedRule.ID.String(),
-				"error", err.Error(),
-			).Warn("Failed to record audit event")
+			logger.With(
+				libLog.String("operation", "service.rule.activate.audit"),
+				libLog.String("rule.id", updatedRule.ID.String()),
+				libLog.String("error", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to record audit event")
 		}
 	}
 

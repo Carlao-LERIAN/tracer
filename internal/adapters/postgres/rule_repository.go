@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -26,13 +27,13 @@ import (
 	pkgHTTP "tracer/pkg/net/http"
 )
 
-// postgresConnectionAdapter adapts *libPostgres.PostgresConnection to pgdb.Connection.
+// postgresConnectionAdapter adapts *libPostgres.Client to pgdb.Connection.
 type postgresConnectionAdapter struct {
-	conn *libPostgres.PostgresConnection
+	conn *libPostgres.Client
 }
 
 func (p *postgresConnectionAdapter) GetDB() (pgdb.DB, error) {
-	return p.conn.GetDB()
+	return p.conn.Resolver(context.Background())
 }
 
 const tableName = "rules"
@@ -61,7 +62,7 @@ type Repository struct {
 }
 
 // NewRepository creates a new PostgreSQL rule repository.
-func NewRepository(conn *libPostgres.PostgresConnection) *Repository {
+func NewRepository(conn *libPostgres.Client) *Repository {
 	return &Repository{
 		conn: &postgresConnectionAdapter{conn: conn},
 	}
@@ -86,7 +87,7 @@ func (r *Repository) Create(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -103,24 +104,24 @@ func (r *Repository) Create(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.create",
-		"rule.id", rule.ID.String(),
-		"rule.name", rule.Name,
-	).Info("Creating rule")
+	logger.With(
+		libLog.String("operation", "repository.rule.create"),
+		libLog.String("rule.id", rule.ID.String()),
+		libLog.Any("rule.name", rule.Name),
+	).Log(ctx, libLog.LevelInfo, "Creating rule")
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		if IsUniqueViolationOf(err, "idx_rules_name_per_context_active") {
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Rule name already exists in this context", constant.ErrRuleNameAlreadyExistsInCtx)
+			libOtel.HandleSpanBusinessErrorEvent(span, "Rule name already exists in this context", constant.ErrRuleNameAlreadyExistsInCtx)
 			return nil, constant.ErrRuleNameAlreadyExistsInCtx
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to insert rule", err)
+		libOtel.HandleSpanError(span, "Failed to insert rule", err)
 
 		return nil, fmt.Errorf("failed to insert rule: %w", err)
 	}
@@ -139,7 +140,7 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*model.Rule, er
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -151,23 +152,23 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*model.Rule, er
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.get_by_id",
-		"rule.id", id.String(),
-	).Info("Getting rule by ID")
+	logger.With(
+		libLog.String("operation", "repository.rule.get_by_id"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting rule by ID")
 
 	rule, err := r.scanRule(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Rule not found", constant.ErrRuleNotFound)
+			libOtel.HandleSpanBusinessErrorEvent(span, "Rule not found", constant.ErrRuleNotFound)
 			return nil, constant.ErrRuleNotFound
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to get rule", err)
+		libOtel.HandleSpanError(span, "Failed to get rule", err)
 
 		return nil, fmt.Errorf("failed to get rule: %w", err)
 	}
@@ -186,7 +187,7 @@ func (r *Repository) GetByName(ctx context.Context, name string) (*model.Rule, e
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -198,23 +199,23 @@ func (r *Repository) GetByName(ctx context.Context, name string) (*model.Rule, e
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.get_by_name",
-		"rule.name", name,
-	).Info("Getting rule by name")
+	logger.With(
+		libLog.String("operation", "repository.rule.get_by_name"),
+		libLog.Any("rule.name", name),
+	).Log(ctx, libLog.LevelInfo, "Getting rule by name")
 
 	rule, err := r.scanRule(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Rule not found", constant.ErrRuleNotFound)
+			libOtel.HandleSpanBusinessErrorEvent(span, "Rule not found", constant.ErrRuleNotFound)
 			return nil, constant.ErrRuleNotFound
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to get rule by name", err)
+		libOtel.HandleSpanError(span, "Failed to get rule by name", err)
 
 		return nil, fmt.Errorf("failed to get rule by name: %w", err)
 	}
@@ -234,7 +235,7 @@ func (r *Repository) ListByStatus(ctx context.Context, status *model.RuleStatus)
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -251,17 +252,17 @@ func (r *Repository) ListByStatus(ctx context.Context, status *model.RuleStatus)
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.list_by_status",
-	).Info("Listing rules by status")
+	logger.With(
+		libLog.String("operation", "repository.rule.list_by_status"),
+	).Log(ctx, libLog.LevelInfo, "Listing rules by status")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to list rules", err)
+		libOtel.HandleSpanError(span, "Failed to list rules", err)
 		return nil, fmt.Errorf("failed to list rules: %w", err)
 	}
 	defer rows.Close()
@@ -271,7 +272,7 @@ func (r *Repository) ListByStatus(ctx context.Context, status *model.RuleStatus)
 	for rows.Next() {
 		rule, err := r.scanRuleFromRows(ctx, rows)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to scan rule", err)
+			libOtel.HandleSpanError(span, "Failed to scan rule", err)
 			return nil, fmt.Errorf("failed to scan rule: %w", err)
 		}
 
@@ -279,14 +280,14 @@ func (r *Repository) ListByStatus(ctx context.Context, status *model.RuleStatus)
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Error iterating rules", err)
+		libOtel.HandleSpanError(span, "Error iterating rules", err)
 		return nil, fmt.Errorf("error iterating rules: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.list_by_status",
-		"list.count", len(rules),
-	).Info("Listed rules")
+	logger.With(
+		libLog.String("operation", "repository.rule.list_by_status"),
+		libLog.Int("list.count", len(rules)),
+	).Log(ctx, libLog.LevelInfo, "Listed rules")
 
 	return rules, nil
 }
@@ -317,7 +318,7 @@ func (r *Repository) Update(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -342,35 +343,35 @@ func (r *Repository) Update(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.update",
-		"rule.id", rule.ID.String(),
-	).Info("Updating rule")
+	logger.With(
+		libLog.String("operation", "repository.rule.update"),
+		libLog.String("rule.id", rule.ID.String()),
+	).Log(ctx, libLog.LevelInfo, "Updating rule")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		if IsUniqueViolationOf(err, "idx_rules_name_per_context_active") {
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Rule name already exists in this context", constant.ErrRuleNameAlreadyExistsInCtx)
+			libOtel.HandleSpanBusinessErrorEvent(span, "Rule name already exists in this context", constant.ErrRuleNameAlreadyExistsInCtx)
 			return nil, constant.ErrRuleNameAlreadyExistsInCtx
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to update rule", err)
+		libOtel.HandleSpanError(span, "Failed to update rule", err)
 
 		return nil, fmt.Errorf("failed to update rule: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOtel.HandleSpanError(span, "Failed to get rows affected", err)
 		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Rule not found", constant.ErrRuleNotFound)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Rule not found", constant.ErrRuleNotFound)
 		return nil, constant.ErrRuleNotFound
 	}
 
@@ -388,7 +389,7 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -404,29 +405,29 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.delete",
-		"rule.id", id.String(),
-	).Info("Deleting rule")
+	logger.With(
+		libLog.String("operation", "repository.rule.delete"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Deleting rule")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to delete rule", err)
+		libOtel.HandleSpanError(span, "Failed to delete rule", err)
 		return fmt.Errorf("failed to delete rule: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOtel.HandleSpanError(span, "Failed to get rows affected", err)
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Rule not found", constant.ErrRuleNotFound)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Rule not found", constant.ErrRuleNotFound)
 		return constant.ErrRuleNotFound
 	}
 
@@ -446,7 +447,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -477,7 +478,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 	// Apply cursor filter for keyset pagination
 	// When cursor is present, sort params come from cursor (handler rejects sortBy/sortOrder with cursor)
 	if filter.Cursor != "" {
-		query, sortColumn, sortBy, orderDir, err = r.applyCursorFilter(query, filter.Cursor, &span)
+		query, sortColumn, sortBy, orderDir, err = r.applyCursorFilter(query, filter.Cursor, span)
 		if err != nil {
 			return nil, err
 		}
@@ -501,19 +502,19 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.list_with_filter",
-		"list.limit", filter.Limit,
-		"list.cursor", filter.Cursor,
-	).Info("Listing rules with filter")
+	logger.With(
+		libLog.String("operation", "repository.rule.list_with_filter"),
+		libLog.Any("list.limit", filter.Limit),
+		libLog.Any("list.cursor", filter.Cursor),
+	).Log(ctx, libLog.LevelInfo, "Listing rules with filter")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to list rules", err)
+		libOtel.HandleSpanError(span, "Failed to list rules", err)
 		return nil, fmt.Errorf("failed to list rules: %w", err)
 	}
 	defer rows.Close()
@@ -523,7 +524,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 	for rows.Next() {
 		rule, err := r.scanRuleFromRows(ctx, rows)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to scan rule", err)
+			libOtel.HandleSpanError(span, "Failed to scan rule", err)
 			return nil, fmt.Errorf("failed to scan rule: %w", err)
 		}
 
@@ -531,7 +532,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Error iterating rules", err)
+		libOtel.HandleSpanError(span, "Error iterating rules", err)
 		return nil, fmt.Errorf("error iterating rules: %w", err)
 	}
 
@@ -558,7 +559,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 
 		nextCursor, err = pkgHTTP.EncodeCursor(cursor)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to encode cursor", err)
+			libOtel.HandleSpanError(span, "Failed to encode cursor", err)
 			return nil, fmt.Errorf("failed to encode cursor: %w", err)
 		}
 	}
@@ -569,11 +570,11 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 		HasMore:    hasMore,
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.list_with_filter",
-		"list.count", len(rules),
-		"list.has_more", hasMore,
-	).Info("Listed rules")
+	logger.With(
+		libLog.String("operation", "repository.rule.list_with_filter"),
+		libLog.Int("list.count", len(rules)),
+		libLog.Any("list.has_more", hasMore),
+	).Log(ctx, libLog.LevelInfo, "Listed rules")
 
 	return result, nil
 }
@@ -614,7 +615,7 @@ func (r *Repository) applyOrderBy(query sq.SelectBuilder, sortColumn string, ord
 // Supports custom sort columns with id as tiebreaker.
 // Returns: updated query, snake_case sortColumn, camelCase sortBy, sortOrder, and error.
 // Note: Handler validation ensures sortBy/sortOrder are never provided with cursor (TRC-0045).
-func (r *Repository) applyCursorFilter(query sq.SelectBuilder, cursorStr string, span *trace.Span) (sq.SelectBuilder, string, string, string, error) {
+func (r *Repository) applyCursorFilter(query sq.SelectBuilder, cursorStr string, span trace.Span) (sq.SelectBuilder, string, string, string, error) {
 	if cursorStr == "" {
 		return query, "", "", "", nil
 	}
@@ -718,7 +719,7 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -737,18 +738,18 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.list_active_by_scopes",
-		"scope.filter_count", len(scopes),
-	).Info("Listing active rules by scopes")
+	logger.With(
+		libLog.String("operation", "repository.rule.list_active_by_scopes"),
+		libLog.Int("scope.filter_count", len(scopes)),
+	).Log(ctx, libLog.LevelInfo, "Listing active rules by scopes")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to list active rules", err)
+		libOtel.HandleSpanError(span, "Failed to list active rules", err)
 		return nil, fmt.Errorf("failed to list active rules: %w", err)
 	}
 	defer rows.Close()
@@ -758,7 +759,7 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 	for rows.Next() {
 		rule, err := r.scanRuleFromRows(ctx, rows)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to scan rule", err)
+			libOtel.HandleSpanError(span, "Failed to scan rule", err)
 			return nil, fmt.Errorf("failed to scan rule: %w", err)
 		}
 
@@ -766,14 +767,14 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Error iterating rules", err)
+		libOtel.HandleSpanError(span, "Error iterating rules", err)
 		return nil, fmt.Errorf("error iterating rules: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.list_active_by_scopes",
-		"list.count", len(rules),
-	).Info("Found active rules matching scopes")
+	logger.With(
+		libLog.String("operation", "repository.rule.list_active_by_scopes"),
+		libLog.Int("list.count", len(rules)),
+	).Log(ctx, libLog.LevelInfo, "Found active rules matching scopes")
 
 	return rules, nil
 }
@@ -897,7 +898,7 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status mode
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -920,30 +921,30 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status mode
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.rule.update_status",
-		"rule.id", id.String(),
-		"rule.status", string(status),
-	).Info("Updating rule status")
+	logger.With(
+		libLog.String("operation", "repository.rule.update_status"),
+		libLog.String("rule.id", id.String()),
+		libLog.String("rule.status", string(status)),
+	).Log(ctx, libLog.LevelInfo, "Updating rule status")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to update rule status", err)
+		libOtel.HandleSpanError(span, "Failed to update rule status", err)
 		return fmt.Errorf("failed to update rule status: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOtel.HandleSpanError(span, "Failed to get rows affected", err)
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Rule not found", constant.ErrRuleNotFound)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Rule not found", constant.ErrRuleNotFound)
 		return constant.ErrRuleNotFound
 	}
 

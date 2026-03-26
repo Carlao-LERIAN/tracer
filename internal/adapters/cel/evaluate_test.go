@@ -196,15 +196,12 @@ func TestEvaluate_WithTracing(t *testing.T) {
 
 	require.NotEmpty(t, evalSpan.Name, "Should have adapter.cel.evaluate span")
 
-	// Check attributes
+	// Check attributes - lib-commons v4 flattens struct attributes into dotted keys
+	// e.g. "evaluate_result.duration_ms", "evaluate_result.result"
 	attrs := attributesToMap(evalSpan.Attributes)
-	assert.Contains(t, attrs, "evaluate_result", "Should have evaluate_result attribute")
-
-	evalResultJSON, ok := attrs["evaluate_result"].(string)
-	require.True(t, ok, "evaluate_result should be a string")
-	assert.Contains(t, evalResultJSON, "duration_ms", "JSON should contain duration_ms")
-	assert.Contains(t, evalResultJSON, "result", "JSON should contain result")
-	assert.Contains(t, evalResultJSON, `"result":true`, "Result should be true")
+	assert.Contains(t, attrs, "evaluate_result.duration_ms", "Should have evaluate_result.duration_ms attribute")
+	assert.Contains(t, attrs, "evaluate_result.result", "Should have evaluate_result.result attribute")
+	assert.Equal(t, true, attrs["evaluate_result.result"], "Result should be true")
 }
 
 // TestEvaluate_NilFields tests evaluation with nil optional fields.

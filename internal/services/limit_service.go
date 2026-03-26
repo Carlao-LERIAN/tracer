@@ -7,8 +7,9 @@ package services
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/internal/services/command"
@@ -111,26 +112,26 @@ func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*m
 	// Get the limit to access MaxAmount and ResetAt
 	limit, err := s.getQuery.Execute(ctx, limitID)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get limit", err)
+		libOtel.HandleSpanError(span, "Failed to get limit", err)
 
-		logger.WithFields(
-			"operation", "service.limit.get_usage",
-			"limit_id", limitID.String(),
-			"error", err.Error(),
-		).Error("Failed to retrieve limit")
+		logger.With(
+			libLog.String("operation", "service.limit.get_usage"),
+			libLog.String("limit_id", limitID.String()),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to retrieve limit")
 
 		return nil, err
 	}
 
 	counters, err := s.usageCounterRepo.GetByLimitID(ctx, limitID)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get usage counters", err)
+		libOtel.HandleSpanError(span, "Failed to get usage counters", err)
 
-		logger.WithFields(
-			"operation", "service.limit.get_usage",
-			"limit_id", limitID.String(),
-			"error", err.Error(),
-		).Error("Failed to retrieve usage counters")
+		logger.With(
+			libLog.String("operation", "service.limit.get_usage"),
+			libLog.String("limit_id", limitID.String()),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to retrieve usage counters")
 
 		return nil, err
 	}
@@ -138,14 +139,14 @@ func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*m
 	// Create the usage snapshot
 	snapshot := model.NewUsageSnapshot(limit, counters)
 
-	logger.WithFields(
-		"operation", "service.limit.get_usage",
-		"limit_id", limitID.String(),
-		"current_usage", snapshot.CurrentUsage,
-		"limit_amount", snapshot.LimitAmount,
-		"utilization_percent", snapshot.UtilizationPercent,
-		"near_limit", snapshot.NearLimit,
-	).Info("Retrieved usage snapshot")
+	logger.With(
+		libLog.String("operation", "service.limit.get_usage"),
+		libLog.String("limit_id", limitID.String()),
+		libLog.Any("current_usage", snapshot.CurrentUsage),
+		libLog.Any("limit_amount", snapshot.LimitAmount),
+		libLog.Any("utilization_percent", snapshot.UtilizationPercent),
+		libLog.Any("near_limit", snapshot.NearLimit),
+	).Log(ctx, libLog.LevelInfo, "Retrieved usage snapshot")
 
 	return snapshot, nil
 }

@@ -8,8 +8,9 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/pkg/constant"
@@ -40,21 +41,21 @@ func (q *GetLimitQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Limit
 	// Validate input
 	if id == uuid.Nil {
 		err := constant.ErrLimitInvalidID
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid limit ID provided", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID provided", err)
 
 		return nil, err
 	}
 
-	logger.WithFields(
-		"operation", "service.limit.get",
-		"limit.id", id.String(),
-	).Info("Getting limit")
+	logger.With(
+		libLog.String("operation", "service.limit.get"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting limit")
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "get_limit_input", map[string]any{
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "get_limit_input", map[string]any{
 		"limit_id": id.String(),
-	})
+	}, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Retrieve from repository
@@ -62,29 +63,29 @@ func (q *GetLimitQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Limit
 	if err != nil {
 		// Distinguish business errors (not found) from infrastructure errors
 		if errors.Is(err, constant.ErrLimitNotFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Limit not found", err)
-			logger.WithFields(
-				"operation", "service.limit.get",
-				"limit.id", id.String(),
-			).Warn("Limit not found")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
+			logger.With(
+				libLog.String("operation", "service.limit.get"),
+				libLog.String("limit.id", id.String()),
+			).Log(ctx, libLog.LevelWarn, "Limit not found")
 		} else {
-			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve limit", err)
-			logger.WithFields(
-				"operation", "service.limit.get",
-				"limit.id", id.String(),
-				"error.message", err.Error(),
-			).Error("Failed to get limit")
+			libOpentelemetry.HandleSpanError(span, "Failed to retrieve limit", err)
+			logger.With(
+				libLog.String("operation", "service.limit.get"),
+				libLog.String("limit.id", id.String()),
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelError, "Failed to get limit")
 		}
 
 		return nil, err
 	}
 
-	logger.WithFields(
-		"operation", "service.limit.get",
-		"limit.id", limit.ID.String(),
-		"limit.name", limit.Name,
-		"limit.status", string(limit.Status),
-	).Info("Limit retrieved successfully")
+	logger.With(
+		libLog.String("operation", "service.limit.get"),
+		libLog.String("limit.id", limit.ID.String()),
+		libLog.Any("limit.name", limit.Name),
+		libLog.String("limit.status", string(limit.Status)),
+	).Log(ctx, libLog.LevelInfo, "Limit retrieved successfully")
 
 	return limit, nil
 }

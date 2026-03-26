@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 
 	"github.com/sony/gobreaker"
 )
@@ -75,12 +75,12 @@ func NewCircuitBreaker(cfg CircuitBreakerConfig, logger libLog.Logger) *CircuitB
 			return false
 		},
 		OnStateChange: func(name string, from, to gobreaker.State) {
-			logger.WithFields(
-				"operation", "circuit_breaker.state_change",
-				"circuit_breaker.name", name,
-				"circuit_breaker.state_from", from.String(),
-				"circuit_breaker.state_to", to.String(),
-			).Info("Circuit breaker state changed")
+			logger.With(
+				libLog.String("operation", "circuit_breaker.state_change"),
+				libLog.String("circuit_breaker.name", name),
+				libLog.String("circuit_breaker.state_from", from.String()),
+				libLog.String("circuit_breaker.state_to", to.String()),
+			).Log(context.Background(), libLog.LevelInfo, "Circuit breaker state changed")
 		},
 	}
 
@@ -129,12 +129,12 @@ func (c *CircuitBreaker) Execute(ctx context.Context, fn func() (any, error)) (a
 						select {
 						case fnDone <- result{nil, fmt.Errorf("panic recovered in circuit breaker: %v", r)}:
 						default:
-							c.logger.WithFields(
-								"operation", "circuit_breaker.execute",
-								"circuit_breaker.name", c.cb.Name(),
-								"warning", "panic_result_dropped",
-								"panic", fmt.Sprintf("%v", r),
-							).Warn("Panic result dropped - fnDone channel unexpectedly full")
+							c.logger.With(
+								libLog.String("operation", "circuit_breaker.execute"),
+								libLog.String("circuit_breaker.name", c.cb.Name()),
+								libLog.String("warning", "panic_result_dropped"),
+								libLog.String("panic", fmt.Sprintf("%v", r)),
+							).Log(ctx, libLog.LevelWarn, "Panic result dropped - fnDone channel unexpectedly full")
 						}
 					}
 				}()
@@ -145,12 +145,12 @@ func (c *CircuitBreaker) Execute(ctx context.Context, fn func() (any, error)) (a
 				case fnDone <- result{val, err}:
 				default:
 					// Channel full (shouldn't happen with buffer of 1), log for debugging
-					c.logger.WithFields(
-						"operation", "circuit_breaker.execute",
-						"circuit_breaker.name", c.cb.Name(),
-						"warning", "result_dropped",
-						"has_error", err != nil,
-					).Warn("Result dropped - fnDone channel unexpectedly full")
+					c.logger.With(
+						libLog.String("operation", "circuit_breaker.execute"),
+						libLog.String("circuit_breaker.name", c.cb.Name()),
+						libLog.String("warning", "result_dropped"),
+						libLog.Bool("has_error", err != nil),
+					).Log(ctx, libLog.LevelWarn, "Result dropped - fnDone channel unexpectedly full")
 				}
 			}()
 
@@ -160,11 +160,11 @@ func (c *CircuitBreaker) Execute(ctx context.Context, fn func() (any, error)) (a
 				// Context was cancelled; return immediately without waiting for fn
 				// The goroutine running fn() will complete and send to fnDone,
 				// but the buffered channel ensures it won't block.
-				c.logger.WithFields(
-					"operation", "circuit_breaker.execute",
-					"circuit_breaker.name", c.cb.Name(),
-					"warning", "operation_orphaned",
-				).Warn("Operation orphaned due to context cancellation - fn() still running in background")
+				c.logger.With(
+					libLog.String("operation", "circuit_breaker.execute"),
+					libLog.String("circuit_breaker.name", c.cb.Name()),
+					libLog.String("warning", "operation_orphaned"),
+				).Log(ctx, libLog.LevelWarn, "Operation orphaned due to context cancellation - fn() still running in background")
 
 				return nil, ctx.Err()
 			case res := <-fnDone:

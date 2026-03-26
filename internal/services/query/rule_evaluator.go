@@ -11,8 +11,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	"tracer/internal/adapters/cel"
 	"tracer/pkg/logging"
@@ -72,35 +73,35 @@ func (e *RuleEvaluator) Evaluate(ctx context.Context, rule *model.Rule, req *mod
 
 	logger = logging.WithTrace(ctx, logger)
 
-	logger.WithFields(
-		"rule.id", rule.ID.String(),
-		"rule.name", rule.Name,
-	).Info("Evaluating rule expression")
+	logger.With(
+		libLog.String("rule.id", rule.ID.String()),
+		libLog.Any("rule.name", rule.Name),
+	).Log(ctx, libLog.LevelInfo, "Evaluating rule expression")
 
 	// Check if rule scopes match transaction scope before evaluating expression
 	txScope := req.ToTransactionScope()
 	if !model.RuleScopesMatch(rule.Scopes, txScope) {
-		logger.WithFields(
-			"rule.id", rule.ID.String(),
-			"rule.name", rule.Name,
-		).Info("Rule scopes do not match transaction - skipping evaluation")
+		logger.With(
+			libLog.String("rule.id", rule.ID.String()),
+			libLog.Any("rule.name", rule.Name),
+		).Log(ctx, libLog.LevelInfo, "Rule scopes do not match transaction - skipping evaluation")
 
-		if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "result", map[string]any{
+		if err := libOpentelemetry.SetSpanAttributesFromValue(span, "result", map[string]any{
 			"matched":        false,
 			"scope_mismatch": true,
-		}); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		}, nil); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 		}
 
 		return false, nil
 	}
 
 	// Set span attributes for rule being evaluated
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule", map[string]any{
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "rule", map[string]any{
 		"id":   rule.ID.String(),
 		"name": rule.Name,
-	}); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+	}, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Use pre-compiled program from cache if available (hot-path optimization).
@@ -111,12 +112,12 @@ func (e *RuleEvaluator) Evaluate(ctx context.Context, rule *model.Rule, req *mod
 
 		program, err = e.exprEval.Compile(ctx, rule.Expression)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to compile expression", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to compile expression", err)
 
-			logger.WithFields(
-				"rule.id", rule.ID.String(),
-				"error.message", err.Error(),
-			).Error("Failed to compile expression")
+			logger.With(
+				libLog.String("rule.id", rule.ID.String()),
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelError, "Failed to compile expression")
 
 			return false, fmt.Errorf("failed to compile expression: %w", err)
 		}
@@ -125,28 +126,28 @@ func (e *RuleEvaluator) Evaluate(ctx context.Context, rule *model.Rule, req *mod
 	// Evaluate the compiled expression
 	matched, err := e.exprEval.Evaluate(ctx, program, req)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to evaluate expression", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to evaluate expression", err)
 
-		logger.WithFields(
-			"rule.id", rule.ID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to evaluate expression")
+		logger.With(
+			libLog.String("rule.id", rule.ID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to evaluate expression")
 
 		return false, fmt.Errorf("failed to evaluate expression: %w", err)
 	}
 
 	// Set result span attribute
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "result", map[string]any{
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "result", map[string]any{
 		"matched": matched,
-	}); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+	}, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	logger.WithFields(
-		"rule.id", rule.ID.String(),
-		"rule.name", rule.Name,
-		"matched", matched,
-	).Info("Rule expression evaluated")
+	logger.With(
+		libLog.String("rule.id", rule.ID.String()),
+		libLog.Any("rule.name", rule.Name),
+		libLog.Any("matched", matched),
+	).Log(ctx, libLog.LevelInfo, "Rule expression evaluated")
 
 	return matched, nil
 }

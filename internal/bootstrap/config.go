@@ -12,14 +12,20 @@ import (
 	"strconv"
 	"time"
 
+	"errors"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/golang-migrate/migrate/v4"
+	migratePostgres "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+
 	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 
 	"tracer/internal/adapters/cel"
 	"tracer/internal/adapters/http/in"
@@ -308,9 +314,9 @@ func LoadCleanupWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.UsageC
 	// Note: default value for bool is false, so cleanup worker is disabled by default
 	// Set CLEANUP_WORKER_ENABLED=true to enable the background cleanup worker
 	if !cfg.CleanupWorkerEnabled {
-		logger.WithFields(
-			"config", "CLEANUP_WORKER_ENABLED",
-		).Info("Usage counter cleanup worker is DISABLED")
+		logger.With(
+			libLog.String("config", "CLEANUP_WORKER_ENABLED"),
+		).Log(context.Background(), libLog.LevelInfo, "Usage counter cleanup worker is DISABLED")
 
 		return nil, nil
 	}
@@ -320,9 +326,9 @@ func LoadCleanupWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.UsageC
 		return nil, fmt.Errorf("invalid CLEANUP_INTERVAL_HOURS: %w", err)
 	}
 
-	logger.WithFields(
-		"cleanup_interval", cleanupInterval.String(),
-	).Info("Usage counter cleanup worker configuration loaded")
+	logger.With(
+		libLog.String("cleanup_interval", cleanupInterval.String()),
+	).Log(context.Background(), libLog.LevelInfo, "Usage counter cleanup worker configuration loaded")
 
 	return &workers.UsageCleanupWorkerConfig{
 		CleanupInterval: cleanupInterval,
@@ -360,11 +366,11 @@ func LoadRuleSyncWorkerConfig(cfg *Config, logger libLog.Logger) (*workers.RuleS
 			stalenessThreshold, pollInterval)
 	}
 
-	logger.WithFields(
-		"poll_interval", pollInterval.String(),
-		"staleness_threshold", stalenessThreshold.String(),
-		"overlap_buffer", overlapBuffer.String(),
-	).Info("Rule sync worker configuration loaded")
+	logger.With(
+		libLog.String("poll_interval", pollInterval.String()),
+		libLog.String("staleness_threshold", stalenessThreshold.String()),
+		libLog.String("overlap_buffer", overlapBuffer.String()),
+	).Log(context.Background(), libLog.LevelInfo, "Rule sync worker configuration loaded")
 
 	return &workers.RuleSyncWorkerConfig{
 		PollInterval:       pollInterval,
@@ -392,10 +398,10 @@ func LoadEvaluationConfig(cfg *Config, logger libLog.Logger) (*query.EvaluationC
 
 	// Warn if using default ALLOW (fail-open) - operator should be aware
 	if cfg.DefaultDecisionWhenNoMatch == "" {
-		logger.WithFields(
-			"config", "DEFAULT_DECISION_WHEN_NO_MATCH",
-			"default_value", "ALLOW",
-		).Warn("Using default ALLOW decision when no rules match (fail-open)")
+		logger.With(
+			libLog.String("config", "DEFAULT_DECISION_WHEN_NO_MATCH"),
+			libLog.String("default_value", "ALLOW"),
+		).Log(context.Background(), libLog.LevelWarn, "Using default ALLOW decision when no rules match (fail-open)")
 	}
 
 	maxRules, err := parseMaxRulesPerRequest(cfg.MaxRulesPerRequest)
@@ -433,7 +439,7 @@ func initCELAdapter(cfg *Config, logger libLog.Logger) (*cel.Adapter, error) {
 func ValidateAuthConfig(cfg *Config, logger libLog.Logger) error {
 	// Warn if auth is disabled (operator should be aware)
 	if !cfg.APIKeyEnabled {
-		logger.WithFields("config", "API_KEY_ENABLED").Warn("API Key authentication is DISABLED")
+		logger.With(libLog.String("config", "API_KEY_ENABLED")).Log(context.Background(), libLog.LevelWarn, "API Key authentication is DISABLED")
 		return nil
 	}
 
@@ -444,7 +450,7 @@ func ValidateAuthConfig(cfg *Config, logger libLog.Logger) error {
 
 	// Warn if key is too short (security best practice)
 	if len(cfg.APIKey) < minAPIKeyLength {
-		logger.WithFields("min_length", minAPIKeyLength, "actual_length", len(cfg.APIKey)).Warn("API_KEY should be at least 32 characters")
+		logger.With(libLog.Int("min_length", minAPIKeyLength), libLog.Int("actual_length", len(cfg.APIKey))).Log(context.Background(), libLog.LevelWarn, "API_KEY should be at least 32 characters")
 	}
 
 	return nil
@@ -455,7 +461,7 @@ func ValidateAuthConfig(cfg *Config, logger libLog.Logger) error {
 // It fails if plugin auth is enabled but the address is missing.
 func ValidateAccessManagerConfig(cfg *Config, logger libLog.Logger) error {
 	if !cfg.PluginAuthEnabled {
-		logger.WithFields("config", "PLUGIN_AUTH_ENABLED").Warn("Access Manager plugin authentication is DISABLED")
+		logger.With(libLog.String("config", "PLUGIN_AUTH_ENABLED")).Log(context.Background(), libLog.LevelWarn, "Access Manager plugin authentication is DISABLED")
 		return nil
 	}
 
@@ -467,7 +473,7 @@ func ValidateAccessManagerConfig(cfg *Config, logger libLog.Logger) error {
 }
 
 // initPostgresConnection creates and connects a PostgreSQL connection pool.
-func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.PostgresConnection, error) {
+func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
 	sslMode := cfg.DBSSLMode
 	if sslMode == "" {
 		sslMode = "disable" // Default for local development; use "require" in production
@@ -476,22 +482,61 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Pos
 	postgresSQLSource := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort, sslMode)
 
-	postgresConn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: postgresSQLSource,
-		ConnectionStringReplica: postgresSQLSource,
-		PrimaryDBName:           cfg.DBName,
-		ReplicaDBName:           cfg.DBName,
-		Component:               constant.ApplicationName,
-		MigrationsPath:          cfg.MigrationPath,
-		Logger:                  logger,
-	}
-
 	if err := runFunctionMigrations(postgresSQLSource, cfg.MigrationPath, logger); err != nil {
 		return nil, fmt.Errorf("failed to run function migrations: %w", err)
 	}
 
-	if err := postgresConn.Connect(); err != nil {
+	postgresConn, err := libPostgres.New(libPostgres.Config{
+		PrimaryDSN: postgresSQLSource,
+		ReplicaDSN: postgresSQLSource,
+		Logger:     logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PostgreSQL client: %w", err)
+	}
+
+	if err := postgresConn.Connect(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed to connect to PostgreSQL: %w", err)
+	}
+
+	// Run schema migrations using a separate DB connection to avoid m.Close()
+	// closing the shared postgresConn pool (golang-migrate takes ownership of the *sql.DB).
+	if cfg.MigrationPath != "" {
+		migrateDB, err := sql.Open("pgx", postgresSQLSource)
+		if err != nil {
+			_ = postgresConn.Close()
+			return nil, fmt.Errorf("failed to open migration database connection: %w", err)
+		}
+
+		driver, err := migratePostgres.WithInstance(migrateDB, &migratePostgres.Config{
+			MultiStatementEnabled: false,
+		})
+		if err != nil {
+			migrateDB.Close()
+			_ = postgresConn.Close()
+			return nil, fmt.Errorf("failed to create migrate driver: %w", err)
+		}
+
+		m, err := migrate.NewWithDatabaseInstance("file://"+cfg.MigrationPath, cfg.DBName, driver)
+		if err != nil {
+			migrateDB.Close()
+			_ = postgresConn.Close()
+			return nil, fmt.Errorf("failed to create migrate instance: %w", err)
+		}
+
+		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+			migrateDB.Close()
+			_ = postgresConn.Close()
+			return nil, fmt.Errorf("failed to run schema migrations: %w", err)
+		}
+
+		// m.Close() closes both source and migrateDB — safe since migrateDB is independent
+		if srcErr, dbErr := m.Close(); srcErr != nil || dbErr != nil {
+			logger.With(libLog.Any("source_error", srcErr), libLog.Any("db_error", dbErr)).
+				Log(context.Background(), libLog.LevelWarn, "Failed to close migrate instance")
+		}
+
+		logger.Log(context.Background(), libLog.LevelInfo, "Schema migrations applied successfully")
 	}
 
 	return postgresConn, nil
@@ -568,7 +613,7 @@ type limitServiceDeps struct {
 }
 
 // initLimitService creates the limit service with all its dependencies.
-func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter command.AuditWriter, clk clock.Clock) (*limitServiceDeps, error) {
+func initLimitService(postgresConn *libPostgres.Client, auditWriter command.AuditWriter, clk clock.Clock) (*limitServiceDeps, error) {
 	limitRepo := postgres.NewLimitRepository(postgresConn)
 	usageCounterRepo := postgres.NewUsageCounterRepository(postgresConn)
 
@@ -622,7 +667,7 @@ func initLimitService(postgresConn *libPostgres.PostgresConnection, auditWriter 
 // Extracted from InitServers to reduce cyclomatic complexity.
 func initHTTPServer(
 	cfg *Config,
-	postgresConn *libPostgres.PostgresConnection,
+	postgresConn *libPostgres.Client,
 	limitDeps *limitServiceDeps,
 	evaluateRulesQuery *query.EvaluateRulesQuery,
 	auditWriter *command.RecordAuditEventCommand,
@@ -646,7 +691,7 @@ func initHTTPServer(
 
 	// Get the database connection for transactions
 	// TxBeginnerAdapter wraps dbresolver.DB to match our TxBeginner interface
-	dbConn, err := postgresConn.GetDB()
+	dbConn, err := postgresConn.Resolver(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection for transactions: %w", err)
 	}
@@ -682,7 +727,9 @@ func initHTTPServer(
 	}
 
 	// Create auth guard with all authentication configuration
-	authClient := authMiddleware.NewAuthClient(cfg.PluginAuthAddress, cfg.PluginAuthEnabled, &logger)
+	// TODO(lib-commons-v4): lib-auth/v2 still expects v2 Logger interface.
+	// Pass nil until lib-auth is updated to support v4 Logger.
+	authClient := authMiddleware.NewAuthClient(cfg.PluginAuthAddress, cfg.PluginAuthEnabled, nil)
 	authGuard := httpMiddleware.NewAuthGuard(httpMiddleware.AuthGuardConfig{
 		APIKey:            cfg.APIKey,
 		APIKeyEnabled:     cfg.APIKeyEnabled,
@@ -714,10 +761,10 @@ func initCleanupWorker(cfg *Config, usageCounterRepo *postgres.UsageCounterRepos
 		return nil, fmt.Errorf("failed to create cleanup worker: %w", err)
 	}
 
-	logger.WithFields(
-		"component", "cleanup_worker",
-		"cleanup_interval", cleanupWorkerConfig.CleanupInterval.String(),
-	).Info("Usage cleanup worker initialized")
+	logger.With(
+		libLog.String("component", "cleanup_worker"),
+		libLog.String("cleanup_interval", cleanupWorkerConfig.CleanupInterval.String()),
+	).Log(context.Background(), libLog.LevelInfo, "Usage cleanup worker initialized")
 
 	return cleanupWorker, nil
 }
@@ -770,14 +817,14 @@ func initSyncWorker(
 		return nil, fmt.Errorf("failed to create rule sync worker: %w", err)
 	}
 
-	logger.WithFields(
-		"component", "rule_sync_worker",
-		"poll_interval", syncWorkerConfig.PollInterval.String(),
-		"staleness_threshold", syncWorkerConfig.StalenessThreshold.String(),
-		"overlap_buffer", syncWorkerConfig.OverlapBuffer.String(),
-		"circuit_breaker.failure_threshold", cbConfig.FailureThresh,
-		"circuit_breaker.timeout", cbConfig.Timeout.String(),
-	).Info("Rule sync worker initialized with circuit breaker")
+	logger.With(
+		libLog.String("component", "rule_sync_worker"),
+		libLog.String("poll_interval", syncWorkerConfig.PollInterval.String()),
+		libLog.String("staleness_threshold", syncWorkerConfig.StalenessThreshold.String()),
+		libLog.String("overlap_buffer", syncWorkerConfig.OverlapBuffer.String()),
+		libLog.Any("circuit_breaker.failure_threshold", cbConfig.FailureThresh),
+		libLog.String("circuit_breaker.timeout", cbConfig.Timeout.String()),
+	).Log(context.Background(), libLog.LevelInfo, "Rule sync worker initialized with circuit breaker")
 
 	return syncWorker, nil
 }
@@ -810,10 +857,21 @@ func initAuditEventService(auditEventRepo *postgres.AuditEventRepository) (*serv
 
 // initCoreInfra initializes logger, validates auth config, and sets up OpenTelemetry.
 func initCoreInfra(cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
-	logger, err := libZap.InitializeLoggerWithError()
+	zapEnv := libZap.Environment(cfg.OtelDeploymentEnv)
+	if zapEnv == "" {
+		zapEnv = libZap.EnvironmentDevelopment
+	}
+
+	zapLogger, err := libZap.New(libZap.Config{
+		Environment:     zapEnv,
+		Level:           cfg.LogLevel,
+		OTelLibraryName: "tracer",
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
+
+	var logger libLog.Logger = zapLogger
 
 	// Validate authentication configuration (fail-fast if misconfigured)
 	if err := ValidateAuthConfig(cfg, logger); err != nil {
@@ -826,7 +884,7 @@ func initCoreInfra(cfg *Config) (libLog.Logger, *libOtel.Telemetry, error) {
 	}
 
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
-	telemetry, err := libOtel.InitializeTelemetryWithError(&libOtel.TelemetryConfig{
+	telemetry, err := libOtel.NewTelemetry(libOtel.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -898,7 +956,7 @@ func InitServers() (*Service, error) {
 
 	defer func() {
 		if !initSuccess && postgresConn != nil {
-			postgresConn.Connected = false
+			_ = postgresConn.Close()
 		}
 	}()
 
@@ -935,7 +993,10 @@ func InitServers() (*Service, error) {
 		return nil, fmt.Errorf("failed to warm up rule cache: %w", err)
 	}
 
-	logger.Infof("Rule cache warmed up: %d rules in %v", rulesLoaded, warmUpDuration)
+	logger.With(
+		libLog.Int("rules_loaded", rulesLoaded),
+		libLog.Any("warmup_duration", warmUpDuration),
+	).Log(context.Background(), libLog.LevelInfo, "Rule cache warmed up")
 
 	// Init sync worker for background polling (cross-instance consistency)
 	syncWorker, err := initSyncWorker(cfg, ruleCache, ruleSyncRepo, celAdapter, logger)
@@ -1001,11 +1062,11 @@ func runFunctionMigrations(connectionString string, migrationsPath string, logge
 	functionsPath := fmt.Sprintf("%s/functions", migrationsPath)
 
 	if _, err := os.Stat(functionsPath); os.IsNotExist(err) {
-		logger.WithFields("functions_path", functionsPath).Info("No function migrations directory found; skipping function migrations")
+		logger.With(libLog.String("functions_path", functionsPath)).Log(context.Background(), libLog.LevelInfo, "No function migrations directory found; skipping function migrations")
 		return nil
 	}
 
-	logger.WithFields("functions_path", functionsPath).Info("Applying function migrations")
+	logger.With(libLog.String("functions_path", functionsPath)).Log(context.Background(), libLog.LevelInfo, "Applying function migrations")
 
 	db, err := sql.Open("pgx", connectionString)
 	if err != nil {
@@ -1034,7 +1095,7 @@ func runFunctionMigrations(connectionString string, migrationsPath string, logge
 		return fmt.Errorf("failed to get migration version: %w", err)
 	}
 
-	logger.WithFields("version", version).Info("Function migrations applied successfully")
+	logger.With(libLog.Int("version", version)).Log(context.Background(), libLog.LevelInfo, "Function migrations applied successfully")
 
 	return nil
 }

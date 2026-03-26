@@ -12,9 +12,9 @@ import (
 	"net/http"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/trace"
 
@@ -88,15 +88,15 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 
 	// Check payload size (technical error - use HandleSpanError)
 	if len(c.Body()) > maxPayloadSize {
-		logger.WithFields(
-			"operation", "handler.validations.validate",
-			"payload_size", len(c.Body()),
-			"max_size", maxPayloadSize,
-		).Warn("Payload too large")
+		logger.With(
+			libLog.String("operation", "handler.validations.validate"),
+			libLog.Int("payload_size", len(c.Body())),
+			libLog.Any("max_size", maxPayloadSize),
+		).Log(ctx, libLog.LevelWarn, "Payload too large")
 
-		libOpentelemetry.HandleSpanError(&span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
+		libOpentelemetry.HandleSpanError(span, "Payload exceeds size limit", constant.ErrPayloadTooLarge)
 
-		return libHTTP.JSONResponse(c, http.StatusRequestEntityTooLarge, libCommons.Response{
+		return pkgHTTP.JSONResponse(c, http.StatusRequestEntityTooLarge, libCommons.Response{
 			Code:    constant.CodePayloadTooLarge,
 			Title:   "Payload Too Large",
 			Message: "payload too large: exceeds 100KB limit",
@@ -105,12 +105,12 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 
 	var request model.ValidationRequest
 	if err := c.BodyParser(&request); err != nil {
-		logger.WithFields(
-			"operation", "handler.validations.validate",
-			"error.message", err.Error(),
-		).Warn("Failed to parse request body")
+		logger.With(
+			libLog.String("operation", "handler.validations.validate"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Failed to parse request body")
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse request body", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0003", "Bad Request", h.parseErrorToUserMessage(err))
 	}
@@ -120,54 +120,54 @@ func (h *ValidationHandler) Validate(c *fiber.Ctx) error {
 	// Use injected clock for timestamp validation to support MOCK_TIME in tests
 	now := h.clock.Now()
 	if err := request.NormalizeAndValidate(now); err != nil {
-		logger.WithFields(
-			"operation", "handler.validations.validate",
-			"error.message", err.Error(),
-		).Warn("Request validation failed")
+		logger.With(
+			libLog.String("operation", "handler.validations.validate"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Request validation failed")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Request validation failed", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request validation failed", err)
 
 		return h.handleValidationInputError(c, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.validations.validate",
-		"request.id", request.RequestID.String(),
-		"request.amount", request.Amount,
-		"request.currency", request.Currency,
-		"request.transaction_type", string(request.TransactionType),
-	).Info("Processing validation request")
+	logger.With(
+		libLog.String("operation", "handler.validations.validate"),
+		libLog.String("request.id", request.RequestID.String()),
+		libLog.Any("request.amount", request.Amount),
+		libLog.Any("request.currency", request.Currency),
+		libLog.String("request.transaction_type", string(request.TransactionType)),
+	).Log(ctx, libLog.LevelInfo, "Processing validation request")
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "validation_request", map[string]any{
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "validation_request", map[string]any{
 		"request_id":       request.RequestID.String(),
 		"transaction_type": string(request.TransactionType),
 		"amount":           request.Amount,
 		"currency":         request.Currency,
-	})
+	}, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Call validation service
 	result, err := h.service.Validate(ctx, &request)
 	if err != nil {
-		return h.handleValidationError(c, &span, err)
+		return h.handleValidationError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.validations.validate",
-		"request.id", request.RequestID.String(),
-		"decision", string(result.Response.Decision),
-		"processing_time_ms", result.Response.ProcessingTimeMs,
-		"is_duplicate", result.IsDuplicate,
-	).Info("Validation completed")
+	logger.With(
+		libLog.String("operation", "handler.validations.validate"),
+		libLog.String("request.id", request.RequestID.String()),
+		libLog.String("decision", string(result.Response.Decision)),
+		libLog.Any("processing_time_ms", result.Response.ProcessingTimeMs),
+		libLog.Any("is_duplicate", result.IsDuplicate),
+	).Log(ctx, libLog.LevelInfo, "Validation completed")
 
 	// Return HTTP 201 for new requests, HTTP 200 for duplicate (idempotent) requests (DD-9)
 	if result.IsDuplicate {
-		return libHTTP.OK(c, result.Response)
+		return pkgHTTP.OK(c, result.Response)
 	}
 
-	return libHTTP.Created(c, result.Response)
+	return pkgHTTP.Created(c, result.Response)
 }
 
 // validationErrorMapping maps validation errors to their specific error codes and messages.
@@ -210,7 +210,7 @@ func (h *ValidationHandler) handleValidationInputError(c *fiber.Ctx, err error) 
 	}
 
 	logger, _, _, _ := libCommons.NewTrackingFromContext(c.UserContext()) //nolint:dogsled // only logger needed
-	logger.WithFields("error.message", err.Error()).Warn("Unhandled validation input error")
+	logger.With(libLog.String("error.message", err.Error())).Log(c.UserContext(), libLog.LevelWarn, "Unhandled validation input error")
 
 	return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", "invalid request")
 }
@@ -235,12 +235,12 @@ func (h *ValidationHandler) parseErrorToUserMessage(err error) string {
 }
 
 // handleValidationError converts service errors to appropriate HTTP responses.
-func (h *ValidationHandler) handleValidationError(c *fiber.Ctx, span *trace.Span, err error) error {
+func (h *ValidationHandler) handleValidationError(c *fiber.Ctx, span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrValidationTimeout):
 		libOpentelemetry.HandleSpanError(span, "Validation timeout", err)
 
-		return libHTTP.JSONResponse(c, http.StatusGatewayTimeout, libCommons.Response{
+		return pkgHTTP.JSONResponse(c, http.StatusGatewayTimeout, libCommons.Response{
 			Code:    constant.CodeValidationTimeout,
 			Title:   "Gateway Timeout",
 			Message: "validation timeout",
@@ -248,7 +248,7 @@ func (h *ValidationHandler) handleValidationError(c *fiber.Ctx, span *trace.Span
 	case errors.Is(err, context.Canceled):
 		libOpentelemetry.HandleSpanError(span, "Context cancelled", err)
 
-		return libHTTP.JSONResponse(c, http.StatusServiceUnavailable, libCommons.Response{
+		return pkgHTTP.JSONResponse(c, http.StatusServiceUnavailable, libCommons.Response{
 			Code:    constant.CodeContextCancelled,
 			Title:   "Service Unavailable",
 			Message: "request cancelled",
@@ -260,14 +260,14 @@ func (h *ValidationHandler) handleValidationError(c *fiber.Ctx, span *trace.Span
 	case errors.Is(err, constant.ErrRuleEvaluationFailed):
 		libOpentelemetry.HandleSpanError(span, "Rule evaluation failed", err)
 
-		return libHTTP.InternalServerError(c, constant.CodeRuleEvaluationError, "Internal Server Error", "rule evaluation failed")
+		return pkgHTTP.InternalServerError(c, constant.CodeRuleEvaluationError, "Internal Server Error", "rule evaluation failed")
 	case errors.Is(err, constant.ErrLimitCheckFailed):
 		libOpentelemetry.HandleSpanError(span, "Limit check failed", err)
 
-		return libHTTP.InternalServerError(c, constant.CodeLimitCheckError, "Internal Server Error", "limit check failed")
+		return pkgHTTP.InternalServerError(c, constant.CodeLimitCheckError, "Internal Server Error", "limit check failed")
 	default:
 		libOpentelemetry.HandleSpanError(span, "Validation failed", err)
 
-		return libHTTP.InternalServerError(c, constant.CodeInternalServer, "Internal Server Error", "validation processing failed")
+		return pkgHTTP.InternalServerError(c, constant.CodeInternalServer, "Internal Server Error", "validation processing failed")
 	}
 }

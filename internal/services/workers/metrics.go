@@ -5,7 +5,7 @@
 package workers
 
 import (
-	libMetrics "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
+	libMetrics "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 )
 
 // Metric is an alias for libMetrics.Metric to allow local usage without importing.

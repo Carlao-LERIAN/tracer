@@ -9,12 +9,13 @@ import (
 	"context"
 	"crypto/subtle"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libMetrics "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libMetrics "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	"github.com/gofiber/fiber/v2"
+
+	pkgHTTP "tracer/pkg/net/http"
 )
 
 // HeaderAPIKey is the HTTP header name for API key authentication.
@@ -35,20 +36,39 @@ type MetricsRecorder interface {
 // metricsFactoryAdapter wraps *libMetrics.MetricsFactory to implement MetricsRecorder.
 type metricsFactoryAdapter struct {
 	factory *libMetrics.MetricsFactory
+	logger  libLog.Logger
 }
 
 // NewMetricsRecorder creates a MetricsRecorder from a *libMetrics.MetricsFactory.
-func NewMetricsRecorder(factory *libMetrics.MetricsFactory) MetricsRecorder {
+func NewMetricsRecorder(factory *libMetrics.MetricsFactory, logger libLog.Logger) MetricsRecorder {
 	if factory == nil {
 		return nil
 	}
 
-	return &metricsFactoryAdapter{factory: factory}
+	return &metricsFactoryAdapter{factory: factory, logger: logger}
 }
 
 func (a *metricsFactoryAdapter) Counter(m Metric) CounterAdder {
-	return &counterBuilderAdapter{builder: a.factory.Counter(m)}
+	builder, err := a.factory.Counter(m)
+	if err != nil || builder == nil {
+		if a.logger != nil {
+			a.logger.With(libLog.Any("error", err)).
+				Log(context.Background(), libLog.LevelWarn, "Failed to create metrics counter, using no-op fallback")
+		}
+
+		return &noopCounterAdder{}
+	}
+
+	return &counterBuilderAdapter{builder: builder}
 }
+
+// noopCounterAdder is a no-op implementation of CounterAdder used when counter
+// creation fails. This prevents nil pointer panics while allowing the middleware
+// to continue processing requests.
+type noopCounterAdder struct{}
+
+func (n *noopCounterAdder) WithLabels(_ map[string]string) CounterAdder { return n }
+func (n *noopCounterAdder) Add(_ context.Context, _ int64)              {}
 
 // counterBuilderAdapter wraps *libMetrics.CounterBuilder to implement CounterAdder.
 type counterBuilderAdapter struct {
@@ -60,7 +80,7 @@ func (c *counterBuilderAdapter) WithLabels(labels map[string]string) CounterAdde
 }
 
 func (c *counterBuilderAdapter) Add(ctx context.Context, value int64) {
-	c.builder.Add(ctx, value)
+	_ = c.builder.Add(ctx, value)
 }
 
 // Auth failure reasons for logging and metrics.
@@ -114,7 +134,7 @@ func APIKeyAuth(cfg APIKeyConfig) fiber.Handler {
 		}
 
 		if reason := validateAPIKey(c.Get(HeaderAPIKey), cfg.Key); reason != "" {
-			return libHTTP.Unauthorized(c, "Unauthenticated", "Unauthorized", "API Key missing or invalid")
+			return pkgHTTP.Unauthorized(c, "Unauthenticated", "Unauthorized", "API Key missing or invalid")
 		}
 
 		return c.Next()
@@ -151,16 +171,16 @@ func APIKeyAuthWithLogger(cfg APIKeyConfig, logger libLog.Logger) fiber.Handler 
 		path := c.Path()
 
 		if reason := validateAPIKey(apiKey, cfg.Key); reason != "" {
-			logger.WithFields(
-				"reason", reason,
-				"path", path,
-				"remote_ip", c.IP(),
-			).Warn("auth_failed")
+			logger.With(
+				libLog.String("reason", reason),
+				libLog.String("path", path),
+				libLog.String("remote_ip", c.IP()),
+			).Log(c.UserContext(), libLog.LevelWarn, "auth_failed")
 
-			return libHTTP.Unauthorized(c, "Unauthenticated", "Unauthorized", "API Key missing or invalid")
+			return pkgHTTP.Unauthorized(c, "Unauthenticated", "Unauthorized", "API Key missing or invalid")
 		}
 
-		logger.WithFields("path", path).Debug("auth_success")
+		logger.With(libLog.String("path", path)).Log(c.UserContext(), libLog.LevelDebug, "auth_success")
 
 		return c.Next()
 	}
@@ -215,14 +235,14 @@ func APIKeyAuthWithMetrics(cfg APIKeyConfig, logger libLog.Logger, mr MetricsRec
 		path := c.Path()
 
 		if reason := validateAPIKey(apiKey, cfg.Key); reason != "" {
-			logger.WithFields(
-				"reason", reason,
-				"path", path,
-				"remote_ip", c.IP(),
-			).Warn("auth_failed")
+			logger.With(
+				libLog.String("reason", reason),
+				libLog.String("path", path),
+				libLog.String("remote_ip", c.IP()),
+			).Log(ctx, libLog.LevelWarn, "auth_failed")
 
 			// Record auth failure in span - business error (expected, span stays OK)
-			libOtel.HandleSpanBusinessErrorEvent(&span, "authentication failed: "+reason, nil)
+			libOtel.HandleSpanBusinessErrorEvent(span, "authentication failed: "+reason, nil)
 
 			// Increment metric if MetricsRecorder is provided
 			if mr != nil {
@@ -231,10 +251,10 @@ func APIKeyAuthWithMetrics(cfg APIKeyConfig, logger libLog.Logger, mr MetricsRec
 					Add(ctx, 1)
 			}
 
-			return libHTTP.Unauthorized(c, "Unauthenticated", "Unauthorized", "API Key missing or invalid")
+			return pkgHTTP.Unauthorized(c, "Unauthenticated", "Unauthorized", "API Key missing or invalid")
 		}
 
-		logger.WithFields("path", path).Debug("auth_success")
+		logger.With(libLog.String("path", path)).Log(ctx, libLog.LevelDebug, "auth_success")
 
 		return c.Next()
 	}

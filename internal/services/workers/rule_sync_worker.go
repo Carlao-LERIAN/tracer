@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libMetrics "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libMetrics "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	"github.com/google/uuid"
 	"github.com/sony/gobreaker"
 
@@ -127,12 +127,12 @@ func (w *RuleSyncWorker) runLoop(ctx context.Context) error {
 	// Initialize lastSync from cache's warm-up timestamp
 	w.lastSync = w.cache.LastSyncTime()
 
-	w.logger.WithFields(
-		"operation", "worker.rule_sync.run",
-		"poll_interval", w.config.PollInterval.String(),
-		"overlap_buffer", w.config.OverlapBuffer.String(),
-		"last_sync", w.lastSync.Format(time.RFC3339),
-	).Info("Starting rule sync worker")
+	w.logger.With(
+		libLog.String("operation", "worker.rule_sync.run"),
+		libLog.String("poll_interval", w.config.PollInterval.String()),
+		libLog.String("overlap_buffer", w.config.OverlapBuffer.String()),
+		libLog.String("last_sync", w.lastSync.Format(time.RFC3339)),
+	).Log(ctx, libLog.LevelInfo, "Starting rule sync worker")
 
 	tickerChan, stopTicker := w.clock.NewTicker(w.config.PollInterval)
 	defer stopTicker()
@@ -140,9 +140,9 @@ func (w *RuleSyncWorker) runLoop(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			w.logger.WithFields(
-				"operation", "worker.rule_sync.run",
-			).Info("Rule sync worker stopped")
+			w.logger.With(
+				libLog.String("operation", "worker.rule_sync.run"),
+			).Log(ctx, libLog.LevelInfo, "Rule sync worker stopped")
 
 			return nil
 
@@ -163,10 +163,10 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 	start := w.clock.Now()
 	logger := logging.WithTrace(ctx, w.logger)
 
-	logger.WithFields(
-		"operation", "worker.rule_sync.sync_cycle",
-		"last_sync", w.lastSync.Format(time.RFC3339),
-	).Info("Running rule sync cycle")
+	logger.With(
+		libLog.String("operation", "worker.rule_sync.sync_cycle"),
+		libLog.String("last_sync", w.lastSync.Format(time.RFC3339)),
+	).Log(ctx, libLog.LevelInfo, "Running rule sync cycle")
 
 	// 1. Query delta with overlap buffer (circuit breaker protected)
 	since := w.lastSync.Add(-w.config.OverlapBuffer)
@@ -175,10 +175,10 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 	if err != nil {
 		// Circuit breaker open or half-open rejecting: skip cycle, serve stale cache
 		if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
-			logger.WithFields(
-				"operation", "worker.rule_sync.sync_cycle",
-				"circuit_breaker.state", "open_or_half_open",
-			).Warn("Circuit breaker rejecting request, skipping sync cycle - serving stale cache")
+			logger.With(
+				libLog.String("operation", "worker.rule_sync.sync_cycle"),
+				libLog.String("circuit_breaker.state", "open_or_half_open"),
+			).Log(ctx, libLog.LevelWarn, "Circuit breaker rejecting request, skipping sync cycle - serving stale cache")
 
 			w.emitSkipMetrics(ctx, metricsFactory, "skipped", "circuit_open")
 
@@ -187,18 +187,18 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 
 		// Context cancellation: normal during shutdown, not a real failure
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			logger.WithFields(
-				"operation", "worker.rule_sync.sync_cycle",
-			).Info("Sync cycle interrupted by context cancellation")
+			logger.With(
+				libLog.String("operation", "worker.rule_sync.sync_cycle"),
+			).Log(ctx, libLog.LevelInfo, "Sync cycle interrupted by context cancellation")
 
 			return
 		}
 
-		libOtel.HandleSpanError(&span, "Delta query failed", err)
-		logger.WithFields(
-			"operation", "worker.rule_sync.sync_cycle",
-			"error.message", err.Error(),
-		).Error("Failed to query rule changes")
+		libOtel.HandleSpanError(span, "Delta query failed", err)
+		logger.With(
+			libLog.String("operation", "worker.rule_sync.sync_cycle"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to query rule changes")
 
 		w.emitSkipMetrics(ctx, metricsFactory, "error", "db_error")
 
@@ -210,9 +210,9 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		w.cache.ApplyChanges(nil, nil)
 		w.lastSync = w.clock.Now()
 
-		logger.WithFields(
-			"operation", "worker.rule_sync.sync_cycle",
-		).Info("No rule changes detected")
+		logger.With(
+			libLog.String("operation", "worker.rule_sync.sync_cycle"),
+		).Log(ctx, libLog.LevelInfo, "No rule changes detected")
 
 		w.emitSuccessMetrics(ctx, metricsFactory, start, 0)
 
@@ -238,10 +238,10 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		w.cache.ApplyChanges(nil, nil)
 		w.updateLastSync(fetched)
 
-		logger.WithFields(
-			"operation", "worker.rule_sync.sync_cycle",
-			"fetched_count", len(fetched),
-		).Info("Overlap buffer: all changes already applied")
+		logger.With(
+			libLog.String("operation", "worker.rule_sync.sync_cycle"),
+			libLog.Int("fetched_count", len(fetched)),
+		).Log(ctx, libLog.LevelInfo, "Overlap buffer: all changes already applied")
 
 		w.emitSuccessMetrics(ctx, metricsFactory, start, 0)
 
@@ -264,11 +264,11 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 		if compileErr != nil {
 			compileErrors++
 
-			logger.WithFields(
-				"operation", "worker.rule_sync.compile",
-				"rule_id", rule.ID.String(),
-				"error.message", compileErr.Error(),
-			).Warn("CEL compilation failed for rule, using nil program")
+			logger.With(
+				libLog.String("operation", "worker.rule_sync.compile"),
+				libLog.String("rule_id", rule.ID.String()),
+				libLog.String("error.message", compileErr.Error()),
+			).Log(ctx, libLog.LevelWarn, "CEL compilation failed for rule, using nil program")
 		} else {
 			program = compiled
 		}
@@ -285,30 +285,31 @@ func (w *RuleSyncWorker) runSyncCycle(ctx context.Context) {
 	// 7. Update lastSync
 	w.updateLastSync(fetched)
 
-	logger.WithFields(
-		"operation", "worker.rule_sync.sync_cycle",
-		"new_count", len(changes.New),
-		"updated_count", len(changes.Updated),
-		"deleted_count", len(changes.Deleted),
-	).Info("Rule sync cycle completed")
+	logger.With(
+		libLog.String("operation", "worker.rule_sync.sync_cycle"),
+		libLog.Int("new_count", len(changes.New)),
+		libLog.Int("updated_count", len(changes.Updated)),
+		libLog.Int("deleted_count", len(changes.Deleted)),
+	).Log(ctx, libLog.LevelInfo, "Rule sync cycle completed")
 
 	// 8. Emit metrics and span attributes
 	changedCount := len(changes.New) + len(changes.Updated) + len(changes.Deleted)
 	w.emitSuccessMetrics(ctx, metricsFactory, start, changedCount)
 
 	if metricsFactory != nil && compileErrors > 0 {
-		metricsFactory.Counter(MetricCacheSyncErrorsTotal).
-			WithLabels(map[string]string{"reason": "compile_error"}).
-			Add(ctx, int64(compileErrors))
+		if counter, err := metricsFactory.Counter(MetricCacheSyncErrorsTotal); err == nil && counter != nil {
+			_ = counter.WithLabels(map[string]string{"reason": "compile_error"}).
+				Add(ctx, int64(compileErrors))
+		}
 	}
 
-	_ = libOtel.SetSpanAttributesFromStruct(&span, "sync_result", map[string]any{
+	_ = libOtel.SetSpanAttributesFromValue(span, "sync_result", map[string]any{
 		"new_count":      len(changes.New),
 		"updated_count":  len(changes.Updated),
 		"deleted_count":  len(changes.Deleted),
 		"compile_errors": compileErrors,
 		"cache_size":     w.cache.Size(),
-	})
+	}, nil)
 }
 
 // emitSuccessMetrics records metrics for a successful sync cycle.
@@ -323,22 +324,29 @@ func (w *RuleSyncWorker) emitSuccessMetrics(
 		return
 	}
 
-	mf.Counter(MetricCacheSyncPollsTotal).
-		WithLabels(map[string]string{"status": "success"}).
-		AddOne(ctx)
-
-	elapsed := w.clock.Now().Sub(start).Milliseconds()
-	mf.Histogram(MetricCacheSyncDuration).Record(ctx, elapsed)
-
-	if rulesChanged > 0 {
-		mf.Counter(MetricCacheSyncRulesChanged).Add(ctx, int64(rulesChanged))
+	if counter, err := mf.Counter(MetricCacheSyncPollsTotal); err == nil && counter != nil {
+		_ = counter.WithLabels(map[string]string{"status": "success"}).AddOne(ctx)
 	}
 
-	mf.Gauge(MetricCacheSyncRuleCacheSize).
-		Set(ctx, int64(w.cache.Size()))
+	elapsed := w.clock.Now().Sub(start).Milliseconds()
 
-	mf.Gauge(MetricCacheSyncStalenessSeconds).
-		Set(ctx, 0)
+	if hist, err := mf.Histogram(MetricCacheSyncDuration); err == nil && hist != nil {
+		_ = hist.Record(ctx, elapsed)
+	}
+
+	if rulesChanged > 0 {
+		if counter, err := mf.Counter(MetricCacheSyncRulesChanged); err == nil && counter != nil {
+			_ = counter.Add(ctx, int64(rulesChanged))
+		}
+	}
+
+	if gauge, err := mf.Gauge(MetricCacheSyncRuleCacheSize); err == nil && gauge != nil {
+		_ = gauge.Set(ctx, int64(w.cache.Size()))
+	}
+
+	if gauge, err := mf.Gauge(MetricCacheSyncStalenessSeconds); err == nil && gauge != nil {
+		_ = gauge.Set(ctx, 0)
+	}
 }
 
 // emitSkipMetrics records metrics when a sync cycle is skipped or fails.
@@ -353,17 +361,19 @@ func (w *RuleSyncWorker) emitSkipMetrics(
 		return
 	}
 
-	mf.Counter(MetricCacheSyncPollsTotal).
-		WithLabels(map[string]string{"status": pollStatus}).
-		AddOne(ctx)
+	if counter, err := mf.Counter(MetricCacheSyncPollsTotal); err == nil && counter != nil {
+		_ = counter.WithLabels(map[string]string{"status": pollStatus}).AddOne(ctx)
+	}
 
-	mf.Counter(MetricCacheSyncErrorsTotal).
-		WithLabels(map[string]string{"reason": errorReason}).
-		AddOne(ctx)
+	if counter, err := mf.Counter(MetricCacheSyncErrorsTotal); err == nil && counter != nil {
+		_ = counter.WithLabels(map[string]string{"reason": errorReason}).AddOne(ctx)
+	}
 
 	staleness := int64(w.clock.Now().Sub(w.lastSync).Seconds())
-	mf.Gauge(MetricCacheSyncStalenessSeconds).
-		Set(ctx, staleness)
+
+	if gauge, err := mf.Gauge(MetricCacheSyncStalenessSeconds); err == nil && gauge != nil {
+		_ = gauge.Set(ctx, staleness)
+	}
 }
 
 // updateLastSync sets lastSync to the maximum UpdatedAt from fetched results.

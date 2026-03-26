@@ -13,8 +13,9 @@ import (
 	"regexp"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
@@ -78,10 +79,10 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 	// Handle nil input
 	if input == nil {
 		err := constant.ErrRuleNilInput
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Nil input provided", err)
-		logger.WithFields(
-			"operation", "service.rule.create",
-		).Warn("Nil input provided")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil input provided", err)
+		logger.With(
+			libLog.String("operation", "service.rule.create"),
+		).Log(ctx, libLog.LevelWarn, "Nil input provided")
 
 		return nil, err
 	}
@@ -89,16 +90,16 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 	// Normalize name for storage and uniqueness check
 	normalizedName := NormalizeName(input.Name)
 
-	logger.WithFields(
-		"operation", "service.rule.create",
-		"rule.name", input.Name,
-		"rule.name_normalized", normalizedName,
-	).Info("Creating rule")
+	logger.With(
+		libLog.String("operation", "service.rule.create"),
+		libLog.Any("rule.name", input.Name),
+		libLog.Any("rule.name_normalized", normalizedName),
+	).Log(ctx, libLog.LevelInfo, "Creating rule")
 
 	// 1. Validate CEL expression syntax
 	_, err := c.cel.Compile(ctx, input.Expression)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid CEL expression", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid CEL expression", err)
 		return nil, err
 	}
 
@@ -113,43 +114,43 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 
 	rule, err := model.NewRule(normalizedName, input.Expression, input.Action, input.Scopes, description, now)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule input", err)
-		logger.WithFields(
-			"operation", "service.rule.create",
-			"error.message", err.Error(),
-		).Warn("Invalid rule input")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule input", err)
+		logger.With(
+			libLog.String("operation", "service.rule.create"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Invalid rule input")
 
 		return nil, err
 	}
 
 	// 3. Persist rule
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule_input", rule)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "rule_input", rule, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	result, err := c.repo.Create(ctx, rule)
 	if err != nil {
 		if errors.Is(err, constant.ErrRuleNameAlreadyExistsInCtx) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule name already exists in this context", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule name already exists in this context", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create rule", err)
-		logger.WithFields(
-			"operation", "service.rule.create",
-			"error.message", err.Error(),
-		).Error("Failed to create rule")
+		libOpentelemetry.HandleSpanError(span, "Failed to create rule", err)
+		logger.With(
+			libLog.String("operation", "service.rule.create"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to create rule")
 
 		return nil, fmt.Errorf("failed to create rule: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.rule.create",
-		"rule.id", result.ID.String(),
-		"rule.name", result.Name,
-	).Info("Rule created")
+	logger.With(
+		libLog.String("operation", "service.rule.create"),
+		libLog.String("rule.id", result.ID.String()),
+		libLog.Any("rule.name", result.Name),
+	).Log(ctx, libLog.LevelInfo, "Rule created")
 
 	// Record audit event (best-effort, failures logged but don't fail the operation)
 	if c.auditWriter != nil {
@@ -166,11 +167,11 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 			"Rule created via API",
 			clientIP,
 		); err != nil {
-			logger.WithFields(
-				"operation", "service.rule.create.audit",
-				"rule.id", result.ID.String(),
-				"error", err.Error(),
-			).Warn("Failed to record audit event")
+			logger.With(
+				libLog.String("operation", "service.rule.create.audit"),
+				libLog.String("rule.id", result.ID.String()),
+				libLog.String("error", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to record audit event")
 		}
 	}
 

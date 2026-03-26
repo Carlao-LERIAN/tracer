@@ -7,10 +7,10 @@ package bootstrap
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libCommonsLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libCommonsOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCommonsLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libCommonsOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v4/commons/server"
 	"github.com/gofiber/fiber/v2"
 )
 

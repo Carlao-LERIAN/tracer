@@ -10,9 +10,9 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -76,12 +76,12 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 
 	var input CreateRuleInput
 	if err := c.BodyParser(&input); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse request body", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0003", "Bad Request", "Invalid request body")
 	}
 
 	if err := input.Validate(); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Validation failed", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
 		var validationErr *ValidationError
 		if errors.As(err, &validationErr) {
@@ -91,14 +91,14 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", err.Error())
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.create",
-		"rule.name", input.Name,
-	).Info("Creating rule")
+	logger.With(
+		libLog.String("operation", "handler.rule.create"),
+		libLog.Any("rule.name", input.Name),
+	).Log(ctx, libLog.LevelInfo, "Creating rule")
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule_input", input)
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "rule_input", input, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Convert HTTP input to service input
@@ -106,15 +106,15 @@ func (h *Handler) CreateRule(c *fiber.Ctx) error {
 
 	result, err := h.service.CreateRule(ctx, serviceInput)
 	if err != nil {
-		return handleServiceError(c, &span, err)
+		return handleServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.create",
-		"rule.id", result.ID.String(),
-	).Info("Rule created")
+	logger.With(
+		libLog.String("operation", "handler.rule.create"),
+		libLog.String("rule.id", result.ID.String()),
+	).Log(ctx, libLog.LevelInfo, "Rule created")
 
-	return libHTTP.Created(c, result)
+	return pkgHTTP.Created(c, result)
 }
 
 // UpdateRule godoc
@@ -149,18 +149,18 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid rule ID format")
 	}
 
 	var input UpdateRuleInput
 	if err := c.BodyParser(&input); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse request body", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0003", "Bad Request", "Invalid request body")
 	}
 
 	if err := input.Validate(); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Validation failed", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
 		var validationErr *ValidationError
 		if errors.As(err, &validationErr) {
@@ -171,18 +171,18 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 	}
 
 	if input.IsEmpty() {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No fields to update", nil)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No fields to update", nil)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0002", "Validation Error", "At least one field must be provided for update")
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.update",
-		"rule.id", id.String(),
-	).Info("Updating rule")
+	logger.With(
+		libLog.String("operation", "handler.rule.update"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Updating rule")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule_update", input)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "rule_update", input, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Convert HTTP input to service input
@@ -190,15 +190,15 @@ func (h *Handler) UpdateRule(c *fiber.Ctx) error {
 
 	result, err := h.service.UpdateRule(ctx, id, serviceInput)
 	if err != nil {
-		return handleServiceError(c, &span, err)
+		return handleServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.update",
-		"rule.id", result.ID.String(),
-	).Info("Rule updated")
+	logger.With(
+		libLog.String("operation", "handler.rule.update"),
+		libLog.String("rule.id", result.ID.String()),
+	).Log(ctx, libLog.LevelInfo, "Rule updated")
 
-	return libHTTP.OK(c, result)
+	return pkgHTTP.OK(c, result)
 }
 
 // GetRule godoc
@@ -231,27 +231,27 @@ func (h *Handler) GetRule(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid rule ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.get",
-		"rule.id", id.String(),
-	).Info("Getting rule")
+	logger.With(
+		libLog.String("operation", "handler.rule.get"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting rule")
 
 	result, err := h.service.GetRule(ctx, id)
 	if err != nil {
-		return handleServiceError(c, &span, err)
+		return handleServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.get",
-		"rule.id", result.ID.String(),
-		"rule.name", result.Name,
-	).Info("Rule retrieved")
+	logger.With(
+		libLog.String("operation", "handler.rule.get"),
+		libLog.String("rule.id", result.ID.String()),
+		libLog.Any("rule.name", result.Name),
+	).Log(ctx, libLog.LevelInfo, "Rule retrieved")
 
-	return libHTTP.OK(c, result)
+	return pkgHTTP.OK(c, result)
 }
 
 // ListRules godoc
@@ -294,13 +294,13 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 	var input ListRulesInput
 
 	if err := c.QueryParser(&input); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse query parameters", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", "Invalid query parameters")
 	}
 
 	// Validate first (before defaults) to catch explicit invalid values like limit=0
 	if err := input.Validate(); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Validation failed", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 		// Check for typed validation error with specific code
 		var validationErr *ValidationError
 		if errors.As(err, &validationErr) {
@@ -313,32 +313,32 @@ func (h *Handler) ListRules(c *fiber.Ctx) error {
 	// Apply defaults after validation passes (for non-specified optional fields)
 	input.SetDefaults()
 
-	logger.WithFields(
-		"operation", "handler.rule.list",
-		"list.limit", input.Limit,
-		"list.cursor", input.Cursor,
-		"list.sort_by", input.SortBy,
-		"list.sort_order", input.SortOrder,
-	).Info("Listing rules")
+	logger.With(
+		libLog.String("operation", "handler.rule.list"),
+		libLog.Any("list.limit", input.Limit),
+		libLog.Any("list.cursor", input.Cursor),
+		libLog.Any("list.sort_by", input.SortBy),
+		libLog.Any("list.sort_order", input.SortOrder),
+	).Log(ctx, libLog.LevelInfo, "Listing rules")
 
 	// Convert to service filter
 	filter := toListFilter(&input)
 
 	result, err := h.service.ListRules(ctx, filter)
 	if err != nil {
-		return handleServiceError(c, &span, err)
+		return handleServiceError(c, span, err)
 	}
 
 	// Convert to response
 	response := toListResponse(result)
 
-	logger.WithFields(
-		"operation", "handler.rule.list",
-		"list.count", len(response.Rules),
-		"list.has_more", response.HasMore,
-	).Info("Rules listed")
+	logger.With(
+		libLog.String("operation", "handler.rule.list"),
+		libLog.Int("list.count", len(response.Rules)),
+		libLog.Any("list.has_more", response.HasMore),
+	).Log(ctx, libLog.LevelInfo, "Rules listed")
 
-	return libHTTP.OK(c, response)
+	return pkgHTTP.OK(c, response)
 }
 
 // ActivateRule godoc
@@ -370,26 +370,26 @@ func (h *Handler) ActivateRule(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid rule ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.activate",
-		"rule.id", id.String(),
-	).Info("Activating rule")
+	logger.With(
+		libLog.String("operation", "handler.rule.activate"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Activating rule")
 
 	rule, err := h.service.ActivateRule(ctx, id)
 	if err != nil {
-		return handleLifecycleError(c, &span, err)
+		return handleLifecycleError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.activate",
-		"rule.id", id.String(),
-	).Info("Rule activated")
+	logger.With(
+		libLog.String("operation", "handler.rule.activate"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Rule activated")
 
-	return libHTTP.OK(c, rule)
+	return pkgHTTP.OK(c, rule)
 }
 
 // DeactivateRule godoc
@@ -421,26 +421,26 @@ func (h *Handler) DeactivateRule(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid rule ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.deactivate",
-		"rule.id", id.String(),
-	).Info("Deactivating rule")
+	logger.With(
+		libLog.String("operation", "handler.rule.deactivate"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Deactivating rule")
 
 	rule, err := h.service.DeactivateRule(ctx, id)
 	if err != nil {
-		return handleLifecycleError(c, &span, err)
+		return handleLifecycleError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.deactivate",
-		"rule.id", id.String(),
-	).Info("Rule deactivated")
+	logger.With(
+		libLog.String("operation", "handler.rule.deactivate"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Rule deactivated")
 
-	return libHTTP.OK(c, rule)
+	return pkgHTTP.OK(c, rule)
 }
 
 // DraftRule godoc
@@ -472,26 +472,26 @@ func (h *Handler) DraftRule(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid rule ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.draft",
-		"rule.id", id.String(),
-	).Info("Transitioning rule to draft")
+	logger.With(
+		libLog.String("operation", "handler.rule.draft"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Transitioning rule to draft")
 
 	rule, err := h.service.DraftRule(ctx, id)
 	if err != nil {
-		return handleLifecycleError(c, &span, err)
+		return handleLifecycleError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.draft",
-		"rule.id", id.String(),
-	).Info("Rule transitioned to draft")
+	logger.With(
+		libLog.String("operation", "handler.rule.draft"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Rule transitioned to draft")
 
-	return libHTTP.OK(c, rule)
+	return pkgHTTP.OK(c, rule)
 }
 
 // DeleteRule godoc
@@ -523,29 +523,29 @@ func (h *Handler) DeleteRule(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid rule ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule ID", err)
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid rule ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.delete",
-		"rule.id", id.String(),
-	).Info("Deleting rule")
+	logger.With(
+		libLog.String("operation", "handler.rule.delete"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Deleting rule")
 
 	if err := h.service.DeleteRule(ctx, id); err != nil {
-		return handleLifecycleError(c, &span, err)
+		return handleLifecycleError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.rule.delete",
-		"rule.id", id.String(),
-	).Info("Rule deleted")
+	logger.With(
+		libLog.String("operation", "handler.rule.delete"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Rule deleted")
 
-	return libHTTP.NoContent(c)
+	return pkgHTTP.NoContent(c)
 }
 
 // handleLifecycleError converts lifecycle service errors to appropriate HTTP responses.
-func handleLifecycleError(c *fiber.Ctx, span *trace.Span, err error) error {
+func handleLifecycleError(c *fiber.Ctx, span trace.Span, err error) error {
 	var invalidTransitionErr *model.InvalidTransitionError
 	if errors.As(err, &invalidTransitionErr) {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
@@ -556,18 +556,18 @@ func handleLifecycleError(c *fiber.Ctx, span *trace.Span, err error) error {
 }
 
 // handleServiceError converts service errors to appropriate HTTP responses.
-func handleServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
+func handleServiceError(c *fiber.Ctx, span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrRuleNameAlreadyExistsInCtx):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule name already exists in this context", err)
-		return libHTTP.Conflict(c, "TRC-0303", "Conflict", "Rule name already exists in this context")
+		return pkgHTTP.Conflict(c, "TRC-0303", "Conflict", "Rule name already exists in this context")
 	case errors.Is(err, constant.ErrRuleNameAlreadyExists):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule name already exists", err)
-		return libHTTP.Conflict(c, "TRC-0101", "Conflict", "Rule name already exists")
+		return pkgHTTP.Conflict(c, "TRC-0101", "Conflict", "Rule name already exists")
 	case errors.Is(err, constant.ErrExpressionSyntax):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid CEL expression syntax", err)
 
-		return libHTTP.BadRequest(c, fiber.Map{
+		return pkgHTTP.BadRequest(c, fiber.Map{
 			"code":    "TRC-0083",
 			"title":   "Bad Request",
 			"message": "Invalid CEL expression syntax",
@@ -575,7 +575,7 @@ func handleServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
 	case errors.Is(err, constant.ErrExpressionType):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression must evaluate to boolean", err)
 
-		return libHTTP.BadRequest(c, fiber.Map{
+		return pkgHTTP.BadRequest(c, fiber.Map{
 			"code":    "TRC-0084",
 			"title":   "Bad Request",
 			"message": "Expression must evaluate to boolean",
@@ -583,7 +583,7 @@ func handleServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
 	case errors.Is(err, constant.ErrExpressionCostExceeded):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression cost exceeds limit", err)
 
-		return libHTTP.BadRequest(c, fiber.Map{
+		return pkgHTTP.BadRequest(c, fiber.Map{
 			"code":    "TRC-0085",
 			"title":   "Bad Request",
 			"message": "Expression cost exceeds limit",
@@ -591,18 +591,18 @@ func handleServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
 	case errors.Is(err, constant.ErrExpressionNotModifiable):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Expression cannot be modified for non-DRAFT rules", err)
 
-		return libHTTP.BadRequest(c, fiber.Map{
+		return pkgHTTP.BadRequest(c, fiber.Map{
 			"code":    "TRC-0104",
 			"title":   "Bad Request",
 			"message": "Expression cannot be modified for non-DRAFT rules",
 		})
 	case errors.Is(err, constant.ErrRuleNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule not found", err)
-		return libHTTP.NotFound(c, "TRC-0100", "Not Found", "Rule not found")
+		return pkgHTTP.NotFound(c, "TRC-0100", "Not Found", "Rule not found")
 	case errors.Is(err, constant.ErrInvalidCursor):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 
-		return libHTTP.BadRequest(c, fiber.Map{
+		return pkgHTTP.BadRequest(c, fiber.Map{
 			"code":    "TRC-0044",
 			"title":   "Bad Request",
 			"message": "Invalid pagination cursor",
@@ -610,14 +610,14 @@ func handleServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
 	case errors.Is(err, constant.ErrInvalidSortColumn):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid sort column", err)
 
-		return libHTTP.BadRequest(c, fiber.Map{
+		return pkgHTTP.BadRequest(c, fiber.Map{
 			"code":    "TRC-0043",
 			"title":   "Bad Request",
 			"message": "Invalid sort column",
 		})
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
-		return libHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
+		return pkgHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
 	}
 }
 

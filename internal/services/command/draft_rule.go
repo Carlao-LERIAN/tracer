@@ -9,8 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/pkg/clock"
@@ -59,34 +60,34 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 
 	logger = logging.WithTrace(ctx, logger)
 
-	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "draft_input", map[string]any{
+	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "draft_input", map[string]any{
 		"rule_id":   ruleID.String(),
 		"operation": "draft",
-	})
+	}, nil)
 
-	logger.WithFields(
-		"operation", "service.rule.draft",
-		"rule.id", ruleID.String(),
-	).Info("Transitioning rule to draft")
+	logger.With(
+		libLog.String("operation", "service.rule.draft"),
+		libLog.String("rule.id", ruleID.String()),
+	).Log(ctx, libLog.LevelInfo, "Transitioning rule to draft")
 
 	rule, err := s.repository.GetByID(ctx, ruleID)
 	if err != nil {
 		if errors.Is(err, constant.ErrRuleNotFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule not found", err)
-			logger.WithFields(
-				"operation", "service.rule.draft",
-				"rule.id", ruleID.String(),
-			).Warn("Rule not found")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule not found", err)
+			logger.With(
+				libLog.String("operation", "service.rule.draft"),
+				libLog.String("rule.id", ruleID.String()),
+			).Log(ctx, libLog.LevelWarn, "Rule not found")
 
 			return nil, libCommons.ValidateBusinessError(constant.ErrRuleNotFound, "Rule")
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rule from repository", err)
-		logger.WithFields(
-			"operation", "service.rule.draft",
-			"rule.id", ruleID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to get rule")
+		libOpentelemetry.HandleSpanError(span, "Failed to get rule from repository", err)
+		logger.With(
+			libLog.String("operation", "service.rule.draft"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to get rule")
 
 		return nil, fmt.Errorf("failed to get rule: %w", err)
 	}
@@ -94,10 +95,10 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 	// Idempotency: if already draft, return the rule (no-op)
 	// Check before audit capture to avoid unnecessary state snapshots
 	if rule.Status == model.RuleStatusDraft {
-		logger.WithFields(
-			"operation", "service.rule.draft",
-			"rule.id", ruleID.String(),
-		).Info("Rule already in draft (idempotent no-op)")
+		logger.With(
+			libLog.String("operation", "service.rule.draft"),
+			libLog.String("rule.id", ruleID.String()),
+		).Log(ctx, libLog.LevelInfo, "Rule already in draft (idempotent no-op)")
 
 		return rule, nil
 	}
@@ -110,24 +111,24 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 		// Check for invalid transition (business error)
 		var transitionErr *model.InvalidTransitionError
 		if errors.As(err, &transitionErr) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", transitionErr)
-			logger.WithFields(
-				"operation", "service.rule.draft",
-				"rule.id", ruleID.String(),
-				"rule.status_from", string(transitionErr.From),
-				"rule.status_to", string(transitionErr.To),
-			).Warn("Invalid transition")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", transitionErr)
+			logger.With(
+				libLog.String("operation", "service.rule.draft"),
+				libLog.String("rule.id", ruleID.String()),
+				libLog.String("rule.status_from", string(transitionErr.From)),
+				libLog.String("rule.status_to", string(transitionErr.To)),
+			).Log(ctx, libLog.LevelWarn, "Invalid transition")
 
 			return nil, transitionErr
 		}
 
 		// Technical error (invalid status value or other)
-		libOpentelemetry.HandleSpanError(&span, "Failed to set rule status", err)
-		logger.WithFields(
-			"operation", "service.rule.draft",
-			"rule.id", ruleID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to set rule status")
+		libOpentelemetry.HandleSpanError(span, "Failed to set rule status", err)
+		logger.With(
+			libLog.String("operation", "service.rule.draft"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to set rule status")
 
 		return nil, fmt.Errorf("failed to set rule status: %w", err)
 	}
@@ -135,20 +136,20 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 	// Persist updated rule
 	updatedRule, err := s.repository.Update(ctx, rule)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update rule", err)
-		logger.WithFields(
-			"operation", "service.rule.draft",
-			"rule.id", ruleID.String(),
-			"error.message", err.Error(),
-		).Error("Failed to update rule")
+		libOpentelemetry.HandleSpanError(span, "Failed to update rule", err)
+		logger.With(
+			libLog.String("operation", "service.rule.draft"),
+			libLog.String("rule.id", ruleID.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to update rule")
 
 		return nil, fmt.Errorf("failed to update rule: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.rule.draft",
-		"rule.id", updatedRule.ID.String(),
-	).Info("Rule transitioned to draft successfully")
+	logger.With(
+		libLog.String("operation", "service.rule.draft"),
+		libLog.String("rule.id", updatedRule.ID.String()),
+	).Log(ctx, libLog.LevelInfo, "Rule transitioned to draft successfully")
 
 	// Record audit event (best-effort)
 	if s.auditWriter != nil {
@@ -165,11 +166,11 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (*mode
 			"Rule transitioned to draft via API",
 			clientIP,
 		); err != nil {
-			logger.WithFields(
-				"operation", "service.rule.draft.audit",
-				"rule.id", updatedRule.ID.String(),
-				"error", err.Error(),
-			).Warn("Failed to record audit event")
+			logger.With(
+				libLog.String("operation", "service.rule.draft.audit"),
+				libLog.String("rule.id", updatedRule.ID.String()),
+				libLog.String("error", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to record audit event")
 		}
 	}
 

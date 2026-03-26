@@ -11,8 +11,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	"tracer/pkg/logging"
 	"tracer/pkg/model"
@@ -98,10 +99,10 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 
 	logger = logging.WithTrace(ctx, logger)
 
-	logger.WithFields(
-		"operation", "service.rules.evaluate",
-		"request.id", req.RequestID.String(),
-	).Info("Starting rule evaluation")
+	logger.With(
+		libLog.String("operation", "service.rules.evaluate"),
+		libLog.String("request.id", req.RequestID.String()),
+	).Log(ctx, libLog.LevelInfo, "Starting rule evaluation")
 
 	// Extract transaction scope for database-level filtering
 	txScope := req.ToTransactionScope()
@@ -109,12 +110,12 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 	// Load active rules with scope filter for performance optimization
 	rules, err := q.getActiveRules.Execute(ctx, txScope)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to load rules", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to load rules", err)
 
-		logger.WithFields(
-			"operation", "service.rules.evaluate",
-			"error.message", err.Error(),
-		).Error("Failed to load rules")
+		logger.With(
+			libLog.String("operation", "service.rules.evaluate"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to load rules")
 
 		return nil, fmt.Errorf("failed to load rules: %w", err)
 	}
@@ -125,11 +126,11 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 
 	// Apply max rules limit
 	if q.config.MaxRulesPerRequest > 0 && len(rules) > q.config.MaxRulesPerRequest {
-		logger.WithFields(
-			"operation", "service.rules.evaluate",
-			"rules.original_count", len(rules),
-			"rules.truncated_to", q.config.MaxRulesPerRequest,
-		).Warn("Truncating rules due to max limit")
+		logger.With(
+			libLog.String("operation", "service.rules.evaluate"),
+			libLog.Int("rules.original_count", len(rules)),
+			libLog.Any("rules.truncated_to", q.config.MaxRulesPerRequest),
+		).Log(ctx, libLog.LevelWarn, "Truncating rules due to max limit")
 
 		rules = rules[:q.config.MaxRulesPerRequest]
 		truncated = true
@@ -138,12 +139,12 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 	// Evaluate all rules (no short-circuit)
 	collector, err := q.completeEvaluator.EvaluateAll(ctx, rules, req)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to evaluate rules", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to evaluate rules", err)
 
-		logger.WithFields(
-			"operation", "service.rules.evaluate",
-			"error.message", err.Error(),
-		).Error("Failed to evaluate rules")
+		logger.With(
+			libLog.String("operation", "service.rules.evaluate"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to evaluate rules")
 
 		return nil, fmt.Errorf("failed to evaluate rules: %w", err)
 	}
@@ -157,35 +158,35 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 		q.config.DefaultDecisionWhenNoMatch,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to make decision", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to make decision", err)
 
-		logger.WithFields(
-			"operation", "service.rules.evaluate",
-			"error.message", err.Error(),
-		).Error("Failed to make decision")
+		logger.With(
+			libLog.String("operation", "service.rules.evaluate"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to make decision")
 
 		return nil, fmt.Errorf("failed to make decision: %w", err)
 	}
 
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "result", map[string]any{
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "result", map[string]any{
 		"decision":        result.Decision.String(),
 		"matched_count":   len(result.MatchedRuleIDs),
 		"evaluated_count": len(result.EvaluatedRuleIDs),
-	}); err != nil {
-		logger.WithFields(
-			"operation", "service.rules.evaluate",
-			"error.message", err.Error(),
-		).Debug("Failed to set span attributes")
+	}, nil); err != nil {
+		logger.With(
+			libLog.String("operation", "service.rules.evaluate"),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelDebug, "Failed to set span attributes")
 	}
 
-	logger.WithFields(
-		"operation", "service.rules.evaluate",
-		"decision", result.Decision.String(),
-		"rules.matched_count", len(result.MatchedRuleIDs),
-		"rules.evaluated_count", len(result.EvaluatedRuleIDs),
-		"rules.total_loaded", originalCount,
-		"rules.truncated", truncated,
-	).Info("Evaluation complete")
+	logger.With(
+		libLog.String("operation", "service.rules.evaluate"),
+		libLog.String("decision", result.Decision.String()),
+		libLog.Int("rules.matched_count", len(result.MatchedRuleIDs)),
+		libLog.Int("rules.evaluated_count", len(result.EvaluatedRuleIDs)),
+		libLog.Any("rules.total_loaded", originalCount),
+		libLog.Any("rules.truncated", truncated),
+	).Log(ctx, libLog.LevelInfo, "Evaluation complete")
 
 	return result.WithTruncationInfo(originalCount, truncated), nil
 }

@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
 const (
@@ -66,7 +66,7 @@ func (m *FunctionMigrator) Up(ctx context.Context) error {
 		if err := m.releaseMigrationLock(ctx); err != nil {
 			// Log but don't fail on lock release errors
 			if m.logger != nil {
-				m.logger.WithFields("error", err).Warn("failed to release migration lock")
+				m.logger.With(libLog.Err(err)).Log(ctx, libLog.LevelWarn, "failed to release migration lock")
 			}
 		}
 	}()
@@ -210,10 +210,10 @@ func (m *FunctionMigrator) loadMigrations() (MigrationLoadResult, error) {
 		if err != nil {
 			// Use pluggable logger if available
 			if m.logger != nil {
-				m.logger.WithFields(
-					"file", file.Name(),
-					"error", err,
-				).Warn("skipping migration file")
+				m.logger.With(
+					libLog.String("file", file.Name()),
+					libLog.Err(err),
+				).Log(context.Background(), libLog.LevelWarn, "skipping migration file")
 			}
 
 			skippedFiles = append(skippedFiles, file.Name())

@@ -11,8 +11,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/pkg/logging"
@@ -82,20 +83,20 @@ func (e *CompleteEvaluator) EvaluateAll(
 
 	// Validate request is not nil
 	if req == nil {
-		libOpentelemetry.HandleSpanError(&span, "Nil request", ErrNilRequest)
+		libOpentelemetry.HandleSpanError(span, "Nil request", ErrNilRequest)
 
-		logger.WithFields(
-			"operation", "service.rules.evaluate_all",
-			"error.message", ErrNilRequest.Error(),
-		).Error("Request validation failed")
+		logger.With(
+			libLog.String("operation", "service.rules.evaluate_all"),
+			libLog.String("error.message", ErrNilRequest.Error()),
+		).Log(ctx, libLog.LevelError, "Request validation failed")
 
 		return nil, ErrNilRequest
 	}
 
-	logger.WithFields(
-		"operation", "service.rules.evaluate_all",
-		"rules.total_count", len(rules),
-	).Info("Evaluating all rules")
+	logger.With(
+		libLog.String("operation", "service.rules.evaluate_all"),
+		libLog.Int("rules.total_count", len(rules)),
+	).Log(ctx, libLog.LevelInfo, "Evaluating all rules")
 
 	// 3. Initialize collector with pre-allocated slices for better performance
 	// EvaluatedRuleIDs will contain all rules, others estimated at ~25% match rate
@@ -117,9 +118,9 @@ func (e *CompleteEvaluator) EvaluateAll(
 	for _, rule := range rules {
 		// Nil guard - skip nil rules to avoid panics
 		if rule == nil {
-			logger.WithFields(
-				"operation", "service.rules.evaluate_all",
-			).Warn("Nil rule encountered in rules slice, skipping")
+			logger.With(
+				libLog.String("operation", "service.rules.evaluate_all"),
+			).Log(ctx, libLog.LevelWarn, "Nil rule encountered in rules slice, skipping")
 
 			continue
 		}
@@ -127,12 +128,12 @@ func (e *CompleteEvaluator) EvaluateAll(
 		// a. Check context cancellation
 		select {
 		case <-ctx.Done():
-			libOpentelemetry.HandleSpanError(&span, "Context cancelled during evaluation", ctx.Err())
+			libOpentelemetry.HandleSpanError(span, "Context cancelled during evaluation", ctx.Err())
 
-			logger.WithFields(
-				"operation", "service.rules.evaluate_all",
-				"error.message", ctx.Err().Error(),
-			).Error("Context cancelled during rule evaluation")
+			logger.With(
+				libLog.String("operation", "service.rules.evaluate_all"),
+				libLog.String("error.message", ctx.Err().Error()),
+			).Log(ctx, libLog.LevelError, "Context cancelled during rule evaluation")
 
 			return nil, fmt.Errorf("context cancelled during evaluation: %w", ctx.Err())
 		default:
@@ -143,13 +144,13 @@ func (e *CompleteEvaluator) EvaluateAll(
 		matched, err := e.ruleEval.Evaluate(ctx, rule, req)
 		if err != nil {
 			// e. If error, handle with telemetry and return
-			libOpentelemetry.HandleSpanError(&span, "Failed to evaluate rule", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to evaluate rule", err)
 
-			logger.WithFields(
-				"operation", "service.rules.evaluate_all",
-				"rule.id", rule.ID.String(),
-				"error.message", err.Error(),
-			).Error("Failed to evaluate rule")
+			logger.With(
+				libLog.String("operation", "service.rules.evaluate_all"),
+				libLog.String("rule.id", rule.ID.String()),
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelError, "Failed to evaluate rule")
 
 			return nil, fmt.Errorf("failed to evaluate rule %s: %w", rule.ID.String(), err)
 		}
@@ -167,32 +168,32 @@ func (e *CompleteEvaluator) EvaluateAll(
 			case model.DecisionReview:
 				collector.ReviewRuleIDs = append(collector.ReviewRuleIDs, rule.ID)
 			default:
-				logger.WithFields(
-					"operation", "service.rules.evaluate_all",
-					"rule.id", rule.ID.String(),
-					"rule.action", string(rule.Action),
-				).Warn("Unknown rule action type encountered")
+				logger.With(
+					libLog.String("operation", "service.rules.evaluate_all"),
+					libLog.String("rule.id", rule.ID.String()),
+					libLog.String("rule.action", string(rule.Action)),
+				).Log(ctx, libLog.LevelWarn, "Unknown rule action type encountered")
 			}
 		}
 	}
 
 	// 5. Set span attributes with counts
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "rules", map[string]any{
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "rules", map[string]any{
 		"evaluated_count": len(collector.EvaluatedRuleIDs),
 		"deny_count":      len(collector.DenyRuleIDs),
 		"allow_count":     len(collector.AllowRuleIDs),
 		"review_count":    len(collector.ReviewRuleIDs),
-	}); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+	}, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.rules.evaluate_all",
-		"rules.evaluated_count", len(collector.EvaluatedRuleIDs),
-		"rules.deny_count", len(collector.DenyRuleIDs),
-		"rules.allow_count", len(collector.AllowRuleIDs),
-		"rules.review_count", len(collector.ReviewRuleIDs),
-	).Info("All rules evaluated successfully")
+	logger.With(
+		libLog.String("operation", "service.rules.evaluate_all"),
+		libLog.Int("rules.evaluated_count", len(collector.EvaluatedRuleIDs)),
+		libLog.Int("rules.deny_count", len(collector.DenyRuleIDs)),
+		libLog.Int("rules.allow_count", len(collector.AllowRuleIDs)),
+		libLog.Int("rules.review_count", len(collector.ReviewRuleIDs)),
+	).Log(ctx, libLog.LevelInfo, "All rules evaluated successfully")
 
 	// 6. Return collector
 	return collector, nil

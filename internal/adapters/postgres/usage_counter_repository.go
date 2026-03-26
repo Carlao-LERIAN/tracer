@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -80,7 +80,7 @@ type UsageCounterRepository struct {
 }
 
 // NewUsageCounterRepository creates a new PostgreSQL usage counter repository.
-func NewUsageCounterRepository(conn *libPostgres.PostgresConnection) *UsageCounterRepository {
+func NewUsageCounterRepository(conn *libPostgres.Client) *UsageCounterRepository {
 	return &UsageCounterRepository{
 		conn:            pgdb.NewPostgresConnectionAdapter(conn),
 		deleteBatchSize: DefaultDeleteBatchSize,
@@ -109,16 +109,16 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.usage_counter.get_or_create_for_update",
-		"limit_id", limitID.String(),
-		"scope_key", scopeKey,
-		"period_key", periodKey,
-	).Info("Getting or creating usage counter with lock")
+	logger.With(
+		libLog.String("operation", "repository.usage_counter.get_or_create_for_update"),
+		libLog.String("limit_id", limitID.String()),
+		libLog.Any("scope_key", scopeKey),
+		libLog.Any("period_key", periodKey),
+	).Log(ctx, libLog.LevelInfo, "Getting or creating usage counter with lock")
 
 	// Try to get existing counter with FOR UPDATE lock
 	selectQuery := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
@@ -133,30 +133,30 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 	sqlStr, args, err := selectQuery.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build select query", err)
+		libOtel.HandleSpanError(span, "Failed to build select query", err)
 		return nil, fmt.Errorf("failed to build select query: %w", err)
 	}
 
 	counter, err := r.scanCounter(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err == nil {
-		logger.WithFields(
-			"operation", "repository.usage_counter.get_or_create_for_update",
-			"counter_id", counter.ID.String(),
-			"current_usage", counter.CurrentUsage,
-		).Info("Found existing usage counter")
+		logger.With(
+			libLog.String("operation", "repository.usage_counter.get_or_create_for_update"),
+			libLog.String("counter_id", counter.ID.String()),
+			libLog.Any("current_usage", counter.CurrentUsage),
+		).Log(ctx, libLog.LevelInfo, "Found existing usage counter")
 
 		return counter, nil
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
-		libOtel.HandleSpanError(&span, "Failed to get usage counter", err)
+		libOtel.HandleSpanError(span, "Failed to get usage counter", err)
 		return nil, fmt.Errorf("failed to get usage counter: %w", err)
 	}
 
 	// Counter doesn't exist, create new one
 	newCounter, err := model.NewUsageCounter(limitID, scopeKey, periodKey, time.Now())
 	if err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Failed to create usage counter model", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Failed to create usage counter model", err)
 		return nil, err
 	}
 
@@ -173,7 +173,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 	sqlStr, args, err = insertQuery.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build insert query", err)
+		libOtel.HandleSpanError(span, "Failed to build insert query", err)
 		return nil, fmt.Errorf("failed to build insert query: %w", err)
 	}
 
@@ -183,7 +183,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 		// This handles the race condition where another transaction inserted the counter
 		if !IsUniqueViolation(err) {
 			// Not a unique constraint violation - return the original error
-			libOtel.HandleSpanError(&span, "Failed to insert usage counter", err)
+			libOtel.HandleSpanError(span, "Failed to insert usage counter", err)
 			return nil, fmt.Errorf("failed to insert usage counter: %w", err)
 		}
 
@@ -201,7 +201,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 		sqlStr, args, err = selectQuery.ToSql()
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to build retry select query", err)
+			libOtel.HandleSpanError(span, "Failed to build retry select query", err)
 			return nil, fmt.Errorf("failed to build retry select query: %w", err)
 		}
 
@@ -209,15 +209,15 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 		counter, retryErr = r.scanCounter(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 		if retryErr != nil {
-			libOtel.HandleSpanError(&span, "Failed to insert or get usage counter", retryErr)
+			libOtel.HandleSpanError(span, "Failed to insert or get usage counter", retryErr)
 			return nil, fmt.Errorf("failed to insert or get usage counter: %w", retryErr)
 		}
 
-		logger.WithFields(
-			"operation", "repository.usage_counter.get_or_create_for_update",
-			"counter_id", counter.ID.String(),
-			"note", "found after concurrent insert",
-		).Info("Found usage counter after retry")
+		logger.With(
+			libLog.String("operation", "repository.usage_counter.get_or_create_for_update"),
+			libLog.String("counter_id", counter.ID.String()),
+			libLog.String("note", "found after concurrent insert"),
+		).Log(ctx, libLog.LevelInfo, "Found usage counter after retry")
 
 		return counter, nil
 	}
@@ -232,20 +232,20 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 	sqlStr, args, err = selectInserted.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build post-insert select query", err)
+		libOtel.HandleSpanError(span, "Failed to build post-insert select query", err)
 		return nil, fmt.Errorf("failed to build post-insert select query: %w", err)
 	}
 
 	counter, err = r.scanCounter(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to select inserted usage counter", err)
+		libOtel.HandleSpanError(span, "Failed to select inserted usage counter", err)
 		return nil, fmt.Errorf("failed to select inserted usage counter: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.usage_counter.get_or_create_for_update",
-		"counter_id", counter.ID.String(),
-	).Info("Created new usage counter")
+	logger.With(
+		libLog.String("operation", "repository.usage_counter.get_or_create_for_update"),
+		libLog.String("counter_id", counter.ID.String()),
+	).Log(ctx, libLog.LevelInfo, "Created new usage counter")
 
 	return counter, nil
 }
@@ -261,7 +261,7 @@ func (r *UsageCounterRepository) IncrementAtomic(ctx context.Context, counterID 
 	logger = logging.WithTrace(ctx, logger)
 
 	if amount.IsNegative() {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid increment amount", constant.ErrUsageCounterIncrementNonNegative)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid increment amount", constant.ErrUsageCounterIncrementNonNegative)
 		return constant.ErrUsageCounterIncrementNonNegative
 	}
 
@@ -271,7 +271,7 @@ func (r *UsageCounterRepository) IncrementAtomic(ctx context.Context, counterID 
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -283,32 +283,32 @@ func (r *UsageCounterRepository) IncrementAtomic(ctx context.Context, counterID 
 
 	sqlStr, args, err := updateQuery.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build update query", err)
+		libOtel.HandleSpanError(span, "Failed to build update query", err)
 		return fmt.Errorf("failed to build update query: %w", err)
 	}
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to increment counter", err)
+		libOtel.HandleSpanError(span, "Failed to increment counter", err)
 		return fmt.Errorf("failed to increment counter: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOtel.HandleSpanError(span, "Failed to get rows affected", err)
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Usage counter not found", constant.ErrUsageCounterNotFound)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Usage counter not found", constant.ErrUsageCounterNotFound)
 		return constant.ErrUsageCounterNotFound
 	}
 
-	logger.WithFields(
-		"operation", "repository.usage_counter.increment_atomic",
-		"counter_id", counterID.String(),
-		"amount", amount.String(),
-	).Info("Incremented usage counter")
+	logger.With(
+		libLog.String("operation", "repository.usage_counter.increment_atomic"),
+		libLog.String("counter_id", counterID.String()),
+		libLog.String("amount", amount.String()),
+	).Log(ctx, libLog.LevelInfo, "Incremented usage counter")
 
 	return nil
 }
@@ -344,7 +344,7 @@ func (r *UsageCounterRepository) UpsertAndIncrementAtomic(
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return r.upsertAndIncrementAtomicInternal(ctx, db, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt, logger, &span, "repository.usage_counter.upsert_and_increment_atomic")
+	return r.upsertAndIncrementAtomicInternal(ctx, db, limitID, scopeKey, periodKey, amount, maxAmount, expiresAt, logger, span, "repository.usage_counter.upsert_and_increment_atomic")
 }
 
 // upsertAndIncrementAtomicInternal contains the shared upsert logic.
@@ -359,7 +359,7 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 	maxAmount decimal.Decimal,
 	expiresAt *time.Time,
 	logger libLog.Logger,
-	span *trace.Span,
+	span trace.Span,
 	operationName string,
 ) (decimal.Decimal, error) {
 	// Early return for zero amount: no-op, avoids unnecessary DB round-trip.
@@ -375,12 +375,12 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 	// Pre-check: amount > maxAmount means even a brand-new counter would exceed the limit.
 	// This is MANDATORY because the INSERT path has no WHERE guard.
 	if amount.GreaterThan(maxAmount) {
-		logger.WithFields(
-			"operation", operationName,
-			"amount", amount.String(),
-			"max_amount", maxAmount.String(),
-			"limit_id", limitID.String(),
-		).Info("Amount exceeds maxAmount (pre-check)")
+		logger.With(
+			libLog.Any("operation", operationName),
+			libLog.String("amount", amount.String()),
+			libLog.String("max_amount", maxAmount.String()),
+			libLog.String("limit_id", limitID.String()),
+		).Log(ctx, libLog.LevelInfo, "Amount exceeds maxAmount (pre-check)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Amount exceeds limit (pre-check)", constant.ErrUsageCounterExceedsLimit)
 
 		return decimal.Zero, constant.ErrUsageCounterExceedsLimit
@@ -423,28 +423,28 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 	if !succeeded {
 		// WHERE guard failed: current_usage + amount > maxAmount
 		// The CTE attempt returned no rows, so COALESCE returned the old current_usage
-		logger.WithFields(
-			"operation", operationName,
-			"limit_id", limitID.String(),
-			"scope_key", scopeKey,
-			"period_key", periodKey,
-			"current_usage", currentUsage.String(),
-			"amount", amount.String(),
-			"max_amount", maxAmount.String(),
-		).Info("Limit exceeded (WHERE guard)")
+		logger.With(
+			libLog.Any("operation", operationName),
+			libLog.String("limit_id", limitID.String()),
+			libLog.Any("scope_key", scopeKey),
+			libLog.Any("period_key", periodKey),
+			libLog.String("current_usage", currentUsage.String()),
+			libLog.String("amount", amount.String()),
+			libLog.String("max_amount", maxAmount.String()),
+		).Log(ctx, libLog.LevelInfo, "Limit exceeded (WHERE guard)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
 
 		return currentUsage, constant.ErrUsageCounterExceedsLimit
 	}
 
 	// Success: counter was incremented
-	logger.WithFields(
-		"operation", operationName,
-		"limit_id", limitID.String(),
-		"scope_key", scopeKey,
-		"period_key", periodKey,
-		"new_usage", currentUsage.String(),
-	).Info("Upsert and increment completed")
+	logger.With(
+		libLog.Any("operation", operationName),
+		libLog.String("limit_id", limitID.String()),
+		libLog.Any("scope_key", scopeKey),
+		libLog.Any("period_key", periodKey),
+		libLog.String("new_usage", currentUsage.String()),
+	).Log(ctx, libLog.LevelInfo, "Upsert and increment completed")
 
 	return currentUsage, nil
 }
@@ -460,7 +460,7 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -472,18 +472,18 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.usage_counter.get_by_limit_id",
-		"limit_id", limitID.String(),
-	).Info("Getting usage counters by limit ID")
+	logger.With(
+		libLog.String("operation", "repository.usage_counter.get_by_limit_id"),
+		libLog.String("limit_id", limitID.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting usage counters by limit ID")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get usage counters", err)
+		libOtel.HandleSpanError(span, "Failed to get usage counters", err)
 		return nil, fmt.Errorf("failed to get usage counters: %w", err)
 	}
 	defer rows.Close()
@@ -493,7 +493,7 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	for rows.Next() {
 		counter, err := r.scanCounterFromRows(ctx, rows)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to scan usage counter", err)
+			libOtel.HandleSpanError(span, "Failed to scan usage counter", err)
 			return nil, fmt.Errorf("failed to scan usage counter: %w", err)
 		}
 
@@ -501,15 +501,15 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Error iterating usage counters", err)
+		libOtel.HandleSpanError(span, "Error iterating usage counters", err)
 		return nil, fmt.Errorf("error iterating usage counters: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.usage_counter.get_by_limit_id",
-		"limit_id", limitID.String(),
-		"count", len(counters),
-	).Info("Retrieved usage counters")
+	logger.With(
+		libLog.String("operation", "repository.usage_counter.get_by_limit_id"),
+		libLog.String("limit_id", limitID.String()),
+		libLog.Int("count", len(counters)),
+	).Log(ctx, libLog.LevelInfo, "Retrieved usage counters")
 
 	return counters, nil
 }
@@ -533,7 +533,7 @@ func (r *UsageCounterRepository) GetUsageForLimits(ctx context.Context, db pgdb.
 		return make(map[uuid.UUID]decimal.Decimal), nil
 	}
 
-	return r.getUsageForLimitsInternal(ctx, db, limitIDs, scopeKey, periodKey, logger, &span, "repository.usage_counter.get_usage_for_limits")
+	return r.getUsageForLimitsInternal(ctx, db, limitIDs, scopeKey, periodKey, logger, span, "repository.usage_counter.get_usage_for_limits")
 }
 
 // getUsageForLimitsInternal contains the shared query logic for GetUsageForLimits.
@@ -544,7 +544,7 @@ func (r *UsageCounterRepository) getUsageForLimitsInternal(
 	limitIDs []uuid.UUID,
 	scopeKey, periodKey string,
 	logger libLog.Logger,
-	span *trace.Span,
+	span trace.Span,
 	operationName string,
 ) (map[uuid.UUID]decimal.Decimal, error) {
 	query := sq.Select("limit_id", "current_usage").
@@ -562,12 +562,12 @@ func (r *UsageCounterRepository) getUsageForLimitsInternal(
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", operationName,
-		"limit_ids_count", len(limitIDs),
-		"scope_key", scopeKey,
-		"period_key", periodKey,
-	).Info("Getting usage for limits")
+	logger.With(
+		libLog.Any("operation", operationName),
+		libLog.Int("limit_ids_count", len(limitIDs)),
+		libLog.Any("scope_key", scopeKey),
+		libLog.Any("period_key", periodKey),
+	).Log(ctx, libLog.LevelInfo, "Getting usage for limits")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -596,10 +596,10 @@ func (r *UsageCounterRepository) getUsageForLimitsInternal(
 		return nil, fmt.Errorf("error iterating usage: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", operationName,
-		"found_count", len(result),
-	).Info("Retrieved usage for limits")
+	logger.With(
+		libLog.Any("operation", operationName),
+		libLog.Int("found_count", len(result)),
+	).Log(ctx, libLog.LevelInfo, "Retrieved usage for limits")
 
 	return result, nil
 }
@@ -676,23 +676,23 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 
 	logger = logging.WithTrace(ctx, logger)
 
-	logger.WithFields(
-		"operation", "repository.usage_counter.delete_expired_counters_by_expires_at",
-		"now", now.Format(time.RFC3339),
-		"batch_size", r.deleteBatchSize,
-	).Info("Deleting expired usage counters by expires_at in batches")
+	logger.With(
+		libLog.String("operation", "repository.usage_counter.delete_expired_counters_by_expires_at"),
+		libLog.String("now", now.Format(time.RFC3339)),
+		libLog.Any("batch_size", r.deleteBatchSize),
+	).Log(ctx, libLog.LevelInfo, "Deleting expired usage counters by expires_at in batches")
 
 	var totalDeleted int64
 
 	for {
 		// Check for context cancellation before each batch to allow graceful shutdown
 		if err := ctx.Err(); err != nil {
-			logger.WithFields(
-				"operation", "repository.usage_counter.delete_expired_counters_by_expires_at",
-				"total_deleted", totalDeleted,
-				"reason", err.Error(),
-			).Info("Stopping batch deletion due to context cancellation")
-			libOtel.HandleSpanError(&span, "Context cancelled during batch deletion", err)
+			logger.With(
+				libLog.String("operation", "repository.usage_counter.delete_expired_counters_by_expires_at"),
+				libLog.Any("total_deleted", totalDeleted),
+				libLog.String("reason", err.Error()),
+			).Log(ctx, libLog.LevelInfo, "Stopping batch deletion due to context cancellation")
+			libOtel.HandleSpanError(span, "Context cancelled during batch deletion", err)
 
 			return totalDeleted, fmt.Errorf("context cancelled during batch deletion: %w", err)
 		}
@@ -700,7 +700,7 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 		// Get a fresh connection for each batch to avoid holding transactions across iterations
 		db, err := r.conn.GetDB()
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+			libOtel.HandleSpanError(span, "Failed to get database connection", err)
 			return totalDeleted, fmt.Errorf("failed to get database connection: %w", err)
 		}
 
@@ -715,23 +715,23 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 
 		result, err := db.ExecContext(ctx, deleteQuery, now, r.deleteBatchSize)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to delete expired counters batch", err)
+			libOtel.HandleSpanError(span, "Failed to delete expired counters batch", err)
 			return totalDeleted, fmt.Errorf("failed to delete expired counters by expires_at: %w", err)
 		}
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
+			libOtel.HandleSpanError(span, "Failed to get rows affected", err)
 			return totalDeleted, fmt.Errorf("failed to get rows affected: %w", err)
 		}
 
 		totalDeleted += rowsAffected
 
-		logger.WithFields(
-			"operation", "repository.usage_counter.delete_expired_counters_by_expires_at",
-			"batch_deleted", rowsAffected,
-			"total_deleted", totalDeleted,
-		).Debug("Deleted batch of expired usage counters")
+		logger.With(
+			libLog.String("operation", "repository.usage_counter.delete_expired_counters_by_expires_at"),
+			libLog.Any("batch_deleted", rowsAffected),
+			libLog.Any("total_deleted", totalDeleted),
+		).Log(ctx, libLog.LevelDebug, "Deleted batch of expired usage counters")
 
 		// Stop when no more rows to delete
 		if rowsAffected == 0 {
@@ -739,10 +739,10 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 		}
 	}
 
-	logger.WithFields(
-		"operation", "repository.usage_counter.delete_expired_counters_by_expires_at",
-		"deleted_count", totalDeleted,
-	).Info("Deleted expired usage counters by expires_at")
+	logger.With(
+		libLog.String("operation", "repository.usage_counter.delete_expired_counters_by_expires_at"),
+		libLog.Any("deleted_count", totalDeleted),
+	).Log(ctx, libLog.LevelInfo, "Deleted expired usage counters by expires_at")
 
 	return totalDeleted, nil
 }

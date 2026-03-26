@@ -8,7 +8,7 @@ package logging
 import (
 	"context"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -28,9 +28,9 @@ import (
 func WithTrace(ctx context.Context, logger libLog.Logger) libLog.Logger {
 	span := trace.SpanFromContext(ctx)
 	if span.SpanContext().IsValid() {
-		return logger.WithFields(
-			"trace.id", span.SpanContext().TraceID().String(),
-			"span.id", span.SpanContext().SpanID().String(),
+		return logger.With(
+			libLog.String("trace.id", span.SpanContext().TraceID().String()),
+			libLog.String("span.id", span.SpanContext().SpanID().String()),
 		)
 	}
 

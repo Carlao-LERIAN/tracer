@@ -9,8 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/pkg/clock"
@@ -58,63 +59,63 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 
 	// Check context cancellation first
 	if ctx.Err() != nil {
-		libOpentelemetry.HandleSpanError(&span, "Context cancelled", ctx.Err())
-		logger.WithFields(
-			"operation", "service.limit.deactivate",
-		).Warn("Context cancelled")
+		libOpentelemetry.HandleSpanError(span, "Context cancelled", ctx.Err())
+		logger.With(
+			libLog.String("operation", "service.limit.deactivate"),
+		).Log(ctx, libLog.LevelWarn, "Context cancelled")
 
 		return nil, ctx.Err()
 	}
 
 	// Validate input
 	if id == uuid.Nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid input: nil UUID", constant.ErrLimitInvalidID)
-		logger.WithFields(
-			"operation", "service.limit.deactivate",
-		).Warn("Invalid input: nil UUID")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid input: nil UUID", constant.ErrLimitInvalidID)
+		logger.With(
+			libLog.String("operation", "service.limit.deactivate"),
+		).Log(ctx, libLog.LevelWarn, "Invalid input: nil UUID")
 
 		return nil, constant.ErrLimitInvalidID
 	}
 
-	_ = libOpentelemetry.SetSpanAttributesFromStruct(&span, "deactivate_input", map[string]any{
+	_ = libOpentelemetry.SetSpanAttributesFromValue(span, "deactivate_input", map[string]any{
 		"limit_id":  id.String(),
 		"operation": "deactivate",
-	})
+	}, nil)
 
-	logger.WithFields(
-		"operation", "service.limit.deactivate",
-		"limit.id", id.String(),
-	).Info("Deactivating limit")
+	logger.With(
+		libLog.String("operation", "service.limit.deactivate"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Deactivating limit")
 
 	limit, err := c.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, constant.ErrLimitNotFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Limit not found", err)
-			logger.WithFields(
-				"operation", "service.limit.deactivate",
-				"limit.id", id.String(),
-			).Warn("Limit not found")
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
+			logger.With(
+				libLog.String("operation", "service.limit.deactivate"),
+				libLog.String("limit.id", id.String()),
+			).Log(ctx, libLog.LevelWarn, "Limit not found")
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to get limit from repository", err)
-		logger.WithFields(
-			"operation", "service.limit.deactivate",
-			"limit.id", id.String(),
-			"error.message", err.Error(),
-		).Error("Failed to get limit")
+		libOpentelemetry.HandleSpanError(span, "Failed to get limit from repository", err)
+		logger.With(
+			libLog.String("operation", "service.limit.deactivate"),
+			libLog.String("limit.id", id.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to get limit")
 
 		return nil, fmt.Errorf("failed to get limit: %w", err)
 	}
 
 	// Defensive check: treat nil limit as not found (guards against repo returning nil, nil)
 	if limit == nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
-		logger.WithFields(
-			"operation", "service.limit.deactivate",
-			"limit.id", id.String(),
-		).Warn("Limit not found")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", constant.ErrLimitNotFound)
+		logger.With(
+			libLog.String("operation", "service.limit.deactivate"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelWarn, "Limit not found")
 
 		return nil, constant.ErrLimitNotFound
 	}
@@ -124,10 +125,10 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 
 	// Idempotency: if already inactive, return the limit (no-op)
 	if limit.Status == model.LimitStatusInactive {
-		logger.WithFields(
-			"operation", "service.limit.deactivate",
-			"limit.id", id.String(),
-		).Info("Limit already inactive (idempotent no-op)")
+		logger.With(
+			libLog.String("operation", "service.limit.deactivate"),
+			libLog.String("limit.id", id.String()),
+		).Log(ctx, libLog.LevelInfo, "Limit already inactive (idempotent no-op)")
 
 		return limit, nil
 	}
@@ -137,33 +138,33 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 
 	// Use domain model's SetStatus for transition validation
 	if err := limit.SetStatus(model.LimitStatusInactive, c.clock.Now()); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid state transition", err)
-		logger.WithFields(
-			"operation", "service.limit.deactivate",
-			"limit.id", id.String(),
-			"limit.status_from", string(originalStatus),
-			"limit.status_to", "INACTIVE",
-		).Warn("Invalid transition")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid state transition", err)
+		logger.With(
+			libLog.String("operation", "service.limit.deactivate"),
+			libLog.String("limit.id", id.String()),
+			libLog.String("limit.status_from", string(originalStatus)),
+			libLog.String("limit.status_to", "INACTIVE"),
+		).Log(ctx, libLog.LevelWarn, "Invalid transition")
 
 		return nil, libCommons.ValidateBusinessError(constant.ErrLimitInvalidStatusChange, err.Error())
 	}
 
 	if err := c.repo.UpdateStatus(ctx, id, model.LimitStatusInactive, limit.UpdatedAt); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update limit status", err)
-		logger.WithFields(
-			"operation", "service.limit.deactivate",
-			"limit.id", id.String(),
-			"error.message", err.Error(),
-		).Error("Failed to update limit status")
+		libOpentelemetry.HandleSpanError(span, "Failed to update limit status", err)
+		logger.With(
+			libLog.String("operation", "service.limit.deactivate"),
+			libLog.String("limit.id", id.String()),
+			libLog.String("error.message", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to update limit status")
 
 		return nil, fmt.Errorf("failed to update limit status: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.limit.deactivate",
-		"limit.id", id.String(),
-		"limit.status", string(limit.Status),
-	).Info("Limit deactivated successfully")
+	logger.With(
+		libLog.String("operation", "service.limit.deactivate"),
+		libLog.String("limit.id", id.String()),
+		libLog.String("limit.status", string(limit.Status)),
+	).Log(ctx, libLog.LevelInfo, "Limit deactivated successfully")
 
 	// Record audit event (best-effort)
 	if c.auditWriter != nil {
@@ -180,11 +181,11 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (*mo
 			"Limit deactivated via API",
 			clientIP,
 		); err != nil {
-			logger.WithFields(
-				"operation", "service.limit.deactivate.audit",
-				"limit.id", limit.ID.String(),
-				"error", err.Error(),
-			).Warn("Failed to record audit event")
+			logger.With(
+				libLog.String("operation", "service.limit.deactivate.audit"),
+				libLog.String("limit.id", limit.ID.String()),
+				libLog.String("error", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to record audit event")
 		}
 	}
 

@@ -11,9 +11,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -78,13 +78,13 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 
 	var input CreateLimitInput
 	if err := c.BodyParser(&input); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse request body", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0003", "Bad Request", "Invalid request body")
 	}
 
 	if err := input.Validate(); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Validation failed", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
 		var validationErr *ValidationError
 		if errors.As(err, &validationErr) {
@@ -94,14 +94,14 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0001", "Validation Error", formatValidationMessage(err))
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.create",
-		"limit.name", input.Name,
-	).Info("Creating limit")
+	logger.With(
+		libLog.String("operation", "handler.limit.create"),
+		libLog.Any("limit.name", input.Name),
+	).Log(ctx, libLog.LevelInfo, "Creating limit")
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "limit_input", input)
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "limit_input", input, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Convert HTTP input to service input
@@ -109,15 +109,15 @@ func (h *LimitHandler) CreateLimit(c *fiber.Ctx) error {
 
 	result, err := h.service.CreateLimit(ctx, serviceInput)
 	if err != nil {
-		return handleLimitServiceError(c, &span, err)
+		return handleLimitServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.create",
-		"limit.id", result.ID.String(),
-	).Info("Limit created")
+	logger.With(
+		libLog.String("operation", "handler.limit.create"),
+		libLog.String("limit.id", result.ID.String()),
+	).Log(ctx, libLog.LevelInfo, "Limit created")
 
-	return libHTTP.Created(c, result)
+	return pkgHTTP.Created(c, result)
 }
 
 // GetLimit godoc
@@ -150,28 +150,28 @@ func (h *LimitHandler) GetLimit(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid limit ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.get",
-		"limit.id", id.String(),
-	).Info("Getting limit")
+	logger.With(
+		libLog.String("operation", "handler.limit.get"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting limit")
 
 	result, err := h.service.GetLimit(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, &span, err)
+		return handleLimitServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.get",
-		"limit.id", result.ID.String(),
-		"limit.name", result.Name,
-	).Info("Limit retrieved")
+	logger.With(
+		libLog.String("operation", "handler.limit.get"),
+		libLog.String("limit.id", result.ID.String()),
+		libLog.Any("limit.name", result.Name),
+	).Log(ctx, libLog.LevelInfo, "Limit retrieved")
 
-	return libHTTP.OK(c, result)
+	return pkgHTTP.OK(c, result)
 }
 
 // ListLimits godoc
@@ -214,14 +214,14 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 	var input ListLimitsInput
 
 	if err := c.QueryParser(&input); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse query parameters", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", "Invalid query parameters")
 	}
 
 	// Validate before applying defaults to ensure fail-fast behavior
 	if err := input.Validate(); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Validation failed", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
 		var validationErr *ValidationError
 		if errors.As(err, &validationErr) {
@@ -234,33 +234,33 @@ func (h *LimitHandler) ListLimits(c *fiber.Ctx) error {
 	// Apply defaults after validation
 	input.SetDefaults()
 
-	logger.WithFields(
-		"operation", "handler.limit.list",
-		"list.limit", input.Limit,
-		"list.cursor", input.Cursor,
-		"list.name", input.Name,
-		"list.sort_by", input.SortBy,
-		"list.sort_order", input.SortOrder,
-	).Info("Listing limits")
+	logger.With(
+		libLog.String("operation", "handler.limit.list"),
+		libLog.Any("list.limit", input.Limit),
+		libLog.Any("list.cursor", input.Cursor),
+		libLog.Any("list.name", input.Name),
+		libLog.Any("list.sort_by", input.SortBy),
+		libLog.Any("list.sort_order", input.SortOrder),
+	).Log(ctx, libLog.LevelInfo, "Listing limits")
 
 	// Convert to service filter
 	filter := ToListLimitsFilter(&input)
 
 	result, err := h.service.ListLimits(ctx, filter)
 	if err != nil {
-		return handleLimitServiceError(c, &span, err)
+		return handleLimitServiceError(c, span, err)
 	}
 
 	// Convert to response
 	response := ToListLimitsResponse(result)
 
-	logger.WithFields(
-		"operation", "handler.limit.list",
-		"list.count", len(response.Limits),
-		"list.has_more", response.HasMore,
-	).Info("Limits listed")
+	logger.With(
+		libLog.String("operation", "handler.limit.list"),
+		libLog.Int("list.count", len(response.Limits)),
+		libLog.Any("list.has_more", response.HasMore),
+	).Log(ctx, libLog.LevelInfo, "Limits listed")
 
-	return libHTTP.OK(c, response)
+	return pkgHTTP.OK(c, response)
 }
 
 // UpdateLimit godoc
@@ -295,7 +295,7 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid limit ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
 	}
@@ -305,13 +305,13 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 	var rawBody map[string]any
 	if err := json.Unmarshal(c.Body(), &rawBody); err == nil {
 		if _, hasLimitType := rawBody["limitType"]; hasLimitType {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Immutable field limitType in request", constant.ErrLimitImmutableField)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field limitType in request", constant.ErrLimitImmutableField)
 
 			return pkgHTTP.BadRequestWithMessage(c, "TRC-0138", "Immutable Field", "limitType cannot be modified after creation")
 		}
 
 		if _, hasCurrency := rawBody["currency"]; hasCurrency {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Immutable field currency in request", constant.ErrLimitImmutableField)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Immutable field currency in request", constant.ErrLimitImmutableField)
 
 			return pkgHTTP.BadRequestWithMessage(c, "TRC-0138", "Immutable Field", "currency cannot be modified after creation")
 		}
@@ -319,13 +319,13 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 
 	var input UpdateLimitInput
 	if err := c.BodyParser(&input); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse request body", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to parse request body", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0003", "Bad Request", "Invalid request body")
 	}
 
 	if err := input.Validate(); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Validation failed", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
 		var validationErr *ValidationError
 		if errors.As(err, &validationErr) {
@@ -336,19 +336,19 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 	}
 
 	if input.IsEmpty() {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No fields to update", nil)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No fields to update", nil)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0002", "Validation Error", "At least one field must be provided for update")
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.update",
-		"limit.id", id.String(),
-	).Info("Updating limit")
+	logger.With(
+		libLog.String("operation", "handler.limit.update"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Updating limit")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "limit_update", input)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "limit_update", input, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
 	// Convert HTTP input to service input
@@ -356,15 +356,15 @@ func (h *LimitHandler) UpdateLimit(c *fiber.Ctx) error {
 
 	result, err := h.service.UpdateLimit(ctx, id, serviceInput)
 	if err != nil {
-		return handleLimitServiceError(c, &span, err)
+		return handleLimitServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.update",
-		"limit.id", result.ID.String(),
-	).Info("Limit updated")
+	logger.With(
+		libLog.String("operation", "handler.limit.update"),
+		libLog.String("limit.id", result.ID.String()),
+	).Log(ctx, libLog.LevelInfo, "Limit updated")
 
-	return libHTTP.OK(c, result)
+	return pkgHTTP.OK(c, result)
 }
 
 // ActivateLimit godoc
@@ -396,27 +396,27 @@ func (h *LimitHandler) ActivateLimit(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid limit ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.activate",
-		"limit.id", id.String(),
-	).Info("Activating limit")
+	logger.With(
+		libLog.String("operation", "handler.limit.activate"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Activating limit")
 
 	limit, err := h.service.ActivateLimit(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, &span, err)
+		return handleLimitServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.activate",
-		"limit.id", id.String(),
-	).Info("Limit activated")
+	logger.With(
+		libLog.String("operation", "handler.limit.activate"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Limit activated")
 
-	return libHTTP.OK(c, limit)
+	return pkgHTTP.OK(c, limit)
 }
 
 // DeactivateLimit godoc
@@ -448,27 +448,27 @@ func (h *LimitHandler) DeactivateLimit(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid limit ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.deactivate",
-		"limit.id", id.String(),
-	).Info("Deactivating limit")
+	logger.With(
+		libLog.String("operation", "handler.limit.deactivate"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Deactivating limit")
 
 	limit, err := h.service.DeactivateLimit(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, &span, err)
+		return handleLimitServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.deactivate",
-		"limit.id", id.String(),
-	).Info("Limit deactivated")
+	logger.With(
+		libLog.String("operation", "handler.limit.deactivate"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Limit deactivated")
 
-	return libHTTP.OK(c, limit)
+	return pkgHTTP.OK(c, limit)
 }
 
 // DraftLimit godoc
@@ -500,27 +500,27 @@ func (h *LimitHandler) DraftLimit(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid limit ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.draft",
-		"limit.id", id.String(),
-	).Info("Transitioning limit to draft")
+	logger.With(
+		libLog.String("operation", "handler.limit.draft"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Transitioning limit to draft")
 
 	limit, err := h.service.DraftLimit(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, &span, err)
+		return handleLimitServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.draft",
-		"limit.id", id.String(),
-	).Info("Limit transitioned to draft")
+	logger.With(
+		libLog.String("operation", "handler.limit.draft"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Limit transitioned to draft")
 
-	return libHTTP.OK(c, limit)
+	return pkgHTTP.OK(c, limit)
 }
 
 // DeleteLimit godoc
@@ -552,26 +552,26 @@ func (h *LimitHandler) DeleteLimit(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid limit ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.delete",
-		"limit.id", id.String(),
-	).Info("Deleting limit")
+	logger.With(
+		libLog.String("operation", "handler.limit.delete"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Deleting limit")
 
 	if err := h.service.DeleteLimit(ctx, id); err != nil {
-		return handleLimitServiceError(c, &span, err)
+		return handleLimitServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.delete",
-		"limit.id", id.String(),
-	).Info("Limit deleted")
+	logger.With(
+		libLog.String("operation", "handler.limit.delete"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Limit deleted")
 
-	return libHTTP.NoContent(c)
+	return pkgHTTP.NoContent(c)
 }
 
 // GetLimitUsage godoc
@@ -603,42 +603,42 @@ func (h *LimitHandler) GetLimitUsage(c *fiber.Ctx) error {
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid limit ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit ID", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid limit ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.get_usage",
-		"limit.id", id.String(),
-	).Info("Getting limit usage")
+	logger.With(
+		libLog.String("operation", "handler.limit.get_usage"),
+		libLog.String("limit.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting limit usage")
 
 	snapshot, err := h.service.GetLimitUsage(ctx, id)
 	if err != nil {
-		return handleLimitServiceError(c, &span, err)
+		return handleLimitServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.limit.get_usage",
-		"limit.id", id.String(),
-		"current_usage", snapshot.CurrentUsage,
-		"utilization_percent", snapshot.UtilizationPercent,
-	).Info("Limit usage retrieved")
+	logger.With(
+		libLog.String("operation", "handler.limit.get_usage"),
+		libLog.String("limit.id", id.String()),
+		libLog.Any("current_usage", snapshot.CurrentUsage),
+		libLog.Any("utilization_percent", snapshot.UtilizationPercent),
+	).Log(ctx, libLog.LevelInfo, "Limit usage retrieved")
 
-	return libHTTP.OK(c, snapshot)
+	return pkgHTTP.OK(c, snapshot)
 }
 
 // handleLimitServiceError converts service errors to appropriate HTTP responses.
-func handleLimitServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
+func handleLimitServiceError(c *fiber.Ctx, span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrLimitNameAlreadyExists):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit name already exists", err)
 
-		return libHTTP.Conflict(c, "TRC-0304", "Conflict", "Limit name already exists")
+		return pkgHTTP.Conflict(c, "TRC-0304", "Conflict", "Limit name already exists")
 	case errors.Is(err, constant.ErrLimitNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit not found", err)
 
-		return libHTTP.NotFound(c, "TRC-0120", "Not Found", "Limit not found")
+		return pkgHTTP.NotFound(c, "TRC-0120", "Not Found", "Limit not found")
 	case errors.Is(err, constant.ErrLimitAlreadyDeleted):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Limit already deleted", err)
 
@@ -694,7 +694,7 @@ func handleLimitServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 
-		return libHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
+		return pkgHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
 	}
 }
 

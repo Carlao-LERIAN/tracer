@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 
 	"tracer/pkg/clock"
 	"tracer/pkg/constant"
@@ -43,9 +43,9 @@ func WarmUp(ctx context.Context, c *RuleCache, repo RuleSyncRepository, compiler
 		return 0, 0, ErrNilLogger
 	}
 
-	logger.WithFields(
-		"operation", "cache.warmup",
-	).Info("Starting rule cache warm-up")
+	logger.With(
+		libLog.String("operation", "cache.warmup"),
+	).Log(ctx, libLog.LevelInfo, "Starting rule cache warm-up")
 
 	rules, err := repo.GetAllActiveRules(ctx)
 	if err != nil {
@@ -60,20 +60,20 @@ func WarmUp(ctx context.Context, c *RuleCache, repo RuleSyncRepository, compiler
 		}
 
 		if rule == nil {
-			logger.WithFields(
-				"operation", "cache.warmup",
-			).Warn("Skipping nil rule from repository")
+			logger.With(
+				libLog.String("operation", "cache.warmup"),
+			).Log(ctx, libLog.LevelWarn, "Skipping nil rule from repository")
 
 			continue
 		}
 
 		program, compileErr := compiler.Compile(ctx, rule.Expression)
 		if compileErr != nil {
-			logger.WithFields(
-				"operation", "cache.warmup",
-				"rule.id", rule.ID.String(),
-				"error.message", compileErr.Error(),
-			).Error("Failed to compile rule expression — aborting warmup")
+			logger.With(
+				libLog.String("operation", "cache.warmup"),
+				libLog.String("rule.id", rule.ID.String()),
+				libLog.String("error.message", compileErr.Error()),
+			).Log(ctx, libLog.LevelError, "Failed to compile rule expression — aborting warmup")
 
 			return 0, clk.Now().Sub(start), fmt.Errorf("%w: rule %s failed to compile: %w",
 				constant.ErrRuleCacheWarmUpFailed, rule.ID.String(), compileErr)
@@ -90,13 +90,13 @@ func WarmUp(ctx context.Context, c *RuleCache, repo RuleSyncRepository, compiler
 
 	duration := clk.Now().Sub(start)
 
-	logger.WithFields(
-		"operation", "cache.warmup",
-		"rules.total", len(rules),
-		"rules.cached", len(cachedRules),
-		"rules.skipped", len(rules)-len(cachedRules),
-		"duration_ms", duration.Milliseconds(),
-	).Info("Rule cache warm-up completed")
+	logger.With(
+		libLog.String("operation", "cache.warmup"),
+		libLog.Int("rules.total", len(rules)),
+		libLog.Int("rules.cached", len(cachedRules)),
+		libLog.Int("rules.skipped", len(rules)-len(cachedRules)),
+		libLog.Any("duration_ms", duration.Milliseconds()),
+	).Log(ctx, libLog.LevelInfo, "Rule cache warm-up completed")
 
 	return len(cachedRules), duration, nil
 }

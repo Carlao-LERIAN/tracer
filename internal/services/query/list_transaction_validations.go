@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
@@ -53,7 +54,7 @@ func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *
 
 	// Check for context cancellation at the very start, before any filter initialization or mutation
 	if err := ctx.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Context cancelled before repository call", err)
+		libOpentelemetry.HandleSpanError(span, "Context cancelled before repository call", err)
 		return nil, fmt.Errorf("list transaction validations: %w", err)
 	}
 
@@ -68,41 +69,41 @@ func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *
 
 	// Validate filters after defaults are applied
 	if err := filters.Validate(); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction validation filters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation filters", err)
 		return nil, fmt.Errorf("%w: %w", constant.ErrInvalidTransactionValidationFilters, err)
 	}
 
 	// Log the filters AFTER SetDefaults() so we log the actual values being used
-	logger.WithFields(
-		"operation", "service.transaction-validation.list",
-		"filters.limit", filters.Limit,
-		"filters.cursor", filters.Cursor,
-		"filters.sort_by", filters.SortBy,
-		"filters.sort_order", filters.SortOrder,
-		"filters.start_date", formatTimeOrNotSet(filters.StartDate),
-		"filters.end_date", formatTimeOrNotSet(filters.EndDate),
-	).Info("Listing transaction validation records")
+	logger.With(
+		libLog.String("operation", "service.transaction-validation.list"),
+		libLog.Any("filters.limit", filters.Limit),
+		libLog.Any("filters.cursor", filters.Cursor),
+		libLog.Any("filters.sort_by", filters.SortBy),
+		libLog.Any("filters.sort_order", filters.SortOrder),
+		libLog.Any("filters.start_date", formatTimeOrNotSet(filters.StartDate)),
+		libLog.Any("filters.end_date", formatTimeOrNotSet(filters.EndDate)),
+	).Log(ctx, libLog.LevelInfo, "Listing transaction validation records")
 
 	// Get transaction validation records with cursor-based pagination
 	result, err := q.repo.List(ctx, filters)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to list transaction validations", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to list transaction validations", err)
 		return nil, fmt.Errorf("repository list failed: %w", err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "list_result", map[string]any{
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "list_result", map[string]any{
 		"validations_count": len(result.TransactionValidations),
 		"has_more":          result.HasMore,
-	})
+	}, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.transaction-validation.list",
-		"list.count", len(result.TransactionValidations),
-		"list.has_more", result.HasMore,
-	).Info("Transaction validation records listed")
+	logger.With(
+		libLog.String("operation", "service.transaction-validation.list"),
+		libLog.Int("list.count", len(result.TransactionValidations)),
+		libLog.Any("list.has_more", result.HasMore),
+	).Log(ctx, libLog.LevelInfo, "Transaction validation records listed")
 
 	return result, nil
 }

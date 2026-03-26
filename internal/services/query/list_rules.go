@@ -10,8 +10,9 @@ import (
 	"context"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
 	"tracer/pkg/constant"
 	"tracer/pkg/logging"
@@ -66,33 +67,33 @@ func (q *ListRulesQuery) Execute(ctx context.Context, filter *model.ListRulesFil
 		normalizedFilter.SortOrder = strings.ToUpper(normalizedFilter.SortOrder)
 	}
 
-	logger.WithFields(
-		"operation", "service.rule.list",
-		"list.limit", normalizedFilter.Limit,
-		"list.cursor", normalizedFilter.Cursor,
-		"list.sort_by", normalizedFilter.SortBy,
-		"list.sort_order", normalizedFilter.SortOrder,
-	).Info("Listing rules")
+	logger.With(
+		libLog.String("operation", "service.rule.list"),
+		libLog.Any("list.limit", normalizedFilter.Limit),
+		libLog.Any("list.cursor", normalizedFilter.Cursor),
+		libLog.Any("list.sort_by", normalizedFilter.SortBy),
+		libLog.Any("list.sort_order", normalizedFilter.SortOrder),
+	).Log(ctx, libLog.LevelInfo, "Listing rules")
 
 	result, err := q.repo.List(ctx, &normalizedFilter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to list rules", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to list rules", err)
 		return nil, err
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "list_result", map[string]any{
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "list_result", map[string]any{
 		"rules_count": len(result.Rules),
 		"has_more":    result.HasMore,
-	})
+	}, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.rule.list",
-		"list.count", len(result.Rules),
-		"list.has_more", result.HasMore,
-	).Info("Rules listed")
+	logger.With(
+		libLog.String("operation", "service.rule.list"),
+		libLog.Int("list.count", len(result.Rules)),
+		libLog.Any("list.has_more", result.HasMore),
+	).Log(ctx, libLog.LevelInfo, "Rules listed")
 
 	return result, nil
 }

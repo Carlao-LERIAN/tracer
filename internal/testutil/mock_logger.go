@@ -6,18 +6,17 @@
 package testutil
 
 import (
-	"fmt"
-	"strings"
+	"context"
 	"sync"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
 // LogCall represents a single logging call with its level, message, and fields.
 type LogCall struct {
 	Level   string
 	Message string
-	Fields  []any
+	Fields  []libLog.Field
 }
 
 // MockLogger tracks logging calls for verification in tests.
@@ -34,156 +33,76 @@ func NewMockLogger() *MockLogger {
 	}
 }
 
-func (m *MockLogger) Info(args ...any)                                  {}
-func (m *MockLogger) Infof(format string, args ...any)                  {}
-func (m *MockLogger) Infoln(args ...any)                                {}
-func (m *MockLogger) Error(args ...any)                                 {}
-func (m *MockLogger) Errorf(format string, args ...any)                 {}
-func (m *MockLogger) Errorln(args ...any)                               {}
-func (m *MockLogger) Warn(args ...any)                                  {}
-func (m *MockLogger) Warnf(format string, args ...any)                  {}
-func (m *MockLogger) Warnln(args ...any)                                {}
-func (m *MockLogger) Debug(args ...any)                                 {}
-func (m *MockLogger) Debugf(format string, args ...any)                 {}
-func (m *MockLogger) Debugln(args ...any)                               {}
-func (m *MockLogger) Fatal(args ...any)                                 {}
-func (m *MockLogger) Fatalf(format string, args ...any)                 {}
-func (m *MockLogger) Fatalln(args ...any)                               {}
-func (m *MockLogger) WithDefaultMessageTemplate(s string) libLog.Logger { return m }
-func (m *MockLogger) Sync() error                                       { return nil }
+func (m *MockLogger) Log(_ context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-// WithFields returns a recorder that captures subsequent log calls with the provided fields.
-func (m *MockLogger) WithFields(fields ...any) libLog.Logger {
+	m.Calls = append(m.Calls, LogCall{Level: levelToString(level), Message: msg, Fields: fields})
+}
+
+func (m *MockLogger) With(fields ...libLog.Field) libLog.Logger {
 	return &mockLoggerFieldsRecorder{parent: m, fields: fields}
 }
 
-// mockLoggerFieldsRecorder records WithFields and subsequent log calls.
+func (m *MockLogger) WithGroup(_ string) libLog.Logger { return m }
+
+func (m *MockLogger) Enabled(_ libLog.Level) bool { return true }
+
+func (m *MockLogger) Sync(_ context.Context) error { return nil }
+
+// mockLoggerFieldsRecorder records With and subsequent log calls.
 type mockLoggerFieldsRecorder struct {
 	parent *MockLogger
-	fields []any
+	fields []libLog.Field
 }
 
-func (m *mockLoggerFieldsRecorder) record(level, msg string) {
+func (m *mockLoggerFieldsRecorder) Log(_ context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
+	allFields := make([]libLog.Field, 0, len(m.fields)+len(fields))
+	allFields = append(allFields, m.fields...)
+	allFields = append(allFields, fields...)
+
 	m.parent.mu.Lock()
-	m.parent.Calls = append(m.parent.Calls, LogCall{Level: level, Message: msg, Fields: m.fields})
-	m.parent.mu.Unlock()
+	defer m.parent.mu.Unlock()
+
+	m.parent.Calls = append(m.parent.Calls, LogCall{Level: levelToString(level), Message: msg, Fields: allFields})
 }
 
-func (m *mockLoggerFieldsRecorder) Info(args ...any) {
-	msg := ""
+func (m *mockLoggerFieldsRecorder) With(fields ...libLog.Field) libLog.Logger {
+	allFields := make([]libLog.Field, 0, len(m.fields)+len(fields))
+	allFields = append(allFields, m.fields...)
+	allFields = append(allFields, fields...)
 
-	if len(args) > 0 {
-		if s, ok := args[0].(string); ok {
-			msg = s
-		}
+	return &mockLoggerFieldsRecorder{parent: m.parent, fields: allFields}
+}
+
+func (m *mockLoggerFieldsRecorder) WithGroup(_ string) libLog.Logger { return m }
+
+func (m *mockLoggerFieldsRecorder) Enabled(_ libLog.Level) bool { return true }
+
+func (m *mockLoggerFieldsRecorder) Sync(_ context.Context) error { return nil }
+
+// levelToString converts a libLog.Level to its string representation.
+func levelToString(level libLog.Level) string {
+	switch level {
+	case libLog.LevelDebug:
+		return "debug"
+	case libLog.LevelInfo:
+		return "info"
+	case libLog.LevelWarn:
+		return "warn"
+	case libLog.LevelError:
+		return "error"
+	default:
+		return "unknown"
 	}
-
-	m.record("info", msg)
 }
 
-func (m *mockLoggerFieldsRecorder) Infof(format string, args ...any) {
-	m.record("info", fmt.Sprintf(format, args...))
-}
-
-func (m *mockLoggerFieldsRecorder) Infoln(args ...any) {
-	m.record("info", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
-}
-
-func (m *mockLoggerFieldsRecorder) Error(args ...any) {
-	msg := ""
-
-	if len(args) > 0 {
-		if s, ok := args[0].(string); ok {
-			msg = s
-		}
-	}
-
-	m.record("error", msg)
-}
-
-func (m *mockLoggerFieldsRecorder) Errorf(format string, args ...any) {
-	m.record("error", fmt.Sprintf(format, args...))
-}
-
-func (m *mockLoggerFieldsRecorder) Errorln(args ...any) {
-	m.record("error", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
-}
-
-func (m *mockLoggerFieldsRecorder) Warn(args ...any) {
-	msg := ""
-
-	if len(args) > 0 {
-		if s, ok := args[0].(string); ok {
-			msg = s
-		}
-	}
-
-	m.record("warn", msg)
-}
-
-func (m *mockLoggerFieldsRecorder) Warnf(format string, args ...any) {
-	m.record("warn", fmt.Sprintf(format, args...))
-}
-
-func (m *mockLoggerFieldsRecorder) Warnln(args ...any) {
-	m.record("warn", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
-}
-
-func (m *mockLoggerFieldsRecorder) Debug(args ...any) {
-	msg := ""
-
-	if len(args) > 0 {
-		if s, ok := args[0].(string); ok {
-			msg = s
-		}
-	}
-
-	m.record("debug", msg)
-}
-
-func (m *mockLoggerFieldsRecorder) Debugf(format string, args ...any) {
-	m.record("debug", fmt.Sprintf(format, args...))
-}
-
-func (m *mockLoggerFieldsRecorder) Debugln(args ...any) {
-	m.record("debug", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
-}
-
-func (m *mockLoggerFieldsRecorder) Fatal(args ...any) {
-	msg := ""
-
-	if len(args) > 0 {
-		if s, ok := args[0].(string); ok {
-			msg = s
-		}
-	}
-
-	m.record("fatal", msg)
-}
-
-func (m *mockLoggerFieldsRecorder) Fatalf(format string, args ...any) {
-	m.record("fatal", fmt.Sprintf(format, args...))
-}
-
-func (m *mockLoggerFieldsRecorder) Fatalln(args ...any) {
-	m.record("fatal", strings.TrimSuffix(fmt.Sprintln(args...), "\n"))
-}
-
-func (m *mockLoggerFieldsRecorder) WithDefaultMessageTemplate(s string) libLog.Logger { return m }
-func (m *mockLoggerFieldsRecorder) Sync() error                                       { return nil }
-
-func (m *mockLoggerFieldsRecorder) WithFields(fields ...any) libLog.Logger {
-	return &mockLoggerFieldsRecorder{parent: m.parent, fields: fields}
-}
-
-// FieldsToMap converts a slice of key-value pairs to a map for easier assertions.
-func FieldsToMap(fields []any) map[string]any {
+// FieldsToMap converts a slice of libLog.Field to a map for easier assertions.
+func FieldsToMap(fields []libLog.Field) map[string]any {
 	result := make(map[string]any)
 
-	for i := 0; i < len(fields)-1; i += 2 {
-		if key, ok := fields[i].(string); ok {
-			result[key] = fields[i+1]
-		}
+	for _, f := range fields {
+		result[f.Key] = f.Value
 	}
 
 	return result

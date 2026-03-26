@@ -7,7 +7,7 @@ package in
 import (
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/gofiber/fiber/v2"
 
 	"tracer/api"

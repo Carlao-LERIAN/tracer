@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -87,7 +87,7 @@ type TransactionValidationRepository struct {
 }
 
 // NewTransactionValidationRepository creates a new PostgreSQL transaction validation repository.
-func NewTransactionValidationRepository(conn *libPostgres.PostgresConnection) *TransactionValidationRepository {
+func NewTransactionValidationRepository(conn *libPostgres.Client) *TransactionValidationRepository {
 	return &TransactionValidationRepository{
 		conn:      pgdb.NewPostgresConnectionAdapter(conn),
 		tableName: "transaction_validations",
@@ -120,12 +120,12 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	return r.insertInternal(ctx, db, validation, logger, &span, "repository.transaction_validation.insert")
+	return r.insertInternal(ctx, db, validation, logger, span, "repository.transaction_validation.insert")
 }
 
 // InsertWithTx creates a new transaction validation record using the provided database connection.
@@ -151,7 +151,7 @@ func (r *TransactionValidationRepository) InsertWithTx(ctx context.Context, db p
 
 	logger = logging.WithTrace(ctx, logger)
 
-	return r.insertInternal(ctx, db, validation, logger, &span, "repository.transaction_validation.insert_with_tx")
+	return r.insertInternal(ctx, db, validation, logger, span, "repository.transaction_validation.insert_with_tx")
 }
 
 // insertInternal contains the shared INSERT logic for both Insert and InsertWithTx.
@@ -162,7 +162,7 @@ func (r *TransactionValidationRepository) insertInternal(
 	db pgdb.DB,
 	validation *model.TransactionValidation,
 	logger libLog.Logger,
-	span *trace.Span,
+	span trace.Span,
 	operationName string,
 ) error {
 	if validation == nil {
@@ -235,16 +235,16 @@ func (r *TransactionValidationRepository) insertInternal(
 		return fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", operationName,
-		"validation.id", validation.ID.String(),
-		"validation.decision", string(validation.Decision),
-	).Info("Inserting transaction validation record")
+	logger.With(
+		libLog.Any("operation", operationName),
+		libLog.String("validation.id", validation.ID.String()),
+		libLog.String("validation.decision", string(validation.Decision)),
+	).Log(ctx, libLog.LevelInfo, "Inserting transaction validation record")
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		if IsUniqueViolation(err) {
-			(*span).AddEvent("duplicate_request_id_detected")
+			span.AddEvent("duplicate_request_id_detected")
 
 			return fmt.Errorf("%w: request_id %s", command.ErrDuplicateValidation, validation.RequestID)
 		}
@@ -269,7 +269,7 @@ func (r *TransactionValidationRepository) GetByID(ctx context.Context, id uuid.U
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
@@ -281,25 +281,25 @@ func (r *TransactionValidationRepository) GetByID(ctx context.Context, id uuid.U
 
 	sqlStr, args, err := qb.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.transaction_validation.get_by_id",
-		"validation.id", id.String(),
-	).Info("Getting transaction validation by ID")
+	logger.With(
+		libLog.String("operation", "repository.transaction_validation.get_by_id"),
+		libLog.String("validation.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting transaction validation by ID")
 
 	validation, err := r.scanValidation(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Transaction validation not found", constant.ErrTransactionValidationNotFound)
+			libOtel.HandleSpanBusinessErrorEvent(span, "Transaction validation not found", constant.ErrTransactionValidationNotFound)
 
 			return nil, constant.ErrTransactionValidationNotFound
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to get transaction validation", err)
+		libOtel.HandleSpanError(span, "Failed to get transaction validation", err)
 
 		return nil, fmt.Errorf("failed to get transaction validation: %w", err)
 	}
@@ -326,7 +326,7 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
@@ -339,15 +339,15 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 
 	sqlStr, args, err := qb.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.transaction_validation.find_by_request_id",
-		"request.id", requestID.String(),
-	).Debug("Finding transaction validation by request ID")
+	logger.With(
+		libLog.String("operation", "repository.transaction_validation.find_by_request_id"),
+		libLog.String("request.id", requestID.String()),
+	).Log(ctx, libLog.LevelDebug, "Finding transaction validation by request ID")
 
 	validation, err := r.scanValidation(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
@@ -355,24 +355,24 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 			// Not found is NOT an error for FindByRequestID - return (nil, nil)
 			span.AddEvent("request_id_not_found")
 
-			logger.WithFields(
-				"operation", "repository.transaction_validation.find_by_request_id",
-				"request.id", requestID.String(),
-			).Debug("Transaction validation not found by request ID")
+			logger.With(
+				libLog.String("operation", "repository.transaction_validation.find_by_request_id"),
+				libLog.String("request.id", requestID.String()),
+			).Log(ctx, libLog.LevelDebug, "Transaction validation not found by request ID")
 
 			return nil, nil
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to find transaction validation by request ID", err)
+		libOtel.HandleSpanError(span, "Failed to find transaction validation by request ID", err)
 
 		return nil, fmt.Errorf("failed to find transaction validation by request ID: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.transaction_validation.find_by_request_id",
-		"request.id", requestID.String(),
-		"validation.id", validation.ID.String(),
-	).Debug("Found transaction validation by request ID")
+	logger.With(
+		libLog.String("operation", "repository.transaction_validation.find_by_request_id"),
+		libLog.String("request.id", requestID.String()),
+		libLog.String("validation.id", validation.ID.String()),
+	).Log(ctx, libLog.LevelDebug, "Found transaction validation by request ID")
 
 	return validation, nil
 }
@@ -397,20 +397,20 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 
 	// Validate filters
 	if err := filters.Validate(); err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid transaction validation filters", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation filters", err)
 		return nil, fmt.Errorf("%w: %w", constant.ErrInvalidTransactionValidationFilters, err)
 	}
 
 	// Validate and normalize sort parameters
 	sortBy, sortOrder, err := r.validateAndNormalizeSort(filters)
 	if err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid sort column", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid sort column", err)
 		return nil, err
 	}
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -422,9 +422,9 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 	qb = r.applyFilters(qb, filters)
 
 	// Apply cursor filter for keyset pagination
-	qb, sortBy, sortOrder, err = r.applyCursorFilter(qb, filters.Cursor, sortBy, sortOrder, &span)
+	qb, sortBy, sortOrder, err = r.applyCursorFilter(qb, filters.Cursor, sortBy, sortOrder, span)
 	if err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid cursor", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 		return nil, err
 	}
 
@@ -446,19 +446,19 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 
 	sqlStr, args, err := qb.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.transaction_validation.list",
-		"filter.limit", filters.Limit,
-		"filter.has_cursor", filters.Cursor != "",
-	).Info("Listing transaction validations")
+	logger.With(
+		libLog.String("operation", "repository.transaction_validation.list"),
+		libLog.Any("filter.limit", filters.Limit),
+		libLog.Any("filter.has_cursor", filters.Cursor != ""),
+	).Log(ctx, libLog.LevelInfo, "Listing transaction validations")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to list transaction validations", err)
+		libOtel.HandleSpanError(span, "Failed to list transaction validations", err)
 		return nil, fmt.Errorf("failed to list transaction validations: %w", err)
 	}
 	defer rows.Close()
@@ -468,7 +468,7 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 	for rows.Next() {
 		validation, err := r.scanValidationFromRows(ctx, rows)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to scan transaction validation", err)
+			libOtel.HandleSpanError(span, "Failed to scan transaction validation", err)
 			return nil, fmt.Errorf("failed to scan transaction validation: %w", err)
 		}
 
@@ -476,7 +476,7 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Error iterating transaction validations", err)
+		libOtel.HandleSpanError(span, "Error iterating transaction validations", err)
 		return nil, fmt.Errorf("error iterating transaction validations: %w", err)
 	}
 
@@ -495,7 +495,7 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 
 		nextCursor, err = r.buildNextCursor(lastValidation, sortBy, sortOrder)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to encode cursor", err)
+			libOtel.HandleSpanError(span, "Failed to encode cursor", err)
 			return nil, fmt.Errorf("failed to encode cursor: %w", err)
 		}
 	}
@@ -511,11 +511,11 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 		HasMore:                hasMore,
 	}
 
-	logger.WithFields(
-		"operation", "repository.transaction_validation.list",
-		"result.count", len(validations),
-		"result.has_more", hasMore,
-	).Info("Listed transaction validations")
+	logger.With(
+		libLog.String("operation", "repository.transaction_validation.list"),
+		libLog.Int("result.count", len(validations)),
+		libLog.Any("result.has_more", hasMore),
+	).Log(ctx, libLog.LevelInfo, "Listed transaction validations")
 
 	return result, nil
 }
@@ -539,14 +539,14 @@ func (r *TransactionValidationRepository) Count(ctx context.Context, filters *mo
 
 	// Validate filters
 	if err := filters.Validate(); err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid transaction validation filters", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation filters", err)
 
 		return 0, fmt.Errorf("%w: %w", constant.ErrInvalidTransactionValidationFilters, err)
 	}
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 
 		return 0, fmt.Errorf("failed to get database connection: %w", err)
 	}
@@ -560,28 +560,28 @@ func (r *TransactionValidationRepository) Count(ctx context.Context, filters *mo
 
 	sqlStr, args, err := qb.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 
 		return 0, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.transaction_validation.count",
-	).Info("Counting transaction validations")
+	logger.With(
+		libLog.String("operation", "repository.transaction_validation.count"),
+	).Log(ctx, libLog.LevelInfo, "Counting transaction validations")
 
 	var count int64
 
 	err = db.QueryRowContext(ctx, sqlStr, args...).Scan(&count)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to count transaction validations", err)
+		libOtel.HandleSpanError(span, "Failed to count transaction validations", err)
 
 		return 0, fmt.Errorf("failed to count transaction validations: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.transaction_validation.count",
-		"result.count", count,
-	).Info("Counted transaction validations")
+	logger.With(
+		libLog.String("operation", "repository.transaction_validation.count"),
+		libLog.Any("result.count", count),
+	).Log(ctx, libLog.LevelInfo, "Counted transaction validations")
 
 	return count, nil
 }
@@ -830,7 +830,7 @@ func (r *TransactionValidationRepository) validateAndNormalizeSort(filters *mode
 // applyCursorFilter adds keyset pagination WHERE clause to the query.
 // Supports custom sort columns with id as tiebreaker.
 // Returns the updated query, sort column, and sort order from the cursor (for consistency).
-func (r *TransactionValidationRepository) applyCursorFilter(qb sq.SelectBuilder, cursorStr string, requestedSortBy string, requestedOrderDir string, span *trace.Span) (sq.SelectBuilder, string, string, error) {
+func (r *TransactionValidationRepository) applyCursorFilter(qb sq.SelectBuilder, cursorStr string, requestedSortBy string, requestedOrderDir string, span trace.Span) (sq.SelectBuilder, string, string, error) {
 	if cursorStr == "" {
 		return qb, requestedSortBy, requestedOrderDir, nil
 	}

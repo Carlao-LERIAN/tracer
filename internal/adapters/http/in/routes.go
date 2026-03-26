@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"os"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -68,7 +68,7 @@ func NewRoutes(lg libLog.Logger, tl *libOtel.Telemetry, hc *HealthChecker, cfg *
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
+			return libHTTP.FiberErrorHandler(ctx, err)
 		},
 	})
 	// Check if telemetry should be skipped to avoid data race in lib-commons ContextWithLogger.

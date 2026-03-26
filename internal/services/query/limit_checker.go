@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
@@ -134,7 +134,7 @@ func (s *LimitCheckerService) CheckLimits(ctx context.Context, db pgdb.DB, input
 	logger = logging.WithTrace(ctx, logger)
 
 	// Pass db to enable transactional operations
-	return s.checkLimitsInternal(ctx, db, input, logger, &span, "service.limit_checker.check_limits")
+	return s.checkLimitsInternal(ctx, db, input, logger, span, "service.limit_checker.check_limits")
 }
 
 // checkLimitsInternal contains the core logic for CheckLimits.
@@ -149,7 +149,7 @@ func (s *LimitCheckerService) checkLimitsInternal(
 	db pgdb.DB,
 	input *model.CheckLimitsInput,
 	logger libLog.Logger,
-	span *trace.Span,
+	span trace.Span,
 	operationName string,
 ) (*model.CheckLimitsOutput, error) {
 	if input == nil {
@@ -162,13 +162,13 @@ func (s *LimitCheckerService) checkLimitsInternal(
 		return nil, err
 	}
 
-	if err := libOtel.SetSpanAttributesFromStruct(span, "input", input); err != nil {
-		(*span).RecordError(err)
+	if err := libOtel.SetSpanAttributesFromValue(span, "input", input, nil); err != nil {
+		span.RecordError(err)
 
-		logger.WithFields(
-			"operation", operationName,
-			"error", err.Error(),
-		).Warn("Failed to set span attributes for input")
+		logger.With(
+			libLog.Any("operation", operationName),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Failed to set span attributes for input")
 	}
 
 	// Get applicable limits (active limits matching currency and scopes)
@@ -182,20 +182,20 @@ func (s *LimitCheckerService) checkLimitsInternal(
 	serverNow := s.clock.Now()
 
 	if len(limits) == 0 {
-		logger.WithFields(
-			"operation", operationName,
-			"currency", input.Currency,
-		).Info("No active limits found for criteria")
+		logger.With(
+			libLog.Any("operation", operationName),
+			libLog.Any("currency", input.Currency),
+		).Log(ctx, libLog.LevelInfo, "No active limits found for criteria")
 
 		output := model.NewCheckLimitsOutput(true, serverNow)
 
 		return output, nil
 	}
 
-	logger.WithFields(
-		"operation", operationName,
-		"applicable_limits_count", len(limits),
-	).Info("Found applicable limits")
+	logger.With(
+		libLog.Any("operation", operationName),
+		libLog.Int("applicable_limits_count", len(limits)),
+	).Log(ctx, libLog.LevelInfo, "Found applicable limits")
 
 	// Build transaction scope once for all limits
 	txScope := buildTransactionScope(input)
@@ -233,16 +233,16 @@ func (s *LimitCheckerService) checkLimitsInternal(
 	if !allowed {
 		output = output.WithExceededLimits(exceededLimitIDs)
 
-		logger.WithFields(
-			"operation", operationName,
-			"exceeded_limit_ids", exceededLimitIDs,
-			"exceeded_count", len(exceededLimitIDs),
-		).Info("Limits exceeded")
+		logger.With(
+			libLog.Any("operation", operationName),
+			libLog.Any("exceeded_limit_ids", exceededLimitIDs),
+			libLog.Int("exceeded_count", len(exceededLimitIDs)),
+		).Log(ctx, libLog.LevelInfo, "Limits exceeded")
 	} else {
-		logger.WithFields(
-			"operation", operationName,
-			"checked_count", len(usageDetails),
-		).Info("All limits passed")
+		logger.With(
+			libLog.Any("operation", operationName),
+			libLog.Int("checked_count", len(usageDetails)),
+		).Log(ctx, libLog.LevelInfo, "All limits passed")
 	}
 
 	return output, nil
@@ -353,20 +353,20 @@ func (s *LimitCheckerService) processLimitAtomic(
 
 	logger = logging.WithTrace(ctx, logger)
 
-	if err := libOtel.SetSpanAttributesFromStruct(&span, "limit", map[string]any{
+	if err := libOtel.SetSpanAttributesFromValue(span, "limit", map[string]any{
 		"id":        limit.ID.String(),
 		"name":      limit.Name,
 		"type":      string(limit.LimitType),
 		"maxAmount": limit.MaxAmount,
-	}); err != nil {
+	}, nil); err != nil {
 		span.RecordError(err)
 
-		logger.WithFields(
-			"operation", "service.limit_checker.process_limit_atomic",
-			"limit_id", limit.ID.String(),
-			"limit_name", limit.Name,
-			"error", err.Error(),
-		).Warn("Failed to set span attributes for limit")
+		logger.With(
+			libLog.String("operation", "service.limit_checker.process_limit_atomic"),
+			libLog.String("limit_id", limit.ID.String()),
+			libLog.Any("limit_name", limit.Name),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelWarn, "Failed to set span attributes for limit")
 	}
 
 	// Check time window FIRST (before any counter operations)
@@ -388,7 +388,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 	// For DAILY/WEEKLY/MONTHLY/CUSTOM limits, use atomic upsert
 	periodKey, err := model.CalculatePeriodKey(limit.LimitType, serverNow)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to calculate period key", err)
+		libOtel.HandleSpanError(span, "Failed to calculate period key", err)
 		return nil, false, err
 	}
 
@@ -403,7 +403,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 
 		usageMap, err := s.usageCounterRepo.GetUsageForLimits(ctx, db, []uuid.UUID{limit.ID}, scopeKey, periodKey)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to get existing usage for pre-check", err)
+			libOtel.HandleSpanError(span, "Failed to get existing usage for pre-check", err)
 			return nil, false, fmt.Errorf("failed to get existing usage for pre-check: %w", err)
 		}
 
@@ -442,7 +442,7 @@ func (s *LimitCheckerService) processLimitAtomic(
 
 	if errors.Is(err, constant.ErrUsageCounterExceedsLimit) {
 		// Limit exceeded - the counter was NOT incremented
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Limit exceeded", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Limit exceeded", err)
 
 		detail := &model.LimitUsageDetail{
 			LimitID:           limit.ID,
@@ -457,21 +457,21 @@ func (s *LimitCheckerService) processLimitAtomic(
 			InternalPeriodKey: periodKey,
 		}
 
-		logger.WithFields(
-			"operation", "service.limit_checker.process_limit_atomic",
-			"limit_id", limit.ID.String(),
-			"limit_type", string(limit.LimitType),
-			"max_amount", limit.MaxAmount.String(),
-			"transaction_amount", input.Amount.String(),
-			"exceeded", true,
-		).Info("Limit exceeded (atomic check)")
+		logger.With(
+			libLog.String("operation", "service.limit_checker.process_limit_atomic"),
+			libLog.String("limit_id", limit.ID.String()),
+			libLog.String("limit_type", string(limit.LimitType)),
+			libLog.String("max_amount", limit.MaxAmount.String()),
+			libLog.String("transaction_amount", input.Amount.String()),
+			libLog.Bool("exceeded", true),
+		).Log(ctx, libLog.LevelInfo, "Limit exceeded (atomic check)")
 
 		return detail, true, nil
 	}
 
 	if err != nil {
 		// DB error
-		libOtel.HandleSpanError(&span, "Failed to upsert and increment counter", err)
+		libOtel.HandleSpanError(span, "Failed to upsert and increment counter", err)
 		return nil, false, fmt.Errorf("failed to upsert and increment counter: %w", err)
 	}
 
@@ -523,7 +523,7 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 
 		result, err := s.limitRepo.List(ctx, filter)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to list limits", err)
+			libOtel.HandleSpanError(span, "Failed to list limits", err)
 			return nil, err
 		}
 
@@ -552,12 +552,12 @@ func (s *LimitCheckerService) getApplicableLimits(ctx context.Context, input *mo
 		applicable = append(applicable, limit)
 	}
 
-	logger.WithFields(
-		"operation", "service.limit_checker.get_applicable_limits",
-		"limits_for_currency", len(allLimits),
-		"applicable_limits", len(applicable),
-		"currency", input.Currency,
-	).Info("Filtered applicable limits")
+	logger.With(
+		libLog.String("operation", "service.limit_checker.get_applicable_limits"),
+		libLog.Int("limits_for_currency", len(allLimits)),
+		libLog.Int("applicable_limits", len(applicable)),
+		libLog.Any("currency", input.Currency),
+	).Log(ctx, libLog.LevelInfo, "Filtered applicable limits")
 
 	return applicable, nil
 }

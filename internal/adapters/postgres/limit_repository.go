@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -36,7 +37,7 @@ type LimitRepository struct {
 }
 
 // NewLimitRepository creates a new PostgreSQL limit repository.
-func NewLimitRepository(conn *libPostgres.PostgresConnection) *LimitRepository {
+func NewLimitRepository(conn *libPostgres.Client) *LimitRepository {
 	return &LimitRepository{
 		conn:      pgdb.NewPostgresConnectionAdapter(conn),
 		tableName: "limits",
@@ -81,14 +82,14 @@ func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	// Convert entity to database model using ToEntity/FromEntity pattern
 	var dbModel LimitPostgreSQLModel
 	if err := dbModel.FromEntity(lmt); err != nil {
-		libOtel.HandleSpanError(&span, "Failed to convert entity to database model", err)
+		libOtel.HandleSpanError(span, "Failed to convert entity to database model", err)
 		return fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
@@ -99,24 +100,24 @@ func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.limit.create",
-		"limit.id", lmt.ID.String(),
-		"limit.name", lmt.Name,
-	).Info("Creating limit")
+	logger.With(
+		libLog.String("operation", "repository.limit.create"),
+		libLog.String("limit.id", lmt.ID.String()),
+		libLog.Any("limit.name", lmt.Name),
+	).Log(ctx, libLog.LevelInfo, "Creating limit")
 
 	_, err = db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		if IsUniqueViolationOf(err, "idx_limits_name_active") {
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Limit name already exists", constant.ErrLimitNameAlreadyExists)
+			libOtel.HandleSpanBusinessErrorEvent(span, "Limit name already exists", constant.ErrLimitNameAlreadyExists)
 			return constant.ErrLimitNameAlreadyExists
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to insert limit", err)
+		libOtel.HandleSpanError(span, "Failed to insert limit", err)
 
 		return fmt.Errorf("failed to insert limit: %w", err)
 	}
@@ -135,7 +136,7 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -147,23 +148,23 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.limit.get_by_id",
-		"limit.id", limitID.String(),
-	).Info("Getting limit by ID")
+	logger.With(
+		libLog.String("operation", "repository.limit.get_by_id"),
+		libLog.String("limit.id", limitID.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting limit by ID")
 
 	lmt, err := r.scanLimit(ctx, db.QueryRowContext(ctx, sqlStr, args...))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
+			libOtel.HandleSpanBusinessErrorEvent(span, "Limit not found", constant.ErrLimitNotFound)
 			return nil, constant.ErrLimitNotFound
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to get limit", err)
+		libOtel.HandleSpanError(span, "Failed to get limit", err)
 
 		return nil, fmt.Errorf("failed to get limit: %w", err)
 	}
@@ -184,7 +185,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 
 	sortColumn, sortOrder, err := r.validateAndNormalizeSort(filters)
 	if err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid sort column", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid sort column", err)
 		return nil, err
 	}
 
@@ -196,7 +197,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -208,9 +209,9 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 	query = r.applyListFilters(query, filters)
 
 	// Apply cursor filter for keyset pagination (uses snake_case sortColumn for queries)
-	query, sortColumn, sortOrder, err = r.applyCursorFilter(query, filters.Cursor, sortColumn, sortOrder, &span)
+	query, sortColumn, sortOrder, err = r.applyCursorFilter(query, filters.Cursor, sortColumn, sortOrder, span)
 	if err != nil {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Invalid cursor", err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 		return nil, err
 	}
 
@@ -232,19 +233,19 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.limit.list",
-		"filter.limit", filters.Limit,
-		"filter.has_cursor", filters.Cursor != "",
-	).Info("Listing limits")
+	logger.With(
+		libLog.String("operation", "repository.limit.list"),
+		libLog.Any("filter.limit", filters.Limit),
+		libLog.Any("filter.has_cursor", filters.Cursor != ""),
+	).Log(ctx, libLog.LevelInfo, "Listing limits")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to list limits", err)
+		libOtel.HandleSpanError(span, "Failed to list limits", err)
 		return nil, fmt.Errorf("failed to list limits: %w", err)
 	}
 	defer rows.Close()
@@ -254,7 +255,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 	for rows.Next() {
 		lmt, err := r.scanLimitFromRows(ctx, rows)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to scan limit", err)
+			libOtel.HandleSpanError(span, "Failed to scan limit", err)
 			return nil, fmt.Errorf("failed to scan limit: %w", err)
 		}
 
@@ -262,7 +263,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(&span, "Error iterating limits", err)
+		libOtel.HandleSpanError(span, "Error iterating limits", err)
 		return nil, fmt.Errorf("error iterating limits: %w", err)
 	}
 
@@ -282,7 +283,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		// Use camelCase sortBy in cursor (not snake_case sortColumn)
 		nextCursor, err = r.buildNextCursor(&lastLimit, sortBy, sortOrder)
 		if err != nil {
-			libOtel.HandleSpanError(&span, "Failed to encode cursor", err)
+			libOtel.HandleSpanError(span, "Failed to encode cursor", err)
 			return nil, fmt.Errorf("failed to encode cursor: %w", err)
 		}
 	}
@@ -293,11 +294,11 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		HasMore:    hasMore,
 	}
 
-	logger.WithFields(
-		"operation", "repository.limit.list",
-		"result.count", len(limits),
-		"result.has_more", hasMore,
-	).Info("Listed limits")
+	logger.With(
+		libLog.String("operation", "repository.limit.list"),
+		libLog.Int("result.count", len(limits)),
+		libLog.Any("result.has_more", hasMore),
+	).Log(ctx, libLog.LevelInfo, "Listed limits")
 
 	return result, nil
 }
@@ -313,14 +314,14 @@ func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	// Convert entity to database model using ToEntity/FromEntity pattern
 	var dbModel LimitPostgreSQLModel
 	if err := dbModel.FromEntity(lmt); err != nil {
-		libOtel.HandleSpanError(&span, "Failed to convert entity to database model", err)
+		libOtel.HandleSpanError(span, "Failed to convert entity to database model", err)
 		return fmt.Errorf("failed to convert entity to database model: %w", err)
 	}
 
@@ -342,35 +343,35 @@ func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.limit.update",
-		"limit.id", lmt.ID.String(),
-	).Info("Updating limit")
+	logger.With(
+		libLog.String("operation", "repository.limit.update"),
+		libLog.String("limit.id", lmt.ID.String()),
+	).Log(ctx, libLog.LevelInfo, "Updating limit")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
 		if IsUniqueViolationOf(err, "idx_limits_name_active") {
-			libOtel.HandleSpanBusinessErrorEvent(&span, "Limit name already exists", constant.ErrLimitNameAlreadyExists)
+			libOtel.HandleSpanBusinessErrorEvent(span, "Limit name already exists", constant.ErrLimitNameAlreadyExists)
 			return constant.ErrLimitNameAlreadyExists
 		}
 
-		libOtel.HandleSpanError(&span, "Failed to update limit", err)
+		libOtel.HandleSpanError(span, "Failed to update limit", err)
 
 		return fmt.Errorf("failed to update limit: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOtel.HandleSpanError(span, "Failed to get rows affected", err)
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Limit not found", constant.ErrLimitNotFound)
 		return constant.ErrLimitNotFound
 	}
 
@@ -389,7 +390,7 @@ func (r *LimitRepository) UpdateStatus(ctx context.Context, limitID uuid.UUID, s
 
 	db, err := r.conn.GetDB()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get database connection", err)
+		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
@@ -409,30 +410,30 @@ func (r *LimitRepository) UpdateStatus(ctx context.Context, limitID uuid.UUID, s
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to build query", err)
+		libOtel.HandleSpanError(span, "Failed to build query", err)
 		return fmt.Errorf("failed to build query: %w", err)
 	}
 
-	logger.WithFields(
-		"operation", "repository.limit.update_status",
-		"limit.id", limitID.String(),
-		"status", string(status),
-	).Info("Updating limit status")
+	logger.With(
+		libLog.String("operation", "repository.limit.update_status"),
+		libLog.String("limit.id", limitID.String()),
+		libLog.String("status", string(status)),
+	).Log(ctx, libLog.LevelInfo, "Updating limit status")
 
 	result, err := db.ExecContext(ctx, sqlStr, args...)
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to update limit status", err)
+		libOtel.HandleSpanError(span, "Failed to update limit status", err)
 		return fmt.Errorf("failed to update limit status: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOtel.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOtel.HandleSpanError(span, "Failed to get rows affected", err)
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		libOtel.HandleSpanBusinessErrorEvent(&span, "Limit not found", constant.ErrLimitNotFound)
+		libOtel.HandleSpanBusinessErrorEvent(span, "Limit not found", constant.ErrLimitNotFound)
 		return constant.ErrLimitNotFound
 	}
 
@@ -442,7 +443,7 @@ func (r *LimitRepository) UpdateStatus(ctx context.Context, limitID uuid.UUID, s
 // applyCursorFilter adds keyset pagination WHERE clause to the query.
 // Supports custom sort columns with id as tiebreaker.
 // Returns the updated query, sort column, and sort order from the cursor (for consistency).
-func (r *LimitRepository) applyCursorFilter(query sq.SelectBuilder, cursorStr string, requestedSortBy string, requestedOrderDir string, span *trace.Span) (sq.SelectBuilder, string, string, error) {
+func (r *LimitRepository) applyCursorFilter(query sq.SelectBuilder, cursorStr string, requestedSortBy string, requestedOrderDir string, span trace.Span) (sq.SelectBuilder, string, string, error) {
 	if cursorStr == "" {
 		return query, requestedSortBy, requestedOrderDir, nil
 	}

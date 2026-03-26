@@ -10,8 +10,9 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 
 	"tracer/pkg/constant"
@@ -46,33 +47,33 @@ func (q *GetRuleQuery) Execute(ctx context.Context, id uuid.UUID) (*model.Rule, 
 
 	logger = logging.WithTrace(ctx, logger)
 
-	logger.WithFields(
-		"operation", "service.rule.get",
-		"rule.id", id.String(),
-	).Info("Getting rule")
+	logger.With(
+		libLog.String("operation", "service.rule.get"),
+		libLog.String("rule.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting rule")
 
 	rule, err := q.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, constant.ErrRuleNotFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Rule not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rule not found", err)
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rule", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rule", err)
 
 		return nil, err
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "rule", rule)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "rule", rule, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set span attributes", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set span attributes", err)
 	}
 
-	logger.WithFields(
-		"operation", "service.rule.get",
-		"rule.id", rule.ID.String(),
-		"rule.name", rule.Name,
-	).Info("Rule retrieved")
+	logger.With(
+		libLog.String("operation", "service.rule.get"),
+		libLog.String("rule.id", rule.ID.String()),
+		libLog.Any("rule.name", rule.Name),
+	).Log(ctx, libLog.LevelInfo, "Rule retrieved")
 
 	return rule, nil
 }

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libMetrics "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libMetrics "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -358,7 +358,8 @@ func TestIntegration_Polling_MetricsEmission(t *testing.T) {
 	mockLogger := testutil.NewMockLogger()
 
 	// Create real MetricsFactory backed by in-memory reader
-	metricsFactory := libMetrics.NewMetricsFactory(meter, mockLogger)
+	metricsFactory, err := libMetrics.NewMetricsFactory(meter, mockLogger)
+	require.NoError(t, err, "NewMetricsFactory should not fail")
 
 	// Build context with metrics factory and tracer
 	traceCleanup := setupIntegrationTracer(t)

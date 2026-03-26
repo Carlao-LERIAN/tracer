@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
+	libOtel "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,8 +80,8 @@ func (d *testRouterDeps) build() *fiber.App {
 		},
 	}
 
-	var logger libLog.Logger = mockLogger
-	authClient := authMiddleware.NewAuthClient("", d.guardCfg.PluginAuthEnabled, &logger)
+	// TODO(lib-commons-v4): lib-auth/v2 still expects v2 Logger interface.
+	authClient := authMiddleware.NewAuthClient("", d.guardCfg.PluginAuthEnabled, nil)
 	guard := middleware.NewAuthGuard(d.guardCfg, authClient)
 
 	routeCfg := &RouteConfig{}

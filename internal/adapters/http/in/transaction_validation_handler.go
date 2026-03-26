@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -78,28 +78,28 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c *fiber.Ctx) er
 
 	id, err := uuid.Parse(idParam)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction validation ID", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation ID", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0007", "Invalid Path Parameter", "Invalid transaction validation ID format")
 	}
 
-	logger.WithFields(
-		"operation", "handler.transaction-validation.get",
-		"transaction_validation.id", id.String(),
-	).Info("Getting transaction validation record")
+	logger.With(
+		libLog.String("operation", "handler.transaction-validation.get"),
+		libLog.String("transaction_validation.id", id.String()),
+	).Log(ctx, libLog.LevelInfo, "Getting transaction validation record")
 
 	result, err := h.service.GetTransactionValidation(ctx, id)
 	if err != nil {
-		return handleTransactionValidationServiceError(c, &span, err)
+		return handleTransactionValidationServiceError(c, span, err)
 	}
 
-	logger.WithFields(
-		"operation", "handler.transaction-validation.get",
-		"transaction_validation.id", result.ID.String(),
-		"transaction_validation.decision", string(result.Decision),
-	).Info("Transaction validation record retrieved")
+	logger.With(
+		libLog.String("operation", "handler.transaction-validation.get"),
+		libLog.String("transaction_validation.id", result.ID.String()),
+		libLog.String("transaction_validation.decision", string(result.Decision)),
+	).Log(ctx, libLog.LevelInfo, "Transaction validation record retrieved")
 
-	return libHTTP.OK(c, result)
+	return pkgHTTP.OK(c, result)
 }
 
 // ListTransactionValidations godoc
@@ -142,14 +142,14 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 	var input ListTransactionValidationsInput
 
 	if err := c.QueryParser(&input); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to parse query parameters", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to parse query parameters", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0006", "Invalid Query Parameter", "Invalid query parameters")
 	}
 
 	// Validate before applying defaults to ensure fail-fast behavior
 	if err := input.Validate(); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Validation failed", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Validation failed", err)
 
 		// Check if error is ValidationError with specific code
 		var validationErr *ValidationError
@@ -163,46 +163,46 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c *fiber.Ctx) 
 	// Apply defaults after validation
 	input.SetDefaults()
 
-	logger.WithFields(
-		"operation", "handler.transaction-validation.list",
-		"list.limit", input.Limit,
-		"list.cursor", input.Cursor,
-		"list.sort_by", input.SortBy,
-		"list.sort_order", input.SortOrder,
-	).Info("Listing transaction validation records")
+	logger.With(
+		libLog.String("operation", "handler.transaction-validation.list"),
+		libLog.Any("list.limit", input.Limit),
+		libLog.Any("list.cursor", input.Cursor),
+		libLog.Any("list.sort_by", input.SortBy),
+		libLog.Any("list.sort_order", input.SortOrder),
+	).Log(ctx, libLog.LevelInfo, "Listing transaction validation records")
 
 	// Convert to service filter
 	filters, err := ToTransactionValidationFilters(&input)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid filters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid filters", err)
 
 		return pkgHTTP.BadRequestWithMessage(c, "TRC-0250", "Invalid Transaction Validation Filters", err.Error())
 	}
 
 	result, err := h.service.ListTransactionValidations(ctx, filters)
 	if err != nil {
-		return handleTransactionValidationServiceError(c, &span, err)
+		return handleTransactionValidationServiceError(c, span, err)
 	}
 
 	// Convert to response
 	response := ToListTransactionValidationsResponse(result)
 
-	logger.WithFields(
-		"operation", "handler.transaction-validation.list",
-		"list.count", len(response.TransactionValidations),
-		"list.has_more", response.HasMore,
-	).Info("Transaction validation records listed")
+	logger.With(
+		libLog.String("operation", "handler.transaction-validation.list"),
+		libLog.Int("list.count", len(response.TransactionValidations)),
+		libLog.Any("list.has_more", response.HasMore),
+	).Log(ctx, libLog.LevelInfo, "Transaction validation records listed")
 
-	return libHTTP.OK(c, response)
+	return pkgHTTP.OK(c, response)
 }
 
 // handleTransactionValidationServiceError converts service errors to appropriate HTTP responses.
-func handleTransactionValidationServiceError(c *fiber.Ctx, span *trace.Span, err error) error {
+func handleTransactionValidationServiceError(c *fiber.Ctx, span trace.Span, err error) error {
 	switch {
 	case errors.Is(err, constant.ErrTransactionValidationNotFound):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction validation not found", err)
 
-		return libHTTP.NotFound(c, "TRC-0251", "Not Found", "Transaction validation not found")
+		return pkgHTTP.NotFound(c, "TRC-0251", "Not Found", "Transaction validation not found")
 	case errors.Is(err, constant.ErrInvalidTransactionValidationFilters):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction validation filters", err)
 
@@ -210,7 +210,7 @@ func handleTransactionValidationServiceError(c *fiber.Ctx, span *trace.Span, err
 	case errors.Is(err, constant.ErrInvalidCursor):
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid cursor", err)
 
-		return libHTTP.BadRequest(c, fiber.Map{
+		return pkgHTTP.BadRequest(c, fiber.Map{
 			"code":    "TRC-0044",
 			"title":   "Bad Request",
 			"message": "Invalid pagination cursor",
@@ -218,7 +218,7 @@ func handleTransactionValidationServiceError(c *fiber.Ctx, span *trace.Span, err
 	default:
 		libOpentelemetry.HandleSpanError(span, "Operation failed", err)
 
-		return libHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
+		return pkgHTTP.InternalServerError(c, "TRC-0004", "Internal Server Error", "An unexpected error occurred")
 	}
 }
 

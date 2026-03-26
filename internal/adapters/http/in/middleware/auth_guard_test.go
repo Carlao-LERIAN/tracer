@@ -11,10 +11,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"tracer/internal/testutil"
-
 	authMiddleware "github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,16 +24,13 @@ import (
 func newTestAuthGuard(t *testing.T, cfg AuthGuardConfig, fakeAuthServerURL string) *AuthGuard {
 	t.Helper()
 
-	mockLogger := testutil.NewMockLogger()
-
-	var logger libLog.Logger = mockLogger
-
 	address := ""
 	if cfg.PluginAuthEnabled && fakeAuthServerURL != "" {
 		address = fakeAuthServerURL
 	}
 
-	authClient := authMiddleware.NewAuthClient(address, cfg.PluginAuthEnabled, &logger)
+	// TODO(lib-commons-v4): lib-auth/v2 still expects v2 Logger interface.
+	authClient := authMiddleware.NewAuthClient(address, cfg.PluginAuthEnabled, nil)
 
 	return NewAuthGuard(cfg, authClient)
 }
