@@ -43,7 +43,7 @@ func setupTransactionValidationRepositoryMockDB(t *testing.T) (*TransactionValid
 	require.NoError(t, err)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(db, nil).AnyTimes()
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(db, nil).AnyTimes()
 
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 
@@ -210,7 +210,7 @@ func TestTransactionValidationPostgresRepository_Insert_ConnectionError(t *testi
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 
@@ -338,7 +338,7 @@ func TestTransactionValidationPostgresRepository_GetByID_ConnectionError(t *test
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 
@@ -444,7 +444,7 @@ func TestTransactionValidationPostgresRepository_List_ConnectionError(t *testing
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 
@@ -654,7 +654,7 @@ func TestTransactionValidationPostgresRepository_Count_ConnectionError(t *testin
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 
@@ -1288,7 +1288,7 @@ func TestTransactionValidationPostgresRepository_FindByRequestID_ConnectionError
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 
@@ -1482,7 +1482,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx(t *testing.T) {
 			ctx := context.Background()
 
 			// Call InsertWithTx with the mock db directly
-			// This tests that the method uses the provided db, not r.conn.GetDB()
+			// This tests that the method uses the provided db, not r.conn.GetDB(ctx)
 			err = repo.InsertWithTx(ctx, db, tt.tv)
 
 			if tt.wantErr {
@@ -1498,7 +1498,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx(t *testing.T) {
 }
 
 // TestTransactionValidationPostgresRepository_InsertWithTx_UsesProvidedDB verifies that
-// InsertWithTx uses the provided db parameter instead of calling r.conn.GetDB().
+// InsertWithTx uses the provided db parameter instead of calling r.conn.GetDB(ctx).
 // This is critical for transactional consistency - the provided db may be a transaction.
 func TestTransactionValidationPostgresRepository_InsertWithTx_UsesProvidedDB(t *testing.T) {
 	testutil.SetupTestTracing(t)
@@ -1513,7 +1513,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx_UsesProvidedDB(t *
 	ctrl := gomock.NewController(t)
 	mockConn := mocks.NewMockConnection(ctrl)
 	// Expect GetDB to NEVER be called - InsertWithTx should use the provided db
-	mockConn.EXPECT().GetDB().Times(0)
+	mockConn.EXPECT().GetDB(gomock.Any()).Times(0)
 
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 
@@ -1558,7 +1558,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx_NilDB(t *testing.T
 	ctrl := gomock.NewController(t)
 	mockConn := mocks.NewMockConnection(ctrl)
 	// Expect GetDB to NEVER be called - nil check should happen before any DB operations
-	mockConn.EXPECT().GetDB().Times(0)
+	mockConn.EXPECT().GetDB(gomock.Any()).Times(0)
 
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 
@@ -1584,7 +1584,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx_UniqueViolation(t 
 
 	ctrl := gomock.NewController(t)
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Times(0)
+	mockConn.EXPECT().GetDB(gomock.Any()).Times(0)
 
 	repo := NewTransactionValidationRepositoryWithConnection(mockConn)
 

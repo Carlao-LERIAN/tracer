@@ -107,7 +107,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -269,7 +269,7 @@ func (r *UsageCounterRepository) IncrementAtomic(ctx context.Context, counterID 
 		return nil
 	}
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
@@ -458,7 +458,7 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -698,7 +698,7 @@ func (r *UsageCounterRepository) DeleteExpiredCounters(ctx context.Context, now 
 		}
 
 		// Get a fresh connection for each batch to avoid holding transactions across iterations
-		db, err := r.conn.GetDB()
+		db, err := r.conn.GetDB(ctx)
 		if err != nil {
 			libOtel.HandleSpanError(span, "Failed to get database connection", err)
 			return totalDeleted, fmt.Errorf("failed to get database connection: %w", err)

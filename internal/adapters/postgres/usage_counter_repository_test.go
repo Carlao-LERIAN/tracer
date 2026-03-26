@@ -38,7 +38,7 @@ func setupUsageCounterRepositoryMockDB(t *testing.T) (*UsageCounterRepository, *
 	require.NoError(t, err)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(db, nil).AnyTimes()
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(db, nil).AnyTimes()
 
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
@@ -61,7 +61,7 @@ func setupUsageCounterRepositoryCallerDB(t *testing.T) (*UsageCounterRepository,
 	require.NoError(t, err)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Times(0)
+	mockConn.EXPECT().GetDB(gomock.Any()).Times(0)
 
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
@@ -129,7 +129,7 @@ func TestUsageCounterRepository_GetOrCreateForUpdate_ConnectionError(t *testing.
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
@@ -313,7 +313,7 @@ func TestUsageCounterRepository_IncrementAtomic_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
@@ -414,7 +414,7 @@ func TestUsageCounterRepository_GetByLimitID_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 

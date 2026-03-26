@@ -118,7 +118,7 @@ func (r *TransactionValidationRepository) Insert(ctx context.Context, validation
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 
@@ -267,7 +267,7 @@ func (r *TransactionValidationRepository) GetByID(ctx context.Context, id uuid.U
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 
@@ -324,7 +324,7 @@ func (r *TransactionValidationRepository) FindByRequestID(ctx context.Context, r
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 
@@ -408,7 +408,7 @@ func (r *TransactionValidationRepository) List(ctx context.Context, filters *mod
 		return nil, err
 	}
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -544,7 +544,7 @@ func (r *TransactionValidationRepository) Count(ctx context.Context, filters *mo
 		return 0, fmt.Errorf("%w: %w", constant.ErrInvalidTransactionValidationFilters, err)
 	}
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 

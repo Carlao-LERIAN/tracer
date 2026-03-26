@@ -39,7 +39,7 @@ func setupLimitRepositoryMockDB(t *testing.T) (*LimitRepository, sqlmock.Sqlmock
 	require.NoError(t, err)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(db, nil).AnyTimes()
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(db, nil).AnyTimes()
 
 	repo := NewLimitRepositoryWithConnection(mockConn)
 
@@ -137,7 +137,7 @@ func TestLimitRepository_Create_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewLimitRepositoryWithConnection(mockConn)
 
@@ -274,7 +274,7 @@ func TestLimitRepository_GetByID_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewLimitRepositoryWithConnection(mockConn)
 
@@ -371,7 +371,7 @@ func TestLimitRepository_List_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewLimitRepositoryWithConnection(mockConn)
 
@@ -502,7 +502,7 @@ func TestLimitRepository_Update_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewLimitRepositoryWithConnection(mockConn)
 
@@ -614,7 +614,7 @@ func TestLimitRepository_UpdateStatus_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewLimitRepositoryWithConnection(mockConn)
 

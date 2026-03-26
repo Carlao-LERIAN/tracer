@@ -27,15 +27,6 @@ import (
 	pkgHTTP "tracer/pkg/net/http"
 )
 
-// postgresConnectionAdapter adapts *libPostgres.Client to pgdb.Connection.
-type postgresConnectionAdapter struct {
-	conn *libPostgres.Client
-}
-
-func (p *postgresConnectionAdapter) GetDB() (pgdb.DB, error) {
-	return p.conn.Resolver(context.Background())
-}
-
 const tableName = "rules"
 
 // mapRuleSortFieldToColumn converts a camelCase sort field to its snake_case database column name.
@@ -64,7 +55,7 @@ type Repository struct {
 // NewRepository creates a new PostgreSQL rule repository.
 func NewRepository(conn *libPostgres.Client) *Repository {
 	return &Repository{
-		conn: &postgresConnectionAdapter{conn: conn},
+		conn: pgdb.NewPostgresConnectionAdapter(conn),
 	}
 }
 
@@ -85,7 +76,7 @@ func (r *Repository) Create(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -138,7 +129,7 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*model.Rule, er
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -185,7 +176,7 @@ func (r *Repository) GetByName(ctx context.Context, name string) (*model.Rule, e
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -233,7 +224,7 @@ func (r *Repository) ListByStatus(ctx context.Context, status *model.RuleStatus)
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -316,7 +307,7 @@ func (r *Repository) Update(ctx context.Context, rule *model.Rule) (*model.Rule,
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -387,7 +378,7 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
@@ -445,7 +436,7 @@ func (r *Repository) List(ctx context.Context, filter *model.ListRulesFilter) (*
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -717,7 +708,7 @@ func (r *Repository) ListActiveByScopes(ctx context.Context, scopes []model.Scop
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -896,7 +887,7 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status mode
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)

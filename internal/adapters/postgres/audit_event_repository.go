@@ -71,7 +71,7 @@ func (r *AuditEventRepository) Insert(ctx context.Context, event *model.AuditEve
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
@@ -196,7 +196,7 @@ func (r *AuditEventRepository) GetByID(ctx context.Context, eventID uuid.UUID) (
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -252,7 +252,7 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 		return nil, fmt.Errorf("%w: %w", constant.ErrInvalidAuditEventFilters, err)
 	}
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -348,7 +348,7 @@ func (r *AuditEventRepository) VerifyHashChain(ctx context.Context, eventID uuid
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)

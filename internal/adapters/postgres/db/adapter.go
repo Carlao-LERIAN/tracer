@@ -33,15 +33,16 @@ func NewPostgresConnectionAdapter(conn *libPostgres.Client) *PostgresConnectionA
 	return &PostgresConnectionAdapter{conn: conn}
 }
 
-// GetDB returns the underlying database connection.
+// GetDB returns the underlying database connection using the provided context.
+// The context is propagated to the connection resolver, enabling deadline,
+// cancellation, and trace correlation through the connection lifecycle.
 // Returns ErrNilConnection if the adapter was created with a nil connection.
-// Uses context.Background() because the Connection interface does not carry a context.
-func (p *PostgresConnectionAdapter) GetDB() (DB, error) {
+func (p *PostgresConnectionAdapter) GetDB(ctx context.Context) (DB, error) {
 	if p == nil || p.conn == nil {
 		return nil, ErrNilConnection
 	}
 
-	return p.conn.Resolver(context.Background())
+	return p.conn.Resolver(ctx)
 }
 
 // TxBeginnerAdapter adapts dbresolver.DB to our TxBeginner interface.

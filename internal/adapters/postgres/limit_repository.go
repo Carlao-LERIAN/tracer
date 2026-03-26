@@ -80,7 +80,7 @@ func (r *LimitRepository) Create(ctx context.Context, lmt *model.Limit) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
@@ -134,7 +134,7 @@ func (r *LimitRepository) GetByID(ctx context.Context, limitID uuid.UUID) (*mode
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -195,7 +195,7 @@ func (r *LimitRepository) List(ctx context.Context, filters *model.ListLimitsFil
 		sortBy = model.DefaultLimitSortField
 	}
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
@@ -312,7 +312,7 @@ func (r *LimitRepository) Update(ctx context.Context, lmt *model.Limit) error {
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)
@@ -388,7 +388,7 @@ func (r *LimitRepository) UpdateStatus(ctx context.Context, limitID uuid.UUID, s
 
 	logger = logging.WithTrace(ctx, logger)
 
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get database connection", err)
 		return fmt.Errorf("failed to get database connection: %w", err)

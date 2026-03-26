@@ -46,7 +46,7 @@ func NewRuleSyncRepositoryWithConnection(conn pgdb.Connection) *RuleSyncReposito
 
 // GetAllActiveRules retrieves all rules with status=ACTIVE.
 func (r *RuleSyncRepository) GetAllActiveRules(ctx context.Context) ([]*model.Rule, error) {
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
@@ -75,7 +75,7 @@ func (r *RuleSyncRepository) GetAllActiveRules(ctx context.Context) ([]*model.Ru
 // GetRulesUpdatedSince retrieves all rules updated at or after the given timestamp.
 // Returns ALL statuses to detect deactivations/deletions.
 func (r *RuleSyncRepository) GetRulesUpdatedSince(ctx context.Context, since time.Time) ([]*model.Rule, error) {
-	db, err := r.conn.GetDB()
+	db, err := r.conn.GetDB(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}

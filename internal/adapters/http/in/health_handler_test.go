@@ -132,7 +132,7 @@ func TestReadinessHandler_WithMockDB(t *testing.T) {
 			provider := NewMockPostgresDBProvider(ctrl)
 			provider.EXPECT().IsConnected().Return(tt.connected)
 			if tt.connected {
-				provider.EXPECT().GetDB().Return(db, nil)
+				provider.EXPECT().GetDB(gomock.Any()).Return(db, nil)
 			}
 
 			hc := NewTestableHealthChecker(provider)
@@ -168,7 +168,7 @@ func TestReadinessHandler_GetDBError(t *testing.T) {
 
 		provider := NewMockPostgresDBProvider(ctrl)
 		provider.EXPECT().IsConnected().Return(true)
-		provider.EXPECT().GetDB().Return(nil, errors.New("failed to get database connection"))
+		provider.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("failed to get database connection"))
 
 		hc := NewTestableHealthChecker(provider)
 		app := createTestFiberApp(hc)
@@ -240,7 +240,7 @@ func TestReadinessHandler_ConcurrentRequests(t *testing.T) {
 		// Use AnyTimes() for concurrent calls
 		provider := NewMockPostgresDBProvider(ctrl)
 		provider.EXPECT().IsConnected().Return(true).AnyTimes()
-		provider.EXPECT().GetDB().Return(db, nil).AnyTimes()
+		provider.EXPECT().GetDB(gomock.Any()).Return(db, nil).AnyTimes()
 
 		hc := NewTestableHealthChecker(provider)
 		app := createTestFiberApp(hc)
@@ -301,7 +301,7 @@ func TestReadinessHandler_Timeout(t *testing.T) {
 
 		provider := NewMockPostgresDBProvider(ctrl)
 		provider.EXPECT().IsConnected().Return(true)
-		provider.EXPECT().GetDB().Return(db, nil)
+		provider.EXPECT().GetDB(gomock.Any()).Return(db, nil)
 
 		// Create a health checker with a very short timeout
 		hc := &HealthChecker{
@@ -358,7 +358,7 @@ func TestReadiness_CacheNotReady_ReturnsDegraded(t *testing.T) {
 
 	provider := NewMockPostgresDBProvider(ctrl)
 	provider.EXPECT().IsConnected().Return(true)
-	provider.EXPECT().GetDB().Return(db, nil)
+	provider.EXPECT().GetDB(gomock.Any()).Return(db, nil)
 
 	hc := NewTestableHealthChecker(provider)
 	mockCache := &mockCacheHealth{ready: false, staleness: time.Duration(math.MaxInt64), size: 0}
@@ -400,7 +400,7 @@ func TestReadiness_CacheReady_ReturnsUp(t *testing.T) {
 
 	provider := NewMockPostgresDBProvider(ctrl)
 	provider.EXPECT().IsConnected().Return(true)
-	provider.EXPECT().GetDB().Return(db, nil)
+	provider.EXPECT().GetDB(gomock.Any()).Return(db, nil)
 
 	hc := NewTestableHealthChecker(provider)
 	mockCache := &mockCacheHealth{ready: true, staleness: 5 * time.Second, size: 10}
@@ -440,7 +440,7 @@ func TestReadiness_CacheStalenessExceeded_ReturnsDegraded(t *testing.T) {
 
 	provider := NewMockPostgresDBProvider(ctrl)
 	provider.EXPECT().IsConnected().Return(true)
-	provider.EXPECT().GetDB().Return(db, nil)
+	provider.EXPECT().GetDB(gomock.Any()).Return(db, nil)
 
 	hc := NewTestableHealthChecker(provider)
 	// Cache is ready but staleness exceeds threshold

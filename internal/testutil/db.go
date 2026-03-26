@@ -5,6 +5,7 @@
 package testutil
 
 import (
+	"context"
 	"database/sql"
 	"net/url"
 	"os"
@@ -92,6 +93,6 @@ type IntegrationDBAdapter struct {
 }
 
 // GetDB returns the underlying *sql.DB which implements pgdb.DB interface.
-func (a *IntegrationDBAdapter) GetDB() (pgdb.DB, error) {
+func (a *IntegrationDBAdapter) GetDB(_ context.Context) (pgdb.DB, error) {
 	return a.DB, nil
 }

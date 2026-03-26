@@ -40,5 +40,8 @@ type TxBeginner interface {
 // This allows for easy mocking in tests while maintaining compatibility
 // with *libPostgres.Client in production.
 type Connection interface {
-	GetDB() (DB, error)
+	// GetDB returns the underlying database connection using the provided context.
+	// The context is propagated to the connection resolver, enabling deadline,
+	// cancellation, and trace correlation through the connection lifecycle.
+	GetDB(ctx context.Context) (DB, error)
 }

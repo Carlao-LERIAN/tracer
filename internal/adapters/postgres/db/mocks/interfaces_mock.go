@@ -276,16 +276,16 @@ func (m *MockConnection) EXPECT() *MockConnectionMockRecorder {
 }
 
 // GetDB mocks base method.
-func (m *MockConnection) GetDB() (db.DB, error) {
+func (m *MockConnection) GetDB(ctx context.Context) (db.DB, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDB")
+	ret := m.ctrl.Call(m, "GetDB", ctx)
 	ret0, _ := ret[0].(db.DB)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDB indicates an expected call of GetDB.
-func (mr *MockConnectionMockRecorder) GetDB() *gomock.Call {
+func (mr *MockConnectionMockRecorder) GetDB(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDB", reflect.TypeOf((*MockConnection)(nil).GetDB))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDB", reflect.TypeOf((*MockConnection)(nil).GetDB), ctx)
 }

@@ -10,6 +10,7 @@
 package in
 
 import (
+	context "context"
 	sql "database/sql"
 	reflect "reflect"
 	time "time"
@@ -108,18 +109,18 @@ func (m *MockPostgresDBProvider) EXPECT() *MockPostgresDBProviderMockRecorder {
 }
 
 // GetDB mocks base method.
-func (m *MockPostgresDBProvider) GetDB() (*sql.DB, error) {
+func (m *MockPostgresDBProvider) GetDB(ctx context.Context) (*sql.DB, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDB")
+	ret := m.ctrl.Call(m, "GetDB", ctx)
 	ret0, _ := ret[0].(*sql.DB)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDB indicates an expected call of GetDB.
-func (mr *MockPostgresDBProviderMockRecorder) GetDB() *gomock.Call {
+func (mr *MockPostgresDBProviderMockRecorder) GetDB(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDB", reflect.TypeOf((*MockPostgresDBProvider)(nil).GetDB))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDB", reflect.TypeOf((*MockPostgresDBProvider)(nil).GetDB), ctx)
 }
 
 // IsConnected mocks base method.

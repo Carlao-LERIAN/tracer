@@ -37,7 +37,7 @@ func setupMockDB(t *testing.T) (*Repository, sqlmock.Sqlmock, func()) {
 	require.NoError(t, err)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(db, nil).AnyTimes()
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(db, nil).AnyTimes()
 
 	repo := NewRepositoryWithConnection(mockConn)
 
@@ -127,7 +127,7 @@ func TestRepository_Create_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewRepositoryWithConnection(mockConn)
 

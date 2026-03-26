@@ -66,7 +66,7 @@ type RuleCacheHealthProvider interface {
 // PostgresDBProvider abstracts PostgreSQL database access for testability.
 // This interface allows mocking the database connection in tests.
 type PostgresDBProvider interface {
-	GetDB() (*sql.DB, error)
+	GetDB(ctx context.Context) (*sql.DB, error)
 	IsConnected() bool
 }
 
@@ -77,8 +77,8 @@ type postgresConnectionAdapter struct {
 
 // GetDB returns the underlying database connection.
 // The dbresolver.DB returned by lib-commons wraps *sql.DB, so we type assert it.
-func (p *postgresConnectionAdapter) GetDB() (*sql.DB, error) {
-	db, err := p.conn.Resolver(context.Background())
+func (p *postgresConnectionAdapter) GetDB(ctx context.Context) (*sql.DB, error) {
+	db, err := p.conn.Resolver(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (h *HealthChecker) checkPostgres(ctx context.Context) api.HealthCheck {
 		return status
 	}
 
-	db, err := h.dbProvider.GetDB()
+	db, err := h.dbProvider.GetDB(ctx)
 	if err != nil {
 		status.Status = StatusFailed
 		status.Message = ErrConnectionFailed.Error()

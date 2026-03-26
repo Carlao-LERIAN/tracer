@@ -35,7 +35,7 @@ func setupAuditEventRepositoryMockDB(t *testing.T) (*AuditEventRepository, sqlmo
 	require.NoError(t, err)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(db, nil).AnyTimes()
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(db, nil).AnyTimes()
 
 	repo := NewAuditEventRepositoryWithConnection(mockConn)
 
@@ -157,7 +157,7 @@ func TestAuditEventRepository_Insert_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewAuditEventRepositoryWithConnection(mockConn)
 
@@ -397,7 +397,7 @@ func TestAuditEventRepository_GetByID_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewAuditEventRepositoryWithConnection(mockConn)
 
@@ -491,7 +491,7 @@ func TestAuditEventRepository_List_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewAuditEventRepositoryWithConnection(mockConn)
 
@@ -856,7 +856,7 @@ func TestAuditEventRepository_VerifyHashChain_ConnectionError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	mockConn := mocks.NewMockConnection(ctrl)
-	mockConn.EXPECT().GetDB().Return(nil, errors.New("connection refused"))
+	mockConn.EXPECT().GetDB(gomock.Any()).Return(nil, errors.New("connection refused"))
 
 	repo := NewAuditEventRepositoryWithConnection(mockConn)
 
