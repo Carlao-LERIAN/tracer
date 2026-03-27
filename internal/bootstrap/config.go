@@ -508,10 +508,6 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Cli
 			return nil, fmt.Errorf("failed to open migration database connection: %w", err)
 		}
 
-		// Limit pool to 1 connection to prevent exhaustion on repeated restarts
-		// (e.g., integration tests with RestartServerWithConfig).
-		migrateDB.SetMaxOpenConns(1)
-		migrateDB.SetMaxIdleConns(1)
 
 		driver, err := migratePostgres.WithInstance(migrateDB, &migratePostgres.Config{
 			MultiStatementEnabled: false,
