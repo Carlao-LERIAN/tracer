@@ -25,11 +25,11 @@ on:
 jobs:
   go-analysis:
     name: Go Analysis
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.18.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.21.0
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       app_name_prefix: "tracer"
-      go_version: "1.25.x"
+      go_version: "1.25.7"
       golangci_lint_version: "v2.7.2"
       golangci_lint_args: "--timeout=5m"
       coverage_threshold: 85
