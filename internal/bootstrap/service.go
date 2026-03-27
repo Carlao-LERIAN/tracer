@@ -9,6 +9,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 
 	"tracer/internal/services/workers"
 )
@@ -17,6 +18,7 @@ import (
 type Service struct {
 	*HTTPServer
 	libLog.Logger
+	postgresConn  *libPostgres.Client
 	cleanupWorker *workers.UsageCleanupWorker
 	syncWorker    *workers.RuleSyncWorker
 }
@@ -71,6 +73,17 @@ func (app *Service) Shutdown(ctx context.Context) error {
 		logger.With(
 			libLog.String("service.name", "Rule Sync Worker"),
 		).Log(ctx, libLog.LevelInfo, "rule sync worker shutdown is managed by Launcher via OS signals")
+	}
+
+	// Close the PostgreSQL connection pool to release database connections.
+	// This is critical for repeated restarts (e.g., integration tests with
+	// RestartServerWithConfig) to avoid exhausting the database's max_connections.
+	if app.postgresConn != nil {
+		if err := app.postgresConn.Close(); err != nil {
+			logger.With(
+				libLog.String("error.message", err.Error()),
+			).Log(ctx, libLog.LevelWarn, "Failed to close PostgreSQL connection pool")
+		}
 	}
 
 	return nil

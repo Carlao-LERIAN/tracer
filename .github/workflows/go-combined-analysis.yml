@@ -29,7 +29,7 @@ jobs:
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       app_name_prefix: "tracer"
-      go_version: "1.25"
+      go_version: "1.25.x"
       golangci_lint_version: "v2.7.2"
       golangci_lint_args: "--timeout=5m"
       coverage_threshold: 85

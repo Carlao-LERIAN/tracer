@@ -508,6 +508,11 @@ func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Cli
 			return nil, fmt.Errorf("failed to open migration database connection: %w", err)
 		}
 
+		// Limit pool to 1 connection to prevent exhaustion on repeated restarts
+		// (e.g., integration tests with RestartServerWithConfig).
+		migrateDB.SetMaxOpenConns(1)
+		migrateDB.SetMaxIdleConns(1)
+
 		driver, err := migratePostgres.WithInstance(migrateDB, &migratePostgres.Config{
 			MultiStatementEnabled: false,
 		})
@@ -776,6 +781,7 @@ func initWorkers(
 	limitDeps *limitServiceDeps,
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
+	postgresConn *libPostgres.Client,
 	logger libLog.Logger,
 	clk clock.Clock,
 ) (*Service, error) {
@@ -787,6 +793,7 @@ func initWorkers(
 	return &Service{
 		HTTPServer:    serverAPI,
 		Logger:        logger,
+		postgresConn:  postgresConn,
 		cleanupWorker: cleanupWorker,
 		syncWorker:    syncWorker,
 	}, nil
@@ -1041,7 +1048,7 @@ func InitServers() (*Service, error) {
 	}
 
 	// Init background workers
-	svc, err := initWorkers(cfg, limitDeps, syncWorker, serverAPI, logger, clk)
+	svc, err := initWorkers(cfg, limitDeps, syncWorker, serverAPI, postgresConn, logger, clk)
 	if err != nil {
 		return nil, err
 	}
